@@ -1,0 +1,10 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "tsconfig": "tsconfig.json",
+  "readme": "README.md",
+  "name": "Medal Social SDK",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeExternals": false
+}
