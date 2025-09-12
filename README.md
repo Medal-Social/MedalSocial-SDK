@@ -35,7 +35,7 @@ await client.createNote({
   name: 'Test Testnes',
   email: 'test@medalsocial.com',
   company: 'Medal Social Test company',
-  phone: '+47 99887766',
+  phone: '+47 12345678',
   content: 'Hei jeg skal gjerne sende to konteinere til USA.',
   metadata: { Budsjett: '$100,000' },
 });
