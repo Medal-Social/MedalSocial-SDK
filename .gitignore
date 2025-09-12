@@ -1,0 +1,12 @@
+node_modules
+dist
+.coverage
+coverage
+docs
+.DS_Store
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+
+.qodo

@@ -1,0 +1,13 @@
+{
+  "name": "medalsocial-example-basic",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@medalsocial/sdk": "workspace:*",
+    "dotenv": "^16.4.5"
+  }
+}
