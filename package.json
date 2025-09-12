@@ -1,6 +1,6 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript client for Medal Social API (create leads, notes, cookie consents, event signups)",
   "license": "MIT",
   "author": "Medal Social / Ali Aljumaili",
@@ -42,8 +42,17 @@
   "publishConfig": {
     "access": "public"
   },
-  "files": ["dist"],
-  "keywords": ["medal", "social", "sdk", "api", "typescript", "client"],
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "medal",
+    "social",
+    "sdk",
+    "api",
+    "typescript",
+    "client"
+  ],
   "devDependencies": {
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
