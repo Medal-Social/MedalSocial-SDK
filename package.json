@@ -1,7 +1,7 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "0.1.0",
-  "description": "TypeScript client for Medal Social API (create leads, notes, cookie consents, event signups)",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for Medal Social API — emails, contacts, deals, and GDPR compliance",
   "license": "MIT",
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
@@ -43,7 +43,19 @@
     "access": "public"
   },
   "files": ["dist"],
-  "keywords": ["medal", "social", "sdk", "api", "typescript", "client"],
+  "keywords": [
+    "medal",
+    "social",
+    "sdk",
+    "api",
+    "typescript",
+    "client",
+    "crm",
+    "email",
+    "gdpr",
+    "contacts",
+    "deals"
+  ],
   "devDependencies": {
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
