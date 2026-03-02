@@ -121,7 +121,7 @@ const { data: status } = await medal.emails.get(sent.id);
 console.log(status.status); // 'queued' | 'sent' | 'delivered' | 'opened' | 'clicked'
 
 // Batch send (max 100 recipients)
-await medal.emails.batch({
+const { data: batch } = await medal.emails.batch({
   template_slug: 'newsletter',
   default_locale: 'en',
   recipients: [
@@ -129,6 +129,7 @@ await medal.emails.batch({
     { email: 'b@test.com', name: 'Bob' },
   ],
 });
+console.log(batch.batch_id, batch.total, batch.queued, batch.failed);
 
 // Templates
 const { data: templates } = await medal.emails.templates.list();

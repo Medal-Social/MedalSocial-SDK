@@ -213,10 +213,12 @@ describe("emails", () => {
       const body = JSON.parse(init?.body as string);
       expect(body.recipients).toHaveLength(2);
       return mockJson({
-        data: [
-          { email: "a@test.com", id: "es_1", status: "queued" },
-          { email: "b@test.com", id: "es_2", status: "queued" },
-        ],
+        data: {
+          batch_id: "batch_1",
+          total: 2,
+          queued: 2,
+          failed: 0,
+        },
       });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
@@ -227,7 +229,10 @@ describe("emails", () => {
         { email: "b@test.com", name: "Bob" },
       ],
     });
-    expect(data).toHaveLength(2);
+    expect(data.batch_id).toBe("batch_1");
+    expect(data.total).toBe(2);
+    expect(data.queued).toBe(2);
+    expect(data.failed).toBe(0);
   });
 
   it("lists templates", async () => {

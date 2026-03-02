@@ -2,7 +2,7 @@ import type { BaseClient } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
   BatchSendInput,
-  BatchSendResult,
+  BatchSendSummary,
   EmailSend,
   EmailSendResult,
   EmailTemplate,
@@ -46,7 +46,7 @@ export class Emails {
   }
 
   /** Send the same template to multiple recipients (max 100). Returns HTTP 202. */
-  async batch(input: BatchSendInput): Promise<ApiResponse<BatchSendResult[]>> {
+  async batch(input: BatchSendInput): Promise<ApiResponse<BatchSendSummary>> {
     return this.client.post("/api/v1/emails/batch", input);
   }
 }

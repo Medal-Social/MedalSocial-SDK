@@ -105,6 +105,7 @@ export type {
   EmailSendResult,
   EmailSend,
   BatchSendInput,
+  BatchSendSummary,
   BatchSendResult,
   EmailTemplate,
   EmailTemplateDetail,

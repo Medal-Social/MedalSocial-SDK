@@ -40,11 +40,15 @@ export interface BatchSendInput {
   }[];
 }
 
-export interface BatchSendResult {
-  email: string;
-  id: string;
-  status: string;
+export interface BatchSendSummary {
+  batch_id: string;
+  total: number;
+  queued: number;
+  failed: number;
 }
+
+/** @deprecated Use `BatchSendSummary` for `emails.batch()` responses. */
+export type BatchSendResult = BatchSendSummary;
 
 export interface EmailTemplate {
   id: string;
