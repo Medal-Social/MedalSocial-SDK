@@ -19,6 +19,18 @@ export interface Deal {
   updated_at: string | null;
 }
 
+export interface DealCreateResult {
+  id: string;
+}
+
+export interface DealUpdateResult {
+  success: true;
+}
+
+export interface DealRemoveResult {
+  success: true;
+}
+
 export type DealStatus =
   | "draft"
   | "open"

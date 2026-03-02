@@ -208,7 +208,7 @@ describe.skipIf(!token)("integration: live API", () => {
       if (!createdId) return;
       try {
         const res = await medal.deals.update(createdId, { status: "won" });
-        expect(res.data).toBeDefined();
+        expect(res.data.success).toBe(true);
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {
           console.warn("deals.update returned 500 (known backend issue)");
@@ -221,7 +221,7 @@ describe.skipIf(!token)("integration: live API", () => {
     it("deletes the deal", async () => {
       if (!createdId) return;
       const res = await medal.deals.remove(createdId);
-      expect(res.data).toBeDefined();
+      expect(res.data.success).toBe(true);
     });
   });
 

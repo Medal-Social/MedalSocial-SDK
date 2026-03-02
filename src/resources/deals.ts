@@ -3,6 +3,9 @@ import type { ApiResponse, PaginatedResponse } from "../types/common";
 import type {
   CreateDealInput,
   Deal,
+  DealCreateResult,
+  DealRemoveResult,
+  DealUpdateResult,
   ListDealsOptions,
   UpdateDealInput,
 } from "../types/deals";
@@ -21,7 +24,7 @@ export class Deals {
   }
 
   /** Create a new deal. */
-  async create(input: CreateDealInput): Promise<ApiResponse<Deal>> {
+  async create(input: CreateDealInput): Promise<ApiResponse<DealCreateResult>> {
     return this.client.post("/api/v1/deals", input);
   }
 
@@ -31,12 +34,12 @@ export class Deals {
   }
 
   /** Update one or more fields on a deal. Set contact_id to null to unlink. */
-  async update(id: string, input: UpdateDealInput): Promise<ApiResponse<Deal>> {
+  async update(id: string, input: UpdateDealInput): Promise<ApiResponse<DealUpdateResult>> {
     return this.client.patch(`/api/v1/deals/${encodeURIComponent(id)}`, input);
   }
 
   /** Permanently delete a deal. */
-  async remove(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+  async remove(id: string): Promise<ApiResponse<DealRemoveResult>> {
     return this.client.delete(`/api/v1/deals/${encodeURIComponent(id)}`);
   }
 }

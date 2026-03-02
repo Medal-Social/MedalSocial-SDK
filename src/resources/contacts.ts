@@ -4,6 +4,10 @@ import type {
   Activity,
   AddNoteInput,
   Contact,
+  ContactCreateResult,
+  ContactNoteResult,
+  ContactRemoveResult,
+  ContactUpdateResult,
   CreateContactInput,
   ImportContactInput,
   ImportContactsResult,
@@ -27,7 +31,7 @@ export class Contacts {
   }
 
   /** Create a new contact. Email must be unique in the workspace. */
-  async create(input: CreateContactInput): Promise<ApiResponse<Contact>> {
+  async create(input: CreateContactInput): Promise<ApiResponse<ContactCreateResult>> {
     return this.client.post("/api/v1/contacts", input);
   }
 
@@ -37,20 +41,17 @@ export class Contacts {
   }
 
   /** Update one or more fields on a contact. */
-  async update(id: string, input: UpdateContactInput): Promise<ApiResponse<Contact>> {
+  async update(id: string, input: UpdateContactInput): Promise<ApiResponse<ContactUpdateResult>> {
     return this.client.patch(`/api/v1/contacts/${encodeURIComponent(id)}`, input);
   }
 
   /** Permanently delete a contact. */
-  async remove(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+  async remove(id: string): Promise<ApiResponse<ContactRemoveResult>> {
     return this.client.delete(`/api/v1/contacts/${encodeURIComponent(id)}`);
   }
 
   /** Get the activity timeline for a contact. */
-  async activities(
-    id: string,
-    options?: PaginationOptions,
-  ): Promise<PaginatedResponse<Activity>> {
+  async activities(id: string, options?: PaginationOptions): Promise<PaginatedResponse<Activity>> {
     const params: Record<string, string | undefined> = {};
     if (options?.limit !== undefined) params.limit = String(options.limit);
     if (options?.cursor) params.cursor = options.cursor;
@@ -58,10 +59,7 @@ export class Contacts {
   }
 
   /** Add a note to a contact's timeline. */
-  async addNote(
-    id: string,
-    input: AddNoteInput,
-  ): Promise<ApiResponse<{ activity_id: string }>> {
+  async addNote(id: string, input: AddNoteInput): Promise<ApiResponse<ContactNoteResult>> {
     return this.client.post(`/api/v1/contacts/${encodeURIComponent(id)}/notes`, input);
   }
 

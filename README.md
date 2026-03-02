@@ -32,11 +32,12 @@ await medal.emails.send({
 });
 
 // Manage contacts
-const { data: contact } = await medal.contacts.create({
+const { data: contactRef } = await medal.contacts.create({
   email: 'john@example.com',
   first_name: 'John',
   status: 'lead',
 });
+const { data: contact } = await medal.contacts.get(contactRef.id);
 ```
 
 ## Authentication
@@ -141,7 +142,7 @@ const { data: template } = await medal.emails.templates.get('welcome', {
 
 ```ts
 // CRUD
-const { data: contact } = await medal.contacts.create({
+const { data: created } = await medal.contacts.create({
   email: 'john@example.com',
   first_name: 'John',
   last_name: 'Doe',
@@ -152,9 +153,10 @@ const { data: contact } = await medal.contacts.create({
   custom_fields: { source: 'website' },
 });
 
-const { data } = await medal.contacts.get('contact_id');
-await medal.contacts.update('contact_id', { status: 'customer' });
-await medal.contacts.remove('contact_id');
+const { data: contact } = await medal.contacts.get(created.id);
+const { data: updated } = await medal.contacts.update(created.id, { status: 'customer' });
+const { data: removed } = await medal.contacts.remove(created.id);
+console.log(updated.success, removed.success);
 
 // List with filters
 const contacts = await medal.contacts.list({
@@ -169,20 +171,21 @@ const contacts = await medal.contacts.list({
 const activities = await medal.contacts.activities('contact_id', { limit: 20 });
 
 // Add a note
-await medal.contacts.addNote('contact_id', { content: 'Follow up next week' });
+const { data: note } = await medal.contacts.addNote('contact_id', { content: 'Follow up next week' });
+console.log(note.id);
 
 // Bulk import (max 500)
 const { data: result } = await medal.contacts.import([
   { email: 'a@test.com', first_name: 'Alice' },
   { email: 'b@test.com', first_name: 'Bob' },
 ]);
-console.log(result.imported, result.skipped);
+console.log(result.added, result.skipped);
 ```
 
 ### Deals
 
 ```ts
-const { data: deal } = await medal.deals.create({
+const { data: created } = await medal.deals.create({
   title: 'Enterprise Partnership',
   value: 50000,
   currency: 'USD',
@@ -190,12 +193,14 @@ const { data: deal } = await medal.deals.create({
   contact_id: 'c_123',
   notes: 'Initial outreach',
 });
+const { data: deal } = await medal.deals.get(created.id);
 
-await medal.deals.update(deal.id, { status: 'won' });
-await medal.deals.update(deal.id, { contact_id: null }); // unlink contact
+const { data: updated } = await medal.deals.update(deal.id, { status: 'won' });
+const { data: unlinked } = await medal.deals.update(deal.id, { contact_id: null }); // unlink contact
 
 const deals = await medal.deals.list({ status: 'open', search: 'Acme' });
-await medal.deals.remove(deal.id);
+const { data: removed } = await medal.deals.remove(deal.id);
+console.log(updated.success, unlinked.success, removed.success);
 ```
 
 ### GDPR

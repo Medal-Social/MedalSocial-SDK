@@ -112,6 +112,10 @@ export type {
 } from "./types/emails";
 export type {
   Contact,
+  ContactCreateResult,
+  ContactUpdateResult,
+  ContactRemoveResult,
+  ContactNoteResult,
   ContactStatus,
   EmailStatus,
   CreateContactInput,
@@ -124,6 +128,9 @@ export type {
 } from "./types/contacts";
 export type {
   Deal,
+  DealCreateResult,
+  DealUpdateResult,
+  DealRemoveResult,
   DealStatus,
   CreateDealInput,
   UpdateDealInput,

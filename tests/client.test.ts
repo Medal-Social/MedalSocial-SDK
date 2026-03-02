@@ -111,9 +111,7 @@ describe("retries", () => {
 
   it("retries on 429 then succeeds", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValueOnce(
-      new Response("", { status: 429, headers: { "retry-after": "0" } }),
-    );
+    spy.mockResolvedValueOnce(new Response("", { status: 429, headers: { "retry-after": "0" } }));
     spy.mockResolvedValueOnce(mockJson({ data: [] }));
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     const result = await medal.contacts.list();
@@ -141,9 +139,7 @@ describe("retries", () => {
 
   it("throws after exhausting all retry attempts on persistent 429", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValue(
-      new Response("", { status: 429, headers: { "retry-after": "0" } }),
-    );
+    spy.mockResolvedValue(new Response("", { status: 429, headers: { "retry-after": "0" } }));
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
     expect(spy).toHaveBeenCalledTimes(3);
@@ -247,7 +243,9 @@ describe("emails", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);
       expect(parsed.searchParams.get("locale")).toBe("ar");
-      return mockJson({ data: { id: "t1", name: "Welcome", slug: "welcome", resolved_locale: "ar" } });
+      return mockJson({
+        data: { id: "t1", name: "Welcome", slug: "welcome", resolved_locale: "ar" },
+      });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.emails.templates.get("welcome", { locale: "ar" });
@@ -286,14 +284,14 @@ describe("contacts", () => {
       const body = JSON.parse(init?.body as string);
       expect(body.email).toBe("john@example.com");
       expect(body.first_name).toBe("John");
-      return mockJson({ data: { id: "c1", email: "john@example.com", first_name: "John" } });
+      return mockJson({ data: { id: "c1" } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.contacts.create({
       email: "john@example.com",
       first_name: "John",
     });
-    expect(data.email).toBe("john@example.com");
+    expect(data.id).toBe("c1");
   });
 
   it("gets a contact by ID", async () => {
@@ -310,21 +308,21 @@ describe("contacts", () => {
       expect(init?.method).toBe("PATCH");
       const body = JSON.parse(init?.body as string);
       expect(body.company).toBe("New Corp");
-      return mockJson({ data: { id: "c1", company: "New Corp" } });
+      return mockJson({ data: { success: true } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.contacts.update("c1", { company: "New Corp" });
-    expect(data.company).toBe("New Corp");
+    expect(data.success).toBe(true);
   });
 
   it("deletes a contact", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(init?.method).toBe("DELETE");
-      return mockJson({ data: { deleted: true } });
+      return mockJson({ data: { success: true } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.contacts.remove("c1");
-    expect(data.deleted).toBe(true);
+    expect(data.success).toBe(true);
   });
 
   it("gets contact activities", async () => {
@@ -343,25 +341,25 @@ describe("contacts", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       const body = JSON.parse(init?.body as string);
       expect(body.content).toBe("Follow up next week");
-      return mockJson({ data: { activity_id: "a1" } });
+      return mockJson({ data: { id: "a1" } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.contacts.addNote("c1", { content: "Follow up next week" });
-    expect(data.activity_id).toBe("a1");
+    expect(data.id).toBe("a1");
   });
 
   it("bulk imports contacts", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       const body = JSON.parse(init?.body as string);
       expect(body.contacts).toHaveLength(2);
-      return mockJson({ data: { imported: 2, skipped: 0, total: 2 } });
+      return mockJson({ data: { added: 2, skipped: 0, total: 2 } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.contacts.import([
       { email: "a@test.com", first_name: "Alice" },
       { email: "b@test.com", first_name: "Bob" },
     ]);
-    expect(data.imported).toBe(2);
+    expect(data.added).toBe(2);
   });
 
   it("passes label_ids as comma-separated string", async () => {
@@ -436,11 +434,11 @@ describe("deals", () => {
       const body = JSON.parse(init?.body as string);
       expect(body.title).toBe("Acme Deal");
       expect(body.value).toBe(50000);
-      return mockJson({ data: { id: "d1", title: "Acme Deal", value: 50000 } });
+      return mockJson({ data: { id: "d1" } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.deals.create({ title: "Acme Deal", value: 50000 });
-    expect(data.title).toBe("Acme Deal");
+    expect(data.id).toBe("d1");
   });
 
   it("gets a deal by ID", async () => {
@@ -455,21 +453,21 @@ describe("deals", () => {
   it("updates a deal", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(init?.method).toBe("PATCH");
-      return mockJson({ data: { id: "d1", status: "won" } });
+      return mockJson({ data: { success: true } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.deals.update("d1", { status: "won" });
-    expect(data.status).toBe("won");
+    expect(data.success).toBe(true);
   });
 
   it("deletes a deal", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(init?.method).toBe("DELETE");
-      return mockJson({ data: { deleted: true } });
+      return mockJson({ data: { success: true } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.deals.remove("d1");
-    expect(data.deleted).toBe(true);
+    expect(data.success).toBe(true);
   });
 });
 
@@ -616,9 +614,7 @@ describe("workspaces", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       expect(url).toContain("/api/v1/me/workspaces");
       return mockJson({
-        data: [
-          { id: "ws_1", name: "My Workspace", slug: "my-workspace" },
-        ],
+        data: [{ id: "ws_1", name: "My Workspace", slug: "my-workspace" }],
       });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
@@ -653,7 +649,11 @@ describe("gdpr", () => {
   it("gets export status", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockJson({
-        data: { id: "exp_1", status: "completed", download_url: "https://storage.example.com/file" },
+        data: {
+          id: "exp_1",
+          status: "completed",
+          download_url: "https://storage.example.com/file",
+        },
       }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });

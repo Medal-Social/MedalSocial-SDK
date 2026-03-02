@@ -18,6 +18,22 @@ export interface Contact {
   updated_at: string | null;
 }
 
+export interface ContactCreateResult {
+  id: string;
+}
+
+export interface ContactUpdateResult {
+  success: true;
+}
+
+export interface ContactRemoveResult {
+  success: true;
+}
+
+export interface ContactNoteResult {
+  id: string;
+}
+
 export type ContactStatus = "lead" | "prospect" | "customer" | "churned" | "archived";
 export type EmailStatus = "subscribed" | "unsubscribed" | "bounced" | "complained";
 
@@ -35,7 +51,12 @@ export interface CreateContactInput {
   /** Label names — auto-created if they don't exist in the workspace. */
   labels?: string[];
   custom_fields?: Record<string, unknown>;
-  notes?: string | { content: string; attachments?: { url: string; name: string; type?: string; size?: number }[] };
+  notes?:
+    | string
+    | {
+        content: string;
+        attachments?: { url: string; name: string; type?: string; size?: number }[];
+      };
 }
 
 export interface UpdateContactInput {
@@ -72,7 +93,7 @@ export interface ImportContactInput {
 }
 
 export interface ImportContactsResult {
-  imported: number;
+  added: number;
   skipped: number;
   total: number;
 }

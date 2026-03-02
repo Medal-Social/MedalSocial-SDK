@@ -8,13 +8,19 @@ async function main() {
   // === Workspaces ===
 
   const { data: workspaces } = await medal.workspaces.list();
-  console.log("Workspaces:", workspaces.map((w) => w.name));
+  console.log(
+    "Workspaces:",
+    workspaces.map((w) => w.name),
+  );
 
   // === Posts ===
 
   // List connected channels
   const { data: channels } = await medal.posts.channels();
-  console.log("Channels:", channels.map((c) => `${c.platform}: ${c.display_name}`));
+  console.log(
+    "Channels:",
+    channels.map((c) => `${c.platform}: ${c.display_name}`),
+  );
 
   // Create a post
   const { data: postResult } = await medal.posts.create({
@@ -50,7 +56,10 @@ async function main() {
 
   // List templates
   const { data: templates } = await medal.emails.templates.list();
-  console.log("Templates:", templates.map((t) => t.slug));
+  console.log(
+    "Templates:",
+    templates.map((t) => t.slug),
+  );
 
   // Get template with locale
   if (templates[0]) {
@@ -64,7 +73,7 @@ async function main() {
   // === Contacts ===
 
   // Create a contact
-  const { data: contact } = await medal.contacts.create({
+  const { data: contactRef } = await medal.contacts.create({
     email: "john@example.com",
     first_name: "John",
     last_name: "Doe",
@@ -72,7 +81,10 @@ async function main() {
     job_title: "CTO",
     status: "lead",
   });
-  console.log("Contact created:", contact.id);
+  console.log("Contact created:", contactRef.id);
+
+  const { data: contact } = await medal.contacts.get(contactRef.id);
+  console.log("Contact fetched:", contact.email);
 
   // List contacts with filters
   const contacts = await medal.contacts.list({
@@ -82,10 +94,10 @@ async function main() {
   console.log("Contacts:", contacts.data.length, "has_more:", contacts.pagination.has_more);
 
   // Add a note
-  const { data: note } = await medal.contacts.addNote(contact.id, {
+  const { data: note } = await medal.contacts.addNote(contactRef.id, {
     content: "Follow up next week about the proposal.",
   });
-  console.log("Note added:", note.activity_id);
+  console.log("Note added:", note.id);
 
   // === Deals ===
 
@@ -94,13 +106,13 @@ async function main() {
     title: "Acme Enterprise Partnership",
     value: 50000,
     currency: "USD",
-    contact_id: contact.id,
+    contact_id: contactRef.id,
   });
   console.log("Deal created:", deal.id);
 
   // Update deal status
   const { data: updated } = await medal.deals.update(deal.id, { status: "won" });
-  console.log("Deal updated:", updated.status);
+  console.log("Deal updated:", updated.success);
 
   // === GDPR ===
 
