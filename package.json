@@ -1,0 +1,67 @@
+{
+  "name": "@medalsocial/sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, and GDPR compliance",
+  "license": "MIT",
+  "author": "Medal Social / Ali Aljumaili",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Medal-Social/MedalSocial.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Medal-Social/MedalSocial/issues"
+  },
+  "homepage": "https://github.com/Medal-Social/MedalSocial#readme",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
+    "dev": "tsup src/index.ts --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs": "typedoc",
+    "lint": "biome check .",
+    "prepublishOnly": "pnpm test && pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["dist"],
+  "keywords": [
+    "medal",
+    "social",
+    "sdk",
+    "api",
+    "typescript",
+    "client",
+    "crm",
+    "email",
+    "gdpr",
+    "contacts",
+    "deals",
+    "posts",
+    "social-media"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "^1.8.3",
+    "@types/node": "^24.3.2",
+    "@vitest/coverage-v8": "^2.0.5",
+    "tsup": "^8.3.0",
+    "typedoc": "^0.26.6",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}
