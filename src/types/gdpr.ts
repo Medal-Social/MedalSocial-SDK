@@ -1,9 +1,12 @@
 export interface GdprExport {
   id: string;
-  status: "pending" | "in_progress" | "completed" | "failed";
-  requested_at: number;
-  completed_at: number | null;
-  download_url: string | null;
+  request_type: string;
+  status: "pending" | "in_progress" | "completed" | "failed" | string;
+  submitted_at: string | null;
+  completed_at: string | null;
+  due_date?: string | null;
+  download_url?: string | null;
+  expires_at?: string | null;
 }
 
 export type ConsentType = "marketing_email" | "analytics_tracking" | "third_party_sharing";

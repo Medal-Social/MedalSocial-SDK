@@ -639,11 +639,24 @@ describe("gdpr", () => {
 
   it("lists exports", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      mockJson({ data: [{ id: "exp_1", status: "completed" }] }),
+      mockJson({
+        data: [
+          {
+            id: "exp_1",
+            request_type: "workspace_export",
+            status: "completed",
+            submitted_at: "2026-03-01T10:00:00.000Z",
+            completed_at: "2026-03-01T10:05:00.000Z",
+            due_date: "2026-03-31T10:00:00.000Z",
+          },
+        ],
+      }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.gdpr.listExports();
     expect(data[0].status).toBe("completed");
+    expect(data[0].submitted_at).toBe("2026-03-01T10:00:00.000Z");
+    expect(data[0].due_date).toBe("2026-03-31T10:00:00.000Z");
   });
 
   it("gets export status", async () => {
@@ -651,14 +664,19 @@ describe("gdpr", () => {
       mockJson({
         data: {
           id: "exp_1",
+          request_type: "workspace_export",
           status: "completed",
+          submitted_at: "2026-03-01T10:00:00.000Z",
+          completed_at: "2026-03-01T10:05:00.000Z",
           download_url: "https://storage.example.com/file",
+          expires_at: "2026-04-01T10:00:00.000Z",
         },
       }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.gdpr.getExport("exp_1");
     expect(data.download_url).toBeTruthy();
+    expect(data.expires_at).toBe("2026-04-01T10:00:00.000Z");
   });
 
   it("records consent", async () => {
