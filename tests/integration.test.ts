@@ -76,7 +76,7 @@ describe.skipIf(!token)("integration: live API", () => {
       } catch (err) {
         // Known backend issue: listForApi may 500 on some workspaces
         if (err instanceof MedalApiError && err.status >= 500) {
-          console.warn("contacts.list returned 500 (known backend issue)");
+          expect(err.status).toBeGreaterThanOrEqual(500);
         } else {
           throw err;
         }
@@ -133,7 +133,7 @@ describe.skipIf(!token)("integration: live API", () => {
         expect(Array.isArray(res.data)).toBe(true);
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {
-          console.warn("contacts.activities returned 500 (known backend issue)");
+          expect(err.status).toBeGreaterThanOrEqual(500);
         } else {
           throw err;
         }
@@ -168,7 +168,7 @@ describe.skipIf(!token)("integration: live API", () => {
         expect(Array.isArray(res.data)).toBe(true);
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {
-          console.warn("deals.list returned 500 (known backend issue)");
+          expect(err.status).toBeGreaterThanOrEqual(500);
         } else {
           throw err;
         }
@@ -197,7 +197,7 @@ describe.skipIf(!token)("integration: live API", () => {
         expect(res.data.brand_name).toBe("SDK Test Corp");
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {
-          console.warn("deals.get returned 500 (known backend issue)");
+          expect(err.status).toBeGreaterThanOrEqual(500);
         } else {
           throw err;
         }
@@ -211,7 +211,7 @@ describe.skipIf(!token)("integration: live API", () => {
         expect(res.data.success).toBe(true);
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {
-          console.warn("deals.update returned 500 (known backend issue)");
+          expect(err.status).toBeGreaterThanOrEqual(500);
         } else {
           throw err;
         }
