@@ -123,11 +123,11 @@ async function main() {
     granted: true,
     source: "signup_form",
   });
-  console.log("Consent recorded:", consent.consent_id);
+  console.log("Consent recorded:", consent.id);
 
   // Check consent status
-  const { data: consentStatus } = await medal.gdpr.getConsent("john@example.com");
-  console.log("Consents:", consentStatus.consents.length);
+  const { data: consentRecords } = await medal.gdpr.getConsent("john@example.com");
+  console.log("Consents:", consentRecords.length);
 
   // Request workspace export
   const { data: exportReq } = await medal.gdpr.requestExport();

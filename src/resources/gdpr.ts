@@ -1,8 +1,8 @@
 import type { BaseClient } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
+  ConsentRecord,
   ConsentResult,
-  ContactConsents,
   CookieConsentInput,
   GdprExport,
   RecordConsentInput,
@@ -32,7 +32,7 @@ export class Gdpr {
   }
 
   /** Get all consent records for a contact by email. */
-  async getConsent(email: string): Promise<ApiResponse<ContactConsents>> {
+  async getConsent(email: string): Promise<ApiResponse<ConsentRecord[]>> {
     return this.client.get(`/api/v1/gdpr/consent/${encodeURIComponent(email)}`);
   }
 

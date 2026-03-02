@@ -669,10 +669,7 @@ describe("gdpr", () => {
       expect(body.granted).toBe(true);
       return mockJson({
         data: {
-          consent_id: "cc_1",
-          email: "user@example.com",
-          consent_type: "marketing_email",
-          granted: true,
+          id: "cc_1",
         },
       });
     });
@@ -682,21 +679,20 @@ describe("gdpr", () => {
       consent_type: "marketing_email",
       granted: true,
     });
-    expect(data.consent_id).toBe("cc_1");
+    expect(data.id).toBe("cc_1");
   });
 
   it("gets consent by email", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       mockJson({
-        data: {
-          email: "user@example.com",
-          consents: [{ id: "cc_1", consent_type: "marketing_email", granted: true }],
-        },
+        data: [
+          { id: "cc_1", email: "user@example.com", consent_type: "marketing_email", granted: true },
+        ],
       }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.gdpr.getConsent("user@example.com");
-    expect(data.consents).toHaveLength(1);
+    expect(data).toHaveLength(1);
   });
 
   it("sends cookie consent to legacy endpoint", async () => {
@@ -761,7 +757,7 @@ describe("misc", () => {
   it("encodes path parameters", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       expect(url).toContain("/api/v1/gdpr/consent/user%40example.com");
-      return mockJson({ data: { email: "user@example.com", consents: [] } });
+      return mockJson({ data: [] });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await medal.gdpr.getConsent("user@example.com");

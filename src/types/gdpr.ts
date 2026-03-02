@@ -20,24 +20,21 @@ export interface RecordConsentInput {
 
 export interface ConsentRecord {
   id: string;
+  email: string;
   consent_type: ConsentType;
   granted: boolean;
-  granted_at: number | null;
-  revoked_at: number | null;
-  source: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+  source?: string;
+  version?: string;
 }
 
 export interface ConsentResult {
-  consent_id: string;
-  email: string;
-  consent_type: ConsentType;
-  granted: boolean;
+  id: string;
 }
 
-export interface ContactConsents {
-  email: string;
-  consents: ConsentRecord[];
-}
+/** @deprecated Use `ConsentRecord[]` for `gdpr.getConsent()` responses. */
+export type ContactConsents = ConsentRecord[];
 
 export interface CookieConsentInput {
   domain: string;
