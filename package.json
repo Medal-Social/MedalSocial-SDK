@@ -2,7 +2,7 @@
   "name": "@medalsocial/sdk",
   "version": "0.1.2",
   "description": "TypeScript client for Medal Social API (create leads, notes, cookie consents, event signups)",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
     "type": "git",
