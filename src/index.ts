@@ -228,3 +228,5 @@ export class MedalSocialClient {
 }
 
 export default MedalSocialClient;
+
+export * from './devices';
