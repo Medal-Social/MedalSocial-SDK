@@ -53,7 +53,7 @@ const medal = new Medal('medal_xxx');
 
 // With options
 const medal = new Medal('medal_xxx', {
-  baseUrl: 'https://api.medalsocial.com', // default
+  baseUrl: 'https://io.medalsocial.com', // default
   timeout: 30000, // default, in ms
 });
 ```

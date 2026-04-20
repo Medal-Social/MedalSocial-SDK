@@ -93,6 +93,7 @@ export class BaseClient {
           delayMs = 250 * attempt;
         }
         await new Promise((r) => setTimeout(r, delayMs));
+        res.body?.cancel().catch(() => {});
         continue;
       }
 
