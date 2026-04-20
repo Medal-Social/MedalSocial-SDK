@@ -33,8 +33,8 @@
 #     - shared/ci-data-analysis.md
 #     - shared/reporting.md
 #   Includes:
-#     - /var/folders/7q/zbt1mr6559s1bwbgxd37wyg00000gn/T/gh-aw-include-3183728934.md
-#     - /var/folders/7q/zbt1mr6559s1bwbgxd37wyg00000gn/T/gh-aw-include-66704559.md
+#     - /var/folders/7q/zbt1mr6559s1bwbgxd37wyg00000gn/T/gh-aw-include-3673640501.md
+#     - /var/folders/7q/zbt1mr6559s1bwbgxd37wyg00000gn/T/gh-aw-include-4121523794.md
 #
 # Secrets used:
 #   - GH_AW_CI_TRIGGER_TOKEN
@@ -65,7 +65,7 @@
 name: "CI Optimization Coach"
 "on":
   schedule:
-  - cron: "53 12 * * 1-5"
+  - cron: "52 13 * * 1-5"
     # Friendly format: daily around 13:00 on weekdays (scattered)
   workflow_dispatch:
     inputs:
