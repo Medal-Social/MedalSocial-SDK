@@ -1,230 +1,174 @@
-export type AuthOptions =
-  | { kind: "basic"; clientId: string; clientSecret: string }
-  | { kind: "bearer"; token: string };
+import { BaseClient } from "./client";
+import { Contacts } from "./resources/contacts";
+import { Deals } from "./resources/deals";
+import { Emails } from "./resources/emails";
+import { Gdpr } from "./resources/gdpr";
+import { Posts } from "./resources/posts";
+import { Workspaces } from "./resources/workspaces";
 
-export interface ClientOptions {
+export interface MedalOptions {
+  /** Override the base URL (defaults to https://api.medalsocial.com). */
   baseUrl?: string;
-  auth: AuthOptions;
-  timeoutMs?: number;
-  userAgent?: string;
+  /** Request timeout in ms (default 30000). */
+  timeout?: number;
+  /**
+   * Workspace ID — required for OAuth access tokens, ignored for API keys.
+   * API keys are scoped to a single workspace, so the workspace is inferred.
+   * OAuth tokens can access multiple workspaces, so you must specify which one.
+   */
+  workspaceId?: string;
 }
 
-export interface LeadItem {
-  name: string;
-  email: string;
-  company?: string;
-  source?: string;
-  [key: string]: unknown;
-}
+/**
+ * Medal Social SDK client.
+ *
+ * Supports both API key and OAuth access token authentication:
+ *
+ * @example API Key (recommended for server-side)
+ * ```ts
+ * import { Medal } from '@medalsocial/sdk';
+ *
+ * // API keys start with medal_ and are scoped to one workspace
+ * const medal = new Medal('medal_xxx');
+ * ```
+ *
+ * @example OAuth Access Token
+ * ```ts
+ * // OAuth tokens require a workspaceId
+ * const medal = new Medal('oauth_access_token', {
+ *   workspaceId: 'workspace_id_here',
+ * });
+ * ```
+ *
+ * @example Full usage
+ * ```ts
+ * const medal = new Medal('medal_xxx');
+ *
+ * // Posts — create, schedule, publish
+ * const { data: post } = await medal.posts.create({
+ *   content: 'Hello world!',
+ *   channel_ids: ['ch_1'],
+ * });
+ * await medal.posts.schedule(post.id, { scheduled_at: '2026-03-15T10:00:00Z' });
+ *
+ * // Emails — send transactional emails
+ * await medal.emails.send({
+ *   template_slug: 'welcome',
+ *   to: 'user@example.com',
+ *   variables: { name: 'John' },
+ * });
+ *
+ * // Contacts, Deals, GDPR, Workspaces
+ * const contacts = await medal.contacts.list({ status: 'lead' });
+ * const { data: deal } = await medal.deals.create({ title: 'Acme', value: 50000 });
+ * await medal.gdpr.recordConsent({ email: 'u@x.com', consent_type: 'marketing_email', granted: true });
+ * const { data: workspaces } = await medal.workspaces.list();
+ * ```
+ */
+export class Medal {
+  readonly emails: Emails;
+  readonly contacts: Contacts;
+  readonly deals: Deals;
+  readonly gdpr: Gdpr;
+  readonly posts: Posts;
+  readonly workspaces: Workspaces;
 
-export interface ContactNoteInput {
-  contactId: string;
-  note: string;
-  [key: string]: unknown;
-}
-
-export interface NoteInput {
-  name: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  company?: string;
-  phone?: string;
-  content?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface CookieRecord {
-  cookie: string;
-  duration: string;
-  description: string;
-}
-
-export interface CookieCategoryConsent {
-  allowed: boolean;
-  cookieRecords?: CookieRecord[];
-}
-
-export interface CookieConsentInput {
-  domain: string;
-  consentStatus: "granted" | "denied" | "partial" | string;
-  consentTimestamp: string; // ISO-8601
-  ipAddress?: string;
-  userAgent?: string;
-  cookiePreferences: {
-    necessary?: CookieCategoryConsent;
-    analytics?: CookieCategoryConsent;
-    marketing?: CookieCategoryConsent;
-    functional?: CookieCategoryConsent;
-    [key: string]: CookieCategoryConsent | undefined;
-  };
-}
-
-export interface EventSignupInput {
-  contact: {
-    name: string;
-    email: string;
-    company?: string;
-  };
-  event: {
-    externalId: string;
-    name: string;
-    description?: string;
-    time: string; // ISO-8601
-    location?: string;
-    thumbnail?: string;
-  };
-}
-
-export interface ApiResponse<T> {
-  status: number;
-  data: T;
-  headers: Record<string, string>;
-}
-
-export interface TransactionalEmailInput {
-  to: string;
-  slug: string;
-  additionalData?: Record<string, unknown>;
-}
-
-export class MedalSocialClient {
-  private readonly baseUrl: string;
-  private readonly auth: AuthOptions;
-  private readonly timeoutMs: number;
-  private readonly userAgent: string;
-
-  constructor(options: ClientOptions) {
-    this.baseUrl = (options.baseUrl ?? "https://api.medalsocial.com").replace(/\/$/, "");
-    this.auth = options.auth;
-    this.timeoutMs = options.timeoutMs ?? 30000;
-    this.userAgent =
-      options.userAgent ??
-      "medal-social-sdk/0.1.0 (+https://github.com/Medal-Social/MedalSocial.git)";
-  }
-
-  // Public endpoints
-  /** Create one or more leads */
-  async createLead<T = unknown>(items: LeadItem[]): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/leads", items);
-  }
-
-  /** Create a note attached to a contact by id */
-  async createContactNote<T = unknown>(input: ContactNoteInput): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/contacts/notes", input);
-  }
-
-  /** Record a user’s cookie consent preferences */
-  async createCookieConsent<T = unknown>(input: CookieConsentInput): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/cookie-consent", input);
-  }
-
-  /** Create an event signup with contact and event details */
-  async createEventSignup<T = unknown>(input: EventSignupInput): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/event-signup", input);
-  }
-
-  /** Create a free-form note for inbound messages */
-  async createNote<T = unknown>(input: NoteInput): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/notes", input);
-  }
-
-  /** Send a transactional email by template slug */
-  async sendTransactionalEmail<T = unknown>(
-    input: TransactionalEmailInput,
-  ): Promise<ApiResponse<T>> {
-    return this.post<T>("/v1/send-transactional-email", input);
-  }
-
-  // Internal HTTP helpers
-  private async post<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
-    const maxAttempts = 3;
-    let attempt = 0;
-
-    while (attempt < maxAttempts) {
-      attempt++;
-      const res = await this.fetchWithAuth(path, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      // Retry on 429/5xx with basic backoff and Retry-After support
-      if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
-        if (attempt < maxAttempts) {
-          const retryAfter = res.headers.get("retry-after");
-          let delayMs = 0;
-          if (retryAfter) {
-            const seconds = Number(retryAfter);
-            delayMs = Number.isFinite(seconds) ? seconds * 1000 : 0;
-          }
-          if (delayMs <= 0) {
-            delayMs = 250 * attempt; // linear backoff
-          }
-          await new Promise((r) => setTimeout(r, delayMs));
-          continue;
-        }
-      }
-
-      return this.handleResponse<T>(res);
+  constructor(token: string, options?: MedalOptions) {
+    if (!token) {
+      throw new Error(
+        "Authentication token is required. Pass your medal_xxx API key or OAuth access token as the first argument.",
+      );
     }
 
-    throw new Error("Request failed after retries");
-  }
-
-  private async fetchWithAuth(path: string, init: RequestInit): Promise<Response> {
-    const url = `${this.baseUrl}${path}`;
-    const headers = new Headers(init.headers);
-    try {
-      headers.set("user-agent", this.userAgent);
-    } catch {
-      // Some environments (e.g., browsers) disallow setting user-agent; ignore.
-    }
-
-    if (this.auth.kind === "bearer") {
-      headers.set("authorization", `Bearer ${this.auth.token}`);
-    } else if (this.auth.kind === "basic") {
-      // Medal Social API expects explicit headers for client credentials
-      headers.set("Client-Id", this.auth.clientId);
-      headers.set("Client-Secret", this.auth.clientSecret);
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const res = await fetch(url, { ...init, headers, signal: controller.signal });
-      return res;
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  private async handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
-    const text = await res.text();
-    let parsed: unknown = undefined;
-    try {
-      parsed = text ? JSON.parse(text) : undefined;
-    } catch {
-      parsed = text as unknown;
-    }
-
-    const headers: Record<string, string> = {};
-    res.headers.forEach((v, k) => {
-      headers[k] = v;
+    const client = new BaseClient({
+      baseUrl: (options?.baseUrl ?? "https://io.medalsocial.com").replace(/\/$/, ""),
+      token,
+      workspaceId: options?.workspaceId,
+      timeout: options?.timeout ?? 30000,
+      userAgent: "medalsocial-sdk/1.0.0 (+https://github.com/Medal-Social/MedalSocial)",
     });
 
-    if (!res.ok) {
-      const error = new Error(`HTTP ${res.status}: ${res.statusText}`) as Error & {
-        status?: number;
-        details?: unknown;
-      };
-      error.status = res.status;
-      error.details = parsed;
-      throw error;
-    }
-
-    return { status: res.status, data: parsed as T, headers };
+    this.emails = new Emails(client);
+    this.contacts = new Contacts(client);
+    this.deals = new Deals(client);
+    this.gdpr = new Gdpr(client);
+    this.posts = new Posts(client);
+    this.workspaces = new Workspaces(client);
   }
 }
 
-export default MedalSocialClient;
+// Re-export all types
+export { MedalApiError } from "./types/common";
+export type { ApiResponse, PaginatedResponse, PaginationOptions } from "./types/common";
+export type {
+  SendEmailInput,
+  EmailSendResult,
+  EmailSend,
+  BatchSendInput,
+  BatchSendSummary,
+  BatchSendResult,
+  EmailTemplate,
+  EmailTemplateDetail,
+  GetTemplateOptions,
+} from "./types/emails";
+export type {
+  Contact,
+  ContactCreateResult,
+  ContactUpdateResult,
+  ContactRemoveResult,
+  ContactNoteResult,
+  ContactStatus,
+  EmailStatus,
+  CreateContactInput,
+  UpdateContactInput,
+  ListContactsOptions,
+  ImportContactInput,
+  ImportContactsResult,
+  Activity,
+  AddNoteInput,
+} from "./types/contacts";
+export type {
+  Deal,
+  DealCreateResult,
+  DealUpdateResult,
+  DealRemoveResult,
+  DealStatus,
+  CreateDealInput,
+  UpdateDealInput,
+  ListDealsOptions,
+} from "./types/deals";
+export type {
+  GdprExport,
+  ConsentType,
+  RecordConsentInput,
+  ConsentRecord,
+  ConsentResult,
+  ContactConsents,
+  CookieConsentInput,
+  CookieCategoryConsent,
+} from "./types/gdpr";
+export type {
+  Post,
+  PostType,
+  PostVariant,
+  PostDetail,
+  Channel,
+  CreatePostInput,
+  UpdatePostInput,
+  SchedulePostInput,
+  ListPostsOptions,
+  ScheduleResult,
+  PublishResult,
+} from "./types/posts";
+export type { Workspace } from "./types/workspaces";
+
+// Resource class re-exports (for advanced usage)
+export { Emails } from "./resources/emails";
+export { Contacts } from "./resources/contacts";
+export { Deals } from "./resources/deals";
+export { Gdpr } from "./resources/gdpr";
+export { Posts } from "./resources/posts";
+export { Workspaces } from "./resources/workspaces";
+export { BaseClient } from "./client";
+
+export default Medal;
