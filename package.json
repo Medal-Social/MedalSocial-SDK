@@ -1,7 +1,7 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "0.1.0",
-  "description": "TypeScript client for Medal Social API (create leads, notes, cookie consents, event signups)",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, and GDPR compliance",
   "license": "MIT",
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
@@ -24,36 +24,44 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
-  "packageManager": "pnpm@10.16.0",
   "scripts": {
     "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
     "dev": "tsup src/index.ts --watch",
     "clean": "rm -rf dist",
-    "prepare": "husky",
     "test": "vitest run",
     "test:watch": "vitest",
     "docs": "typedoc",
     "lint": "biome check .",
-    "format": "biome format .",
     "prepublishOnly": "pnpm test && pnpm build"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": ["dist"],
-  "keywords": ["medal", "social", "sdk", "api", "typescript", "client"],
+  "keywords": [
+    "medal",
+    "social",
+    "sdk",
+    "api",
+    "typescript",
+    "client",
+    "crm",
+    "email",
+    "gdpr",
+    "contacts",
+    "deals",
+    "posts",
+    "social-media"
+  ],
   "devDependencies": {
+    "@biomejs/biome": "^1.8.3",
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
-    "typedoc": "^0.26.6",
     "tsup": "^8.3.0",
+    "typedoc": "^0.26.6",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5",
-    "@biomejs/biome": "^1.8.3",
-    "@commitlint/cli": "^19.4.0",
-    "@commitlint/config-conventional": "^19.4.0",
-    "husky": "^9.1.6"
+    "vitest": "^2.0.5"
   }
 }
