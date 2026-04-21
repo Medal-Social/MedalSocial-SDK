@@ -296,4 +296,4 @@ Node.js 18+ and modern browsers. Uses native `fetch` — no polyfills required.
 
 ## License
 
-MIT
+Apache-2.0
