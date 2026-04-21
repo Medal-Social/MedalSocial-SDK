@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.1.2
+
+### Patch Changes
+
+- [#29](https://github.com/Medal-Social/MedalSocial-SDK/pull/29) [`16e7e4c`](https://github.com/Medal-Social/MedalSocial-SDK/commit/16e7e4cdae41dc14f65072d3950ee5f786255431) Thanks [@alioftech](https://github.com/alioftech)! - Fix repository metadata URLs in package.json to point to the correct MedalSocial-SDK repository. Updates repository.url, bugs.url, and homepage fields for npm provenance compliance.
+
 ## 1.1.1
 
 ### Patch Changes
