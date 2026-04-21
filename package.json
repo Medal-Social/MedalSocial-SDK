@@ -20,6 +20,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./pilot": {
+      "types": "./dist/pilot/index.d.ts",
+      "import": "./dist/pilot/index.mjs",
+      "require": "./dist/pilot/index.js"
     }
   },
   "sideEffects": false,
@@ -28,7 +33,8 @@
   },
   "packageManager": "pnpm@10.16.0",
   "scripts": {
-    "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
+    "build": "tsup src/index.ts pilot/index.ts --dts --format esm,cjs --sourcemap",
+    "typecheck": "tsc --noEmit",
     "dev": "tsup src/index.ts --watch",
     "clean": "rm -rf dist",
     "prepare": "husky",
@@ -44,6 +50,9 @@
   },
   "files": ["dist"],
   "keywords": ["medal", "social", "sdk", "api", "typescript", "client"],
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
   "devDependencies": {
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
