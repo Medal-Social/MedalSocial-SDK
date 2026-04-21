@@ -2,6 +2,7 @@ import type { BaseClient } from "../client";
 import type { ApiResponse } from "../types/common";
 import type { Workspace } from "../types/workspaces";
 
+/** Access workspaces for the authenticated credential. */
 export class Workspaces {
   constructor(private client: BaseClient) {}
 

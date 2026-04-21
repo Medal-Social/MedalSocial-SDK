@@ -1,3 +1,4 @@
+/** Input for sending a transactional email via a template. */
 export interface SendEmailInput {
   template_slug: string;
   to: string;
@@ -8,11 +9,13 @@ export interface SendEmailInput {
   contact_id?: string;
 }
 
+/** Result returned after queuing a transactional email send (HTTP 202). */
 export interface EmailSendResult {
   id: string;
   status: string;
 }
 
+/** Full record for a sent email, including delivery timestamps. */
 export interface EmailSend {
   id: string;
   status: string;
@@ -29,6 +32,7 @@ export interface EmailSend {
   error_message: string | null;
 }
 
+/** Input for sending the same template to multiple recipients (max 100). */
 export interface BatchSendInput {
   template_slug: string;
   default_locale?: string;
@@ -40,6 +44,7 @@ export interface BatchSendInput {
   }[];
 }
 
+/** Summary returned after queuing a batch email send. */
 export interface BatchSendSummary {
   batch_id: string;
   total: number;
@@ -50,6 +55,7 @@ export interface BatchSendSummary {
 /** @deprecated Use `BatchSendSummary` for `emails.batch()` responses. */
 export type BatchSendResult = BatchSendSummary;
 
+/** An email template stored in the workspace. */
 export interface EmailTemplate {
   id: string;
   name: string;
@@ -68,6 +74,7 @@ export interface EmailTemplate {
   updated_at: string | null;
 }
 
+/** Full template detail including per-locale content. */
 export interface EmailTemplateDetail extends EmailTemplate {
   html_content: string | null;
   text_content: string | null;
@@ -87,6 +94,7 @@ export interface EmailTemplateDetail extends EmailTemplate {
   }[];
 }
 
+/** Options for fetching a template with locale resolution. */
 export interface GetTemplateOptions {
   locale?: string;
   fallback_locale?: string;

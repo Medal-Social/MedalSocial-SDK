@@ -10,6 +10,7 @@ import type {
   UpdateDealInput,
 } from "../types/deals";
 
+/** Manage sponsorship deals in the workspace. */
 export class Deals {
   constructor(private client: BaseClient) {}
 

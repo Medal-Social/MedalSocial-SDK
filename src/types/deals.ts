@@ -1,5 +1,6 @@
 import type { PaginationOptions } from "./common";
 
+/** A sponsorship or brand deal in the workspace. */
 export interface Deal {
   id: string;
   title: string;
@@ -19,18 +20,22 @@ export interface Deal {
   updated_at: string | null;
 }
 
+/** Result returned after creating a deal. */
 export interface DealCreateResult {
   id: string;
 }
 
+/** Result returned after updating a deal. */
 export interface DealUpdateResult {
   success: true;
 }
 
+/** Result returned after deleting a deal. */
 export interface DealRemoveResult {
   success: true;
 }
 
+/** Lifecycle stage of a sponsorship deal. */
 export type DealStatus =
   | "draft"
   | "open"
@@ -41,6 +46,7 @@ export type DealStatus =
   | "on_hold"
   | "churned";
 
+/** Input for creating a new deal. */
 export interface CreateDealInput {
   title: string;
   description?: string;
@@ -56,6 +62,7 @@ export interface CreateDealInput {
   notes?: string;
 }
 
+/** Input for updating one or more fields on a deal. */
 export interface UpdateDealInput {
   title?: string;
   description?: string;
@@ -72,6 +79,7 @@ export interface UpdateDealInput {
   notes?: string;
 }
 
+/** Options for listing deals with pagination and filters. */
 export interface ListDealsOptions extends PaginationOptions {
   status?: DealStatus;
   search?: string;
