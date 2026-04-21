@@ -1,124 +1,299 @@
-## Medal Social SDK (TypeScript)
+# Medal Social SDK
 
-Simple, typed client for the Medal Social API. Supports authentication via Client ID/Secret (Basic) today and Bearer token. Provides convenience methods for common create actions.
+TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, and GDPR compliance programmatically.
 
-### Install
+## Install
 
 ```bash
-corepack enable
+npm install @medalsocial/sdk
+# or
 pnpm add @medalsocial/sdk
 ```
 
-### Quick start
+## Quick Start
 
 ```ts
-import MedalSocialClient from '@medalsocial/sdk';
+import { Medal } from '@medalsocial/sdk';
 
-const client = new MedalSocialClient({
-  auth: { kind: 'basic', clientId: process.env.MEDAL_CLIENT_ID!, clientSecret: process.env.MEDAL_CLIENT_SECRET! },
-  // or: auth: { kind: 'bearer', token: process.env.MEDAL_API_TOKEN! },
-  // optional: baseUrl: 'https://api.medalsocial.com',
+const medal = new Medal('medal_xxx');
+
+// Create and schedule a social post
+const { data: post } = await medal.posts.create({
+  content: 'Hello from the Medal Social SDK!',
+  channel_ids: ['ch_1'],
+});
+await medal.posts.schedule(post.id, { scheduled_at: '2026-03-15T10:00:00Z' });
+
+// Send a transactional email
+await medal.emails.send({
+  template_slug: 'welcome',
+  to: 'user@example.com',
+  variables: { name: 'John' },
 });
 
-// Create lead(s)
-await client.createLead([
-  {
-    name: 'Alex Example',
-    email: 'lead.test@example.com',
-    company: '',
-    source: 'website',
-  },
+// Manage contacts
+const { data: contactRef } = await medal.contacts.create({
+  email: 'john@example.com',
+  first_name: 'John',
+  status: 'lead',
+});
+const { data: contact } = await medal.contacts.get(contactRef.id);
+```
+
+## Authentication
+
+Two authentication methods are supported:
+
+### API Key (recommended for server-side)
+
+Create an API key in your workspace settings. Keys are prefixed with `medal_` and scoped to a single workspace.
+
+```ts
+const medal = new Medal('medal_xxx');
+
+// With options
+const medal = new Medal('medal_xxx', {
+  baseUrl: 'https://io.medalsocial.com', // default
+  timeout: 30000, // default, in ms
+});
+```
+
+### OAuth Access Token
+
+For OAuth integrations, pass the access token and the target workspace ID:
+
+```ts
+const medal = new Medal('oauth_access_token', {
+  workspaceId: 'workspace_id', // required for OAuth
+});
+```
+
+OAuth tokens are obtained through the Medal Social OAuth flow (`/api/auth/oauth2/authorize`). The `workspaceId` is required because OAuth tokens can access multiple workspaces.
+
+## Resources
+
+### Posts
+
+```ts
+// List connected channels
+const { data: channels } = await medal.posts.channels();
+
+// Create a post
+const { data } = await medal.posts.create({
+  type: 'social',       // 'social' | 'newsletter' | 'blog'
+  content: 'Hello!',
+  channel_ids: ['ch_1'],
+});
+
+// Get post with per-channel variants
+const { data: post } = await medal.posts.get(data.id);
+console.log(post.variants); // platform-specific status, permalinks
+
+// Update a draft
+await medal.posts.update(data.id, { content: 'Updated!' });
+
+// Schedule or publish
+await medal.posts.schedule(data.id, { scheduled_at: '2026-03-15T10:00:00Z' });
+await medal.posts.publish(data.id);
+
+// List posts
+const posts = await medal.posts.list({ status: 'draft', type: 'social', limit: 50 });
+
+// Delete
+await medal.posts.remove(data.id);
+```
+
+### Emails
+
+```ts
+// Send transactional email
+const { data: sent } = await medal.emails.send({
+  template_slug: 'welcome',
+  to: 'user@example.com',
+  name: 'John',
+  locale: 'en',
+  variables: { company: 'Acme' },
+  contact_id: 'c_123', // optional: link to a contact
+});
+
+// Check delivery status
+const { data: status } = await medal.emails.get(sent.id);
+console.log(status.status); // 'queued' | 'sent' | 'delivered' | 'opened' | 'clicked'
+
+// Batch send (max 100 recipients)
+const { data: batch } = await medal.emails.batch({
+  template_slug: 'newsletter',
+  default_locale: 'en',
+  recipients: [
+    { email: 'a@test.com', name: 'Alice', variables: { code: 'A1' } },
+    { email: 'b@test.com', name: 'Bob' },
+  ],
+});
+console.log(batch.batch_id, batch.total, batch.queued, batch.failed);
+
+// Templates
+const { data: templates } = await medal.emails.templates.list();
+const { data: template } = await medal.emails.templates.get('welcome', {
+  locale: 'ar',
+  fallback_locale: 'en',
+});
+```
+
+### Contacts
+
+```ts
+// CRUD
+const { data: created } = await medal.contacts.create({
+  email: 'john@example.com',
+  first_name: 'John',
+  last_name: 'Doe',
+  company: 'Acme',
+  job_title: 'CTO',
+  status: 'lead',
+  label_ids: ['lbl_1'],
+  custom_fields: { source: 'website' },
+});
+
+const { data: contact } = await medal.contacts.get(created.id);
+const { data: updated } = await medal.contacts.update(created.id, { status: 'customer' });
+const { data: removed } = await medal.contacts.remove(created.id);
+console.log(updated.success, removed.success);
+
+// List with filters
+const contacts = await medal.contacts.list({
+  status: 'lead',
+  email_status: 'subscribed',
+  label_ids: ['lbl_1'],
+  search: 'john',
+  limit: 50,
+});
+
+// Activity timeline
+const activities = await medal.contacts.activities('contact_id', { limit: 20 });
+
+// Add a note
+const { data: note } = await medal.contacts.addNote('contact_id', { content: 'Follow up next week' });
+console.log(note.id);
+
+// Bulk import (max 500)
+const { data: result } = await medal.contacts.import([
+  { email: 'a@test.com', first_name: 'Alice' },
+  { email: 'b@test.com', first_name: 'Bob' },
 ]);
+console.log(result.added, result.skipped);
+```
 
-// Create a note
-await client.createNote({
-  name: 'Test Testnes',
-  email: 'test@medalsocial.com',
-  company: 'Medal Social Test company',
-  phone: '+47 12345678',
-  content: 'Hei jeg skal gjerne sende to konteinere til USA.',
-  metadata: { Budsjett: '$100,000' },
+### Deals
+
+```ts
+const { data: created } = await medal.deals.create({
+  title: 'Enterprise Partnership',
+  value: 50000,
+  currency: 'USD',
+  brand_name: 'Acme Corp',
+  contact_id: 'c_123',
+  notes: 'Initial outreach',
+});
+const { data: deal } = await medal.deals.get(created.id);
+
+const { data: updated } = await medal.deals.update(deal.id, { status: 'won' });
+const { data: unlinked } = await medal.deals.update(deal.id, { contact_id: null }); // unlink contact
+
+const deals = await medal.deals.list({ status: 'open', search: 'Acme' });
+const { data: removed } = await medal.deals.remove(deal.id);
+console.log(updated.success, unlinked.success, removed.success);
+```
+
+### GDPR
+
+```ts
+// Consent management
+await medal.gdpr.recordConsent({
+  email: 'user@example.com',
+  consent_type: 'marketing_email', // | 'analytics_tracking' | 'third_party_sharing'
+  granted: true,
+  source: 'signup_form',
 });
 
-// Record cookie consent
-await client.createCookieConsent({
+const { data: consents } = await medal.gdpr.getConsent('user@example.com');
+
+// Data exports
+const { data: exp } = await medal.gdpr.requestExport();
+const { data: exports } = await medal.gdpr.listExports();
+const { data: status } = await medal.gdpr.getExport(exp.request_id);
+console.log(status.download_url); // available when status is 'completed'
+
+// Cookie consent (website integration)
+await medal.gdpr.cookieConsent({
   domain: 'example.com',
-  consentStatus: 'partial',
-  consentTimestamp: '2025-06-04T10:30:00Z',
-  ipAddress: '88.151.164.19',
-  userAgent: 'Mozilla/5.0',
+  consentStatus: 'granted',
+  consentTimestamp: new Date().toISOString(),
   cookiePreferences: {
-    necessary: {
-      allowed: true,
-      cookieRecords: [
-        { cookie: 'session_id', duration: 'Session', description: 'Essential for user authentication and session management' },
-      ],
-    },
-    analytics: { allowed: false },
-    marketing: { allowed: true },
-    functional: { allowed: true },
-  },
-});
-
-// Create event signup
-await client.createEventSignup({
-  contact: {
-    name: 'Test Testnes',
-    email: 'test@medalsocial.com',
-    company: 'Medal Social Test company',
-  },
-  event: {
-    externalId: 'eksadaasdasd',
-    name: 'Product saus asd',
-    description: 'Learn about our new product asd',
-    time: '2025-06-15T14:00:00Z',
-    location: 'Online',
-    thumbnail: 'https://medalsocialdevstorage.blob.core.windows.net/images/d05bad9e-bc52-4f8e-8191-d6944d34055c.jpg',
+    necessary: { allowed: true },
+    analytics: { allowed: true },
+    marketing: { allowed: false },
   },
 });
 ```
 
-### API
+### Workspaces
 
-- `new MedalSocialClient(options)`
-  - **auth** (required):
-    - `{ kind: 'basic', clientId: string, clientSecret: string }`
-    - `{ kind: 'bearer', token: string }`
-  - **baseUrl** (optional): string. Defaults to `https://api.medalsocial.com`.
-  - **timeoutMs** (optional): number. Defaults to 30000.
-  - **userAgent** (optional): string.
-  - **fetch** (optional): custom fetch implementation to override transport.
-
-- `createLead(items: { name, email, company?, source? }[])` -> `{ status, data, headers }`
-- `createNote(input)` -> `{ status, data, headers }`
-- `createCookieConsent(input)` -> `{ status, data, headers }`
-- `createEventSignup(input)` -> `{ status, data, headers }`
-- `sendTransactionalEmail(input)` -> `{ status, data, headers }`
-
-Responses throw on non-2xx with an error containing `status` and `details` (parsed body when available).
-
-### Runtime support
-
-- Node 20+ and modern browsers. The client uses `fetch`; in Node 20+ `fetch` is built-in. For older environments, provide a global `fetch` polyfill.
-
-### Docs
-
-- API Reference (TypeDoc): published automatically from the `prod` branch via GitHub Pages.
-- Local: `pnpm docs` then open `docs/index.html`.
-
-### Contributing
-
-PRs welcome! Use pnpm. Useful scripts:
-
-```bash
-pnpm install
-pnpm build
-pnpm test
-pnpm docs
+```ts
+const { data: workspaces } = await medal.workspaces.list();
+console.log(workspaces); // [{ id, name, slug }]
 ```
 
-### License
+## Error Handling
+
+All API errors throw `MedalApiError` with structured error details:
+
+```ts
+import { Medal, MedalApiError } from '@medalsocial/sdk';
+
+try {
+  await medal.contacts.get('bad_id');
+} catch (err) {
+  if (err instanceof MedalApiError) {
+    console.log(err.status);  // 404
+    console.log(err.code);    // 'NOT_FOUND'
+    console.log(err.message); // 'Contact not found'
+    console.log(err.details); // field-level validation errors (if any)
+  }
+}
+```
+
+## Retries
+
+The SDK automatically retries on `429` (rate limited) and `5xx` errors, up to 3 attempts with linear backoff. The `Retry-After` header is respected when present.
+
+## Rate Limits
+
+| Endpoint | Rate | Burst |
+|----------|------|-------|
+| Read (GET) | 300/min | 100 |
+| Write (POST/PATCH/DELETE) | 60/min | 30 |
+| Email send | 100/min | 50 |
+| Email batch | 10/min | 5 |
+| Contact import | 5/min | 3 |
+| GDPR export | 5/hour | 2 |
+
+## Pagination
+
+List endpoints use cursor-based pagination:
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await medal.contacts.list({ limit: 100, cursor });
+  console.log(page.data);
+  cursor = page.pagination.next_cursor ?? undefined;
+} while (cursor);
+```
+
+## Runtime Support
+
+Node.js 18+ and modern browsers. Uses native `fetch` — no polyfills required.
+
+## License
 
 Apache-2.0
-
-

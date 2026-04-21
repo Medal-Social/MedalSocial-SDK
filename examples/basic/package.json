@@ -7,7 +7,6 @@
     "start": "node index.mjs"
   },
   "dependencies": {
-    "@medalsocial/sdk": "workspace:*",
-    "dotenv": "^16.4.5"
+    "@medalsocial/sdk": "^1.0.0"
   }
 }
