@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import MedalSocialClient from "../src";
+import MedalSocialClient, { createMedalClient } from "../src";
 
 describe("MedalSocialClient", () => {
   beforeEach(() => {
@@ -311,5 +311,19 @@ describe("misc coverage paths", () => {
     const res = await client.createNote({ name: "N", email: "n@example.com" });
     expect(res.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("createMedalClient", () => {
+  it("returns a MedalSocialClient instance", () => {
+    const client = createMedalClient("test-api-key");
+    expect(client).toBeInstanceOf(MedalSocialClient);
+  });
+
+  it("uses bearer auth with the provided key", async () => {
+    const client = createMedalClient("my-key");
+    const auth = (client as unknown as { auth: { kind: string; token: string } }).auth;
+    expect(auth.kind).toBe("bearer");
+    expect(auth.token).toBe("my-key");
   });
 });
