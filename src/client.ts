@@ -1,5 +1,6 @@
 import { MedalApiError } from "./types/common";
 
+/** Configuration for the low-level HTTP client. */
 export interface ClientConfig {
   baseUrl: string;
   token: string;
@@ -13,17 +14,20 @@ export interface ClientConfig {
  * Handles authentication, retries, timeout, and error parsing.
  */
 export class BaseClient {
+  /** Resolved client configuration. */
   readonly config: ClientConfig;
 
   constructor(config: ClientConfig) {
     this.config = config;
   }
 
+  /** Execute an authenticated GET request and return the parsed JSON body. */
   async get<T>(path: string, params?: Record<string, string | undefined>): Promise<T> {
     const url = this.buildUrl(path, params);
     return this.request<T>(url, { method: "GET" });
   }
 
+  /** Execute an authenticated POST request with a JSON body. */
   async post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>(this.buildUrl(path), {
       method: "POST",
@@ -32,6 +36,7 @@ export class BaseClient {
     });
   }
 
+  /** Execute an authenticated PATCH request with a JSON body. */
   async patch<T>(path: string, body: unknown): Promise<T> {
     return this.request<T>(this.buildUrl(path), {
       method: "PATCH",
@@ -40,6 +45,7 @@ export class BaseClient {
     });
   }
 
+  /** Execute an authenticated DELETE request. */
   async delete<T>(path: string): Promise<T> {
     return this.request<T>(this.buildUrl(path), { method: "DELETE" });
   }

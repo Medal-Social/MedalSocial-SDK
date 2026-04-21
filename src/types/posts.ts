@@ -1,5 +1,6 @@
 import type { PaginationOptions } from "./common";
 
+/** A post in the workspace (list view). */
 export interface Post {
   id: string;
   type: PostType;
@@ -16,8 +17,10 @@ export interface Post {
   updated_at: string | null;
 }
 
+/** Content format / distribution channel type for a post. */
 export type PostType = "social" | "newsletter" | "blog";
 
+/** Per-channel variant of a post with publishing state. */
 export interface PostVariant {
   id: string;
   channel_id: string;
@@ -32,10 +35,12 @@ export interface PostVariant {
   error: string | null;
 }
 
+/** Full post detail including per-channel variants. */
 export interface PostDetail extends Post {
   variants: PostVariant[];
 }
 
+/** A connected publishing channel in the workspace. */
 export interface Channel {
   id: string;
   platform: string | null;
@@ -45,6 +50,7 @@ export interface Channel {
   connected_at: string | null;
 }
 
+/** Input for creating a new post. */
 export interface CreatePostInput {
   type?: PostType;
   title?: string;
@@ -52,26 +58,31 @@ export interface CreatePostInput {
   channel_ids: string[];
 }
 
+/** Input for updating a draft post's title or content. */
 export interface UpdatePostInput {
   title?: string;
   content?: string;
 }
 
+/** Input for scheduling a post for future publication. */
 export interface SchedulePostInput {
   /** Unix timestamp (ms) or ISO datetime string. */
   scheduled_at: number | string;
 }
 
+/** Options for listing posts with pagination and filters. */
 export interface ListPostsOptions extends PaginationOptions {
   status?: string;
   type?: PostType;
 }
 
+/** Result returned after scheduling a post. */
 export interface ScheduleResult {
   success: boolean;
   workflow_id: string;
 }
 
+/** Result returned after publishing a post immediately. */
 export interface PublishResult {
   success: boolean;
   workflow_id: string;

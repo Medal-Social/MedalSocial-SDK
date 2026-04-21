@@ -1,3 +1,23 @@
+/**
+ * Official TypeScript SDK for the Medal Social API.
+ *
+ * Provides typed access to posts, emails, contacts, deals, GDPR compliance,
+ * and workspace management. Works in Node.js, Deno, Bun, Cloudflare Workers,
+ * and modern browsers.
+ *
+ * @example
+ * ```ts
+ * import { Medal } from "@medalsocial/sdk";
+ *
+ * const medal = new Medal("medal_xxx");
+ * const { data: post } = await medal.posts.create({
+ *   content: "Hello world!",
+ *   channel_ids: ["ch_1"],
+ * });
+ * ```
+ *
+ * @module
+ */
 import { BaseClient } from "./client";
 import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
@@ -6,6 +26,7 @@ import { Gdpr } from "./resources/gdpr";
 import { Posts } from "./resources/posts";
 import { Workspaces } from "./resources/workspaces";
 
+/** Options for configuring the {@link Medal} client. */
 export interface MedalOptions {
   /** Override the base URL (defaults to https://api.medalsocial.com). */
   baseUrl?: string;
@@ -171,6 +192,7 @@ export { Posts } from "./resources/posts";
 export { Workspaces } from "./resources/workspaces";
 export { BaseClient } from "./client";
 
+/** Convenience factory — equivalent to `new Medal(apiKey, options)`. */
 export function createMedalClient(apiKey: string, options?: MedalOptions): Medal {
   return new Medal(apiKey, options);
 }

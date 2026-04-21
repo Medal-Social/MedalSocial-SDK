@@ -11,6 +11,7 @@ import type {
   SendEmailInput,
 } from "../types/emails";
 
+/** Manage email templates stored in the workspace. */
 class EmailTemplates {
   constructor(private client: BaseClient) {}
 
@@ -28,6 +29,7 @@ class EmailTemplates {
   }
 }
 
+/** Send transactional emails and manage templates. */
 export class Emails {
   readonly templates: EmailTemplates;
 

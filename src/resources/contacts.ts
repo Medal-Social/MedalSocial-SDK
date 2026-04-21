@@ -15,6 +15,7 @@ import type {
   UpdateContactInput,
 } from "../types/contacts";
 
+/** Manage contacts in the workspace CRM. */
 export class Contacts {
   constructor(private client: BaseClient) {}
 

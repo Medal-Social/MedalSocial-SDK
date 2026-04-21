@@ -12,6 +12,7 @@ import type {
   UpdatePostInput,
 } from "../types/posts";
 
+/** Create and publish posts across connected channels. */
 export class Posts {
   constructor(private client: BaseClient) {}
 
