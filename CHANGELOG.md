@@ -1,5 +1,16 @@
 # @medalsocial/sdk
 
+## 1.1.4
+
+### Patch Changes
+
+- [#38](https://github.com/Medal-Social/MedalSocial-SDK/pull/38) [`ac3f415`](https://github.com/Medal-Social/MedalSocial-SDK/commit/ac3f4159bad0b9809356f1f9eb7b3cfba3850ed3) Thanks [@alioftech](https://github.com/alioftech)! - Add JSDoc documentation to all exported symbols for JSR 100% score. This includes:
+  - `@module` JSDoc to `src/index.ts` entrypoint
+  - JSDoc for every exported type, interface, and class across all type and resource files
+  - JSDoc for `MedalOptions`, `createMedalClient`, `ClientConfig`, and all `BaseClient` public methods
+  - Added `description` field to `jsr.json`
+  - Added `.github/workflows/jsr-publish.yml` for JSR provenance publishing
+
 ## 1.1.3
 
 ### Patch Changes
