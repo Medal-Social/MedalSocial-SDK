@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, and GDPR compliance",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.30.3",
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
     "type": "git",
@@ -25,9 +25,11 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "prepare": "husky",
     "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
     "dev": "tsup src/index.ts --watch",
     "clean": "rm -rf dist",
@@ -35,16 +37,25 @@
     "test:watch": "vitest",
     "docs": "typedoc",
     "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "quality": "pnpm lint && pnpm test",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm test && pnpm build",
     "version": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm build && changeset publish && pnpm exec jsr publish",
+    "changeset": "changeset",
+    "knip:report": "knip --reporter json --no-exit-code",
+    "knip:check": "knip",
+    "secret:scan": "node scripts/secretlint-repo.mjs",
+    "secret:scan:staged": "node scripts/secretlint-staged.mjs"
   },
   "publishConfig": {
     "access": "public"
   },
-  "files": [
-    "dist"
-  ],
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,jsonc,md,yml,yaml}": ["biome check --write --no-errors-on-unmatched"]
+  },
+  "files": ["dist"],
   "keywords": [
     "medal",
     "social",
@@ -64,8 +75,17 @@
     "@biomejs/biome": "^1.8.3",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^2.31.0",
+    "@commitlint/cli": "^19.4.0",
+    "@commitlint/config-conventional": "^19.4.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^9.3.2",
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
+    "husky": "^9.1.6",
+    "jsr": "^0.13.4",
+    "knip": "^5.63.1",
+    "lint-staged": "^16.2.6",
+    "only-allow": "^1.2.1",
+    "secretlint": "^9.3.2",
     "tsup": "^8.3.0",
     "typedoc": "^0.26.6",
     "typescript": "^5.5.4",
