@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, and GDPR compliance",
   "license": "Apache-2.0",
+  "packageManager": "pnpm@10.11.0",
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
     "type": "git",
