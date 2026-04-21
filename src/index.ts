@@ -28,7 +28,7 @@ import { Workspaces } from "./resources/workspaces";
 
 /** Options for configuring the {@link Medal} client. */
 export interface MedalOptions {
-  /** Override the base URL (defaults to https://api.medalsocial.com). */
+  /** Override the base URL (defaults to https://io.medalsocial.com). */
   baseUrl?: string;
   /** Request timeout in ms (default 30000). */
   timeout?: number;
