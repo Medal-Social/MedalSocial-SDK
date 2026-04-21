@@ -1,5 +1,17 @@
 # @medalsocial/sdk
 
+## 1.1.3
+
+### Patch Changes
+
+- [#32](https://github.com/Medal-Social/MedalSocial-SDK/pull/32) [`3a21530`](https://github.com/Medal-Social/MedalSocial-SDK/commit/3a21530c6ed3ef703aa692e68c71d7808e766f0b) Thanks [@alioftech](https://github.com/alioftech)! - Sync dev branch to match published state (1.1.2):
+
+  - Bump package.json version from 1.0.0 → 1.1.2
+  - Bump jsr.json version from 1.1.1 → 1.1.2
+  - Remove two stale changeset files already consumed by prod's release cycle
+
+  No user-facing code changes. This avoids repeated version bumps and duplicate changesets on future dev→prod syncs.
+
 ## 1.1.2
 
 ### Patch Changes
