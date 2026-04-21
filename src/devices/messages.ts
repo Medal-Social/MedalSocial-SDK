@@ -1,9 +1,9 @@
-import type { DeviceCapabilities, ConsentGrants } from './types';
-import type { DesiredState, ReportedState } from './state';
+import type { DesiredState, ReportedState } from "./state";
+import type { ConsentGrants, DeviceCapabilities } from "./types";
 
 // Device -> Cloud messages
 export interface RegisterMessage {
-  type: 'register';
+  type: "register";
   deviceId: string;
   capabilities: DeviceCapabilities;
   osVersion: string;
@@ -11,9 +11,9 @@ export interface RegisterMessage {
 }
 
 export interface HeartbeatMessage {
-  type: 'heartbeat';
+  type: "heartbeat";
   deviceId: string;
-  status: 'online' | 'updating';
+  status: "online" | "updating";
   uptime: string;
   storage: { usedGb: number; totalGb: number };
   temperatureC: number | null;
@@ -22,21 +22,21 @@ export interface HeartbeatMessage {
 }
 
 export interface SyncRequestMessage {
-  type: 'sync_request';
+  type: "sync_request";
   deviceId: string;
   currentConfigVersion: number;
 }
 
 export interface StateReportMessage {
-  type: 'state_report';
+  type: "state_report";
   deviceId: string;
   reportedState: ReportedState;
 }
 
 export interface DeviceEventMessage {
-  type: 'event';
+  type: "event";
   deviceId: string;
-  event: 'content_changed' | 'error' | 'ota_complete' | 'app_installed' | 'consent_updated';
+  event: "content_changed" | "error" | "ota_complete" | "app_installed" | "consent_updated";
   details: Record<string, unknown>;
 }
 
@@ -49,45 +49,45 @@ export type DeviceToCloudMessage =
 
 // Cloud -> Device messages
 export interface DesiredStateMessage {
-  type: 'desired_state';
+  type: "desired_state";
   state: DesiredState;
   delta: boolean;
 }
 
 export interface PushContentMessage {
-  type: 'push_content';
+  type: "push_content";
   collectionId: string;
   images: Array<{ id: string; url: string; metadata?: Record<string, unknown> }>;
 }
 
 export interface PushConfigMessage {
-  type: 'push_config';
-  config: Partial<DesiredState['config']>;
+  type: "push_config";
+  config: Partial<DesiredState["config"]>;
 }
 
 export interface PushSkillsMessage {
-  type: 'push_skills';
+  type: "push_skills";
   skills: Array<{ name: string; version: string; url: string }>;
 }
 
 export interface CommandMessage {
-  type: 'command';
-  command: 'restart' | 'update' | 'lock' | 'wipe' | 'identify' | 'rollback';
+  type: "command";
+  command: "restart" | "update" | "lock" | "wipe" | "identify" | "rollback";
   params?: Record<string, unknown>;
 }
 
 export interface OtaAvailableMessage {
-  type: 'ota_available';
+  type: "ota_available";
   version: string;
   downloadUrl: string;
   changelog: string;
-  priority: 'low' | 'normal' | 'critical';
+  priority: "low" | "normal" | "critical";
 }
 
 export interface AckMessage {
-  type: 'ack';
+  type: "ack";
   replyTo: string;
-  status: 'ok' | 'error';
+  status: "ok" | "error";
   error?: string;
 }
 

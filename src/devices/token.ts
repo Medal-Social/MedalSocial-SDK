@@ -1,4 +1,4 @@
-import type { DeviceMode } from './types';
+import type { DeviceMode } from "./types";
 
 export interface DeviceTokenPayload {
   deviceId: string;
