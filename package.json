@@ -1,6 +1,6 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, and GDPR compliance",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.30.3",
