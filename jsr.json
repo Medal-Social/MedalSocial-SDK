@@ -1,4 +1,5 @@
 {
   "name": "@medalsocial/sdk",
+  "version": "1.1.1",
   "exports": "./src/index.ts"
 }
