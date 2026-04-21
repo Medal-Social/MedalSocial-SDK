@@ -1,0 +1,31 @@
+[plugin]
+name = "medalsocial-sdk"
+version = "0.1.0"
+description = "Medal Social API client for Pilot crew"
+
+[permissions]
+network = ["api.medalsocial.com"]
+
+[[tools]]
+name = "create_lead"
+description = "Create one or more leads in Medal Social CRM"
+
+[[tools]]
+name = "create_contact_note"
+description = "Attach a note to a contact by ID"
+
+[[tools]]
+name = "create_cookie_consent"
+description = "Record a user's cookie consent preferences"
+
+[[tools]]
+name = "create_event_signup"
+description = "Create an event signup with contact and event details"
+
+[[tools]]
+name = "create_note"
+description = "Create a free-form note for inbound messages"
+
+[[tools]]
+name = "send_transactional_email"
+description = "Send a transactional email by template slug"
