@@ -7,12 +7,12 @@
   "author": "Medal Social / Ali Aljumaili",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Medal-Social/MedalSocial.git"
+    "url": "git+https://github.com/Medal-Social/MedalSocial-SDK.git"
   },
   "bugs": {
-    "url": "https://github.com/Medal-Social/MedalSocial/issues"
+    "url": "https://github.com/Medal-Social/MedalSocial-SDK/issues"
   },
-  "homepage": "https://github.com/Medal-Social/MedalSocial#readme",
+  "homepage": "https://github.com/Medal-Social/MedalSocial-SDK#readme",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
