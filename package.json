@@ -21,6 +21,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./pilot": {
+      "types": "./dist/pilot/index.d.ts",
+      "import": "./dist/pilot/index.mjs",
+      "require": "./dist/pilot/index.js"
     }
   },
   "sideEffects": false,
@@ -30,7 +35,7 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
-    "build": "tsup src/index.ts --dts --format esm,cjs --sourcemap",
+    "build": "tsup src/index.ts pilot/index.ts --dts --format esm,cjs --sourcemap",
     "dev": "tsup src/index.ts --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -71,6 +76,9 @@
     "posts",
     "social-media"
   ],
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.8.3",
     "@changesets/changelog-github": "^0.6.0",

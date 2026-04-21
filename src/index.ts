@@ -171,4 +171,8 @@ export { Posts } from "./resources/posts";
 export { Workspaces } from "./resources/workspaces";
 export { BaseClient } from "./client";
 
+export function createMedalClient(apiKey: string, options?: MedalOptions): Medal {
+  return new Medal(apiKey, options);
+}
+
 export default Medal;
