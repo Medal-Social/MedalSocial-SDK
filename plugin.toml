@@ -1,0 +1,31 @@
+[plugin]
+name = "medalsocial-sdk"
+version = "1.0.0"
+description = "Medal Social API client for Pilot crew"
+
+[permissions]
+network = ["api.medalsocial.com"]
+
+[[tools]]
+name = "send_email"
+description = "Send a transactional email using a template"
+
+[[tools]]
+name = "create_contact"
+description = "Create a new contact in Medal Social CRM"
+
+[[tools]]
+name = "add_contact_note"
+description = "Add a note to a contact's timeline"
+
+[[tools]]
+name = "record_cookie_consent"
+description = "Record a user's cookie consent preferences"
+
+[[tools]]
+name = "record_consent"
+description = "Record a GDPR consent decision for a contact by email"
+
+[[tools]]
+name = "create_deal"
+description = "Create a new deal in Medal Social CRM"

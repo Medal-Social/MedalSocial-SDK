@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreDependencies": [
+    "@secretlint/secretlint-rule-preset-recommend",
+    "@commitlint/cli",
+    "secretlint"
+  ],
+  "ignore": ["src/index.ts"],
+  "ignoreExportsUsedInFile": true
+}
