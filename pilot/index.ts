@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import type { MedalSocialClient } from '../src/index.js';
+import { z } from "zod";
+import type { MedalSocialClient } from "../src/index.js";
 
 const LeadItemSchema = z.object({
   name: z.string(),
@@ -15,7 +15,7 @@ const ContactNoteSchema = z.object({
 
 const CookieConsentSchema = z.object({
   domain: z.string(),
-  consentStatus: z.enum(['granted', 'denied', 'partial']),
+  consentStatus: z.enum(["granted", "denied", "partial"]),
   consentTimestamp: z.string(),
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
@@ -62,16 +62,15 @@ const TransactionalEmailSchema = z.object({
 export function createMedalTools(client: MedalSocialClient) {
   return {
     createLead: {
-      description: 'Create one or more leads in Medal Social CRM',
+      description: "Create one or more leads in Medal Social CRM",
       parameters: z.object({ items: z.array(LeadItemSchema) }),
       execute: async (args: { items: z.infer<typeof LeadItemSchema>[] }) =>
         client.createLead(args.items),
     },
     createContactNote: {
-      description: 'Attach a note to a contact by ID',
+      description: "Attach a note to a contact by ID",
       parameters: ContactNoteSchema,
-      execute: async (args: z.infer<typeof ContactNoteSchema>) =>
-        client.createContactNote(args),
+      execute: async (args: z.infer<typeof ContactNoteSchema>) => client.createContactNote(args),
     },
     createCookieConsent: {
       description: "Record a user's cookie consent preferences",
@@ -80,19 +79,17 @@ export function createMedalTools(client: MedalSocialClient) {
         client.createCookieConsent(args),
     },
     createEventSignup: {
-      description: 'Create an event signup with contact and event details',
+      description: "Create an event signup with contact and event details",
       parameters: EventSignupSchema,
-      execute: async (args: z.infer<typeof EventSignupSchema>) =>
-        client.createEventSignup(args),
+      execute: async (args: z.infer<typeof EventSignupSchema>) => client.createEventSignup(args),
     },
     createNote: {
-      description: 'Create a free-form note for inbound messages',
+      description: "Create a free-form note for inbound messages",
       parameters: NoteSchema,
-      execute: async (args: z.infer<typeof NoteSchema>) =>
-        client.createNote(args),
+      execute: async (args: z.infer<typeof NoteSchema>) => client.createNote(args),
     },
     sendTransactionalEmail: {
-      description: 'Send a transactional email by template slug',
+      description: "Send a transactional email by template slug",
       parameters: TransactionalEmailSchema,
       execute: async (args: z.infer<typeof TransactionalEmailSchema>) =>
         client.sendTransactionalEmail(args),

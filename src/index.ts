@@ -228,8 +228,11 @@ export class MedalSocialClient {
 }
 
 /** Convenience factory for Pilot/agent integration — instantiates client from a bearer token. */
-export function createMedalClient(apiKey: string, options?: Omit<ClientOptions, 'auth'>): MedalSocialClient {
-  return new MedalSocialClient({ ...options, auth: { kind: 'bearer', token: apiKey } });
+export function createMedalClient(
+  apiKey: string,
+  options?: Omit<ClientOptions, "auth">,
+): MedalSocialClient {
+  return new MedalSocialClient({ ...options, auth: { kind: "bearer", token: apiKey } });
 }
 
 export default MedalSocialClient;
