@@ -37,7 +37,7 @@
     "lint": "biome check .",
     "prepublishOnly": "pnpm test && pnpm build",
     "version": "changeset version",
-    "release": "pnpm build && pnpm publish --access public --no-git-checks"
+    "release": "pnpm build && changeset publish"
   },
   "publishConfig": {
     "access": "public"
