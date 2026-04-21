@@ -9,7 +9,7 @@
  *
  * These tests hit the real API and are excluded from the default test run.
  */
-import { describe, expect, it, beforeAll } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { Medal, MedalApiError } from "../src";
 
 const apiKey = process.env.MEDAL_API_KEY;
@@ -23,6 +23,7 @@ describe.skipIf(!token)("integration: live API", () => {
   let medal: Medal;
 
   beforeAll(() => {
+    // biome-ignore lint/style/noNonNullAssertion: token is asserted non-null by skipIf guard above
     medal = new Medal(token!, {
       baseUrl,
       ...(workspaceId ? { workspaceId } : {}),
@@ -114,7 +115,7 @@ describe.skipIf(!token)("integration: live API", () => {
           "",
           "This note was created by the **Medal Social SDK** integration test suite.",
           "",
-          "- Test ran at: `" + new Date().toISOString() + "`",
+          `- Test ran at: \`${new Date().toISOString()}\``,
           "- Source: `@medalsocial/sdk` v1.0.0",
           "- Contact labeled as: *lead*",
           "",

@@ -82,7 +82,10 @@ export class BaseClient {
       }
 
       // Retry on 429 / 5xx (but not on the final attempt)
-      if ((res.status === 429 || (res.status >= 500 && res.status <= 599)) && attempt < maxAttempts) {
+      if (
+        (res.status === 429 || (res.status >= 500 && res.status <= 599)) &&
+        attempt < maxAttempts
+      ) {
         const retryAfter = res.headers.get("retry-after");
         let delayMs = 0;
         if (retryAfter) {
@@ -106,7 +109,9 @@ export class BaseClient {
       }
 
       if (!res.ok) {
-        const body = parsed as { error?: { code?: string; message?: string; details?: unknown } } | undefined;
+        const body = parsed as
+          | { error?: { code?: string; message?: string; details?: unknown } }
+          | undefined;
         throw new MedalApiError(
           res.status,
           body?.error?.code ?? "UNKNOWN_ERROR",

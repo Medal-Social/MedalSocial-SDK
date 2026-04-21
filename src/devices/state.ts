@@ -1,17 +1,17 @@
-import type { DeviceMode } from './types';
+import type { DeviceMode } from "./types";
 
 export interface GalleryConfig {
   collection: string;
   rotationInterval: string;
   shuffle: boolean;
-  transition: 'fade' | 'cut' | 'slide' | 'dissolve';
+  transition: "fade" | "cut" | "slide" | "dissolve";
   sleep: { start: string; end: string } | null;
-  imageFit: 'fill' | 'fit' | 'center-crop';
+  imageFit: "fill" | "fit" | "center-crop";
 }
 
 export interface DisplayConfig {
-  brightness: number | 'auto';
-  colorTemp: number | 'auto';
+  brightness: number | "auto";
+  colorTemp: number | "auto";
   ambientLight: boolean;
 }
 

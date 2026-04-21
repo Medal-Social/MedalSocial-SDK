@@ -1,8 +1,16 @@
-export type DeviceMode = 'medal-os' | 'pilot';
-export type DeviceModel = 'frame-13' | 'frame-28' | 'frame-31' | 'frame-40' | 'studio' | 'canvas' | 'mac' | 'linux';
-export type DisplayType = 'eink' | 'ips' | 'hdmi' | 'none';
-export type InputMode = 'touch' | 'bezel-gesture' | 'remote' | 'keyboard-mouse';
-export type DeviceStatus = 'online' | 'offline' | 'updating';
+export type DeviceMode = "medal-os" | "pilot";
+export type DeviceModel =
+  | "frame-13"
+  | "frame-28"
+  | "frame-31"
+  | "frame-40"
+  | "studio"
+  | "canvas"
+  | "mac"
+  | "linux";
+export type DisplayType = "eink" | "ips" | "hdmi" | "none";
+export type InputMode = "touch" | "bezel-gesture" | "remote" | "keyboard-mouse";
+export type DeviceStatus = "online" | "offline" | "updating";
 
 export interface DeviceCapabilities {
   mode: DeviceMode;
