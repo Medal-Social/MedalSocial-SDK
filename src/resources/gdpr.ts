@@ -8,6 +8,7 @@ import type {
   RecordConsentInput,
 } from "../types/gdpr";
 
+/** Manage GDPR compliance — data exports, consent records, and cookie consent. */
 export class Gdpr {
   constructor(private client: BaseClient) {}
 
