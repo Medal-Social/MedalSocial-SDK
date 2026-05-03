@@ -61,6 +61,8 @@ jobs:
 
       - run: pnpm build
 
+      - run: pnpm verify:paths
+
   security:
     runs-on: ubuntu-latest
     steps:
