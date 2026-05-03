@@ -62,6 +62,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(
-  "[verify-package-paths] OK — all package.json entry points resolve to existing files.",
-);
+console.log("[verify-package-paths] OK — all package.json entry points resolve to existing files.");

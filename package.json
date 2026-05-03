@@ -59,7 +59,9 @@
     "access": "public"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,md,yml,yaml}": ["biome check --write --no-errors-on-unmatched"]
+    "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,md,yml,yaml}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   },
   "files": ["dist"],
   "keywords": [
