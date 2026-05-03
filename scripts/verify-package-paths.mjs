@@ -21,9 +21,17 @@ const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
 const errors = [];
 
+// Matches strings that look like a package-relative file path. We deliberately
+// validate every string passed in (the caller controls call sites and only
+// passes fields known to hold paths) but skip values that obviously aren't
+// paths: URLs, bare specifiers, and conditional-export keys like "node" or
+// "default" that show up when callers walk objects.
+const PATH_LIKE = /^(\.\/|\.\.\/|\/|[a-zA-Z0-9_-]+\/).+\.[a-zA-Z0-9]+$/;
+
 function check(label, value) {
   if (typeof value !== "string") return;
-  if (!value.startsWith(".") && !value.startsWith("dist/")) return;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return; // protocol URL
+  if (!PATH_LIKE.test(value)) return;
   const abs = resolve(pkgDir, value);
   if (!existsSync(abs)) {
     errors.push(`  ${label} → ${value}  (resolved: ${abs})`);
