@@ -13,14 +13,14 @@
     "url": "https://github.com/Medal-Social/MedalSocial-SDK/issues"
   },
   "homepage": "https://github.com/Medal-Social/MedalSocial-SDK#readme",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "module": "dist/src/index.mjs",
+  "types": "dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.mjs",
+      "require": "./dist/src/index.js"
     },
     "./pilot": {
       "types": "./dist/pilot/index.d.ts",
@@ -45,9 +45,10 @@
     "lint:fix": "biome check --fix .",
     "quality": "pnpm lint && pnpm test",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm test && pnpm build",
+    "verify:paths": "node scripts/verify-package-paths.mjs",
+    "prepublishOnly": "pnpm test && pnpm build && pnpm verify:paths",
     "version": "changeset version && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('./package.json','utf8'));const j=JSON.parse(fs.readFileSync('./jsr.json','utf8'));j.version=p.version;fs.writeFileSync('./jsr.json',JSON.stringify(j,null,2)+'\\n')\"",
-    "release": "pnpm build && changeset publish && pnpm exec jsr publish",
+    "release": "pnpm build && pnpm verify:paths && changeset publish && pnpm exec jsr publish",
     "changeset": "changeset",
     "knip:report": "knip --reporter json --no-exit-code",
     "knip:check": "knip",
@@ -58,7 +59,9 @@
     "access": "public"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,md,yml,yaml}": ["biome check --write --no-errors-on-unmatched"]
+    "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,md,yml,yaml}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   },
   "files": ["dist"],
   "keywords": [
