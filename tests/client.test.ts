@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Medal, MedalApiError } from "../src";
+import { Medal, MedalApiError, createMedalClient } from "../src";
 
 const BASE = "https://test.convex.site";
 
@@ -45,6 +45,33 @@ describe("Medal constructor", () => {
     const medal = new Medal("medal_test", { baseUrl: "https://custom.example.com/" });
     await medal.workspaces.list();
     vi.restoreAllMocks();
+  });
+});
+
+describe("createMedalClient", () => {
+  it("returns a Medal instance with the supplied token", () => {
+    const medal = createMedalClient("medal_test", { baseUrl: BASE });
+    expect(medal).toBeInstanceOf(Medal);
+    expect(medal.workspaces).toBeDefined();
+  });
+
+  it("forwards options through to the Medal constructor", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("https://forwarded.example.com/api/v1/me/workspaces");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-workspace-id")).toBe("ws_forward");
+      return mockJson({ data: [] });
+    });
+    const medal = createMedalClient("oauth_token", {
+      baseUrl: "https://forwarded.example.com",
+      workspaceId: "ws_forward",
+    });
+    await medal.workspaces.list();
+    vi.restoreAllMocks();
+  });
+
+  it("throws when token is empty", () => {
+    expect(() => createMedalClient("")).toThrow("Authentication token is required");
   });
 });
 

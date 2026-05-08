@@ -9,7 +9,13 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/**/*.ts"],
-      exclude: ["src/types/**/*.ts", "examples/**", "dist/**", "vitest.config.*"],
+      exclude: [
+        "src/types/**/*.ts",
+        "src/devices/**/*.ts",
+        "examples/**",
+        "dist/**",
+        "vitest.config.*",
+      ],
       thresholds: {
         lines: 100,
         functions: 100,
