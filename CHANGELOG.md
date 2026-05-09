@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.1.6
+
+### Patch Changes
+
+- [#51](https://github.com/Medal-Social/MedalSocial-SDK/pull/51) [`94e45a8`](https://github.com/Medal-Social/MedalSocial-SDK/commit/94e45a805aa5c3af289400514367a828e7dba05f) Thanks [@alioftech](https://github.com/alioftech)! - Lock SDK at 100% test coverage. The vitest config now enforces 100% lines/branches/functions/statements thresholds against `src/**` (with type-only files in `src/types/**` and `src/devices/**` excluded since they emit no runtime). Added a focused test for the `createMedalClient` factory covering the default path, option forwarding (baseUrl + workspaceId header), and the empty-token guard. No public API changes.
+
 ## 1.1.5
 
 ### Patch Changes
