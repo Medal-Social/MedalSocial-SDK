@@ -1,1 +1,17 @@
-[]
+{
+  "run_date": "2026-05-12T01:07:03Z",
+  "run_id": "25706847025",
+  "total_prs_triaged": 0,
+  "total_prs_found": 1,
+  "notes": "Only 1 open PR found (PR #58 - Changesets release bot). It is from an internal branch, not a fork. Per triage spec: Filter fork PRs only (head.repo.full_name != base.repo.full_name). No agent-created fork PRs to triage.",
+  "auto_merge_candidates": [],
+  "fast_track_needed": [],
+  "batches": {},
+  "close_candidates": [],
+  "statistics": {
+    "by_category": {},
+    "by_risk": {},
+    "by_priority": {},
+    "by_action": {}
+  }
+}
