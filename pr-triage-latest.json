@@ -1,9 +1,19 @@
 {
-  "run_date": "2026-05-12T07:15:52.264Z",
-  "run_id": "25719463800",
-  "total_prs_triaged": 0,
+  "run_date": "2026-05-12T12:58:37.328Z",
+  "run_id": "25735878311",
   "total_prs_found": 1,
-  "notes": "Run ID 25719463800: Systematic review of all open PRs. Found 1 open PR (PR #58). Analysis: PR #58 is 'chore: release packages' by medal-social-release-bot[bot] (not GitHub Copilot author). Additionally, head.repo.full_name == base.repo.full_name (both 'Medal-Social/MedalSocial-SDK'), so it's from an internal branch, not a fork. Per triage spec 1.2: 'Filter fork PRs only (head.repo.full_name != base.repo.full_name)'. Conclusion: No agent-created fork PRs to triage.",
+  "total_prs_triaged": 0,
+  "analysis": {
+    "pr_58": {
+      "title": "chore: release packages",
+      "author": "medal-social-release-bot[bot]",
+      "head_repo": "Medal-Social/MedalSocial-SDK",
+      "base_repo": "Medal-Social/MedalSocial-SDK",
+      "status": "excluded",
+      "reason": "Not a fork PR (head.repo == base.repo) and not from app/github-copilot author"
+    }
+  },
+  "notes": "Run ID 25735878311: Only 1 open PR exists (#58). It is a release bot PR from medal-social-release-bot[bot] and originates from an internal branch (not a fork). Per triage spec 1.2, only fork PRs are triaged. Conclusion: No agent-created fork PRs to triage.",
   "auto_merge_candidates": [],
   "fast_track_needed": [],
   "batches": {},
