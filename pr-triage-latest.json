@@ -1,10 +1,12 @@
 {
-  "run_date": "2026-05-12T12:58:37.328Z",
-  "run_id": "25735878311",
+  "run_date": "2026-05-12T18:50:33.179Z",
+  "run_id": 25755263314,
   "total_prs_found": 1,
+  "total_open_prs": 1,
   "total_prs_triaged": 0,
   "analysis": {
     "pr_58": {
+      "number": 58,
       "title": "chore: release packages",
       "author": "medal-social-release-bot[bot]",
       "head_repo": "Medal-Social/MedalSocial-SDK",
@@ -13,7 +15,7 @@
       "reason": "Not a fork PR (head.repo == base.repo) and not from app/github-copilot author"
     }
   },
-  "notes": "Run ID 25735878311: Only 1 open PR exists (#58). It is a release bot PR from medal-social-release-bot[bot] and originates from an internal branch (not a fork). Per triage spec 1.2, only fork PRs are triaged. Conclusion: No agent-created fork PRs to triage.",
+  "notes": "Run ID 25755263314: Only 1 open PR exists (#58). It is a release automation PR from Changesets action (medal-social-release-bot[bot]) and originates from an internal branch (not a fork). Per triage spec 1.2, only fork PRs from agent workflows are triaged. Conclusion: No agent-created fork PRs to triage at this time.",
   "auto_merge_candidates": [],
   "fast_track_needed": [],
   "batches": {},
@@ -22,6 +24,11 @@
     "by_category": {},
     "by_risk": {},
     "by_priority": {},
-    "by_action": {}
+    "by_action": {},
+    "total": {
+      "high_priority": 0,
+      "medium_priority": 0,
+      "low_priority": 0
+    }
   }
 }
