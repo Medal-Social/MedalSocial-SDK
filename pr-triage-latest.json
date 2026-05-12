@@ -1,9 +1,9 @@
 {
-  "run_date": "2026-05-12T01:07:03Z",
-  "run_id": "25706847025",
+  "run_date": "2026-05-12T07:15:52.264Z",
+  "run_id": "25719463800",
   "total_prs_triaged": 0,
   "total_prs_found": 1,
-  "notes": "Only 1 open PR found (PR #58 - Changesets release bot). It is from an internal branch, not a fork. Per triage spec: Filter fork PRs only (head.repo.full_name != base.repo.full_name). No agent-created fork PRs to triage.",
+  "notes": "Run ID 25719463800: Systematic review of all open PRs. Found 1 open PR (PR #58). Analysis: PR #58 is 'chore: release packages' by medal-social-release-bot[bot] (not GitHub Copilot author). Additionally, head.repo.full_name == base.repo.full_name (both 'Medal-Social/MedalSocial-SDK'), so it's from an internal branch, not a fork. Per triage spec 1.2: 'Filter fork PRs only (head.repo.full_name != base.repo.full_name)'. Conclusion: No agent-created fork PRs to triage.",
   "auto_merge_candidates": [],
   "fast_track_needed": [],
   "batches": {},
