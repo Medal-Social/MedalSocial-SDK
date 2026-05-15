@@ -38,7 +38,7 @@ jobs:
             echo "needed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Ask Copilot to generate changeset
+      - name: Remind contributor to add a changeset
         if: steps.check.outputs.needed == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
@@ -48,13 +48,13 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body: [
-                '@copilot Please add a changeset for this PR.',
+                'This PR changes `src/` but has no changeset.',
                 '',
-                'Look at the diff and create a `.changeset/<descriptive-name>.md` file with:',
+                'Please add a `.changeset/<descriptive-name>.md` file with:',
                 '- The correct bump type (`patch`, `minor`, or `major`)',
                 '- Package in scope: `@medalsocial/sdk`',
                 '- A concise, user-facing summary (not implementation details)',
                 '',
-                'Follow the format of existing files in `.changeset/`.',
+                'Follow the format of existing files in `.changeset/`. See https://github.com/changesets/changesets for details.',
               ].join('\n')
             });
