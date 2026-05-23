@@ -1,0 +1,12 @@
+apis:
+  medal-social:
+    root: openapi/medal-social.openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  operation-operationId: error
+  operation-tags: error
+  no-unused-components: warn
+  security-defined: error
