@@ -59,9 +59,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm openapi:check
+      - run: pnpm openapi:lint
 
       - run: pnpm build
+
+      - run: pnpm openapi:coverage
 
       - run: pnpm verify:paths
 

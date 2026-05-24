@@ -1,6 +1,6 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "Official TypeScript SDK for the Medal Social API — posts, emails, contacts, deals, GDPR, and workspaces.",
   "exports": "./src/index.ts"
 }

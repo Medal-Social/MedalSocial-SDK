@@ -82,6 +82,6 @@ tests/
 
 - **Public repo** — never commit secrets, internal URLs, or Medal Social infrastructure references
 - **Base URL** is `https://io.medalsocial.com` — not `api.medalsocial.com` (common mistake, already fixed once)
-- **License** is MIT — do not change to Apache-2.0
+- **License** is Apache-2.0 — keep `LICENSE`, `package.json`, and published metadata aligned
 - **No `NPM_TOKEN`** — publishing uses OIDC, do not add a static token
 - Authoritative source is `medal-monorepo/packages/sdk` — sync changes back there too
