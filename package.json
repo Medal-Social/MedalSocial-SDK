@@ -26,6 +26,15 @@
       "types": "./dist/pilot/index.d.ts",
       "import": "./dist/pilot/index.mjs",
       "require": "./dist/pilot/index.js"
+    },
+    "./openapi.json": {
+      "default": "./dist/openapi/medal-social.openapi.json"
+    },
+    "./openapi.yaml": "./openapi/medal-social.openapi.yaml",
+    "./openapi-types": {
+      "types": "./dist/src/openapi.generated.d.ts",
+      "import": "./dist/src/openapi.generated.mjs",
+      "require": "./dist/src/openapi.generated.js"
     }
   },
   "sideEffects": false,
@@ -35,7 +44,7 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
-    "build": "tsup src/index.ts pilot/index.ts --dts --format esm,cjs --sourcemap",
+    "build": "pnpm openapi:types && tsup src/index.ts src/openapi.generated.ts pilot/index.ts --dts --format esm,cjs --sourcemap && pnpm openapi:bundle",
     "dev": "tsup src/index.ts --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -46,7 +55,12 @@
     "quality": "pnpm lint && pnpm test",
     "typecheck": "tsc --noEmit",
     "verify:paths": "node scripts/verify-package-paths.mjs",
-    "prepublishOnly": "pnpm test && pnpm build && pnpm verify:paths",
+    "openapi:lint": "redocly lint openapi/medal-social.openapi.yaml",
+    "openapi:types": "openapi-typescript && biome format --write src/openapi.generated.ts",
+    "openapi:bundle": "node -e \"require('node:fs').mkdirSync('dist/openapi',{recursive:true})\" && redocly bundle openapi/medal-social.openapi.yaml --output dist/openapi/medal-social.openapi.json",
+    "openapi:coverage": "node scripts/assert-openapi-sdk-coverage.mjs",
+    "openapi:check": "pnpm openapi:lint && pnpm openapi:types && pnpm openapi:bundle && pnpm openapi:coverage",
+    "prepublishOnly": "pnpm test && pnpm openapi:lint && pnpm build && pnpm openapi:coverage && pnpm verify:paths",
     "version": "changeset version && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('./package.json','utf8'));const j=JSON.parse(fs.readFileSync('./jsr.json','utf8'));j.version=p.version;fs.writeFileSync('./jsr.json',JSON.stringify(j,null,2)+'\\n')\"",
     "release": "pnpm build && pnpm verify:paths && changeset publish && pnpm exec jsr publish",
     "changeset": "changeset",
@@ -63,7 +77,7 @@
       "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "files": ["dist"],
+  "files": ["dist", "openapi"],
   "keywords": [
     "medal",
     "social",
@@ -104,6 +118,7 @@
     "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^19.4.0",
     "@commitlint/config-conventional": "^19.4.0",
+    "@redocly/cli": "^2.31.4",
     "@secretlint/secretlint-rule-preset-recommend": "^9.3.2",
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
@@ -112,6 +127,7 @@
     "knip": "^5.63.1",
     "lint-staged": "^16.2.6",
     "only-allow": "^1.2.1",
+    "openapi-typescript": "^7.13.0",
     "secretlint": "^9.3.2",
     "tsup": "^8.3.0",
     "typedoc": "^0.26.6",

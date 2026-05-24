@@ -1,0 +1,14 @@
+apis:
+  medal-social:
+    root: openapi/medal-social.openapi.yaml
+    x-openapi-ts:
+      output: src/openapi.generated.ts
+
+extends:
+  - recommended
+
+rules:
+  operation-operationId: error
+  operation-4xx-response: off
+  no-unused-components: warn
+  security-defined: error

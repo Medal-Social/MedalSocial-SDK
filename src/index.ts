@@ -182,6 +182,11 @@ export type {
   PublishResult,
 } from "./types/posts";
 export type { Workspace } from "./types/workspaces";
+export type {
+  paths as OpenApiPaths,
+  components as OpenApiComponents,
+  operations as OpenApiOperations,
+} from "./openapi.generated";
 
 // Resource class re-exports (for advanced usage)
 export { Emails } from "./resources/emails";

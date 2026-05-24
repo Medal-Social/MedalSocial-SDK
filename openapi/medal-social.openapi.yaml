@@ -1,0 +1,1910 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: Medal Social API
+  version: 1.1.7
+  description: Public API contract for the Medal Social TypeScript SDK.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: https://io.medalsocial.com
+    description: Medal Social production API
+security:
+  - bearerAuth: []
+tags:
+  - name: Posts
+    description: Create, schedule, publish, and inspect posts.
+  - name: Emails
+    description: Send transactional email and inspect templates.
+  - name: Contacts
+    description: Manage workspace CRM contacts.
+  - name: Deals
+    description: Manage sponsorship and brand deals.
+  - name: GDPR
+    description: Manage exports, consent records, and cookie consent.
+  - name: Workspaces
+    description: Inspect workspaces accessible to the current credential.
+paths:
+  /api/v1/posts:
+    get:
+      tags: [Posts]
+      operationId: listPosts
+      summary: List posts
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/PostType"
+      responses:
+        "200":
+          description: Posts page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_Post"
+        default:
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [Posts]
+      operationId: createPost
+      summary: Create a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostInput"
+      responses:
+        "200":
+          description: Created post reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PostCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/posts/channels:
+    get:
+      tags: [Posts]
+      operationId: listPostChannels
+      summary: List connected post channels
+      responses:
+        "200":
+          description: Connected channels.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ChannelArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/posts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Posts]
+      operationId: getPost
+      summary: Get post detail
+      responses:
+        "200":
+          description: Post detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PostDetail"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Posts]
+      operationId: updatePost
+      summary: Update a draft post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePostInput"
+      responses:
+        "200":
+          description: Update result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Success"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Posts]
+      operationId: deletePost
+      summary: Delete a post
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Success"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/posts/{id}/schedule:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Posts]
+      operationId: schedulePost
+      summary: Schedule a post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchedulePostInput"
+      responses:
+        "200":
+          description: Schedule result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ScheduleResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/posts/{id}/publish:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Posts]
+      operationId: publishPost
+      summary: Publish a post
+      responses:
+        "200":
+          description: Publish result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PublishResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/emails:
+    post:
+      tags: [Emails]
+      operationId: sendEmail
+      summary: Send a transactional email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendEmailInput"
+      responses:
+        "202":
+          description: Email queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_EmailSendResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/emails/batch:
+    post:
+      tags: [Emails]
+      operationId: batchSendEmails
+      summary: Send a batch of transactional emails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchSendInput"
+      responses:
+        "202":
+          description: Batch queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BatchSendSummary"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/emails/templates:
+    get:
+      tags: [Emails]
+      operationId: listEmailTemplates
+      summary: List active email templates
+      responses:
+        "200":
+          description: Active templates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_EmailTemplateArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/emails/templates/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/Slug"
+    get:
+      tags: [Emails]
+      operationId: getEmailTemplate
+      summary: Get an email template
+      parameters:
+        - name: locale
+          in: query
+          schema:
+            type: string
+        - name: fallback_locale
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email template detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_EmailTemplateDetail"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/emails/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Emails]
+      operationId: getEmailSend
+      summary: Get sent email status
+      responses:
+        "200":
+          description: Sent email status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_EmailSend"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/contacts:
+    get:
+      tags: [Contacts]
+      operationId: listContacts
+      summary: List contacts
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ContactStatus"
+        - name: email_status
+          in: query
+          schema:
+            $ref: "#/components/schemas/EmailStatus"
+        - name: label_ids
+          in: query
+          schema:
+            type: string
+          description: Comma-separated label IDs.
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Contacts page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_Contact"
+        default:
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [Contacts]
+      operationId: createContact
+      summary: Create a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContactInput"
+      responses:
+        "200":
+          description: Created contact reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ContactCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/contacts/import:
+    post:
+      tags: [Contacts]
+      operationId: importContacts
+      summary: Import contacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contacts]
+              properties:
+                contacts:
+                  type: array
+                  maxItems: 500
+                  items:
+                    $ref: "#/components/schemas/ImportContactInput"
+      responses:
+        "200":
+          description: Import summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ImportContactsResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/contacts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Contacts]
+      operationId: getContact
+      summary: Get a contact
+      responses:
+        "200":
+          description: Contact.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Contact"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Contacts]
+      operationId: updateContact
+      summary: Update a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContactInput"
+      responses:
+        "200":
+          description: Update result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ContactUpdateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Contacts]
+      operationId: deleteContact
+      summary: Delete a contact
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ContactRemoveResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/contacts/{id}/activities:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Contacts]
+      operationId: listContactActivities
+      summary: List contact activities
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Contact activities page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_Activity"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/contacts/{id}/notes:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Contacts]
+      operationId: addContactNote
+      summary: Add a contact note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddNoteInput"
+      responses:
+        "200":
+          description: Created note reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ContactNoteResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/deals:
+    get:
+      tags: [Deals]
+      operationId: listDeals
+      summary: List deals
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/DealStatus"
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deals page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_Deal"
+        default:
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [Deals]
+      operationId: createDeal
+      summary: Create a deal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDealInput"
+      responses:
+        "200":
+          description: Created deal reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DealCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/deals/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Deals]
+      operationId: getDeal
+      summary: Get a deal
+      responses:
+        "200":
+          description: Deal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Deal"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Deals]
+      operationId: updateDeal
+      summary: Update a deal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDealInput"
+      responses:
+        "200":
+          description: Update result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DealUpdateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Deals]
+      operationId: deleteDeal
+      summary: Delete a deal
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DealRemoveResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/gdpr/export:
+    post:
+      tags: [GDPR]
+      operationId: requestGdprExport
+      summary: Request a GDPR export
+      responses:
+        "200":
+          description: Export request reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GdprExportRequest"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/gdpr/exports:
+    get:
+      tags: [GDPR]
+      operationId: listGdprExports
+      summary: List GDPR exports
+      responses:
+        "200":
+          description: Export requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GdprExportArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/gdpr/exports/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [GDPR]
+      operationId: getGdprExport
+      summary: Get a GDPR export
+      responses:
+        "200":
+          description: Export request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GdprExport"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/gdpr/consent:
+    post:
+      tags: [GDPR]
+      operationId: recordGdprConsent
+      summary: Record GDPR consent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordConsentInput"
+      responses:
+        "200":
+          description: Consent reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ConsentResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/gdpr/consent/{email}:
+    parameters:
+      - name: email
+        in: path
+        required: true
+        schema:
+          type: string
+          format: email
+    get:
+      tags: [GDPR]
+      operationId: getGdprConsent
+      summary: Get GDPR consent records
+      responses:
+        "200":
+          description: Consent records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ConsentRecordArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/cookie-consent:
+    post:
+      tags: [GDPR]
+      operationId: recordCookieConsent
+      summary: Record cookie consent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CookieConsentInput"
+      responses:
+        "200":
+          description: Cookie consent result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CookieConsentResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/me/workspaces:
+    get:
+      tags: [Workspaces]
+      operationId: listWorkspaces
+      summary: List accessible workspaces
+      responses:
+        "200":
+          description: Workspaces.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WorkspaceArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+  responses:
+    ApiError:
+      description: API error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details: true
+    Pagination:
+      type: object
+      required: [has_more, next_cursor]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: [string, "null"]
+    Success:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+    PostCreateResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    Post:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - content
+        - status
+        - channel_ids
+        - variant_count
+        - published_count
+        - failed_count
+        - scheduled_at
+        - published_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/PostType"
+        title:
+          type: [string, "null"]
+        content:
+          type: string
+        status:
+          type: string
+        channel_ids:
+          type: array
+          items:
+            type: string
+        variant_count:
+          type: integer
+        published_count:
+          type: integer
+        failed_count:
+          type: integer
+        scheduled_at:
+          type: [string, "null"]
+          format: date-time
+        published_at:
+          type: [string, "null"]
+          format: date-time
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    PostType:
+      type: string
+      enum: [social, newsletter, blog]
+    PostVariant:
+      type: object
+      required:
+        - id
+        - channel_id
+        - content
+        - status
+        - platform
+        - channel_display_name
+        - scheduled_at
+        - published_at
+        - platform_post_id
+        - permalink
+        - error
+      properties:
+        id:
+          type: string
+        channel_id:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+        platform:
+          type: [string, "null"]
+        channel_display_name:
+          type: [string, "null"]
+        scheduled_at:
+          type: [string, "null"]
+          format: date-time
+        published_at:
+          type: [string, "null"]
+          format: date-time
+        platform_post_id:
+          type: [string, "null"]
+        permalink:
+          type: [string, "null"]
+          format: uri
+        error:
+          type: [string, "null"]
+    PostDetail:
+      allOf:
+        - $ref: "#/components/schemas/Post"
+        - type: object
+          required: [variants]
+          properties:
+            variants:
+              type: array
+              items:
+                $ref: "#/components/schemas/PostVariant"
+    Channel:
+      type: object
+      required: [id, platform, display_name, platform_username, state, connected_at]
+      properties:
+        id:
+          type: string
+        platform:
+          type: [string, "null"]
+        display_name:
+          type: [string, "null"]
+        platform_username:
+          type: [string, "null"]
+        state:
+          type: string
+        connected_at:
+          type: [string, "null"]
+          format: date-time
+    CreatePostInput:
+      type: object
+      required: [content, channel_ids]
+      properties:
+        type:
+          $ref: "#/components/schemas/PostType"
+        title:
+          type: string
+        content:
+          type: string
+        channel_ids:
+          type: array
+          items:
+            type: string
+    UpdatePostInput:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+    SchedulePostInput:
+      type: object
+      required: [scheduled_at]
+      properties:
+        scheduled_at:
+          oneOf:
+            - type: integer
+            - type: string
+              format: date-time
+    ScheduleResult:
+      type: object
+      required: [success, workflow_id]
+      properties:
+        success:
+          type: boolean
+        workflow_id:
+          type: string
+    PublishResult:
+      type: object
+      required: [success, workflow_id]
+      properties:
+        success:
+          type: boolean
+        workflow_id:
+          type: string
+    SendEmailInput:
+      type: object
+      required: [template_slug, to]
+      properties:
+        template_slug:
+          type: string
+        to:
+          type: string
+          format: email
+        name:
+          type: string
+        locale:
+          type: string
+        fallback_locale:
+          type: string
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        contact_id:
+          type: string
+    EmailSendResult:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+    EmailSend:
+      type: object
+      required:
+        - id
+        - status
+        - recipient_email
+        - recipient_name
+        - subject
+        - template_id
+        - contact_id
+        - queued_at
+        - sent_at
+        - delivered_at
+        - opened_at
+        - clicked_at
+        - error_message
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        recipient_email:
+          type: string
+          format: email
+        recipient_name:
+          type: [string, "null"]
+        subject:
+          type: [string, "null"]
+        template_id:
+          type: [string, "null"]
+        contact_id:
+          type: [string, "null"]
+        queued_at:
+          type: [string, "null"]
+          format: date-time
+        sent_at:
+          type: [string, "null"]
+          format: date-time
+        delivered_at:
+          type: [string, "null"]
+          format: date-time
+        opened_at:
+          type: [string, "null"]
+          format: date-time
+        clicked_at:
+          type: [string, "null"]
+          format: date-time
+        error_message:
+          type: [string, "null"]
+    BatchSendInput:
+      type: object
+      required: [template_slug, recipients]
+      properties:
+        template_slug:
+          type: string
+        default_locale:
+          type: string
+        recipients:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [email]
+            properties:
+              email:
+                type: string
+                format: email
+              name:
+                type: string
+              locale:
+                type: string
+              variables:
+                type: object
+                additionalProperties:
+                  type: string
+    BatchSendSummary:
+      type: object
+      required: [batch_id, total, queued, failed]
+      properties:
+        batch_id:
+          type: string
+        total:
+          type: integer
+        queued:
+          type: integer
+        failed:
+          type: integer
+    EmailTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - type
+        - subject
+        - default_locale
+        - available_locales
+        - description
+        - category
+        - label_ids
+        - is_active
+        - is_archived
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        type:
+          type: [string, "null"]
+        subject:
+          type: [string, "null"]
+        default_locale:
+          type: string
+        available_locales:
+          type: array
+          items:
+            type: string
+        description:
+          type: [string, "null"]
+        category:
+          type: [string, "null"]
+        label_ids:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        is_archived:
+          type: boolean
+        version:
+          type: integer
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    EmailTemplateDetail:
+      allOf:
+        - $ref: "#/components/schemas/EmailTemplate"
+        - type: object
+          required:
+            - html_content
+            - text_content
+            - preview_text
+            - from_name
+            - from_email
+            - reply_to
+            - requested_locale
+            - resolved_locale
+            - content_source
+            - localizations
+          properties:
+            html_content:
+              type: [string, "null"]
+            text_content:
+              type: [string, "null"]
+            preview_text:
+              type: [string, "null"]
+            from_name:
+              type: [string, "null"]
+            from_email:
+              type: [string, "null"]
+              format: email
+            reply_to:
+              type: [string, "null"]
+              format: email
+            requested_locale:
+              type: [string, "null"]
+            resolved_locale:
+              type: string
+            content_source:
+              type: string
+            localizations:
+              type: array
+              items:
+                type: object
+                required: [locale, subject, html_content, text_content, preview_text]
+                properties:
+                  locale:
+                    type: [string, "null"]
+                  subject:
+                    type: [string, "null"]
+                  html_content:
+                    type: [string, "null"]
+                  text_content:
+                    type: [string, "null"]
+                  preview_text:
+                    type: [string, "null"]
+    Contact:
+      type: object
+      required:
+        - id
+        - email
+        - first_name
+        - last_name
+        - phone
+        - company
+        - job_title
+        - address
+        - status
+        - email_status
+        - label_ids
+        - source
+        - custom_fields
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        first_name:
+          type: [string, "null"]
+        last_name:
+          type: [string, "null"]
+        phone:
+          type: [string, "null"]
+        company:
+          type: [string, "null"]
+        job_title:
+          type: [string, "null"]
+        address:
+          anyOf:
+            - type: object
+              additionalProperties:
+                type: string
+            - type: "null"
+        status:
+          $ref: "#/components/schemas/ContactStatus"
+        email_status:
+          $ref: "#/components/schemas/EmailStatus"
+        label_ids:
+          type: array
+          items:
+            type: string
+        source:
+          type: [string, "null"]
+        custom_fields:
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    ContactCreateResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    ContactUpdateResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ContactRemoveResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ContactNoteResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    ContactStatus:
+      type: string
+      enum: [lead, prospect, customer, churned, archived]
+    EmailStatus:
+      type: string
+      enum: [subscribed, unsubscribed, bounced, complained]
+    CreateContactInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        company:
+          type: string
+        job_title:
+          type: string
+        address:
+          type: object
+          additionalProperties:
+            type: string
+        status:
+          $ref: "#/components/schemas/ContactStatus"
+        email_status:
+          $ref: "#/components/schemas/EmailStatus"
+        label_ids:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        custom_fields:
+          type: object
+          additionalProperties: true
+        notes:
+          oneOf:
+            - type: string
+            - $ref: "#/components/schemas/ContactNoteInput"
+    UpdateContactInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        company:
+          type: string
+        job_title:
+          type: string
+        status:
+          $ref: "#/components/schemas/ContactStatus"
+        email_status:
+          $ref: "#/components/schemas/EmailStatus"
+        label_ids:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        custom_fields:
+          type: object
+          additionalProperties: true
+    ContactNoteInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: object
+            required: [url, name]
+            properties:
+              url:
+                type: string
+                format: uri
+              name:
+                type: string
+              type:
+                type: string
+              size:
+                type: number
+    ImportContactInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        company:
+          type: string
+        job_title:
+          type: string
+        label_ids:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+    ImportContactsResult:
+      type: object
+      required: [added, skipped, total]
+      properties:
+        added:
+          type: integer
+        skipped:
+          type: integer
+        total:
+          type: integer
+    Activity:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - content
+        - actor_name
+        - actor_type
+        - metadata
+        - created_at
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: [string, "null"]
+        content:
+          type: [string, "null"]
+        actor_name:
+          type: [string, "null"]
+        actor_type:
+          type: [string, "null"]
+        metadata: true
+        created_at:
+          type: [string, "null"]
+          format: date-time
+    AddNoteInput:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+    Deal:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - value
+        - currency
+        - status
+        - brand_name
+        - brand_website
+        - contact_id
+        - contact_name
+        - contact_email
+        - start_date
+        - end_date
+        - notes
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: [string, "null"]
+        value:
+          type: [number, "null"]
+        currency:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/DealStatus"
+        brand_name:
+          type: [string, "null"]
+        brand_website:
+          type: [string, "null"]
+          format: uri
+        contact_id:
+          type: [string, "null"]
+        contact_name:
+          type: [string, "null"]
+        contact_email:
+          type: [string, "null"]
+          format: email
+        start_date:
+          type: [string, "null"]
+          format: date
+        end_date:
+          type: [string, "null"]
+          format: date
+        notes:
+          type: [string, "null"]
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    DealCreateResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    DealUpdateResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    DealRemoveResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    DealStatus:
+      type: string
+      enum: [draft, open, won, lost, negotiating, proposal_sent, on_hold, churned]
+    CreateDealInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        value:
+          type: number
+        currency:
+          type: string
+        brand_name:
+          type: string
+        brand_website:
+          type: string
+          format: uri
+        contact_id:
+          type: string
+        contact_name:
+          type: string
+        contact_email:
+          type: string
+          format: email
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+    UpdateDealInput:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        value:
+          type: number
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/DealStatus"
+        brand_name:
+          type: string
+        brand_website:
+          type: string
+          format: uri
+        contact_id:
+          type: [string, "null"]
+        contact_name:
+          type: string
+        contact_email:
+          type: string
+          format: email
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        notes:
+          type: string
+    GdprExport:
+      type: object
+      required: [id, request_type, status, submitted_at, completed_at]
+      properties:
+        id:
+          type: string
+        request_type:
+          type: string
+        status:
+          type: string
+        submitted_at:
+          type: [string, "null"]
+          format: date-time
+        completed_at:
+          type: [string, "null"]
+          format: date-time
+        due_date:
+          type: [string, "null"]
+          format: date-time
+        download_url:
+          type: [string, "null"]
+          format: uri
+        expires_at:
+          type: [string, "null"]
+          format: date-time
+    GdprExportRequest:
+      type: object
+      required: [request_id, status]
+      properties:
+        request_id:
+          type: string
+        status:
+          type: string
+    ConsentType:
+      type: string
+      enum: [marketing_email, analytics_tracking, third_party_sharing]
+    RecordConsentInput:
+      type: object
+      required: [email, consent_type, granted]
+      properties:
+        email:
+          type: string
+          format: email
+        consent_type:
+          $ref: "#/components/schemas/ConsentType"
+        granted:
+          type: boolean
+        source:
+          type: string
+        ip_address:
+          type: string
+        consent_text:
+          type: string
+        version:
+          type: string
+    ConsentRecord:
+      type: object
+      required: [id, email, consent_type, granted, granted_at, revoked_at]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        consent_type:
+          $ref: "#/components/schemas/ConsentType"
+        granted:
+          type: boolean
+        granted_at:
+          type: [string, "null"]
+          format: date-time
+        revoked_at:
+          type: [string, "null"]
+          format: date-time
+        source:
+          type: string
+        version:
+          type: string
+    ConsentResult:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    CookieConsentInput:
+      type: object
+      required: [domain, consentStatus, consentTimestamp, cookiePreferences]
+      properties:
+        domain:
+          type: string
+        consentStatus:
+          type: string
+        consentTimestamp:
+          type: string
+          format: date-time
+        ipAddress:
+          type: string
+        userAgent:
+          type: string
+        cookiePreferences:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CookieCategoryConsent"
+    CookieCategoryConsent:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+        cookieRecords:
+          type: array
+          items:
+            type: object
+            required: [cookie, duration, description]
+            properties:
+              cookie:
+                type: string
+              duration:
+                type: string
+              description:
+                type: string
+    CookieConsentResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        logId:
+          type: string
+    Workspace:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+      additionalProperties: true
+    ApiResponse_PostCreateResult:
+      $ref: "#/components/schemas/Envelope_PostCreateResult"
+    ApiResponse_PostDetail:
+      $ref: "#/components/schemas/Envelope_PostDetail"
+    ApiResponse_Success:
+      $ref: "#/components/schemas/Envelope_Success"
+    ApiResponse_ScheduleResult:
+      $ref: "#/components/schemas/Envelope_ScheduleResult"
+    ApiResponse_PublishResult:
+      $ref: "#/components/schemas/Envelope_PublishResult"
+    ApiResponse_ChannelArray:
+      $ref: "#/components/schemas/Envelope_ChannelArray"
+    ApiResponse_EmailSendResult:
+      $ref: "#/components/schemas/Envelope_EmailSendResult"
+    ApiResponse_EmailSend:
+      $ref: "#/components/schemas/Envelope_EmailSend"
+    ApiResponse_BatchSendSummary:
+      $ref: "#/components/schemas/Envelope_BatchSendSummary"
+    ApiResponse_EmailTemplateArray:
+      $ref: "#/components/schemas/Envelope_EmailTemplateArray"
+    ApiResponse_EmailTemplateDetail:
+      $ref: "#/components/schemas/Envelope_EmailTemplateDetail"
+    ApiResponse_Contact:
+      $ref: "#/components/schemas/Envelope_Contact"
+    ApiResponse_ContactCreateResult:
+      $ref: "#/components/schemas/Envelope_ContactCreateResult"
+    ApiResponse_ContactUpdateResult:
+      $ref: "#/components/schemas/Envelope_ContactUpdateResult"
+    ApiResponse_ContactRemoveResult:
+      $ref: "#/components/schemas/Envelope_ContactRemoveResult"
+    ApiResponse_ContactNoteResult:
+      $ref: "#/components/schemas/Envelope_ContactNoteResult"
+    ApiResponse_ImportContactsResult:
+      $ref: "#/components/schemas/Envelope_ImportContactsResult"
+    ApiResponse_Deal:
+      $ref: "#/components/schemas/Envelope_Deal"
+    ApiResponse_DealCreateResult:
+      $ref: "#/components/schemas/Envelope_DealCreateResult"
+    ApiResponse_DealUpdateResult:
+      $ref: "#/components/schemas/Envelope_DealUpdateResult"
+    ApiResponse_DealRemoveResult:
+      $ref: "#/components/schemas/Envelope_DealRemoveResult"
+    ApiResponse_GdprExportRequest:
+      $ref: "#/components/schemas/Envelope_GdprExportRequest"
+    ApiResponse_GdprExportArray:
+      $ref: "#/components/schemas/Envelope_GdprExportArray"
+    ApiResponse_GdprExport:
+      $ref: "#/components/schemas/Envelope_GdprExport"
+    ApiResponse_ConsentResult:
+      $ref: "#/components/schemas/Envelope_ConsentResult"
+    ApiResponse_ConsentRecordArray:
+      $ref: "#/components/schemas/Envelope_ConsentRecordArray"
+    ApiResponse_WorkspaceArray:
+      $ref: "#/components/schemas/Envelope_WorkspaceArray"
+    PaginatedResponse_Post:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_Contact:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Contact"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_Activity:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_Deal:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deal"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    Envelope_PostCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PostCreateResult"
+    Envelope_PostDetail:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PostDetail"
+    Envelope_Success:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Success"
+    Envelope_ScheduleResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ScheduleResult"
+    Envelope_PublishResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PublishResult"
+    Envelope_ChannelArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
+    Envelope_EmailSendResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailSendResult"
+    Envelope_EmailSend:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailSend"
+    Envelope_BatchSendSummary:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/BatchSendSummary"
+    Envelope_EmailTemplateArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailTemplate"
+    Envelope_EmailTemplateDetail:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/EmailTemplateDetail"
+    Envelope_Contact:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Contact"
+    Envelope_ContactCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ContactCreateResult"
+    Envelope_ContactUpdateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ContactUpdateResult"
+    Envelope_ContactRemoveResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ContactRemoveResult"
+    Envelope_ContactNoteResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ContactNoteResult"
+    Envelope_ImportContactsResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ImportContactsResult"
+    Envelope_Deal:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Deal"
+    Envelope_DealCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DealCreateResult"
+    Envelope_DealUpdateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DealUpdateResult"
+    Envelope_DealRemoveResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DealRemoveResult"
+    Envelope_GdprExportRequest:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/GdprExportRequest"
+    Envelope_GdprExportArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GdprExport"
+    Envelope_GdprExport:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/GdprExport"
+    Envelope_ConsentResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConsentResult"
+    Envelope_ConsentRecordArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConsentRecord"
+    Envelope_WorkspaceArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workspace"
