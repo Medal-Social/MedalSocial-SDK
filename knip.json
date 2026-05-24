@@ -5,6 +5,11 @@
     "@commitlint/cli",
     "secretlint"
   ],
-  "ignore": ["src/index.ts", "src/devices/**", "vitest.integration.config.ts"],
+  "ignore": [
+    "src/index.ts",
+    "src/devices/**",
+    "src/openapi.generated.ts",
+    "vitest.integration.config.ts"
+  ],
   "ignoreExportsUsedInFile": true
 }

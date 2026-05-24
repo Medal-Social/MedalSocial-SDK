@@ -290,6 +290,27 @@ do {
 } while (cursor);
 ```
 
+## OpenAPI 3.1
+
+The SDK publishes a validated OpenAPI 3.1 contract for the API surface covered by the typed client.
+
+```ts
+import type { OpenApiComponents, OpenApiOperations, OpenApiPaths } from '@medalsocial/sdk';
+import type { paths } from '@medalsocial/sdk/openapi-types';
+```
+
+Package artifacts:
+
+- `@medalsocial/sdk/openapi.yaml` - source OpenAPI 3.1 YAML document
+- `@medalsocial/sdk/openapi.json` - bundled JSON document generated during build
+- `@medalsocial/sdk/openapi-types` - generated TypeScript contract types
+
+Validate the contract locally:
+
+```bash
+pnpm openapi:check
+```
+
 ## Runtime Support
 
 Node.js 18+ and modern browsers. Uses native `fetch` — no polyfills required.
