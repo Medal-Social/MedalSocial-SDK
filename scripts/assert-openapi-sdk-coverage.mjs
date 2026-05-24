@@ -246,6 +246,16 @@ const expected = [
 
 const errors = [];
 const sourceCache = new Map();
+const openApiMethods = new Set([
+  "get",
+  "put",
+  "post",
+  "delete",
+  "options",
+  "head",
+  "patch",
+  "trace",
+]);
 
 function readSourceFile(sourcePath) {
   if (sourceCache.has(sourcePath)) {
@@ -271,12 +281,49 @@ function readSourceFile(sourcePath) {
   }
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasClientCall(source, clientMethod, pathArgument) {
+  const escapedPath = escapeRegExp(pathArgument);
+  const callPattern = new RegExp(`this\\.client\\.${clientMethod}\\(\\s*(["'\`])${escapedPath}\\1`);
+  return callPattern.test(source);
+}
+
 if (spec.openapi !== "3.1.0") {
   errors.push(`Expected openapi 3.1.0, got ${spec.openapi ?? "<missing>"}`);
 }
 
 if (spec.jsonSchemaDialect !== "https://json-schema.org/draft/2020-12/schema") {
   errors.push("Expected JSON Schema 2020-12 dialect declaration.");
+}
+
+const expectedOperationKeys = new Map();
+for (const [method, path, operationId] of expected) {
+  const key = `${method.toUpperCase()} ${path}`;
+  if (expectedOperationKeys.has(key)) {
+    errors.push(`${key} is duplicated in expected OpenAPI coverage entries`);
+  }
+  expectedOperationKeys.set(key, operationId);
+}
+
+for (const [path, pathItem] of Object.entries(spec.paths ?? {})) {
+  if (!pathItem || typeof pathItem !== "object") {
+    continue;
+  }
+
+  for (const [method, operation] of Object.entries(pathItem)) {
+    if (!openApiMethods.has(method)) {
+      continue;
+    }
+
+    const key = `${method.toUpperCase()} ${path}`;
+    if (!expectedOperationKeys.has(key)) {
+      const operationId = operation?.operationId ?? "<missing operationId>";
+      errors.push(`OpenAPI operation ${key} (${operationId}) is not covered by the SDK matrix`);
+    }
+  }
 }
 
 for (const [method, path, operationId, sourcePath, clientMethod, sourceNeedle] of expected) {
@@ -301,11 +348,10 @@ for (const [method, path, operationId, sourcePath, clientMethod, sourceNeedle] o
     continue;
   }
 
-  if (!source.includes(`this.client.${clientMethod}(`)) {
-    errors.push(`${sourcePath} is missing this.client.${clientMethod}( for ${operationId}`);
-  }
-  if (!source.includes(sourceNeedle)) {
-    errors.push(`${sourcePath} is missing path fragment ${sourceNeedle} for ${operationId}`);
+  if (!hasClientCall(source, clientMethod, sourceNeedle)) {
+    errors.push(
+      `${sourcePath} is missing this.client.${clientMethod}(${sourceNeedle}) for ${operationId}`,
+    );
   }
 }
 
