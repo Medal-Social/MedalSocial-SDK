@@ -2,11 +2,11 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: Medal Social API
-  version: 1.1.6
+  version: 1.1.7
   description: Public API contract for the Medal Social TypeScript SDK.
   license:
-    name: Apache-2.0
-    url: https://www.apache.org/licenses/LICENSE-2.0.html
+    name: MIT
+    identifier: MIT
 servers:
   - url: https://io.medalsocial.com
     description: Medal Social production API

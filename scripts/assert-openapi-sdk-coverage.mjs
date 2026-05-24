@@ -245,6 +245,31 @@ const expected = [
 ];
 
 const errors = [];
+const sourceCache = new Map();
+
+function readSourceFile(sourcePath) {
+  if (sourceCache.has(sourcePath)) {
+    return sourceCache.get(sourcePath);
+  }
+
+  const resolvedSourcePath = resolve(sourcePath);
+  if (!existsSync(resolvedSourcePath)) {
+    errors.push(`${sourcePath} does not exist for SDK coverage checks`);
+    sourceCache.set(sourcePath, null);
+    return null;
+  }
+
+  try {
+    const source = readFileSync(resolvedSourcePath, "utf8");
+    sourceCache.set(sourcePath, source);
+    return source;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    errors.push(`Failed to read ${sourcePath}: ${message}`);
+    sourceCache.set(sourcePath, null);
+    return null;
+  }
+}
 
 if (spec.openapi !== "3.1.0") {
   errors.push(`Expected openapi 3.1.0, got ${spec.openapi ?? "<missing>"}`);
@@ -271,7 +296,11 @@ for (const [method, path, operationId, sourcePath, clientMethod, sourceNeedle] o
     errors.push(`${operationId} is missing tags`);
   }
 
-  const source = readFileSync(sourcePath, "utf8");
+  const source = readSourceFile(sourcePath);
+  if (source === null) {
+    continue;
+  }
+
   if (!source.includes(`this.client.${clientMethod}(`)) {
     errors.push(`${sourcePath} is missing this.client.${clientMethod}( for ${operationId}`);
   }
