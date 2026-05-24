@@ -1,6 +1,8 @@
 apis:
   medal-social:
     root: openapi/medal-social.openapi.yaml
+    x-openapi-ts:
+      output: src/openapi.generated.ts
 
 extends:
   - recommended
