@@ -17,10 +17,12 @@ description: Use when calling any of the SDK resources (contacts, deals, emails,
 
 ## Response shapes
 
-Every method returns one of:
+Most methods return one of:
 
 - **`ApiResponse<T>`** — single-result envelope: `{ data: T }` plus optional metadata.
 - **`PaginatedResponse<T>`** — list envelope: `{ data: T[], pagination: { has_more: boolean, next_cursor: string | null } }`.
+
+**One documented exception:** `medal.gdpr.cookieConsent(input)` returns a plain `{ success: boolean, logId?: string }` directly — no `data` envelope. Don't destructure `{ data }` from it. See the GDPR section below.
 
 Errors throw `MedalApiError` (see the `client` skill for details).
 
