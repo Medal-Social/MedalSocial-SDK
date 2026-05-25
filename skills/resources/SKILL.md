@@ -47,7 +47,7 @@ const { data: contact } = await medal.contacts.create({
   email: "alice@example.com",
   first_name: "Alice",
 });
-await medal.contacts.addNote(contact.id, { body: "Followed up via email" });
+await medal.contacts.addNote(contact.id, { content: "Followed up via email" });
 
 // Posts — create, schedule, publish
 const { data: post } = await medal.posts.create({

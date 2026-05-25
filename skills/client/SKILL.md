@@ -90,4 +90,4 @@ The package is published with provenance attestation via npm OIDC trusted publis
 
 ## Runtimes
 
-The SDK uses standard Web Fetch + `AbortController`. Works in Node.js (≥18), Deno, Bun, Cloudflare Workers, and modern browsers. No Node-only APIs.
+The SDK uses standard Web Fetch + `AbortController` and has no Node-only APIs, so it can run in Deno, Bun, Cloudflare Workers, and modern browsers. **For Node.js the package enforces `engines.node >=24`** (see `package.json`) — older Node versions are blocked at install time. If you need Node 18–22 support, relax `engines` in your fork and verify against the SDK's test suite first.
