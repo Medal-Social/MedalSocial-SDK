@@ -155,16 +155,19 @@ result.success; // boolean
 const { data: req } = await medal.gdpr.requestExport();
 // req = { request_id, status }
 
-// Poll until ready
+// Poll until terminal. GdprExport.status is one of:
+//   "pending" | "in_progress" | "completed" | "failed" | string
+// "completed" is success; "failed" is terminal failure; anything else is still running.
 async function waitForExport(id: string) {
   while (true) {
     const { data: exp } = await medal.gdpr.getExport(id);
-    if (exp.status === "ready") return exp;
+    if (exp.status === "completed") return exp;
     if (exp.status === "failed") throw new Error(`Export ${id} failed`);
     await new Promise((r) => setTimeout(r, 5_000));
   }
 }
 const exp = await waitForExport(req.request_id);
+// exp.download_url and exp.expires_at are populated once completed
 
 // Or list everything the workspace has ever exported
 const { data: all } = await medal.gdpr.listExports();
