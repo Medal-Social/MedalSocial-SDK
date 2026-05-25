@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.2.1
+
+### Patch Changes
+
+- [#69](https://github.com/Medal-Social/MedalSocial-SDK/pull/69) [`14fbad3`](https://github.com/Medal-Social/MedalSocial-SDK/commit/14fbad32b1702da15d8697a573ac3bc11b83bc42) Thanks [@alioftech](https://github.com/alioftech)! - Ship TanStack Intent agent skills (`skills/client`, `skills/resources`) with the package. Consumers running `npx @tanstack/intent install` now get versioned usage guidance for the `Medal` class, base URL, auth, retry behavior, and all six resources written into their agent config.
+
 ## 1.2.0
 
 ### Minor Changes
