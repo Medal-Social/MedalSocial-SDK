@@ -77,7 +77,7 @@
       "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "files": ["dist", "openapi"],
+  "files": ["dist", "openapi", "skills"],
   "keywords": [
     "medal",
     "social",
@@ -91,7 +91,8 @@
     "contacts",
     "deals",
     "posts",
-    "social-media"
+    "social-media",
+    "tanstack-intent"
   ],
   "dependencies": {
     "zod": "^3.23.8"
