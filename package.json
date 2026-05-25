@@ -77,7 +77,14 @@
       "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "files": ["dist", "openapi", "skills", "!skills/_artifacts"],
+  "files": [
+    "dist",
+    "openapi",
+    "skills",
+    "!skills/_artifacts",
+    "!skills/**/_artifacts",
+    "!skills/**/_artifacts/**"
+  ],
   "keywords": [
     "medal",
     "social",
