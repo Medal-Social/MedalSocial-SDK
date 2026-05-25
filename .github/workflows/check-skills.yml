@@ -7,9 +7,13 @@
 #   - `pnpm exec intent` against the locally-pinned @tanstack/intent
 #   - Least-privilege permissions (workflow-level read-only; review job
 #     elevates to write only where needed)
-#   - Review job mints a Release Bot App token so the resulting branch
-#     push + PR open cascades to downstream workflows (auto-approve,
-#     auto-merge). GITHUB_TOKEN-attributed events do NOT cascade.
+#   - Public-repo compliance: uses GITHUB_TOKEN, NOT a GitHub App token.
+#     Per sdk CLAUDE.md, this repo must not introduce internal Medal
+#     Social infrastructure references. The tradeoff is that the review
+#     PR opened by this job is attributed to github-actions[bot] and
+#     will NOT cascade to downstream workflows. That is acceptable
+#     because the review job is non-blocking and a maintainer always
+#     touches the PR before any release action is taken.
 #
 # Triggers:
 #   - PRs touching skills/** or _artifacts/** → blocking validate job
@@ -59,23 +63,17 @@ jobs:
     name: Check intent skill coverage
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    # GITHUB_TOKEN intentionally stays at workflow-level read. We use a
-    # Release Bot App token below for the writes so downstream workflows
-    # (auto-approve etc.) trigger on the resulting PR.
+    # Job-scoped write perms for GITHUB_TOKEN — needed to push the
+    # review branch and open/edit the PR. Workflow-level stays at
+    # contents: read so the validate job (and any future job) does
+    # not inherit these.
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
     steps:
-      - name: Generate Medal Social Release Bot token
-        id: app-token
-        uses: actions/create-github-app-token@a8d616148505b5069dccd32f177bb87d7f39123b # v2.1.4
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
 
@@ -92,28 +90,33 @@ jobs:
       - name: Open or update review PR
         if: steps.stale.outputs.has_review == 'true'
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.release.tag_name || 'manual' }}"
           BRANCH="skills/review-${VERSION}"
           BASE_BRANCH="${{ github.event.repository.default_branch }}"
 
-          git config user.name 'medal-social-release-bot[bot]'
-          git config user.email 'medal-social-release-bot[bot]@users.noreply.github.com'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+          # Always make a fresh empty commit + push, whether the branch
+          # is new or already exists. The previous early-return on
+          # already-exists meant re-runs silently skipped pushing, so
+          # the review PR went stale across re-releases / re-dispatches.
           git fetch origin "$BRANCH" || true
           if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
             git checkout -B "$BRANCH" "origin/$BRANCH"
           else
             git checkout -b "$BRANCH"
-            git commit --allow-empty -m "chore: review intent skills for ${VERSION}"
-            git push origin "$BRANCH"
           fi
+          git commit --allow-empty -m "chore: review intent skills for ${VERSION}"
+          git push origin "$BRANCH"
 
-          # `--jq '.[0].url'` emits the literal string "null" when no PR
-          # exists for this head, which previously made the `-n` guard
-          # below pass and triggered `gh pr edit null`. `// empty` returns
-          # an empty string in that case so the create path runs.
+          # `--jq '.[0].url'` emits the literal string "null" when no
+          # PR exists for this head, which previously made the `-n`
+          # guard below pass and triggered `gh pr edit null`. The
+          # `// empty` fallback returns an empty string in that case
+          # so the create path runs.
           PR_URL="$(gh pr list --head "$BRANCH" --json url --jq '.[0].url // empty')"
           if [ -n "$PR_URL" ]; then
             gh pr edit "$PR_URL" --body-file pr-body.md
