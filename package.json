@@ -77,7 +77,14 @@
       "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "files": ["dist", "openapi"],
+  "files": [
+    "dist",
+    "openapi",
+    "skills",
+    "!skills/_artifacts",
+    "!skills/**/_artifacts",
+    "!skills/**/_artifacts/**"
+  ],
   "keywords": [
     "medal",
     "social",
@@ -91,7 +98,8 @@
     "contacts",
     "deals",
     "posts",
-    "social-media"
+    "social-media",
+    "tanstack-intent"
   ],
   "dependencies": {
     "zod": "^3.23.8"
@@ -120,6 +128,7 @@
     "@commitlint/config-conventional": "^19.4.0",
     "@redocly/cli": "^2.31.4",
     "@secretlint/secretlint-rule-preset-recommend": "^9.3.2",
+    "@tanstack/intent": "0.0.41",
     "@types/node": "^24.3.2",
     "@vitest/coverage-v8": "^2.0.5",
     "husky": "^9.1.6",
