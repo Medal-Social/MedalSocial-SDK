@@ -88,7 +88,7 @@ try {
 }
 ```
 
-The resolved client config is accessible at `medal['client'].config` (readonly) for debugging — but treat it as internal; the public API is the resource methods.
+The `Medal` instance does **not** expose the underlying `BaseClient` — it's created as a local `const` in the constructor and only passed into the resource classes. There is no public way to read the resolved config from a `Medal` instance. If you need the same config later (for logging, custom requests), store your `MedalOptions` separately when you construct the client.
 
 ## OIDC publishing — consumers do not need a token
 
