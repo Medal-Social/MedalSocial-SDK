@@ -1,6 +1,6 @@
 ---
 name: client
-description: Use when instantiating the `Medal` class from `@medalsocial/sdk`, configuring auth or the base URL, choosing between API key and OAuth tokens, debugging an HTTP response, or reasoning about retry behavior. Load before writing any code that calls into the SDK at the client level.
+description: Use when instantiating the `Medal` class from `@medalsocial/sdk`, configuring auth (API key vs OAuth), setting `baseUrl`, debugging an HTTP response or `MedalApiError`, reasoning about retry behavior, or running the SDK in a browser / edge runtime. Required reading before any code that calls into the SDK at the client level.
 ---
 
 # Medal Social SDK — Client
@@ -12,8 +12,9 @@ description: Use when instantiating the `Medal` class from `@medalsocial/sdk`, c
 - Configuring `baseUrl`, `timeout`, or `workspaceId`.
 - Debugging a 4xx / 5xx response.
 - Reasoning about whether a failed request will be retried.
+- Running the SDK in a browser, Cloudflare Worker, Deno, or Bun.
 
-## Base URL — common pitfall
+## Base URL — the most common pitfall
 
 **The Medal Social API base URL is `https://io.medalsocial.com`.**
 
@@ -49,9 +50,12 @@ interface MedalOptions {
 
 API keys start with `medal_` and are scoped to a single workspace — the SDK reads the workspace from the key. OAuth tokens are workspace-agnostic, so you must pass `workspaceId`.
 
-## Auth
+## Auth headers
 
-The SDK sets `Authorization: Bearer <token>` on every request. If `workspaceId` is set, it also sends `x-workspace-id: <workspaceId>`. It also sets a `User-Agent` (best-effort — browsers reject custom User-Agent and the SDK swallows that error silently).
+Every request gets:
+- `Authorization: Bearer <token>`
+- `x-workspace-id: <workspaceId>` (only if `workspaceId` was set on the constructor)
+- `User-Agent: medalsocial-sdk/<version>` (best-effort — browsers reject custom User-Agent; the SDK swallows that error silently)
 
 ## Retry behavior
 
@@ -59,7 +63,7 @@ The SDK sets `Authorization: Bearer <token>` on every request. If `workspaceId` 
 
 - If the response has a `retry-after` header (in seconds), the SDK waits that long.
 - Otherwise it waits `250 * attempt` ms (so 250, 500 between the first three attempts).
-- Other 4xx errors are NOT retried — they throw immediately.
+- Other 4xx errors are NOT retried — they throw `MedalApiError` immediately.
 - Network errors (fetch throws) are NOT retried — they bubble up.
 - The request is aborted via `AbortController` after `timeout` ms.
 
@@ -84,10 +88,18 @@ try {
 }
 ```
 
+The resolved client config is accessible at `medal['client'].config` (readonly) for debugging — but treat it as internal; the public API is the resource methods.
+
 ## OIDC publishing — consumers do not need a token
 
 The package is published with provenance attestation via npm OIDC trusted publishing. Consumers do not need an `NPM_TOKEN` to install. There is no static publish token; releases run from the locked `prod` branch only via GitHub Actions.
 
 ## Runtimes
 
-The SDK uses standard Web Fetch + `AbortController` and has no Node-only APIs, so it can run in Deno, Bun, Cloudflare Workers, and modern browsers. **For Node.js the package enforces `engines.node >=24`** (see `package.json`) — older Node versions are blocked at install time. If you need Node 18–22 support, relax `engines` in your fork and verify against the SDK's test suite first.
+The SDK uses standard Web Fetch + `AbortController` and has no Node-only APIs, so it runs in Deno, Bun, Cloudflare Workers, and modern browsers.
+
+**Browser usage caveat:** the Medal API does not currently support CORS for arbitrary origins — calls from browser code typically need a server-side proxy that holds the API key. Don't embed a `medal_*` key in client-side JavaScript regardless; it grants full workspace access.
+
+**Node:** `package.json` enforces `engines.node >=24`. Older Node is blocked at install time. If you need Node 18–22 support, relax `engines` in your fork and verify against the SDK's test suite first.
+
+**Cloudflare Workers / edge:** works out of the box; the `User-Agent` set is silently rejected (workers also disallow it) and the SDK swallows the error.
