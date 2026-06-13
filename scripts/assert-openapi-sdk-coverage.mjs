@@ -242,6 +242,14 @@ const expected = [
     "get",
     "/api/v1/me/workspaces",
   ],
+  [
+    "post",
+    "/api/v1/ai/generate",
+    "generateText",
+    "src/resources/ai.ts",
+    "post",
+    "/api/v1/ai/generate",
+  ],
 ];
 
 const errors = [];

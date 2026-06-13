@@ -187,6 +187,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/ai/generate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Generate text with the workspace's configured LLM */
+    post: operations["generateText"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/contacts": {
     parameters: {
       query?: never;
@@ -533,6 +550,29 @@ export interface components {
     PublishResult: {
       success: boolean;
       workflow_id: string;
+    };
+    GenerateTextInput: {
+      /** @description Prompt to send to the model. Supports {{placeholder}} substitution when variables is provided. */
+      prompt: string;
+      /** @description Model id in provider/model form. Defaults to the workspace's selected model. */
+      model?: string;
+      /** @description Override the system prompt. When omitted, the workspace brand context is used. */
+      system_prompt?: string;
+      temperature?: number;
+      max_tokens?: number;
+      use_brand_context?: boolean;
+      use_skills?: boolean;
+      variables?: {
+        [key: string]: string;
+      };
+    };
+    GenerateTextResult: {
+      text: string;
+      model: string;
+      usage: {
+        input_tokens: number;
+        output_tokens: number;
+      };
     };
     SendEmailInput: {
       template_slug: string;
@@ -912,6 +952,7 @@ export interface components {
     ApiResponse_ScheduleResult: components["schemas"]["Envelope_ScheduleResult"];
     ApiResponse_PublishResult: components["schemas"]["Envelope_PublishResult"];
     ApiResponse_ChannelArray: components["schemas"]["Envelope_ChannelArray"];
+    ApiResponse_GenerateTextResult: components["schemas"]["Envelope_GenerateTextResult"];
     ApiResponse_EmailSendResult: components["schemas"]["Envelope_EmailSendResult"];
     ApiResponse_EmailSend: components["schemas"]["Envelope_EmailSend"];
     ApiResponse_BatchSendSummary: components["schemas"]["Envelope_BatchSendSummary"];
@@ -966,6 +1007,9 @@ export interface components {
     };
     Envelope_ChannelArray: {
       data: components["schemas"]["Channel"][];
+    };
+    Envelope_GenerateTextResult: {
+      data: components["schemas"]["GenerateTextResult"];
     };
     Envelope_EmailSendResult: {
       data: components["schemas"]["EmailSendResult"];
@@ -1364,6 +1408,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_EmailSend"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  generateText: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["GenerateTextInput"];
+      };
+    };
+    responses: {
+      /** @description Generated text. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_GenerateTextResult"];
         };
       };
       default: components["responses"]["ApiError"];

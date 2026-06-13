@@ -17,6 +17,8 @@ tags:
     description: Create, schedule, publish, and inspect posts.
   - name: Emails
     description: Send transactional email and inspect templates.
+  - name: AI
+    description: Generate text with the workspace's configured LLM.
   - name: Contacts
     description: Manage workspace CRM contacts.
   - name: Deals
@@ -263,6 +265,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_EmailSend"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ai/generate:
+    post:
+      tags: [AI]
+      operationId: generateText
+      summary: Generate text with the workspace's configured LLM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateTextInput"
+      responses:
+        "200":
+          description: Generated text.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_GenerateTextResult"
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/contacts:
@@ -881,6 +903,51 @@ components:
           type: boolean
         workflow_id:
           type: string
+    GenerateTextInput:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+          description: Prompt to send to the model. Supports {{placeholder}} substitution when variables is provided.
+        model:
+          type: string
+          description: Model id in provider/model form. Defaults to the workspace's selected model.
+        system_prompt:
+          type: string
+          description: Override the system prompt. When omitted, the workspace brand context is used.
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          minimum: 32
+          maximum: 4096
+        use_brand_context:
+          type: boolean
+        use_skills:
+          type: boolean
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+    GenerateTextResult:
+      type: object
+      required: [text, model, usage]
+      properties:
+        text:
+          type: string
+        model:
+          type: string
+        usage:
+          type: object
+          required: [input_tokens, output_tokens]
+          properties:
+            input_tokens:
+              type: integer
+            output_tokens:
+              type: integer
     SendEmailInput:
       type: object
       required: [template_slug, to]
@@ -1654,6 +1721,8 @@ components:
       $ref: "#/components/schemas/Envelope_PublishResult"
     ApiResponse_ChannelArray:
       $ref: "#/components/schemas/Envelope_ChannelArray"
+    ApiResponse_GenerateTextResult:
+      $ref: "#/components/schemas/Envelope_GenerateTextResult"
     ApiResponse_EmailSendResult:
       $ref: "#/components/schemas/Envelope_EmailSendResult"
     ApiResponse_EmailSend:
@@ -1774,6 +1843,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Channel"
+    Envelope_GenerateTextResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/GenerateTextResult"
     Envelope_EmailSendResult:
       type: object
       required: [data]

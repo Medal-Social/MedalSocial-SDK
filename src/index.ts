@@ -19,6 +19,7 @@
  * @module
  */
 import { BaseClient } from "./client";
+import { AI } from "./resources/ai";
 import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
 import { Emails } from "./resources/emails";
@@ -87,6 +88,7 @@ export interface MedalOptions {
  * ```
  */
 export class Medal {
+  readonly ai: AI;
   readonly emails: Emails;
   readonly contacts: Contacts;
   readonly deals: Deals;
@@ -109,6 +111,7 @@ export class Medal {
       userAgent: "medalsocial-sdk/1.0.0 (+https://github.com/Medal-Social/MedalSocial)",
     });
 
+    this.ai = new AI(client);
     this.emails = new Emails(client);
     this.contacts = new Contacts(client);
     this.deals = new Deals(client);
@@ -121,6 +124,7 @@ export class Medal {
 // Re-export all types
 export { MedalApiError } from "./types/common";
 export type { ApiResponse, PaginatedResponse, PaginationOptions } from "./types/common";
+export type { GenerateTextInput, GenerateTextResult } from "./types/ai";
 export type {
   SendEmailInput,
   EmailSendResult,
@@ -189,6 +193,7 @@ export type {
 } from "./openapi.generated";
 
 // Resource class re-exports (for advanced usage)
+export { AI } from "./resources/ai";
 export { Emails } from "./resources/emails";
 export { Contacts } from "./resources/contacts";
 export { Deals } from "./resources/deals";
