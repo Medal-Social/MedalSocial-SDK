@@ -48,9 +48,14 @@ export class Webhooks {
     return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, options);
   }
 
-  /** Permanently delete a webhook endpoint. */
-  async delete(id: string): Promise<ApiResponse<WebhookDeleteResult>> {
-    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`);
+  /**
+   * Permanently delete a webhook endpoint (stops all outbound deliveries).
+   * Capability-scoped tokens must pass `idempotencyKey` — the API requires
+   * `Idempotency-Key` + `X-Capability-Confirmation` for direct capability
+   * grants on this route. API keys with legacy scopes may omit it.
+   */
+  async delete(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookDeleteResult>> {
+    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, options);
   }
 
   /** List recent deliveries for an endpoint (most recent first). */

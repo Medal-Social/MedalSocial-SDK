@@ -57,8 +57,11 @@ export class BaseClient {
   }
 
   /** Execute an authenticated DELETE request. */
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>(this.buildUrl(path), { method: "DELETE" });
+  async delete<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>(this.buildUrl(path), {
+      method: "DELETE",
+      headers: this.writeHeaders(options),
+    });
   }
 
   private writeHeaders(options?: RequestOptions): Record<string, string> {
