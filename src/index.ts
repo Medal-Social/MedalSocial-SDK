@@ -230,6 +230,11 @@ export type {
   WebhookMessageSnapshot,
   WebhookVerificationErrorCode,
 } from "./webhook-events";
+export type {
+  paths as OpenApiPaths,
+  components as OpenApiComponents,
+  operations as OpenApiOperations,
+} from "./openapi.generated";
 
 // Resource class re-exports (for advanced usage)
 export { Emails } from "./resources/emails";

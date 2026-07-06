@@ -74,6 +74,12 @@ This adds:
 Signed-off-by: Your Name <your@email.com>
 ```
 
+## Agent Skills (`skills/`)
+
+`@medalsocial/sdk` ships [TanStack Intent](https://tanstack.com/intent) skills in `skills/` that travel with each published version. Consumers running `npx @tanstack/intent install` get versioned usage guidance written into their agent config (`CLAUDE.md` / `AGENTS.md`).
+
+**If your PR changes a public surface** — a method signature, the `Medal` constructor, error shapes, base URL behavior, retry semantics, or a new resource — **update the matching `skills/<area>/SKILL.md` in the same PR.** The `Check Skills` workflow runs `intent validate` on every PR touching `skills/` and will fail if structure breaks. A separate `stale` check runs after releases and opens a single review PR when source docs drift from skills; that is a safety net, not the primary discipline.
+
 ## AI-Assisted Changes
 
 AI assistance is allowed, but contributors are responsible for the final patch.

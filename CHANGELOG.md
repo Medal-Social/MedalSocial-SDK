@@ -1,6 +1,6 @@
 # @medalsocial/sdk
 
-## 1.2.0
+## 1.3.0
 
 ### Minor Changes
 
@@ -19,6 +19,18 @@
   **Webhook event verification** — new `verifyWebhookSignature({ payload, timestamp, signature, secret, toleranceMs })` authenticates `X-Medal-Signature` deliveries (HMAC-SHA256 over `"{timestamp}.{payload}"`, constant-time compare via Web Crypto, 5-minute replay tolerance by default) and returns a typed `WebhookEvent` discriminated union (`helpdesk.conversation_created`, `helpdesk.conversation_assigned`, `helpdesk.conversation_status_changed`, `helpdesk.message_received`, `helpdesk.message_sent`, `helpdesk.message_delivery_updated`, `test.ping`). Throws `WebhookVerificationError` with a machine-readable `code` on failure. Works in Node.js 18+, Deno, Bun, Cloudflare Workers, and browsers.
 
   **Client** — `BaseClient.post/patch` now accept per-request `RequestOptions` with `idempotencyKey`, sent as the `Idempotency-Key` header (required for capability-scoped tokens on helpdesk replies and webhook creation).
+
+## 1.2.0
+
+### Minor Changes
+
+- [#63](https://github.com/Medal-Social/MedalSocial-SDK/pull/63) [`737c0f6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/737c0f601fdbb96065e4c048810c8d09e9e609fa) Thanks [@alioftech](https://github.com/alioftech)! - Ship a validated OpenAPI 3.1 contract for the public SDK surface, generated TypeScript contract types, package exports for YAML/JSON contract artifacts, and CI drift checks between the SDK resources and OpenAPI operations.
+
+## 1.1.7
+
+### Patch Changes
+
+- [#55](https://github.com/Medal-Social/MedalSocial-SDK/pull/55) [`0dbccbd`](https://github.com/Medal-Social/MedalSocial-SDK/commit/0dbccbd485d15c7132d6ac50882502449ebda963) Thanks [@alioftech](https://github.com/alioftech)! - chore(deps): security batch — clear 17 Dependabot alerts (8 high, 9 medium) via pnpm.overrides. Bumps fast-uri, glob, minimatch, picomatch, rollup, ajv, brace-expansion, js-yaml, markdown-it, mdast-util-to-hast, vite (5.x and 6.x), yaml.
 
 ## 1.1.6
 

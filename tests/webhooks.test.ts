@@ -105,15 +105,20 @@ describe("webhooks", () => {
     expect(data.status).toBe("deleted");
   });
 
-  it("deletes an endpoint with an idempotency key", async () => {
+  it("deletes an endpoint with idempotency key and capability confirmation", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       expect(url).toContain("/api/v1/webhooks/wh_1");
       expect(init?.method).toBe("DELETE");
-      expect(new Headers(init?.headers).get("idempotency-key")).toBe("del-1");
+      const headers = new Headers(init?.headers);
+      expect(headers.get("idempotency-key")).toBe("del-1");
+      expect(headers.get("x-capability-confirmation")).toBe("conf-token-1");
       return mockJson({ data: { id: "wh_1", status: "deleted" } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
-    const { data } = await medal.webhooks.delete("wh_1", { idempotencyKey: "del-1" });
+    const { data } = await medal.webhooks.delete("wh_1", {
+      idempotencyKey: "del-1",
+      capabilityConfirmation: "conf-token-1",
+    });
     expect(data.status).toBe("deleted");
   });
 

@@ -18,6 +18,15 @@ export interface RequestOptions {
    * replies, webhook creation).
    */
   idempotencyKey?: string;
+  /**
+   * Capability confirmation token sent as the `X-Capability-Confirmation`
+   * header. Required alongside `idempotencyKey` when a token granted a
+   * capability-style scope directly (e.g. `helpdesk.webhook.manage`) executes
+   * a confirmable write route. Obtain one from
+   * `POST /api/v1/capability-confirmations`. API keys with legacy scopes do
+   * not need it.
+   */
+  capabilityConfirmation?: string;
 }
 
 /**
@@ -68,6 +77,9 @@ export class BaseClient {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (options?.idempotencyKey) {
       headers["idempotency-key"] = options.idempotencyKey;
+    }
+    if (options?.capabilityConfirmation) {
+      headers["x-capability-confirmation"] = options.capabilityConfirmation;
     }
     return headers;
   }
