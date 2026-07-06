@@ -1,6 +1,6 @@
 # Medal Social SDK
 
-TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, and GDPR compliance programmatically.
+TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, helpdesk conversations, webhooks, and GDPR compliance programmatically.
 
 ## Install
 
@@ -236,12 +236,142 @@ await medal.gdpr.cookieConsent({
 });
 ```
 
+### Helpdesk
+
+```ts
+// List/search conversations
+const conversations = await medal.helpdesk.conversations.list({
+  status: 'open',                    // 'open' | 'snoozed' | 'closed'
+  assignee_user_id: 'user_1',
+  requester: 'jane@example.com',     // match visitor name/email
+  query: 'refund',                   // free-text search
+  channels: ['widget', 'whatsapp'],  // channel filter
+  limit: 50,
+});
+
+// Read one conversation + its messages
+const { data: conversation } = await medal.helpdesk.conversations.get('conv_id');
+const messages = await medal.helpdesk.conversations.messages('conv_id', { limit: 50 });
+
+// Assign / snooze / close
+await medal.helpdesk.conversations.update('conv_id', { assignee_user_id: 'user_1' });
+await medal.helpdesk.conversations.update('conv_id', { status: 'closed', assignee_user_id: null });
+
+// Reply as an operator (see "Helpdesk bridge" below for idempotency)
+const { data: reply } = await medal.helpdesk.replies.create(
+  {
+    conversation_id: 'conv_id',
+    body: 'Thanks for reaching out — on it!',
+    author_name: 'Support Bot',    // optional display name
+    message_type: 'chat',          // or 'note' for an internal note
+  },
+  { idempotencyKey: crypto.randomUUID() },
+);
+```
+
+### Webhooks
+
+```ts
+// Create an endpoint. The signing secret is returned EXACTLY ONCE — store it
+// securely immediately; you cannot retrieve it again.
+const { data: endpoint } = await medal.webhooks.create(
+  {
+    name: 'Helpdesk bridge',
+    url: 'https://example.com/medal/webhook', // must be https
+    event_types: ['helpdesk.message_received', 'helpdesk.conversation_status_changed'],
+    channels: ['widget'],                     // optional channel filter
+  },
+  { idempotencyKey: crypto.randomUUID() },
+);
+console.log(endpoint.secret); // whsec_… — shown only in this response
+
+// Manage endpoints
+const { data: endpoints } = await medal.webhooks.list();
+const { data: one } = await medal.webhooks.get(endpoint.id);
+await medal.webhooks.update(endpoint.id, { enabled: false });
+await medal.webhooks.delete(endpoint.id);
+
+// Observe deliveries + send a signed test event
+const { data: deliveries } = await medal.webhooks.deliveries(endpoint.id, { limit: 20 });
+await medal.webhooks.test(endpoint.id); // queues a 'test.ping' delivery
+```
+
+Failed deliveries retry with exponential backoff (up to 6 attempts) before being dead-lettered.
+
 ### Workspaces
 
 ```ts
 const { data: workspaces } = await medal.workspaces.list();
 console.log(workspaces); // [{ id, name, slug }]
 ```
+
+## Helpdesk bridge
+
+Build a two-way bridge: receive helpdesk events on a webhook, and reply through the API.
+
+Every delivery is signed. The `X-Medal-Signature` header carries `sha256=<base64(HMAC-SHA256("{timestamp}.{rawBody}", secret))>`, where `timestamp` is the `X-Medal-Timestamp` header (Unix ms). Use `verifyWebhookSignature` to authenticate the delivery and get a fully typed event back — it recomputes the HMAC with Web Crypto (works in Node.js 18+, Deno, Bun, Cloudflare Workers) and rejects stale timestamps (default tolerance 5 minutes).
+
+```ts
+import { Medal, verifyWebhookSignature, WebhookVerificationError } from '@medalsocial/sdk';
+
+const medal = new Medal(process.env.MEDAL_API_KEY);
+
+// Example: a fetch-style handler (Cloudflare Workers, Hono, Next.js route, …).
+// IMPORTANT: verify against the RAW body string — do not JSON.parse first.
+export async function handleWebhook(request: Request): Promise<Response> {
+  const payload = await request.text();
+
+  let event;
+  try {
+    event = await verifyWebhookSignature({
+      payload,
+      timestamp: request.headers.get('X-Medal-Timestamp') ?? '',
+      signature: request.headers.get('X-Medal-Signature') ?? '',
+      secret: process.env.MEDAL_WEBHOOK_SECRET, // the whsec_… from webhooks.create
+    });
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) {
+      return new Response(`Invalid webhook: ${err.code}`, { status: 401 });
+    }
+    throw err;
+  }
+
+  switch (event.type) {
+    case 'helpdesk.message_received': {
+      const { conversation, message } = event.data;
+      // Reply with an idempotency key so retried deliveries never double-post.
+      // The X-Medal-Delivery-Id header (== event.id) is a perfect key.
+      await medal.helpdesk.replies.create(
+        {
+          conversation_id: conversation.id,
+          body: `Thanks! We received: "${message.body}"`,
+          author_name: 'Bridge Bot',
+        },
+        { idempotencyKey: `reply:${event.id}` },
+      );
+      break;
+    }
+    case 'helpdesk.conversation_status_changed':
+      console.log(event.data.previousStatus, '→', event.data.status);
+      break;
+    case 'helpdesk.conversation_assigned':
+      console.log('assigned to', event.data.assigneeUserId);
+      break;
+    case 'test.ping':
+      break; // sent by medal.webhooks.test()
+  }
+
+  return new Response('ok', { status: 200 }); // 2xx acknowledges the delivery
+}
+```
+
+Event types: `helpdesk.conversation_created`, `helpdesk.conversation_assigned`, `helpdesk.conversation_status_changed`, `helpdesk.message_received`, `helpdesk.message_sent`, `helpdesk.message_delivery_updated`, and `test.ping`. All are discriminated on `event.type` — TypeScript narrows `event.data` automatically in a `switch`.
+
+Notes:
+
+- **Idempotency**: deliveries are retried on failure, so make your handler idempotent. Deduplicate on `event.id` (also sent as the `X-Medal-Delivery-Id` and `Idempotency-Key` request headers). When replying via `medal.helpdesk.replies.create`, always pass an `idempotencyKey` — it is required for capability-scoped tokens.
+- **Respond fast**: return a 2xx within 10 seconds; do slow work asynchronously.
+- **Secret handling**: the endpoint secret is returned only by `webhooks.create`. If lost, delete the endpoint and create a new one.
 
 ## Error Handling
 
