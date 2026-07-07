@@ -25,6 +25,10 @@ tags:
     description: Manage exports, consent records, and cookie consent.
   - name: Workspaces
     description: Inspect workspaces accessible to the current credential.
+  - name: Helpdesk
+    description: Read helpdesk conversations, reply, and manage assignment/status.
+  - name: Webhooks
+    description: Manage webhook endpoints and inspect their deliveries.
 paths:
   /api/v1/posts:
     get:
@@ -643,6 +647,283 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_WorkspaceArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/helpdesk/conversations:
+    get:
+      tags: [Helpdesk]
+      operationId: listHelpdeskConversations
+      summary: List helpdesk conversations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: "#/components/parameters/Cursor"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/HelpdeskConversationStatus"
+        - name: assignee_user_id
+          in: query
+          schema:
+            type: string
+          description: Only conversations assigned to this user.
+        - name: requester
+          in: query
+          schema:
+            type: string
+          description: Match against visitor name/email.
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: Free-text search query.
+        - name: channels
+          in: query
+          schema:
+            type: string
+          description: Comma-separated channel types (e.g. `widget,whatsapp`).
+      responses:
+        "200":
+          description: Conversations page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_HelpdeskConversation"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/helpdesk/conversations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Helpdesk]
+      operationId: getHelpdeskConversation
+      summary: Get a helpdesk conversation
+      responses:
+        "200":
+          description: Conversation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_HelpdeskConversation"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Helpdesk]
+      operationId: updateHelpdeskConversation
+      summary: Update a conversation's status or assignee
+      description: >-
+        Set `status` and/or `assignee_user_id` (`null` unassigns). At least one
+        field is required. Capability-scoped tokens must send `Idempotency-Key`
+        and `X-Capability-Confirmation` headers on this route; API keys with
+        legacy scopes may omit them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHelpdeskConversationInput"
+      responses:
+        "200":
+          description: Update result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_HelpdeskConversationUpdateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/helpdesk/conversations/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Helpdesk]
+      operationId: listHelpdeskConversationMessages
+      summary: List conversation messages
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Messages page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_HelpdeskMessage"
+        "404":
+          description: Conversation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/helpdesk/replies:
+    post:
+      tags: [Helpdesk]
+      operationId: createHelpdeskReply
+      summary: Send an operator reply or internal note
+      description: >-
+        Send an `Idempotency-Key` header so retried requests do not create
+        duplicate messages — it is required for capability-scoped tokens
+        (together with `X-Capability-Confirmation`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHelpdeskReplyInput"
+      responses:
+        "201":
+          description: Created reply reference.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_HelpdeskReplyCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/webhooks:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhooks
+      summary: List webhook endpoints
+      responses:
+        "200":
+          description: Webhook endpoints.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookEndpointArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [Webhooks]
+      operationId: createWebhook
+      summary: Create a webhook endpoint
+      description: >-
+        The response's `data.secret` contains the signing secret EXACTLY ONCE —
+        it can never be retrieved again, so store it securely immediately. An
+        idempotent replay (same `Idempotency-Key`) returns the existing
+        endpoint WITHOUT `secret`. Deliveries are HTTP POSTs signed with
+        `X-Medal-Signature: sha256=<base64(HMAC-SHA256("{timestamp}.{rawBody}",
+        secret))>` plus `X-Medal-Timestamp`, `X-Medal-Event`, and
+        `X-Medal-Delivery-Id` / `Idempotency-Key` headers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWebhookInput"
+      responses:
+        "201":
+          description: Created endpoint, including the one-time `secret`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookEndpoint"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/webhooks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Webhooks]
+      operationId: getWebhook
+      summary: Get a webhook endpoint
+      responses:
+        "200":
+          description: Webhook endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookEndpoint"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Webhooks]
+      operationId: updateWebhook
+      summary: Update a webhook endpoint
+      description: >-
+        Only provided fields change. Pass `null` for `channels` or
+        `channel_connection_ids` to clear that filter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWebhookInput"
+      responses:
+        "200":
+          description: Updated endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookEndpoint"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Webhooks]
+      operationId: deleteWebhook
+      summary: Delete a webhook endpoint
+      description: >-
+        Permanently deletes the endpoint and stops all outbound deliveries.
+        Capability-scoped tokens must send `Idempotency-Key` and
+        `X-Capability-Confirmation` headers on this route; API keys with legacy
+        scopes may omit them.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookDeleteResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/webhooks/{id}/deliveries:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookDeliveries
+      summary: List recent deliveries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Recent deliveries, most recent first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookDeliveryArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/webhooks/{id}/test:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Webhooks]
+      operationId: testWebhook
+      summary: Queue a test delivery
+      description: Queues a signed `test.ping` delivery to the endpoint.
+      responses:
+        "202":
+          description: Test delivery queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_WebhookTestResult"
         default:
           $ref: "#/components/responses/ApiError"
 components:
@@ -1642,6 +1923,347 @@ components:
         slug:
           type: string
       additionalProperties: true
+    HelpdeskConversationStatus:
+      type: string
+      enum: [open, snoozed, closed]
+    HelpdeskMessageAuthorType:
+      type: string
+      enum: [visitor, operator, ai, system]
+    HelpdeskMessageType:
+      type: string
+      enum: [chat, email, note]
+      description: >-
+        `note` is operator-internal and never delivered to the customer.
+    HelpdeskConversation:
+      type: object
+      required:
+        - id
+        - channel
+        - channel_connection_id
+        - status
+        - subject
+        - assignee_user_id
+        - contact_id
+        - visitor_name
+        - visitor_email
+        - external_conversation_id
+        - channel_account_id
+        - message_count
+        - unread_for_operator
+        - last_message_at
+        - last_message_preview
+        - last_message_author_type
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        channel:
+          type: string
+          description: >-
+            Channel type, e.g. `widget`, `instagram`, `messenger`, `whatsapp`,
+            `email`.
+        channel_connection_id:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/HelpdeskConversationStatus"
+        subject:
+          type: [string, "null"]
+        assignee_user_id:
+          type: [string, "null"]
+        contact_id:
+          type: [string, "null"]
+        visitor_name:
+          type: [string, "null"]
+        visitor_email:
+          type: [string, "null"]
+        external_conversation_id:
+          type: [string, "null"]
+        channel_account_id:
+          type: [string, "null"]
+        message_count:
+          type: integer
+        unread_for_operator:
+          type: integer
+        last_message_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        last_message_preview:
+          type: [string, "null"]
+        last_message_author_type:
+          anyOf:
+            - $ref: "#/components/schemas/HelpdeskMessageAuthorType"
+            - type: "null"
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        updated_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    HelpdeskMessage:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - author_type
+        - message_type
+        - author_user_id
+        - author_name
+        - body
+        - created_at
+      properties:
+        id:
+          type: string
+        conversation_id:
+          type: string
+        author_type:
+          $ref: "#/components/schemas/HelpdeskMessageAuthorType"
+        message_type:
+          $ref: "#/components/schemas/HelpdeskMessageType"
+        author_user_id:
+          type: [string, "null"]
+        author_name:
+          type: [string, "null"]
+        body:
+          type: string
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    UpdateHelpdeskConversationInput:
+      type: object
+      minProperties: 1
+      description: At least one field is required.
+      properties:
+        status:
+          $ref: "#/components/schemas/HelpdeskConversationStatus"
+        assignee_user_id:
+          type: [string, "null"]
+          description: User ID to assign, or `null` to unassign.
+    HelpdeskConversationUpdateResult:
+      type: object
+      required: [id, status, assignee_user_id]
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/HelpdeskConversationStatus"
+        assignee_user_id:
+          type: [string, "null"]
+    CreateHelpdeskReplyInput:
+      type: object
+      required: [conversation_id, body]
+      properties:
+        conversation_id:
+          type: string
+        body:
+          type: string
+          maxLength: 20000
+        message_type:
+          type: string
+          enum: [chat, note]
+          description: >-
+            `note` = operator-internal note (not delivered to the customer).
+            Default `chat`.
+        author_name:
+          type: string
+          description: >-
+            Agent display name for bridged replies (shown in widget + inbox).
+    HelpdeskReplyCreateResult:
+      type: object
+      required: [id, conversation_id, status]
+      properties:
+        id:
+          type: string
+        conversation_id:
+          type: string
+        status:
+          type: string
+          const: created
+    WebhookEndpoint:
+      type: object
+      required:
+        - id
+        - name
+        - url
+        - enabled
+        - event_types
+        - channels
+        - channel_connection_ids
+        - secret_last4
+        - consecutive_failures
+        - last_delivery_at
+        - last_success_at
+        - last_error_at
+        - last_error
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: Destination URL (must be https).
+        enabled:
+          type: boolean
+        event_types:
+          type: array
+          items:
+            type: string
+          description: Subscribed event types. Empty array = all events.
+        channels:
+          type: [array, "null"]
+          items:
+            type: string
+          description: >-
+            Channel-type filter (e.g. `['widget', 'whatsapp']`), or `null` for
+            all channels.
+        channel_connection_ids:
+          type: [array, "null"]
+          items:
+            type: string
+          description: Channel-connection filter, or `null` for all connections.
+        secret_last4:
+          type: string
+          description: Last 4 characters of the signing secret, for identification.
+        consecutive_failures:
+          type: integer
+        last_delivery_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null` if never.
+        last_success_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null` if never.
+        last_error_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null` if never.
+        last_error:
+          type: [string, "null"]
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        updated_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        secret:
+          type: string
+          description: >-
+            Full signing secret (`whsec_…`) — present ONLY in the create
+            response, exactly once. It can never be retrieved again; store it
+            securely immediately. An idempotent replay of the create request
+            omits it.
+    CreateWebhookInput:
+      type: object
+      required: [name, url, event_types]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        url:
+          type: string
+          format: uri
+          description: Destination URL — must be https.
+        event_types:
+          type: array
+          items:
+            type: string
+          description: >-
+            Event types to subscribe to (e.g. `helpdesk.message_received`).
+            Empty = all.
+        channels:
+          type: array
+          items:
+            type: string
+          description: Restrict to these channel types (e.g. `['widget', 'whatsapp']`).
+        channel_connection_ids:
+          type: array
+          items:
+            type: string
+          description: Restrict to these channel connection IDs.
+    UpdateWebhookInput:
+      type: object
+      description: Only provided fields change.
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        url:
+          type: string
+          format: uri
+        event_types:
+          type: array
+          items:
+            type: string
+        channels:
+          type: [array, "null"]
+          items:
+            type: string
+          description: New channel-type filter, or `null` to clear the filter.
+        channel_connection_ids:
+          type: [array, "null"]
+          items:
+            type: string
+          description: New channel-connection filter, or `null` to clear the filter.
+        enabled:
+          type: boolean
+    WebhookDeleteResult:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          const: deleted
+    WebhookDelivery:
+      type: object
+      required:
+        - id
+        - event_type
+        - status
+        - attempt_count
+        - next_attempt_at
+        - response_status
+        - duration_ms
+        - last_error
+        - delivered_at
+        - created_at
+      properties:
+        id:
+          type: string
+        event_type:
+          type: string
+        status:
+          type: string
+          enum: [pending, delivered, dead_letter]
+        attempt_count:
+          type: integer
+        next_attempt_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds of the next retry, or `null`.
+        response_status:
+          type: [integer, "null"]
+        duration_ms:
+          type: [integer, "null"]
+        last_error:
+          type: [string, "null"]
+        delivered_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null` if not delivered.
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    WebhookTestResult:
+      type: object
+      required: [delivery_id, status]
+      properties:
+        delivery_id:
+          type: string
+        status:
+          type: string
+          const: queued
     ApiResponse_PostCreateResult:
       $ref: "#/components/schemas/Envelope_PostCreateResult"
     ApiResponse_PostDetail:
@@ -1696,6 +2318,22 @@ components:
       $ref: "#/components/schemas/Envelope_ConsentRecordArray"
     ApiResponse_WorkspaceArray:
       $ref: "#/components/schemas/Envelope_WorkspaceArray"
+    ApiResponse_HelpdeskConversation:
+      $ref: "#/components/schemas/Envelope_HelpdeskConversation"
+    ApiResponse_HelpdeskConversationUpdateResult:
+      $ref: "#/components/schemas/Envelope_HelpdeskConversationUpdateResult"
+    ApiResponse_HelpdeskReplyCreateResult:
+      $ref: "#/components/schemas/Envelope_HelpdeskReplyCreateResult"
+    ApiResponse_WebhookEndpoint:
+      $ref: "#/components/schemas/Envelope_WebhookEndpoint"
+    ApiResponse_WebhookEndpointArray:
+      $ref: "#/components/schemas/Envelope_WebhookEndpointArray"
+    ApiResponse_WebhookDeleteResult:
+      $ref: "#/components/schemas/Envelope_WebhookDeleteResult"
+    ApiResponse_WebhookDeliveryArray:
+      $ref: "#/components/schemas/Envelope_WebhookDeliveryArray"
+    ApiResponse_WebhookTestResult:
+      $ref: "#/components/schemas/Envelope_WebhookTestResult"
     PaginatedResponse_Post:
       type: object
       required: [data, pagination]
@@ -1734,6 +2372,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Deal"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_HelpdeskConversation:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/HelpdeskConversation"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_HelpdeskMessage:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/HelpdeskMessage"
         pagination:
           $ref: "#/components/schemas/Pagination"
     Envelope_PostCreateResult:
@@ -1908,3 +2566,55 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Workspace"
+    Envelope_HelpdeskConversation:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/HelpdeskConversation"
+    Envelope_HelpdeskConversationUpdateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/HelpdeskConversationUpdateResult"
+    Envelope_HelpdeskReplyCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/HelpdeskReplyCreateResult"
+    Envelope_WebhookEndpoint:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/WebhookEndpoint"
+    Envelope_WebhookEndpointArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookEndpoint"
+    Envelope_WebhookDeleteResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/WebhookDeleteResult"
+    Envelope_WebhookDeliveryArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookDelivery"
+    Envelope_WebhookTestResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/WebhookTestResult"

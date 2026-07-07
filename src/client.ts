@@ -9,6 +9,26 @@ export interface ClientConfig {
   userAgent: string;
 }
 
+/** Per-request options for write operations. */
+export interface RequestOptions {
+  /**
+   * Idempotency key sent as the `Idempotency-Key` header. Retries with the
+   * same key return the original result instead of repeating the operation.
+   * Required by some endpoints for capability-scoped tokens (e.g. helpdesk
+   * replies, webhook creation).
+   */
+  idempotencyKey?: string;
+  /**
+   * Capability confirmation token sent as the `X-Capability-Confirmation`
+   * header. Required alongside `idempotencyKey` when a token granted a
+   * capability-style scope directly (e.g. `helpdesk.webhook.manage`) executes
+   * a confirmable write route. Obtain one from
+   * `POST /api/v1/capability-confirmations`. API keys with legacy scopes do
+   * not need it.
+   */
+  capabilityConfirmation?: string;
+}
+
 /**
  * Low-level HTTP client used by all resource classes.
  * Handles authentication, retries, timeout, and error parsing.
@@ -28,26 +48,40 @@ export class BaseClient {
   }
 
   /** Execute an authenticated POST request with a JSON body. */
-  async post<T>(path: string, body?: unknown): Promise<T> {
+  async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(this.buildUrl(path), {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: this.writeHeaders(options),
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 
   /** Execute an authenticated PATCH request with a JSON body. */
-  async patch<T>(path: string, body: unknown): Promise<T> {
+  async patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(this.buildUrl(path), {
       method: "PATCH",
-      headers: { "content-type": "application/json" },
+      headers: this.writeHeaders(options),
       body: JSON.stringify(body),
     });
   }
 
   /** Execute an authenticated DELETE request. */
-  async delete<T>(path: string): Promise<T> {
-    return this.request<T>(this.buildUrl(path), { method: "DELETE" });
+  async delete<T>(path: string, options?: RequestOptions): Promise<T> {
+    return this.request<T>(this.buildUrl(path), {
+      method: "DELETE",
+      headers: this.writeHeaders(options),
+    });
+  }
+
+  private writeHeaders(options?: RequestOptions): Record<string, string> {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (options?.idempotencyKey) {
+      headers["idempotency-key"] = options.idempotencyKey;
+    }
+    if (options?.capabilityConfirmation) {
+      headers["x-capability-confirmation"] = options.capabilityConfirmation;
+    }
+    return headers;
   }
 
   private buildUrl(path: string, params?: Record<string, string | undefined>): string {
