@@ -2,8 +2,8 @@
  * Official TypeScript SDK for the Medal Social API.
  *
  * Provides typed access to posts, emails, contacts, deals, GDPR compliance,
- * and workspace management. Works in Node.js, Deno, Bun, Cloudflare Workers,
- * and modern browsers.
+ * helpdesk conversations, webhooks, and workspace management. Works in
+ * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
  * @example
  * ```ts
@@ -23,7 +23,9 @@ import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
 import { Emails } from "./resources/emails";
 import { Gdpr } from "./resources/gdpr";
+import { Helpdesk } from "./resources/helpdesk";
 import { Posts } from "./resources/posts";
+import { Webhooks } from "./resources/webhooks";
 import { Workspaces } from "./resources/workspaces";
 
 /** Options for configuring the {@link Medal} client. */
@@ -91,7 +93,9 @@ export class Medal {
   readonly contacts: Contacts;
   readonly deals: Deals;
   readonly gdpr: Gdpr;
+  readonly helpdesk: Helpdesk;
   readonly posts: Posts;
+  readonly webhooks: Webhooks;
   readonly workspaces: Workspaces;
 
   constructor(token: string, options?: MedalOptions) {
@@ -113,7 +117,9 @@ export class Medal {
     this.contacts = new Contacts(client);
     this.deals = new Deals(client);
     this.gdpr = new Gdpr(client);
+    this.helpdesk = new Helpdesk(client);
     this.posts = new Posts(client);
+    this.webhooks = new Webhooks(client);
     this.workspaces = new Workspaces(client);
   }
 }
@@ -183,6 +189,48 @@ export type {
 } from "./types/posts";
 export type { Workspace } from "./types/workspaces";
 export type {
+  Conversation,
+  ConversationMessage,
+  ConversationStatus,
+  ConversationUpdateResult,
+  CreateReplyInput,
+  HelpdeskMessageType,
+  ListConversationsOptions,
+  MessageAuthorType,
+  ReplyCreateResult,
+  UpdateConversationInput,
+} from "./types/helpdesk";
+export type {
+  CreateWebhookInput,
+  ListDeliveriesOptions,
+  UpdateWebhookInput,
+  WebhookDeleteResult,
+  WebhookDelivery,
+  WebhookEndpoint,
+  WebhookTestResult,
+} from "./types/webhooks";
+
+// Webhook event verification + typed events
+export {
+  DEFAULT_WEBHOOK_TOLERANCE_MS,
+  verifyWebhookSignature,
+  WebhookVerificationError,
+} from "./webhook-events";
+export type {
+  ConversationAssignedEvent,
+  ConversationCreatedEvent,
+  ConversationStatusChangedEvent,
+  MessageDeliveryUpdatedEvent,
+  MessageReceivedEvent,
+  MessageSentEvent,
+  TestPingEvent,
+  VerifyWebhookSignatureInput,
+  WebhookConversationSnapshot,
+  WebhookEvent,
+  WebhookMessageSnapshot,
+  WebhookVerificationErrorCode,
+} from "./webhook-events";
+export type {
   paths as OpenApiPaths,
   components as OpenApiComponents,
   operations as OpenApiOperations,
@@ -193,9 +241,12 @@ export { Emails } from "./resources/emails";
 export { Contacts } from "./resources/contacts";
 export { Deals } from "./resources/deals";
 export { Gdpr } from "./resources/gdpr";
+export { Helpdesk } from "./resources/helpdesk";
 export { Posts } from "./resources/posts";
+export { Webhooks } from "./resources/webhooks";
 export { Workspaces } from "./resources/workspaces";
 export { BaseClient } from "./client";
+export type { RequestOptions } from "./client";
 
 /** Convenience factory — equivalent to `new Medal(apiKey, options)`. */
 export function createMedalClient(apiKey: string, options?: MedalOptions): Medal {

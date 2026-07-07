@@ -443,6 +443,174 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/helpdesk/conversations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List helpdesk conversations */
+    get: operations["listHelpdeskConversations"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/helpdesk/conversations/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** Get a helpdesk conversation */
+    get: operations["getHelpdeskConversation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update a conversation's status or assignee
+     * @description Set `status` and/or `assignee_user_id` (`null` unassigns). At least one field is required. Capability-scoped tokens must send `Idempotency-Key` and `X-Capability-Confirmation` headers on this route; API keys with legacy scopes may omit them.
+     */
+    patch: operations["updateHelpdeskConversation"];
+    trace?: never;
+  };
+  "/api/v1/helpdesk/conversations/{id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** List conversation messages */
+    get: operations["listHelpdeskConversationMessages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/helpdesk/replies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Send an operator reply or internal note
+     * @description Send an `Idempotency-Key` header so retried requests do not create duplicate messages — it is required for capability-scoped tokens (together with `X-Capability-Confirmation`).
+     */
+    post: operations["createHelpdeskReply"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/webhooks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List webhook endpoints */
+    get: operations["listWebhooks"];
+    put?: never;
+    /**
+     * Create a webhook endpoint
+     * @description The response's `data.secret` contains the signing secret EXACTLY ONCE — it can never be retrieved again, so store it securely immediately. An idempotent replay (same `Idempotency-Key`) returns the existing endpoint WITHOUT `secret`. Deliveries are HTTP POSTs signed with `X-Medal-Signature: sha256=<base64(HMAC-SHA256("{timestamp}.{rawBody}", secret))>` plus `X-Medal-Timestamp`, `X-Medal-Event`, and `X-Medal-Delivery-Id` / `Idempotency-Key` headers.
+     */
+    post: operations["createWebhook"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/webhooks/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** Get a webhook endpoint */
+    get: operations["getWebhook"];
+    put?: never;
+    post?: never;
+    /**
+     * Delete a webhook endpoint
+     * @description Permanently deletes the endpoint and stops all outbound deliveries. Capability-scoped tokens must send `Idempotency-Key` and `X-Capability-Confirmation` headers on this route; API keys with legacy scopes may omit them.
+     */
+    delete: operations["deleteWebhook"];
+    options?: never;
+    head?: never;
+    /**
+     * Update a webhook endpoint
+     * @description Only provided fields change. Pass `null` for `channels` or `channel_connection_ids` to clear that filter.
+     */
+    patch: operations["updateWebhook"];
+    trace?: never;
+  };
+  "/api/v1/webhooks/{id}/deliveries": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** List recent deliveries */
+    get: operations["listWebhookDeliveries"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/webhooks/{id}/test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Queue a test delivery
+     * @description Queues a signed `test.ping` delivery to the endpoint.
+     */
+    post: operations["testWebhook"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -906,6 +1074,162 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @enum {string} */
+    HelpdeskConversationStatus: "open" | "snoozed" | "closed";
+    /** @enum {string} */
+    HelpdeskMessageAuthorType: "visitor" | "operator" | "ai" | "system";
+    /**
+     * @description `note` is operator-internal and never delivered to the customer.
+     * @enum {string}
+     */
+    HelpdeskMessageType: "chat" | "email" | "note";
+    HelpdeskConversation: {
+      id: string;
+      /** @description Channel type, e.g. `widget`, `instagram`, `messenger`, `whatsapp`, `email`. */
+      channel: string;
+      channel_connection_id: string | null;
+      status: components["schemas"]["HelpdeskConversationStatus"];
+      subject: string | null;
+      assignee_user_id: string | null;
+      contact_id: string | null;
+      visitor_name: string | null;
+      visitor_email: string | null;
+      external_conversation_id: string | null;
+      channel_account_id: string | null;
+      message_count: number;
+      unread_for_operator: number;
+      /** @description Unix timestamp in milliseconds. */
+      last_message_at: number;
+      last_message_preview: string | null;
+      last_message_author_type: components["schemas"]["HelpdeskMessageAuthorType"] | null;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+      /** @description Unix timestamp in milliseconds. */
+      updated_at: number;
+    };
+    HelpdeskMessage: {
+      id: string;
+      conversation_id: string;
+      author_type: components["schemas"]["HelpdeskMessageAuthorType"];
+      message_type: components["schemas"]["HelpdeskMessageType"];
+      author_user_id: string | null;
+      author_name: string | null;
+      body: string;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+    };
+    /** @description At least one field is required. */
+    UpdateHelpdeskConversationInput: {
+      status?: components["schemas"]["HelpdeskConversationStatus"];
+      /** @description User ID to assign, or `null` to unassign. */
+      assignee_user_id?: string | null;
+    };
+    HelpdeskConversationUpdateResult: {
+      id: string;
+      status: components["schemas"]["HelpdeskConversationStatus"];
+      assignee_user_id: string | null;
+    };
+    CreateHelpdeskReplyInput: {
+      conversation_id: string;
+      body: string;
+      /**
+       * @description `note` = operator-internal note (not delivered to the customer). Default `chat`.
+       * @enum {string}
+       */
+      message_type?: "chat" | "note";
+      /** @description Agent display name for bridged replies (shown in widget + inbox). */
+      author_name?: string;
+    };
+    HelpdeskReplyCreateResult: {
+      id: string;
+      conversation_id: string;
+      /** @constant */
+      status: "created";
+    };
+    WebhookEndpoint: {
+      id: string;
+      name: string;
+      /**
+       * Format: uri
+       * @description Destination URL (must be https).
+       */
+      url: string;
+      enabled: boolean;
+      /** @description Subscribed event types. Empty array = all events. */
+      event_types: string[];
+      /** @description Channel-type filter (e.g. `['widget', 'whatsapp']`), or `null` for all channels. */
+      channels: string[] | null;
+      /** @description Channel-connection filter, or `null` for all connections. */
+      channel_connection_ids: string[] | null;
+      /** @description Last 4 characters of the signing secret, for identification. */
+      secret_last4: string;
+      consecutive_failures: number;
+      /** @description Unix timestamp in milliseconds, or `null` if never. */
+      last_delivery_at: number | null;
+      /** @description Unix timestamp in milliseconds, or `null` if never. */
+      last_success_at: number | null;
+      /** @description Unix timestamp in milliseconds, or `null` if never. */
+      last_error_at: number | null;
+      last_error: string | null;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+      /** @description Unix timestamp in milliseconds. */
+      updated_at: number;
+      /** @description Full signing secret (`whsec_…`) — present ONLY in the create response, exactly once. It can never be retrieved again; store it securely immediately. An idempotent replay of the create request omits it. */
+      secret?: string;
+    };
+    CreateWebhookInput: {
+      name: string;
+      /**
+       * Format: uri
+       * @description Destination URL — must be https.
+       */
+      url: string;
+      /** @description Event types to subscribe to (e.g. `helpdesk.message_received`). Empty = all. */
+      event_types: string[];
+      /** @description Restrict to these channel types (e.g. `['widget', 'whatsapp']`). */
+      channels?: string[];
+      /** @description Restrict to these channel connection IDs. */
+      channel_connection_ids?: string[];
+    };
+    /** @description Only provided fields change. */
+    UpdateWebhookInput: {
+      name?: string;
+      /** Format: uri */
+      url?: string;
+      event_types?: string[];
+      /** @description New channel-type filter, or `null` to clear the filter. */
+      channels?: string[] | null;
+      /** @description New channel-connection filter, or `null` to clear the filter. */
+      channel_connection_ids?: string[] | null;
+      enabled?: boolean;
+    };
+    WebhookDeleteResult: {
+      id: string;
+      /** @constant */
+      status: "deleted";
+    };
+    WebhookDelivery: {
+      id: string;
+      event_type: string;
+      /** @enum {string} */
+      status: "pending" | "delivered" | "dead_letter";
+      attempt_count: number;
+      /** @description Unix timestamp in milliseconds of the next retry, or `null`. */
+      next_attempt_at: number | null;
+      response_status: number | null;
+      duration_ms: number | null;
+      last_error: string | null;
+      /** @description Unix timestamp in milliseconds, or `null` if not delivered. */
+      delivered_at: number | null;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+    };
+    WebhookTestResult: {
+      delivery_id: string;
+      /** @constant */
+      status: "queued";
+    };
     ApiResponse_PostCreateResult: components["schemas"]["Envelope_PostCreateResult"];
     ApiResponse_PostDetail: components["schemas"]["Envelope_PostDetail"];
     ApiResponse_Success: components["schemas"]["Envelope_Success"];
@@ -933,6 +1257,14 @@ export interface components {
     ApiResponse_ConsentResult: components["schemas"]["Envelope_ConsentResult"];
     ApiResponse_ConsentRecordArray: components["schemas"]["Envelope_ConsentRecordArray"];
     ApiResponse_WorkspaceArray: components["schemas"]["Envelope_WorkspaceArray"];
+    ApiResponse_HelpdeskConversation: components["schemas"]["Envelope_HelpdeskConversation"];
+    ApiResponse_HelpdeskConversationUpdateResult: components["schemas"]["Envelope_HelpdeskConversationUpdateResult"];
+    ApiResponse_HelpdeskReplyCreateResult: components["schemas"]["Envelope_HelpdeskReplyCreateResult"];
+    ApiResponse_WebhookEndpoint: components["schemas"]["Envelope_WebhookEndpoint"];
+    ApiResponse_WebhookEndpointArray: components["schemas"]["Envelope_WebhookEndpointArray"];
+    ApiResponse_WebhookDeleteResult: components["schemas"]["Envelope_WebhookDeleteResult"];
+    ApiResponse_WebhookDeliveryArray: components["schemas"]["Envelope_WebhookDeliveryArray"];
+    ApiResponse_WebhookTestResult: components["schemas"]["Envelope_WebhookTestResult"];
     PaginatedResponse_Post: {
       data: components["schemas"]["Post"][];
       pagination: components["schemas"]["Pagination"];
@@ -947,6 +1279,14 @@ export interface components {
     };
     PaginatedResponse_Deal: {
       data: components["schemas"]["Deal"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_HelpdeskConversation: {
+      data: components["schemas"]["HelpdeskConversation"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_HelpdeskMessage: {
+      data: components["schemas"]["HelpdeskMessage"][];
       pagination: components["schemas"]["Pagination"];
     };
     Envelope_PostCreateResult: {
@@ -1029,6 +1369,30 @@ export interface components {
     };
     Envelope_WorkspaceArray: {
       data: components["schemas"]["Workspace"][];
+    };
+    Envelope_HelpdeskConversation: {
+      data: components["schemas"]["HelpdeskConversation"];
+    };
+    Envelope_HelpdeskConversationUpdateResult: {
+      data: components["schemas"]["HelpdeskConversationUpdateResult"];
+    };
+    Envelope_HelpdeskReplyCreateResult: {
+      data: components["schemas"]["HelpdeskReplyCreateResult"];
+    };
+    Envelope_WebhookEndpoint: {
+      data: components["schemas"]["WebhookEndpoint"];
+    };
+    Envelope_WebhookEndpointArray: {
+      data: components["schemas"]["WebhookEndpoint"][];
+    };
+    Envelope_WebhookDeleteResult: {
+      data: components["schemas"]["WebhookDeleteResult"];
+    };
+    Envelope_WebhookDeliveryArray: {
+      data: components["schemas"]["WebhookDelivery"][];
+    };
+    Envelope_WebhookTestResult: {
+      data: components["schemas"]["WebhookTestResult"];
     };
   };
   responses: {
@@ -1854,6 +2218,316 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_WorkspaceArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listHelpdeskConversations: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
+        status?: components["schemas"]["HelpdeskConversationStatus"];
+        /** @description Only conversations assigned to this user. */
+        assignee_user_id?: string;
+        /** @description Match against visitor name/email. */
+        requester?: string;
+        /** @description Free-text search query. */
+        query?: string;
+        /** @description Comma-separated channel types (e.g. `widget,whatsapp`). */
+        channels?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Conversations page. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedResponse_HelpdeskConversation"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getHelpdeskConversation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Conversation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_HelpdeskConversation"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updateHelpdeskConversation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateHelpdeskConversationInput"];
+      };
+    };
+    responses: {
+      /** @description Update result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_HelpdeskConversationUpdateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listHelpdeskConversationMessages: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Messages page. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedResponse_HelpdeskMessage"];
+        };
+      };
+      /** @description Conversation not found. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createHelpdeskReply: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateHelpdeskReplyInput"];
+      };
+    };
+    responses: {
+      /** @description Created reply reference. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_HelpdeskReplyCreateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listWebhooks: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Webhook endpoints. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookEndpointArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateWebhookInput"];
+      };
+    };
+    responses: {
+      /** @description Created endpoint, including the one-time `secret`. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookEndpoint"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Webhook endpoint. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookEndpoint"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  deleteWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Delete result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookDeleteResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updateWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateWebhookInput"];
+      };
+    };
+    responses: {
+      /** @description Updated endpoint. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookEndpoint"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listWebhookDeliveries: {
+    parameters: {
+      query?: {
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Recent deliveries, most recent first. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookDeliveryArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  testWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Test delivery queued. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_WebhookTestResult"];
         };
       };
       default: components["responses"]["ApiError"];
