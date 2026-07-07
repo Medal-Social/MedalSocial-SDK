@@ -1,5 +1,25 @@
 # @medalsocial/sdk
 
+## 1.3.0
+
+### Minor Changes
+
+- Add helpdesk + webhooks support (helpdesk bridge).
+
+  **`medal.helpdesk.*`** — read and drive helpdesk conversations:
+  - `conversations.list({ status, assignee_user_id, requester, query, channels, limit, cursor })` — cursor-paginated list/search (`channels` serialized as CSV)
+  - `conversations.get(id)` / `conversations.messages(id, { limit, cursor })`
+  - `conversations.update(id, { status, assignee_user_id })` — assign (`null` unassigns), snooze, close
+  - `replies.create({ conversation_id, body, message_type, author_name }, { idempotencyKey })` — operator replies and internal notes
+
+  **`medal.webhooks.*`** — manage outbound webhook endpoints:
+  - `list()`, `create(input, opts)`, `get(id)`, `update(id, input)`, `delete(id)`, `deliveries(id, { limit })`, `test(id)`
+  - `create` returns the signing `secret` exactly once — store it immediately
+
+  **Webhook event verification** — new `verifyWebhookSignature({ payload, timestamp, signature, secret, toleranceMs })` authenticates `X-Medal-Signature` deliveries (HMAC-SHA256 over `"{timestamp}.{payload}"`, constant-time compare via Web Crypto, 5-minute replay tolerance by default) and returns a typed `WebhookEvent` discriminated union (`helpdesk.conversation_created`, `helpdesk.conversation_assigned`, `helpdesk.conversation_status_changed`, `helpdesk.message_received`, `helpdesk.message_sent`, `helpdesk.message_delivery_updated`, `test.ping`). Throws `WebhookVerificationError` with a machine-readable `code` on failure. Works in Node.js 18+, Deno, Bun, Cloudflare Workers, and browsers.
+
+  **Client** — `BaseClient.post/patch` now accept per-request `RequestOptions` with `idempotencyKey`, sent as the `Idempotency-Key` header (required for capability-scoped tokens on helpdesk replies and webhook creation).
+
 ## 1.2.0
 
 ### Minor Changes
