@@ -5,11 +5,14 @@ on:
     branches: [prod]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      # gh-pages push needs write; everything else stays read-only.
+      contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
