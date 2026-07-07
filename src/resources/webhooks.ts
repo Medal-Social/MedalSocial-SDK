@@ -26,11 +26,15 @@ export class Webhooks {
    * It can never be retrieved again — store it securely immediately. You need
    * it to verify the `X-Medal-Signature` header on incoming deliveries (see
    * `verifyWebhookSignature`).
+   *
+   * `secret` is typed optional because an idempotent replay (retrying with the
+   * same `Idempotency-Key`, `X-Idempotent-Replayed: true`) returns the existing
+   * endpoint WITHOUT the secret — handle that case (rotate if you lost it).
    */
   async create(
     input: CreateWebhookInput,
     options?: RequestOptions,
-  ): Promise<ApiResponse<WebhookEndpoint & { secret: string }>> {
+  ): Promise<ApiResponse<WebhookEndpoint>> {
     return this.client.post("/api/v1/webhooks", input, options);
   }
 

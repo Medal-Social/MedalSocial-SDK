@@ -43,13 +43,18 @@ export interface CreateWebhookInput {
   channel_connection_ids?: string[];
 }
 
-/** Input for updating a webhook endpoint. Only provided fields change. */
+/**
+ * Input for updating a webhook endpoint. Only provided fields change.
+ * Pass `null` for `channels` or `channel_connection_ids` to CLEAR an existing
+ * filter (deliver for all channels / all accounts again); omitting the field
+ * leaves the current filter unchanged.
+ */
 export interface UpdateWebhookInput {
   name?: string;
   url?: string;
   event_types?: string[];
-  channels?: string[];
-  channel_connection_ids?: string[];
+  channels?: string[] | null;
+  channel_connection_ids?: string[] | null;
   enabled?: boolean;
 }
 
