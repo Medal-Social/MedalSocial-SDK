@@ -5,7 +5,10 @@ import {
   verifyWebhookSignature,
 } from "../src";
 
-const SECRET = "whsec_0123456789abcdef0123456789abcdef";
+// Underscores keep this out of the `whsec_[A-Za-z0-9]{32,}` shape that secret
+// scanners flag as a Stripe/webhook signing secret — it's a fixture, not a
+// credential. HMAC is computed over the raw bytes, so any string exercises it.
+const SECRET = "whsec_test_fixture_not_a_real_signing_secret";
 
 async function sign(payload: string, timestamp: string, secret = SECRET): Promise<string> {
   const encoder = new TextEncoder();
