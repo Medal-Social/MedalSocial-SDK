@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_WEBHOOK_TOLERANCE_MS,
-  verifyWebhookSignature,
   WebhookVerificationError,
+  verifyWebhookSignature,
 } from "../src";
 
 const SECRET = "whsec_0123456789abcdef0123456789abcdef";
