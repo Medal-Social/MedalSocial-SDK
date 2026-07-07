@@ -12,7 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     permissions:
-      contents: write
+      # Git pushes and release PRs use the app token (steps.app-token), not
+      # GITHUB_TOKEN — read suffices here; provenance needs id-token + attestations.
+      contents: read
       pull-requests: write
       id-token: write
       attestations: write
