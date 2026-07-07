@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Medal, MedalApiError, createMedalClient } from "../src";
+import { BaseClient, Medal, MedalApiError, createMedalClient } from "../src";
 
 const BASE = "https://test.convex.site";
 
@@ -811,5 +811,50 @@ describe("misc", () => {
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await medal.gdpr.getConsent("user@example.com");
+  });
+
+  it("skips query params whose value is undefined", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("present")).toBe("yes");
+      expect(parsed.searchParams.has("absent")).toBe(false);
+      return mockJson({ data: [] });
+    });
+    const client = new BaseClient({
+      baseUrl: BASE,
+      token: "medal_test",
+      timeout: 5000,
+      userAgent: "test-agent",
+    });
+    await client.get("/api/v1/contacts", { present: "yes", absent: undefined });
+  });
+});
+
+describe("timeout and Retry-After handling", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("waits for a positive numeric Retry-After before retrying", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(new Response("", { status: 429, headers: { "retry-after": "1" } }));
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const start = Date.now();
+    const result = await medal.contacts.list();
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(900);
+  });
+
+  it("aborts the request when the timeout elapses", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("This operation was aborted", "AbortError")),
+          );
+        }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 10 });
+    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
   });
 });
