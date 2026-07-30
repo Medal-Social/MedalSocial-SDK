@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseClient, Medal, MedalApiError, createMedalClient } from "../src";
+import { BaseClient, createMedalClient, Medal, MedalApiError } from "../src";
 
 const BASE = "https://test.convex.site";
 
