@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    // tsup's dts build injects `baseUrl` internally, which TypeScript 6 flags
+    // as deprecated (TS5101); this repo's own config never sets it.
+    "ignoreDeprecations": "6.0",
     "target": "ESNext",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

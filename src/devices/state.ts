@@ -1,5 +1,3 @@
-import type { DeviceMode } from "./types";
-
 export interface GalleryConfig {
   collection: string;
   rotationInterval: string;

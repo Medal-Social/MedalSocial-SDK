@@ -37,7 +37,10 @@ export class Emails {
     this.templates = new EmailTemplates(client);
   }
 
-  /** Send a transactional email using a template. Returns a queued job ID (HTTP 202). */
+  /**
+   * Send a transactional email using a template (HTTP 202). The returned `id`
+   * is an email send id — poll `emails.get(id)` with it to track delivery.
+   */
   async send(input: SendEmailInput): Promise<ApiResponse<EmailSendResult>> {
     return this.client.post("/api/v1/emails", input);
   }
@@ -47,7 +50,10 @@ export class Emails {
     return this.client.get(`/api/v1/emails/${encodeURIComponent(id)}`);
   }
 
-  /** Send the same template to multiple recipients (max 100). Returns HTTP 202. */
+  /**
+   * Send the same template to multiple recipients (max 100, HTTP 202). Each
+   * queued recipient gets its own send id in `results` for `emails.get(id)`.
+   */
   async batch(input: BatchSendInput): Promise<ApiResponse<BatchSendSummary>> {
     return this.client.post("/api/v1/emails/batch", input);
   }

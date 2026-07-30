@@ -1183,12 +1183,26 @@ components:
             type: string
         contact_id:
           type: string
+        idempotency_key:
+          type: string
+        copy_to:
+          type: string
+          format: email
+        copy_reply_to:
+          type: string
+          format: email
     EmailSendResult:
       type: object
-      required: [id, status]
+      required: [id, copy_id, contact_id, status]
       properties:
         id:
-          type: string
+          type: [string, "null"]
+          description: Email send id — poll GET /api/v1/emails/{id} with it.
+        copy_id:
+          type: [string, "null"]
+          description: Send id of the copy_to copy, or null when no copy was requested.
+        contact_id:
+          type: [string, "null"]
         status:
           type: string
     EmailSend:
@@ -1268,7 +1282,7 @@ components:
                   type: string
     BatchSendSummary:
       type: object
-      required: [batch_id, total, queued, failed]
+      required: [batch_id, total, queued, failed, results]
       properties:
         batch_id:
           type: string
@@ -1278,6 +1292,27 @@ components:
           type: integer
         failed:
           type: integer
+        results:
+          type: array
+          description: Per-recipient outcome, in request order.
+          items:
+            $ref: "#/components/schemas/BatchSendRecipientResult"
+    BatchSendRecipientResult:
+      type: object
+      required: [email, id, status, error]
+      properties:
+        email:
+          type: string
+          format: email
+        id:
+          type: [string, "null"]
+          description: Email send id — poll GET /api/v1/emails/{id} with it. Null when not queued.
+        status:
+          type: string
+          enum: [queued, failed]
+        error:
+          type: [string, "null"]
+          description: Failure reason for recipients that were not queued.
     EmailTemplate:
       type: object
       required:

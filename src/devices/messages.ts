@@ -1,5 +1,5 @@
 import type { DesiredState, ReportedState } from "./state";
-import type { ConsentGrants, DeviceCapabilities } from "./types";
+import type { DeviceCapabilities } from "./types";
 
 // Device -> Cloud messages
 export interface RegisterMessage {
