@@ -5,7 +5,11 @@
     "@secretlint/secretlint-rule-preset-recommend",
     "lint-staged"
   ],
-  "ignore": ["src/index.ts", "src/devices/**", "vitest.integration.config.ts"],
+  "ignore": [
+    "src/index.ts",
+    "src/devices/**",
+    "vitest.integration.config.ts"
+  ],
   "ignoreExportsUsedInFile": true,
   "husky": false
 }
