@@ -13,9 +13,9 @@
 <section class="tsd-panel tsd-comment">
 <div class="tsd-comment tsd-typography"><p>Summary returned after queuing a batch email send.</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">BatchSendSummary</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#batch_id">batch_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#failed">failed</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#queued">queued</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#total">total</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">BatchSendSummary</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#batch_id">batch_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#failed">failed</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#queued">queued</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#results">results</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">BatchSendRecipientResult</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#total">total</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/829ad2a0a344a02ed487aaa21d72143da40130f0/src/types/emails.ts#L48">src/types/emails.ts:48</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L69">src/types/emails.ts:69</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -26,6 +26,7 @@
 <div class="tsd-index-list"><a href="#batch_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>batch_<wbr/>id</span></a>
 <a href="#failed" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>failed</span></a>
 <a href="#queued" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>queued</span></a>
+<a href="#results" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>results</span></a>
 <a href="#total" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>total</span></a>
 </div></section></div></details></section></section>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -35,22 +36,29 @@
 <h3 class="tsd-anchor-link" id="batch_id"><span>batch_<wbr/>id</span><a href="#batch_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">batch_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/829ad2a0a344a02ed487aaa21d72143da40130f0/src/types/emails.ts#L49">src/types/emails.ts:49</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L70">src/types/emails.ts:70</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="failed"><span>failed</span><a href="#failed" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">failed</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/829ad2a0a344a02ed487aaa21d72143da40130f0/src/types/emails.ts#L52">src/types/emails.ts:52</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L73">src/types/emails.ts:73</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="queued"><span>queued</span><a href="#queued" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">queued</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/829ad2a0a344a02ed487aaa21d72143da40130f0/src/types/emails.ts#L51">src/types/emails.ts:51</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L72">src/types/emails.ts:72</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="results"><span>results</span><a href="#results" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">results</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">BatchSendRecipientResult</span><span class="tsd-signature-symbol">[]</span></div>
+<div class="tsd-comment tsd-typography"><p>Per-recipient outcome, in request order.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L75">src/types/emails.ts:75</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="total"><span>total</span><a href="#total" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">total</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/829ad2a0a344a02ed487aaa21d72143da40130f0/src/types/emails.ts#L50">src/types/emails.ts:50</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/2b84b851b7c5aae2d95017fe760de87e9c248199/src/types/emails.ts#L71">src/types/emails.ts:71</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -66,7 +74,7 @@
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#batch_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>batch_<wbr/>id</span></a><a href="#failed"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>failed</span></a><a href="#queued"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>queued</span></a><a href="#total"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>total</span></a></div></details></div></details></div>
+<div><a href="#batch_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>batch_<wbr/>id</span></a><a href="#failed"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>failed</span></a><a href="#queued"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>queued</span></a><a href="#results"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>results</span></a><a href="#total"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>total</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">Medal Social SDK</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
