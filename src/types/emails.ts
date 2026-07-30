@@ -7,11 +7,22 @@ export interface SendEmailInput {
   fallback_locale?: string;
   variables?: Record<string, string>;
   contact_id?: string;
+  /** Body-level idempotency key (alternative to the `Idempotency-Key` header). */
+  idempotency_key?: string;
+  /** Also send a `[Copy]` of the email to this address. */
+  copy_to?: string;
+  /** Reply-To for the copy (defaults to the primary recipient). */
+  copy_reply_to?: string;
 }
 
 /** Result returned after queuing a transactional email send (HTTP 202). */
 export interface EmailSendResult {
-  id: string;
+  /** Email send id — poll `emails.get(id)` with it to track delivery. */
+  id: string | null;
+  /** Send id of the `copy_to` copy, or `null` when no copy was requested. */
+  copy_id: string | null;
+  /** CRM contact linked to the send, or `null`. */
+  contact_id: string | null;
   status: string;
 }
 
@@ -44,12 +55,24 @@ export interface BatchSendInput {
   }[];
 }
 
+/** Per-recipient outcome of a batch send, in request order. */
+export interface BatchSendRecipientResult {
+  email: string;
+  /** Email send id — poll `emails.get(id)` with it. `null` when not queued. */
+  id: string | null;
+  status: "queued" | "failed";
+  /** Failure reason for recipients that were not queued. */
+  error: string | null;
+}
+
 /** Summary returned after queuing a batch email send. */
 export interface BatchSendSummary {
   batch_id: string;
   total: number;
   queued: number;
   failed: number;
+  /** Per-recipient outcome, in request order. */
+  results: BatchSendRecipientResult[];
 }
 
 /** @deprecated Use `BatchSendSummary` for `emails.batch()` responses. */
