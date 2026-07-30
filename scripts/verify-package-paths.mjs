@@ -54,8 +54,11 @@ check("main", pkg.main);
 check("module", pkg.module);
 check("types", pkg.types);
 if (pkg.exports) walkExports(pkg.exports, "exports");
-if (Array.isArray(pkg.bin)) pkg.bin.forEach((v, i) => check(`bin[${i}]`, v));
-else if (pkg.bin && typeof pkg.bin === "object") {
+if (Array.isArray(pkg.bin)) {
+  pkg.bin.forEach((v, i) => {
+    check(`bin[${i}]`, v);
+  });
+} else if (pkg.bin && typeof pkg.bin === "object") {
   for (const [key, value] of Object.entries(pkg.bin)) check(`bin["${key}"]`, value);
 }
 

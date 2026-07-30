@@ -713,9 +713,18 @@ export interface components {
         [key: string]: string;
       };
       contact_id?: string;
+      idempotency_key?: string;
+      /** Format: email */
+      copy_to?: string;
+      /** Format: email */
+      copy_reply_to?: string;
     };
     EmailSendResult: {
-      id: string;
+      /** @description Email send id — poll GET /api/v1/emails/{id} with it. */
+      id: string | null;
+      /** @description Send id of the copy_to copy, or null when no copy was requested. */
+      copy_id: string | null;
+      contact_id: string | null;
       status: string;
     };
     EmailSend: {
@@ -757,6 +766,18 @@ export interface components {
       total: number;
       queued: number;
       failed: number;
+      /** @description Per-recipient outcome, in request order. */
+      results: components["schemas"]["BatchSendRecipientResult"][];
+    };
+    BatchSendRecipientResult: {
+      /** Format: email */
+      email: string;
+      /** @description Email send id — poll GET /api/v1/emails/{id} with it. Null when not queued. */
+      id: string | null;
+      /** @enum {string} */
+      status: "queued" | "failed";
+      /** @description Failure reason for recipients that were not queued. */
+      error: string | null;
     };
     EmailTemplate: {
       id: string;

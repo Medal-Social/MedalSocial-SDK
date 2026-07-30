@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_WEBHOOK_TOLERANCE_MS,
-  WebhookVerificationError,
   verifyWebhookSignature,
+  WebhookVerificationError,
 } from "../src";
 
 // Underscores keep this out of the `whsec_[A-Za-z0-9]{32,}` shape that secret

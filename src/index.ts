@@ -124,70 +124,72 @@ export class Medal {
   }
 }
 
+export type { RequestOptions } from "./client";
+export { BaseClient } from "./client";
+export type {
+  components as OpenApiComponents,
+  operations as OpenApiOperations,
+  paths as OpenApiPaths,
+} from "./openapi.generated";
+// Resource class re-exports (for advanced usage)
+export { Contacts } from "./resources/contacts";
+export { Deals } from "./resources/deals";
+export { Emails } from "./resources/emails";
+export { Gdpr } from "./resources/gdpr";
+export { Helpdesk } from "./resources/helpdesk";
+export { Posts } from "./resources/posts";
+export { Webhooks } from "./resources/webhooks";
+export { Workspaces } from "./resources/workspaces";
+export type { ApiResponse, PaginatedResponse, PaginationOptions } from "./types/common";
 // Re-export all types
 export { MedalApiError } from "./types/common";
-export type { ApiResponse, PaginatedResponse, PaginationOptions } from "./types/common";
 export type {
-  SendEmailInput,
-  EmailSendResult,
-  EmailSend,
+  Activity,
+  AddNoteInput,
+  Contact,
+  ContactCreateResult,
+  ContactNoteResult,
+  ContactRemoveResult,
+  ContactStatus,
+  ContactUpdateResult,
+  CreateContactInput,
+  EmailStatus,
+  ImportContactInput,
+  ImportContactsResult,
+  ListContactsOptions,
+  UpdateContactInput,
+} from "./types/contacts";
+export type {
+  CreateDealInput,
+  Deal,
+  DealCreateResult,
+  DealRemoveResult,
+  DealStatus,
+  DealUpdateResult,
+  ListDealsOptions,
+  UpdateDealInput,
+} from "./types/deals";
+export type {
   BatchSendInput,
-  BatchSendSummary,
   BatchSendResult,
+  BatchSendSummary,
+  EmailSend,
+  EmailSendResult,
   EmailTemplate,
   EmailTemplateDetail,
   GetTemplateOptions,
+  SendEmailInput,
 } from "./types/emails";
 export type {
-  Contact,
-  ContactCreateResult,
-  ContactUpdateResult,
-  ContactRemoveResult,
-  ContactNoteResult,
-  ContactStatus,
-  EmailStatus,
-  CreateContactInput,
-  UpdateContactInput,
-  ListContactsOptions,
-  ImportContactInput,
-  ImportContactsResult,
-  Activity,
-  AddNoteInput,
-} from "./types/contacts";
-export type {
-  Deal,
-  DealCreateResult,
-  DealUpdateResult,
-  DealRemoveResult,
-  DealStatus,
-  CreateDealInput,
-  UpdateDealInput,
-  ListDealsOptions,
-} from "./types/deals";
-export type {
-  GdprExport,
-  ConsentType,
-  RecordConsentInput,
   ConsentRecord,
   ConsentResult,
+  ConsentType,
   ContactConsents,
-  CookieConsentInput,
   CookieCategoryConsent,
+  CookieConsentInput,
+  GdprExport,
+  RecordConsentInput,
 } from "./types/gdpr";
-export type {
-  Post,
-  PostType,
-  PostVariant,
-  PostDetail,
-  Channel,
-  CreatePostInput,
-  UpdatePostInput,
-  SchedulePostInput,
-  ListPostsOptions,
-  ScheduleResult,
-  PublishResult,
-} from "./types/posts";
-export type { Workspace } from "./types/workspaces";
 export type {
   Conversation,
   ConversationMessage,
@@ -201,6 +203,19 @@ export type {
   UpdateConversationInput,
 } from "./types/helpdesk";
 export type {
+  Channel,
+  CreatePostInput,
+  ListPostsOptions,
+  Post,
+  PostDetail,
+  PostType,
+  PostVariant,
+  PublishResult,
+  SchedulePostInput,
+  ScheduleResult,
+  UpdatePostInput,
+} from "./types/posts";
+export type {
   CreateWebhookInput,
   ListDeliveriesOptions,
   UpdateWebhookInput,
@@ -209,13 +224,7 @@ export type {
   WebhookEndpoint,
   WebhookTestResult,
 } from "./types/webhooks";
-
-// Webhook event verification + typed events
-export {
-  DEFAULT_WEBHOOK_TOLERANCE_MS,
-  verifyWebhookSignature,
-  WebhookVerificationError,
-} from "./webhook-events";
+export type { Workspace } from "./types/workspaces";
 export type {
   ConversationAssignedEvent,
   ConversationCreatedEvent,
@@ -230,23 +239,12 @@ export type {
   WebhookMessageSnapshot,
   WebhookVerificationErrorCode,
 } from "./webhook-events";
-export type {
-  paths as OpenApiPaths,
-  components as OpenApiComponents,
-  operations as OpenApiOperations,
-} from "./openapi.generated";
-
-// Resource class re-exports (for advanced usage)
-export { Emails } from "./resources/emails";
-export { Contacts } from "./resources/contacts";
-export { Deals } from "./resources/deals";
-export { Gdpr } from "./resources/gdpr";
-export { Helpdesk } from "./resources/helpdesk";
-export { Posts } from "./resources/posts";
-export { Webhooks } from "./resources/webhooks";
-export { Workspaces } from "./resources/workspaces";
-export { BaseClient } from "./client";
-export type { RequestOptions } from "./client";
+// Webhook event verification + typed events
+export {
+  DEFAULT_WEBHOOK_TOLERANCE_MS,
+  verifyWebhookSignature,
+  WebhookVerificationError,
+} from "./webhook-events";
 
 /** Convenience factory — equivalent to `new Medal(apiKey, options)`. */
 export function createMedalClient(apiKey: string, options?: MedalOptions): Medal {

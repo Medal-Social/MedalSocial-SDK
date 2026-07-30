@@ -3,14 +3,14 @@ import type { Medal } from "../src/index.js";
 
 const SendEmailSchema = z.object({
   template_slug: z.string(),
-  to: z.string().email(),
+  to: z.email(),
   name: z.string().optional(),
   locale: z.string().optional(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
 });
 
 const CreateContactSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   phone: z.string().optional(),
@@ -40,7 +40,7 @@ const CookieConsentSchema = z.object({
 });
 
 const RecordConsentSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   consent_type: z.enum(["marketing_email", "analytics_tracking", "third_party_sharing"]),
   granted: z.boolean(),
   source: z.string().optional(),
@@ -52,7 +52,7 @@ const CreateDealSchema = z.object({
   description: z.string().optional(),
   value: z.number().optional(),
   currency: z.string().optional(),
-  contact_email: z.string().email().optional(),
+  contact_email: z.email().optional(),
   notes: z.string().optional(),
 });
 
