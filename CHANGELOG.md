@@ -1,5 +1,37 @@
 # @medalsocial/sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- [#89](https://github.com/Medal-Social/MedalSocial-SDK/pull/89) [`2b84b85`](https://github.com/Medal-Social/MedalSocial-SDK/commit/2b84b851b7c5aae2d95017fe760de87e9c248199) Thanks [@adaadev](https://github.com/adaadev)! - Emails API now hands out trackable send ids everywhere:
+
+  - `EmailSendResult.id` is the email send id accepted by `emails.get(id)` (it was
+    previously a queue job id the status endpoint rejected), and the result now
+    also types `copy_id` and `contact_id`.
+  - `BatchSendSummary.results` is new: a per-recipient array (request order) of
+    `{ email, id, status, error }`, where `id` is the recipient's send id — batch
+    sends are now trackable per recipient via `emails.get(id)`.
+  - `SendEmailInput` gains the already-supported `idempotency_key`, `copy_to`,
+    and `copy_reply_to` fields.
+  - `EmailSendResult.id` is now typed `string | null` to match the wire contract.
+
+- [#89](https://github.com/Medal-Social/MedalSocial-SDK/pull/89) [`2b84b85`](https://github.com/Medal-Social/MedalSocial-SDK/commit/2b84b851b7c5aae2d95017fe760de87e9c248199) Thanks [@adaadev](https://github.com/adaadev)! - Security and toolchain refresh — zero open vulnerability alerts:
+
+  - All five open Dependabot alerts fixed by lifting the supply-chain override
+    pins to patched releases: `js-yaml` 4.3.0, `fast-uri` 3.1.4, `linkify-it`
+    5.0.2, `brace-expansion` 5.0.9 (plus refreshed `ajv`, `dompurify`,
+    `markdown-it`, `minimatch`, `picomatch`, `rollup`, `yaml` pins).
+    `pnpm audit` is clean.
+  - `zod` upgraded 3 → 4 (the SDK's only runtime dependency). Zod is used
+    solely by the `@medalsocial/sdk/pilot` tool schemas; they now use the
+    zod-4 idioms (`z.email()`, two-argument `z.record()`). Consumers passing
+    those schemas into zod-3-only tooling should upgrade that tooling; modern
+    AI SDKs accept zod 4 via Standard Schema.
+  - Dev toolchain to latest: TypeScript 6.0, Biome 2 (config migrated), knip 6,
+    redocly 2.42, commitlint/changesets/secretlint/lint-staged patch bumps.
+    No public API changes from the toolchain.
+
 ## 1.3.0
 
 ### Minor Changes
@@ -7,12 +39,14 @@
 - Add helpdesk + webhooks support (helpdesk bridge).
 
   **`medal.helpdesk.*`** — read and drive helpdesk conversations:
+
   - `conversations.list({ status, assignee_user_id, requester, query, channels, limit, cursor })` — cursor-paginated list/search (`channels` serialized as CSV)
   - `conversations.get(id)` / `conversations.messages(id, { limit, cursor })`
   - `conversations.update(id, { status, assignee_user_id })` — assign (`null` unassigns), snooze, close
   - `replies.create({ conversation_id, body, message_type, author_name }, { idempotencyKey })` — operator replies and internal notes
 
   **`medal.webhooks.*`** — manage outbound webhook endpoints:
+
   - `list()`, `create(input, opts)`, `get(id)`, `update(id, input)`, `delete(id)`, `deliveries(id, { limit })`, `test(id)`
   - `create` returns the signing `secret` exactly once — store it immediately
 
