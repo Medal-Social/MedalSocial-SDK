@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// biome-ignore-all lint/suspicious/noTemplateCurlyInString: the coverage table intentionally lists literal `${...}` snippets expected in SDK source.
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 

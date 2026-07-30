@@ -102,49 +102,49 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "pnpm": {
     "overrides": {
-      "ajv": "8.18.0",
-      "brace-expansion": "5.0.6",
-      "dompurify": "3.4.11",
+      "ajv": "8.20.0",
+      "brace-expansion": "5.0.9",
+      "dompurify": "3.4.12",
       "esbuild@^0.27.0": "0.28.1",
-      "fast-uri": "3.1.2",
+      "fast-uri": "3.1.4",
       "glob": "10.5.0",
       "js-yaml@^3.0.0": "3.15.0",
-      "js-yaml@^4.0.0": "4.2.0",
-      "linkify-it": "5.0.1",
-      "markdown-it": "14.2.0",
+      "js-yaml@^4.0.0": "4.3.0",
+      "linkify-it": "5.0.2",
+      "markdown-it": "14.3.0",
       "mdast-util-to-hast": "13.2.1",
-      "minimatch": "10.2.5",
-      "picomatch": "4.0.4",
-      "rollup": "4.60.3",
+      "minimatch": "10.2.6",
+      "picomatch": "4.0.5",
+      "rollup": "4.62.3",
       "vite": "7.3.6",
-      "yaml": "2.8.4"
+      "yaml": "2.9.0"
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.8.3",
+    "@biomejs/biome": "^2.5.6",
     "@changesets/changelog-github": "^0.7.0",
-    "@changesets/cli": "^2.31.0",
-    "@commitlint/cli": "^21.2.0",
+    "@changesets/cli": "^2.31.1",
+    "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
-    "@redocly/cli": "^2.37.0",
-    "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
-    "@tanstack/intent": "0.3.5",
-    "@types/node": "^24.3.2",
+    "@redocly/cli": "^2.42.0",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
+    "@tanstack/intent": "0.3.6",
+    "@types/node": "^24.13.3",
     "@vitest/coverage-v8": "^4.1.10",
     "husky": "^9.1.6",
     "jsr": "^0.14.3",
-    "knip": "^5.63.1",
-    "lint-staged": "^17.0.8",
+    "knip": "^6.29.0",
+    "lint-staged": "^17.2.0",
     "only-allow": "^1.2.1",
     "openapi-typescript": "^7.13.0",
-    "secretlint": "^13.0.2",
+    "secretlint": "^13.0.4",
     "tsup": "^8.3.0",
     "typedoc": "^0.28.20",
-    "typescript": "^5.5.4",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }
 }
