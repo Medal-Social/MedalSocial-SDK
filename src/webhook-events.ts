@@ -107,6 +107,39 @@ export interface MessageDeliveryUpdatedEvent extends WebhookEventBase {
   data: HelpdeskEventData & { message: WebhookMessageSnapshot };
 }
 
+/**
+ * Fields present in the `data` of channel lifecycle events. Unlike message
+ * events there is no conversation snapshot — the payload is channel-generic.
+ * `channel` / `channelConnectionId` sit at the top level so endpoint channel
+ * filters match exactly like message events.
+ */
+export interface WebhookChannelLifecycleData {
+  /** Helpdesk channel type (e.g. `telegram`), or `null` for non-helpdesk channels. */
+  channel: string | null;
+  channelConnectionId: string | null;
+  /** Connector channel type (e.g. `telegram_inbox`). */
+  channel_type: string;
+  /** Adapter-defined stable connection ref (matches `consumed_connection_ref` on the connect link). */
+  connection_ref: string;
+  label: string | null;
+  masked_identity: string | null;
+}
+
+/** A channel account was connected to the workspace (e.g. via a partner connect link). */
+export interface ChannelConnectedEvent extends WebhookEventBase {
+  type: "helpdesk.channel_connected";
+  data: WebhookChannelLifecycleData;
+}
+
+/** A previously connected channel account was removed from the workspace. */
+export interface ChannelDisconnectedEvent extends WebhookEventBase {
+  type: "helpdesk.channel_disconnected";
+  data: WebhookChannelLifecycleData & {
+    /** Why the account went away: `api_disconnect`, `user_revoked`, or `member_disconnect`. */
+    reason?: string;
+  };
+}
+
 /** A `test.ping` delivery queued via `medal.webhooks.test(id)`. Carries sample data. */
 export interface TestPingEvent extends WebhookEventBase {
   type: "test.ping";
@@ -135,6 +168,8 @@ export type WebhookEvent =
   | MessageReceivedEvent
   | MessageSentEvent
   | MessageDeliveryUpdatedEvent
+  | ChannelConnectedEvent
+  | ChannelDisconnectedEvent
   | TestPingEvent;
 
 /** Machine-readable reason a webhook verification failed. */

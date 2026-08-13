@@ -298,6 +298,36 @@ await medal.webhooks.test(endpoint.id); // queues a 'test.ping' delivery
 
 Failed deliveries retry with exponential backoff (up to 6 attempts) before being dead-lettered.
 
+### Channels (partner connect)
+
+Mint hosted connect links that let an external person — e.g. a partner's operator, with no Medal account — attach a channel account (today `telegram_inbox`) to the workspace's helpdesk, then track and disconnect the resulting connections. Requires the `channel.connect.manage` scope; OAuth callers additionally need the workspace `admin` role for the writes.
+
+```ts
+// Mint a single-use hosted connect link. `data.url` carries the one-time link
+// token EXACTLY ONCE — an idempotent replay (same Idempotency-Key) omits it,
+// so store it immediately (or revoke and mint a new link if lost).
+const { data: link } = await medal.channels.connectLinks.create(
+  {
+    channel_type: 'telegram_inbox',
+    label: 'Acme support',                              // shown on the hosted page
+    redirect_url: 'https://partner.example.com/done',   // optional, https only
+  },
+  { idempotencyKey: crypto.randomUUID() },
+);
+console.log(link.url); // send this to the person who should connect
+
+// Track links (tokens are never returned) and revoke unused ones
+const { data: links } = await medal.channels.connectLinks.list({ status: 'pending' });
+await medal.channels.connectLinks.revoke(link.id);
+
+// List the workspace's channel connections and disconnect one
+const { data: connections } = await medal.channels.connections.list();
+// state: 'connecting' | 'active' | 'disconnected' | 'disabled'
+await medal.channels.connections.disconnect(connections[0].id);
+```
+
+When the person completes the hosted sign-in, the link flips to `consumed` and your webhook endpoint receives `helpdesk.channel_connected` (subscribe via the Webhooks resource above); disconnects emit `helpdesk.channel_disconnected` with a `reason`. Inbound messages on the connected account then flow into the helpdesk — consume them via `helpdesk.message_received` and reply with `medal.helpdesk.replies.create`.
+
 ### Workspaces
 
 ```ts
@@ -365,7 +395,9 @@ export async function handleWebhook(request: Request): Promise<Response> {
 }
 ```
 
-Event types: `helpdesk.conversation_created`, `helpdesk.conversation_assigned`, `helpdesk.conversation_status_changed`, `helpdesk.message_received`, `helpdesk.message_sent`, `helpdesk.message_delivery_updated`, and `test.ping`. All are discriminated on `event.type` — TypeScript narrows `event.data` automatically in a `switch`.
+Event types: `helpdesk.conversation_created`, `helpdesk.conversation_assigned`, `helpdesk.conversation_status_changed`, `helpdesk.message_received`, `helpdesk.message_sent`, `helpdesk.message_delivery_updated`, `helpdesk.channel_connected`, `helpdesk.channel_disconnected`, and `test.ping`. All are discriminated on `event.type` — TypeScript narrows `event.data` automatically in a `switch`.
+
+Channel lifecycle events (`helpdesk.channel_connected` / `helpdesk.channel_disconnected`) fire when a channel account is attached to or removed from the workspace — e.g. via a partner connect link (see the Channels resource above). Their `data` is channel-generic: `channel`, `channelConnectionId`, `channel_type`, `connection_ref`, `label`, `masked_identity`, and (disconnect only) `reason` — one of `api_disconnect`, `user_revoked`, `member_disconnect`.
 
 Notes:
 
