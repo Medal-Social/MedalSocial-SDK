@@ -131,12 +131,15 @@ export interface ChannelConnectedEvent extends WebhookEventBase {
   data: WebhookChannelLifecycleData;
 }
 
+/** Why a channel account was disconnected. */
+export type ChannelDisconnectReason = "api_disconnect" | "user_revoked" | "member_disconnect";
+
 /** A previously connected channel account was removed from the workspace. */
 export interface ChannelDisconnectedEvent extends WebhookEventBase {
   type: "helpdesk.channel_disconnected";
   data: WebhookChannelLifecycleData & {
-    /** Why the account went away: `api_disconnect`, `user_revoked`, or `member_disconnect`. */
-    reason?: string;
+    /** Why the account went away. */
+    reason?: ChannelDisconnectReason;
   };
 }
 

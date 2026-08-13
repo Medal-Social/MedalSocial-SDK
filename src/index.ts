@@ -244,6 +244,7 @@ export type { Workspace } from "./types/workspaces";
 export type {
   ChannelConnectedEvent,
   ChannelDisconnectedEvent,
+  ChannelDisconnectReason,
   ConversationAssignedEvent,
   ConversationCreatedEvent,
   ConversationStatusChangedEvent,

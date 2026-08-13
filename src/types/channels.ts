@@ -55,7 +55,7 @@ export interface ListConnectLinksOptions {
 /** Result of revoking a connect link. */
 export interface ConnectLinkRevokeResult {
   id: string;
-  status: string;
+  status: "revoked";
 }
 
 /** A channel connection attached to the workspace (generic, channel-agnostic shape). */
@@ -75,5 +75,5 @@ export interface ChannelConnection {
 /** Result of disconnecting a channel connection. */
 export interface ChannelConnectionDisconnectResult {
   id: string;
-  state: string;
+  state: "disconnected";
 }
