@@ -339,6 +339,46 @@ const expected = [
     "post",
     "/api/v1/webhooks/${encodeURIComponent(id)}/test",
   ],
+  [
+    "post",
+    "/api/v1/channels/connect-links",
+    "createChannelConnectLink",
+    "src/resources/channels.ts",
+    "post",
+    "/api/v1/channels/connect-links",
+  ],
+  [
+    "get",
+    "/api/v1/channels/connect-links",
+    "listChannelConnectLinks",
+    "src/resources/channels.ts",
+    "get",
+    "/api/v1/channels/connect-links",
+  ],
+  [
+    "delete",
+    "/api/v1/channels/connect-links/{id}",
+    "revokeChannelConnectLink",
+    "src/resources/channels.ts",
+    "delete",
+    "/api/v1/channels/connect-links/${encodeURIComponent(id)}",
+  ],
+  [
+    "get",
+    "/api/v1/channels/connections",
+    "listChannelConnections",
+    "src/resources/channels.ts",
+    "get",
+    "/api/v1/channels/connections",
+  ],
+  [
+    "delete",
+    "/api/v1/channels/connections/{id}",
+    "disconnectChannelConnection",
+    "src/resources/channels.ts",
+    "delete",
+    "/api/v1/channels/connections/${encodeURIComponent(id)}",
+  ],
 ];
 
 const errors = [];

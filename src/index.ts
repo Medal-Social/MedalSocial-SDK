@@ -2,7 +2,8 @@
  * Official TypeScript SDK for the Medal Social API.
  *
  * Provides typed access to posts, emails, contacts, deals, GDPR compliance,
- * helpdesk conversations, webhooks, and workspace management. Works in
+ * helpdesk conversations, partner channel connect, webhooks, and workspace
+ * management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
  * @example
@@ -19,6 +20,7 @@
  * @module
  */
 import { BaseClient } from "./client";
+import { Channels } from "./resources/channels";
 import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
 import { Emails } from "./resources/emails";
@@ -89,6 +91,7 @@ export interface MedalOptions {
  * ```
  */
 export class Medal {
+  readonly channels: Channels;
   readonly emails: Emails;
   readonly contacts: Contacts;
   readonly deals: Deals;
@@ -113,6 +116,7 @@ export class Medal {
       userAgent: "medalsocial-sdk/1.0.0 (+https://github.com/Medal-Social/MedalSocial)",
     });
 
+    this.channels = new Channels(client);
     this.emails = new Emails(client);
     this.contacts = new Contacts(client);
     this.deals = new Deals(client);
@@ -132,6 +136,7 @@ export type {
   paths as OpenApiPaths,
 } from "./openapi.generated";
 // Resource class re-exports (for advanced usage)
+export { Channels } from "./resources/channels";
 export { Contacts } from "./resources/contacts";
 export { Deals } from "./resources/deals";
 export { Emails } from "./resources/emails";
@@ -140,6 +145,17 @@ export { Helpdesk } from "./resources/helpdesk";
 export { Posts } from "./resources/posts";
 export { Webhooks } from "./resources/webhooks";
 export { Workspaces } from "./resources/workspaces";
+export type {
+  ChannelConnection,
+  ChannelConnectionDisconnectResult,
+  ChannelConnectionState,
+  ConnectLink,
+  ConnectLinkCreateResult,
+  ConnectLinkRevokeResult,
+  ConnectLinkStatus,
+  CreateConnectLinkInput,
+  ListConnectLinksOptions,
+} from "./types/channels";
 export type { ApiResponse, PaginatedResponse, PaginationOptions } from "./types/common";
 // Re-export all types
 export { MedalApiError } from "./types/common";
@@ -226,6 +242,9 @@ export type {
 } from "./types/webhooks";
 export type { Workspace } from "./types/workspaces";
 export type {
+  ChannelConnectedEvent,
+  ChannelDisconnectedEvent,
+  ChannelDisconnectReason,
   ConversationAssignedEvent,
   ConversationCreatedEvent,
   ConversationStatusChangedEvent,
@@ -234,6 +253,7 @@ export type {
   MessageSentEvent,
   TestPingEvent,
   VerifyWebhookSignatureInput,
+  WebhookChannelLifecycleData,
   WebhookConversationSnapshot,
   WebhookEvent,
   WebhookMessageSnapshot,
