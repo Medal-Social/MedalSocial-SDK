@@ -1437,7 +1437,9 @@ export interface components {
     ApiResponse_WebhookDeliveryArray: components["schemas"]["Envelope_WebhookDeliveryArray"];
     ApiResponse_WebhookTestResult: components["schemas"]["Envelope_WebhookTestResult"];
     ApiResponse_ConnectLinkCreateResult: components["schemas"]["Envelope_ConnectLinkCreateResult"];
+    ApiResponse_ConnectLinkArray: components["schemas"]["Envelope_ConnectLinkArray"];
     ApiResponse_ConnectLinkRevokeResult: components["schemas"]["Envelope_ConnectLinkRevokeResult"];
+    ApiResponse_ChannelConnectionArray: components["schemas"]["Envelope_ChannelConnectionArray"];
     ApiResponse_ChannelConnectionDisconnectResult: components["schemas"]["Envelope_ChannelConnectionDisconnectResult"];
     PaginatedResponse_Post: {
       data: components["schemas"]["Post"][];
@@ -1579,8 +1581,22 @@ export interface components {
     Envelope_ConnectLinkCreateResult: {
       data: components["schemas"]["ConnectLinkCreateResult"];
     };
+    /**
+     * @deprecated
+     * @description Deprecated — `listChannelConnectLinks` responds with `PaginatedResponse_ConnectLink`. Retained for backwards compatibility with consumers of the generated contract types.
+     */
+    Envelope_ConnectLinkArray: {
+      data: components["schemas"]["ConnectLink"][];
+    };
     Envelope_ConnectLinkRevokeResult: {
       data: components["schemas"]["ConnectLinkRevokeResult"];
+    };
+    /**
+     * @deprecated
+     * @description Deprecated — `listChannelConnections` responds with `PaginatedResponse_ChannelConnection`. Retained for backwards compatibility with consumers of the generated contract types.
+     */
+    Envelope_ChannelConnectionArray: {
+      data: components["schemas"]["ChannelConnection"][];
     };
     Envelope_ChannelConnectionDisconnectResult: {
       data: components["schemas"]["ChannelConnectionDisconnectResult"];

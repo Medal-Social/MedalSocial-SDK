@@ -2631,8 +2631,17 @@ components:
       $ref: "#/components/schemas/Envelope_WebhookTestResult"
     ApiResponse_ConnectLinkCreateResult:
       $ref: "#/components/schemas/Envelope_ConnectLinkCreateResult"
+    # Deprecated: the channels listings are cursor-paginated and now respond
+    # with PaginatedResponse_ConnectLink / PaginatedResponse_ChannelConnection.
+    # These unpaginated aliases are retained (unreferenced by any operation)
+    # so consumers importing the generated contract via
+    # `@medalsocial/sdk/openapi-types` or `OpenApiComponents` keep compiling.
+    ApiResponse_ConnectLinkArray:
+      $ref: "#/components/schemas/Envelope_ConnectLinkArray"
     ApiResponse_ConnectLinkRevokeResult:
       $ref: "#/components/schemas/Envelope_ConnectLinkRevokeResult"
+    ApiResponse_ChannelConnectionArray:
+      $ref: "#/components/schemas/Envelope_ChannelConnectionArray"
     ApiResponse_ChannelConnectionDisconnectResult:
       $ref: "#/components/schemas/Envelope_ChannelConnectionDisconnectResult"
     PaginatedResponse_Post:
@@ -2945,12 +2954,38 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/ConnectLinkCreateResult"
+    Envelope_ConnectLinkArray:
+      type: object
+      deprecated: true
+      description: >-
+        Deprecated — `listChannelConnectLinks` responds with
+        `PaginatedResponse_ConnectLink`. Retained for backwards compatibility
+        with consumers of the generated contract types.
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConnectLink"
     Envelope_ConnectLinkRevokeResult:
       type: object
       required: [data]
       properties:
         data:
           $ref: "#/components/schemas/ConnectLinkRevokeResult"
+    Envelope_ChannelConnectionArray:
+      type: object
+      deprecated: true
+      description: >-
+        Deprecated — `listChannelConnections` responds with
+        `PaginatedResponse_ChannelConnection`. Retained for backwards
+        compatibility with consumers of the generated contract types.
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelConnection"
     Envelope_ChannelConnectionDisconnectResult:
       type: object
       required: [data]
