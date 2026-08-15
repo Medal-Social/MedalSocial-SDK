@@ -29,7 +29,7 @@ describe("channels.connectLinks", () => {
         {
           data: {
             id: "cl_1",
-            url: "https://app.medalsocial.com/connect/link/cln_secret",
+            url: "https://app.example.com/connect/link/cln_secret",
             channel_type: "telegram_inbox",
             label: "Acme support",
             status: "pending",
@@ -49,7 +49,7 @@ describe("channels.connectLinks", () => {
       { idempotencyKey: "idem_cl_1" },
     );
     expect(data.id).toBe("cl_1");
-    expect(data.url).toBe("https://app.medalsocial.com/connect/link/cln_secret");
+    expect(data.url).toBe("https://app.example.com/connect/link/cln_secret");
     expect(data.status).toBe("pending");
   });
 
@@ -61,7 +61,7 @@ describe("channels.connectLinks", () => {
         {
           data: {
             id: "cl_2",
-            url: "https://app.medalsocial.com/connect/link/cln_x",
+            url: "https://app.example.com/connect/link/cln_x",
             channel_type: "telegram_inbox",
             label: null,
             status: "pending",
