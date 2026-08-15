@@ -620,7 +620,7 @@ export interface paths {
     };
     /**
      * List connect links
-     * @description Link tokens are never returned.
+     * @description Link tokens are never returned. Newest first, cursor-paginated. The `channel_type` / `status` filters are applied within each page, so a page may hold fewer than `limit` items while `pagination.has_more` is still true — page off `has_more`, not the item count.
      */
     get: operations["listChannelConnectLinks"];
     put?: never;
@@ -664,7 +664,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List channel connections */
+    /**
+     * List channel connections
+     * @description The workspace's channel connections in a generic, channel-agnostic shape. Newest first, cursor-paginated. Rows that are not projectable as connections are dropped within the page, so a page may hold fewer than `limit` items while `pagination.has_more` is still true — page off `has_more`, not the item count.
+     */
     get: operations["listChannelConnections"];
     put?: never;
     post?: never;
@@ -1434,9 +1437,7 @@ export interface components {
     ApiResponse_WebhookDeliveryArray: components["schemas"]["Envelope_WebhookDeliveryArray"];
     ApiResponse_WebhookTestResult: components["schemas"]["Envelope_WebhookTestResult"];
     ApiResponse_ConnectLinkCreateResult: components["schemas"]["Envelope_ConnectLinkCreateResult"];
-    ApiResponse_ConnectLinkArray: components["schemas"]["Envelope_ConnectLinkArray"];
     ApiResponse_ConnectLinkRevokeResult: components["schemas"]["Envelope_ConnectLinkRevokeResult"];
-    ApiResponse_ChannelConnectionArray: components["schemas"]["Envelope_ChannelConnectionArray"];
     ApiResponse_ChannelConnectionDisconnectResult: components["schemas"]["Envelope_ChannelConnectionDisconnectResult"];
     PaginatedResponse_Post: {
       data: components["schemas"]["Post"][];
@@ -1460,6 +1461,14 @@ export interface components {
     };
     PaginatedResponse_HelpdeskMessage: {
       data: components["schemas"]["HelpdeskMessage"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_ConnectLink: {
+      data: components["schemas"]["ConnectLink"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_ChannelConnection: {
+      data: components["schemas"]["ChannelConnection"][];
       pagination: components["schemas"]["Pagination"];
     };
     Envelope_PostCreateResult: {
@@ -1570,14 +1579,8 @@ export interface components {
     Envelope_ConnectLinkCreateResult: {
       data: components["schemas"]["ConnectLinkCreateResult"];
     };
-    Envelope_ConnectLinkArray: {
-      data: components["schemas"]["ConnectLink"][];
-    };
     Envelope_ConnectLinkRevokeResult: {
       data: components["schemas"]["ConnectLinkRevokeResult"];
-    };
-    Envelope_ChannelConnectionArray: {
-      data: components["schemas"]["ChannelConnection"][];
     };
     Envelope_ChannelConnectionDisconnectResult: {
       data: components["schemas"]["ChannelConnectionDisconnectResult"];
@@ -2724,6 +2727,9 @@ export interface operations {
   listChannelConnectLinks: {
     parameters: {
       query?: {
+        /** @description Page size (default 50, capped at 100). */
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
         channel_type?: string;
         status?: components["schemas"]["ConnectLinkStatus"];
       };
@@ -2733,13 +2739,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The workspace's connect links. */
+      /** @description Connect links page. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ApiResponse_ConnectLinkArray"];
+          "application/json": components["schemas"]["PaginatedResponse_ConnectLink"];
         };
       };
       default: components["responses"]["ApiError"];
@@ -2795,20 +2801,24 @@ export interface operations {
   };
   listChannelConnections: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Page size (default 50, capped at 100). */
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
+      };
       header?: never;
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description The workspace's channel connections (generic shape). */
+      /** @description Channel connections page. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ApiResponse_ChannelConnectionArray"];
+          "application/json": components["schemas"]["PaginatedResponse_ChannelConnection"];
         };
       };
       default: components["responses"]["ApiError"];
