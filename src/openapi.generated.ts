@@ -611,6 +611,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/channels/connect-links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List connect links
+     * @description Link tokens are never returned.
+     */
+    get: operations["listChannelConnectLinks"];
+    put?: never;
+    /**
+     * Mint a hosted connect link
+     * @description Mints a single-use hosted connect link that lets an external person (no Medal account required) attach a channel account (e.g. `telegram_inbox`) to the workspace's helpdesk. The response's `data.url` contains the one-time link token EXACTLY ONCE — an idempotent replay (same `Idempotency-Key`) returns the link WITHOUT `url`. Requires the `channel.connect.manage` scope; OAuth callers additionally need the workspace `admin` role.
+     */
+    post: operations["createChannelConnectLink"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/connect-links/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Revoke a connect link
+     * @description Revokes a pending connect link so it can no longer be consumed. OAuth callers need the workspace `admin` role.
+     */
+    delete: operations["revokeChannelConnectLink"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/connections": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List channel connections */
+    get: operations["listChannelConnections"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/channels/connections/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Disconnect a channel connection
+     * @description Disconnects a connected channel account (best-effort platform logout, then local revoke). Emits a `helpdesk.channel_disconnected` webhook event with `reason: "api_disconnect"` if the account was previously connected. OAuth callers need the workspace `admin` role.
+     */
+    delete: operations["disconnectChannelConnection"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1251,6 +1336,68 @@ export interface components {
       /** @constant */
       status: "queued";
     };
+    /** @enum {string} */
+    ConnectLinkStatus: "pending" | "consumed" | "expired" | "revoked";
+    /** @enum {string} */
+    ChannelConnectionState: "connecting" | "active" | "disconnected" | "disabled";
+    CreateConnectLinkInput: {
+      /** @description Channel type to connect (e.g. `telegram_inbox`). */
+      channel_type: string;
+      /** @description Display label shown on the hosted connect page. */
+      label?: string;
+      /**
+       * Format: uri
+       * @description URL the hosted page redirects to after a successful connect — must be https.
+       */
+      redirect_url?: string;
+    };
+    ConnectLinkCreateResult: {
+      id: string;
+      /**
+       * Format: uri
+       * @description Single-use hosted connect URL containing the one-time link token — present ONLY in the live create response. An idempotent replay of the create request omits it; the token can never be retrieved again.
+       */
+      url?: string;
+      channel_type: string;
+      label: string | null;
+      status: components["schemas"]["ConnectLinkStatus"];
+      /** @description Unix timestamp in milliseconds. */
+      expires_at: number;
+    };
+    ConnectLink: {
+      id: string;
+      channel_type: string;
+      label: string | null;
+      status: components["schemas"]["ConnectLinkStatus"];
+      /** @description Stable ref of the connection created by consuming this link, or `null`. */
+      consumed_connection_ref: string | null;
+      /** @description Unix timestamp in milliseconds. */
+      expires_at: number;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+    };
+    ConnectLinkRevokeResult: {
+      id: string;
+      /** @constant */
+      status: "revoked";
+    };
+    ChannelConnection: {
+      id: string;
+      channel_type: string;
+      label: string | null;
+      state: components["schemas"]["ChannelConnectionState"];
+      /** @description Privacy-preserving identity handle (e.g. a masked phone number). */
+      masked_identity: string;
+      /** @description Unix timestamp in milliseconds, or `null` if never active. */
+      last_activity_at: number | null;
+      /** @description Linked helpdesk channel connection ID, or `null`. */
+      helpdesk_connection_id: string | null;
+    };
+    ChannelConnectionDisconnectResult: {
+      id: string;
+      /** @constant */
+      state: "disconnected";
+    };
     ApiResponse_PostCreateResult: components["schemas"]["Envelope_PostCreateResult"];
     ApiResponse_PostDetail: components["schemas"]["Envelope_PostDetail"];
     ApiResponse_Success: components["schemas"]["Envelope_Success"];
@@ -1286,6 +1433,11 @@ export interface components {
     ApiResponse_WebhookDeleteResult: components["schemas"]["Envelope_WebhookDeleteResult"];
     ApiResponse_WebhookDeliveryArray: components["schemas"]["Envelope_WebhookDeliveryArray"];
     ApiResponse_WebhookTestResult: components["schemas"]["Envelope_WebhookTestResult"];
+    ApiResponse_ConnectLinkCreateResult: components["schemas"]["Envelope_ConnectLinkCreateResult"];
+    ApiResponse_ConnectLinkArray: components["schemas"]["Envelope_ConnectLinkArray"];
+    ApiResponse_ConnectLinkRevokeResult: components["schemas"]["Envelope_ConnectLinkRevokeResult"];
+    ApiResponse_ChannelConnectionArray: components["schemas"]["Envelope_ChannelConnectionArray"];
+    ApiResponse_ChannelConnectionDisconnectResult: components["schemas"]["Envelope_ChannelConnectionDisconnectResult"];
     PaginatedResponse_Post: {
       data: components["schemas"]["Post"][];
       pagination: components["schemas"]["Pagination"];
@@ -1414,6 +1566,21 @@ export interface components {
     };
     Envelope_WebhookTestResult: {
       data: components["schemas"]["WebhookTestResult"];
+    };
+    Envelope_ConnectLinkCreateResult: {
+      data: components["schemas"]["ConnectLinkCreateResult"];
+    };
+    Envelope_ConnectLinkArray: {
+      data: components["schemas"]["ConnectLink"][];
+    };
+    Envelope_ConnectLinkRevokeResult: {
+      data: components["schemas"]["ConnectLinkRevokeResult"];
+    };
+    Envelope_ChannelConnectionArray: {
+      data: components["schemas"]["ChannelConnection"][];
+    };
+    Envelope_ChannelConnectionDisconnectResult: {
+      data: components["schemas"]["ChannelConnectionDisconnectResult"];
     };
   };
   responses: {
@@ -2549,6 +2716,122 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_WebhookTestResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listChannelConnectLinks: {
+    parameters: {
+      query?: {
+        channel_type?: string;
+        status?: components["schemas"]["ConnectLinkStatus"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The workspace's connect links. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ConnectLinkArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createChannelConnectLink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateConnectLinkInput"];
+      };
+    };
+    responses: {
+      /** @description Minted connect link, including the one-time `url`. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ConnectLinkCreateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  revokeChannelConnectLink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Revoke result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ConnectLinkRevokeResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listChannelConnections: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The workspace's channel connections (generic shape). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ChannelConnectionArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  disconnectChannelConnection: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Disconnect result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ChannelConnectionDisconnectResult"];
         };
       };
       default: components["responses"]["ApiError"];

@@ -264,6 +264,57 @@ describe("verifyWebhookSignature", () => {
     expect(event.type).toBe("test.ping");
   });
 
+  it("verifies and narrows a helpdesk.channel_connected event", async () => {
+    const payload = JSON.stringify({
+      id: "del_ch_1",
+      type: "helpdesk.channel_connected",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        channel_type: "telegram_inbox",
+        connection_ref: "sess_1",
+        label: "Acme support",
+        masked_identity: "+47 •• •• 123",
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.channel_connected");
+    if (event.type === "helpdesk.channel_connected") {
+      expect(event.data.channel_type).toBe("telegram_inbox");
+      expect(event.data.connection_ref).toBe("sess_1");
+      expect(event.data.masked_identity).toBe("+47 •• •• 123");
+    }
+  });
+
+  it("verifies and narrows a helpdesk.channel_disconnected event with a reason", async () => {
+    const payload = JSON.stringify({
+      id: "del_ch_2",
+      type: "helpdesk.channel_disconnected",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        channel_type: "telegram_inbox",
+        connection_ref: "sess_1",
+        label: null,
+        masked_identity: null,
+        reason: "api_disconnect",
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.channel_disconnected");
+    if (event.type === "helpdesk.channel_disconnected") {
+      expect(event.data.reason).toBe("api_disconnect");
+    }
+  });
+
   it("exports the default tolerance constant", () => {
     expect(DEFAULT_WEBHOOK_TOLERANCE_MS).toBe(300_000);
   });

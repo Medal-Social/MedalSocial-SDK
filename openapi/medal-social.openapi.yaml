@@ -29,6 +29,10 @@ tags:
     description: Read helpdesk conversations, reply, and manage assignment/status.
   - name: Webhooks
     description: Manage webhook endpoints and inspect their deliveries.
+  - name: Channels
+    description: >-
+      Partner channel connect — mint hosted connect links and manage the
+      resulting channel connections.
 paths:
   /api/v1/posts:
     get:
@@ -924,6 +928,111 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_WebhookTestResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/channels/connect-links:
+    post:
+      tags: [Channels]
+      operationId: createChannelConnectLink
+      summary: Mint a hosted connect link
+      description: >-
+        Mints a single-use hosted connect link that lets an external person
+        (no Medal account required) attach a channel account (e.g.
+        `telegram_inbox`) to the workspace's helpdesk. The response's
+        `data.url` contains the one-time link token EXACTLY ONCE — an
+        idempotent replay (same `Idempotency-Key`) returns the link WITHOUT
+        `url`. Requires the `channel.connect.manage` scope; OAuth callers
+        additionally need the workspace `admin` role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConnectLinkInput"
+      responses:
+        "201":
+          description: Minted connect link, including the one-time `url`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ConnectLinkCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+    get:
+      tags: [Channels]
+      operationId: listChannelConnectLinks
+      summary: List connect links
+      description: Link tokens are never returned.
+      parameters:
+        - name: channel_type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ConnectLinkStatus"
+      responses:
+        "200":
+          description: The workspace's connect links.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ConnectLinkArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/channels/connect-links/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      tags: [Channels]
+      operationId: revokeChannelConnectLink
+      summary: Revoke a connect link
+      description: >-
+        Revokes a pending connect link so it can no longer be consumed. OAuth
+        callers need the workspace `admin` role.
+      responses:
+        "200":
+          description: Revoke result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ConnectLinkRevokeResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/channels/connections:
+    get:
+      tags: [Channels]
+      operationId: listChannelConnections
+      summary: List channel connections
+      responses:
+        "200":
+          description: The workspace's channel connections (generic shape).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ChannelConnectionArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/channels/connections/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      tags: [Channels]
+      operationId: disconnectChannelConnection
+      summary: Disconnect a channel connection
+      description: >-
+        Disconnects a connected channel account (best-effort platform logout,
+        then local revoke). Emits a `helpdesk.channel_disconnected` webhook
+        event with `reason: "api_disconnect"` if the account was previously
+        connected. OAuth callers need the workspace `admin` role.
+      responses:
+        "200":
+          description: Disconnect result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ChannelConnectionDisconnectResult"
         default:
           $ref: "#/components/responses/ApiError"
 components:
@@ -2299,6 +2408,130 @@ components:
         status:
           type: string
           const: queued
+    ConnectLinkStatus:
+      type: string
+      enum: [pending, consumed, expired, revoked]
+    ChannelConnectionState:
+      type: string
+      enum: [connecting, active, disconnected, disabled]
+    CreateConnectLinkInput:
+      type: object
+      required: [channel_type]
+      properties:
+        channel_type:
+          type: string
+          maxLength: 64
+          description: Channel type to connect (e.g. `telegram_inbox`).
+        label:
+          type: string
+          maxLength: 100
+          description: Display label shown on the hosted connect page.
+        redirect_url:
+          type: string
+          format: uri
+          maxLength: 2000
+          description: >-
+            URL the hosted page redirects to after a successful connect — must
+            be https.
+    ConnectLinkCreateResult:
+      type: object
+      required: [id, channel_type, label, status, expires_at]
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+          description: >-
+            Single-use hosted connect URL containing the one-time link token —
+            present ONLY in the live create response. An idempotent replay of
+            the create request omits it; the token can never be retrieved
+            again.
+        channel_type:
+          type: string
+        label:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/ConnectLinkStatus"
+        expires_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    ConnectLink:
+      type: object
+      required:
+        - id
+        - channel_type
+        - label
+        - status
+        - consumed_connection_ref
+        - expires_at
+        - created_at
+      properties:
+        id:
+          type: string
+        channel_type:
+          type: string
+        label:
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/ConnectLinkStatus"
+        consumed_connection_ref:
+          type: [string, "null"]
+          description: >-
+            Stable ref of the connection created by consuming this link, or
+            `null`.
+        expires_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    ConnectLinkRevokeResult:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          const: revoked
+    ChannelConnection:
+      type: object
+      required:
+        - id
+        - channel_type
+        - label
+        - state
+        - masked_identity
+        - last_activity_at
+        - helpdesk_connection_id
+      properties:
+        id:
+          type: string
+        channel_type:
+          type: string
+        label:
+          type: [string, "null"]
+        state:
+          $ref: "#/components/schemas/ChannelConnectionState"
+        masked_identity:
+          type: string
+          description: Privacy-preserving identity handle (e.g. a masked phone number).
+        last_activity_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null` if never active.
+        helpdesk_connection_id:
+          type: [string, "null"]
+          description: Linked helpdesk channel connection ID, or `null`.
+    ChannelConnectionDisconnectResult:
+      type: object
+      required: [id, state]
+      properties:
+        id:
+          type: string
+        state:
+          type: string
+          const: disconnected
     ApiResponse_PostCreateResult:
       $ref: "#/components/schemas/Envelope_PostCreateResult"
     ApiResponse_PostDetail:
@@ -2369,6 +2602,16 @@ components:
       $ref: "#/components/schemas/Envelope_WebhookDeliveryArray"
     ApiResponse_WebhookTestResult:
       $ref: "#/components/schemas/Envelope_WebhookTestResult"
+    ApiResponse_ConnectLinkCreateResult:
+      $ref: "#/components/schemas/Envelope_ConnectLinkCreateResult"
+    ApiResponse_ConnectLinkArray:
+      $ref: "#/components/schemas/Envelope_ConnectLinkArray"
+    ApiResponse_ConnectLinkRevokeResult:
+      $ref: "#/components/schemas/Envelope_ConnectLinkRevokeResult"
+    ApiResponse_ChannelConnectionArray:
+      $ref: "#/components/schemas/Envelope_ChannelConnectionArray"
+    ApiResponse_ChannelConnectionDisconnectResult:
+      $ref: "#/components/schemas/Envelope_ChannelConnectionDisconnectResult"
     PaginatedResponse_Post:
       type: object
       required: [data, pagination]
@@ -2653,3 +2896,37 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/WebhookTestResult"
+    Envelope_ConnectLinkCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConnectLinkCreateResult"
+    Envelope_ConnectLinkArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConnectLink"
+    Envelope_ConnectLinkRevokeResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConnectLinkRevokeResult"
+    Envelope_ChannelConnectionArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelConnection"
+    Envelope_ChannelConnectionDisconnectResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ChannelConnectionDisconnectResult"
