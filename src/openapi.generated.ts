@@ -620,7 +620,7 @@ export interface paths {
     };
     /**
      * List connect links
-     * @description Link tokens are never returned.
+     * @description Link tokens are never returned. Newest first, cursor-paginated. The `channel_type` / `status` filters are applied within each page, so a page may hold fewer than `limit` items while `pagination.has_more` is still true — page off `has_more`, not the item count.
      */
     get: operations["listChannelConnectLinks"];
     put?: never;
@@ -664,7 +664,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List channel connections */
+    /**
+     * List channel connections
+     * @description The workspace's channel connections in a generic, channel-agnostic shape. Newest first, cursor-paginated. Rows that are not projectable as connections are dropped within the page, so a page may hold fewer than `limit` items while `pagination.has_more` is still true — page off `has_more`, not the item count.
+     */
     get: operations["listChannelConnections"];
     put?: never;
     post?: never;
@@ -1462,6 +1465,14 @@ export interface components {
       data: components["schemas"]["HelpdeskMessage"][];
       pagination: components["schemas"]["Pagination"];
     };
+    PaginatedResponse_ConnectLink: {
+      data: components["schemas"]["ConnectLink"][];
+      pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_ChannelConnection: {
+      data: components["schemas"]["ChannelConnection"][];
+      pagination: components["schemas"]["Pagination"];
+    };
     Envelope_PostCreateResult: {
       data: components["schemas"]["PostCreateResult"];
     };
@@ -1570,12 +1581,20 @@ export interface components {
     Envelope_ConnectLinkCreateResult: {
       data: components["schemas"]["ConnectLinkCreateResult"];
     };
+    /**
+     * @deprecated
+     * @description Deprecated — `listChannelConnectLinks` responds with `PaginatedResponse_ConnectLink`. Retained for backwards compatibility with consumers of the generated contract types.
+     */
     Envelope_ConnectLinkArray: {
       data: components["schemas"]["ConnectLink"][];
     };
     Envelope_ConnectLinkRevokeResult: {
       data: components["schemas"]["ConnectLinkRevokeResult"];
     };
+    /**
+     * @deprecated
+     * @description Deprecated — `listChannelConnections` responds with `PaginatedResponse_ChannelConnection`. Retained for backwards compatibility with consumers of the generated contract types.
+     */
     Envelope_ChannelConnectionArray: {
       data: components["schemas"]["ChannelConnection"][];
     };
@@ -2724,6 +2743,9 @@ export interface operations {
   listChannelConnectLinks: {
     parameters: {
       query?: {
+        /** @description Page size (default 50, capped at 100). */
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
         channel_type?: string;
         status?: components["schemas"]["ConnectLinkStatus"];
       };
@@ -2733,13 +2755,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The workspace's connect links. */
+      /** @description Connect links page. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ApiResponse_ConnectLinkArray"];
+          "application/json": components["schemas"]["PaginatedResponse_ConnectLink"];
         };
       };
       default: components["responses"]["ApiError"];
@@ -2795,20 +2817,24 @@ export interface operations {
   };
   listChannelConnections: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Page size (default 50, capped at 100). */
+        limit?: number;
+        cursor?: components["parameters"]["Cursor"];
+      };
       header?: never;
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description The workspace's channel connections (generic shape). */
+      /** @description Channel connections page. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ApiResponse_ChannelConnectionArray"];
+          "application/json": components["schemas"]["PaginatedResponse_ChannelConnection"];
         };
       };
       default: components["responses"]["ApiError"];

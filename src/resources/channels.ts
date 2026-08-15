@@ -8,7 +8,7 @@ import type {
   CreateConnectLinkInput,
   ListConnectLinksOptions,
 } from "../types/channels";
-import type { ApiResponse } from "../types/common";
+import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
 
 /** Mint, list, and revoke hosted connect links. */
 class ChannelConnectLinks {
@@ -32,9 +32,21 @@ class ChannelConnectLinks {
     return this.client.post("/api/v1/channels/connect-links", input, options);
   }
 
-  /** List the workspace's connect links (tokens are never returned). */
-  async list(options?: ListConnectLinksOptions): Promise<ApiResponse<ConnectLink[]>> {
+  /**
+   * List the workspace's connect links (tokens are never returned), newest
+   * first, with cursor-based pagination.
+   *
+   * `limit` defaults to 50 server-side and is capped at 100. Follow
+   * `pagination.next_cursor` while `pagination.has_more` is true.
+   *
+   * The `channel_type` / `status` filters are applied **within** each page,
+   * so a page may hold fewer than `limit` items while `has_more` is still
+   * true — drive the loop off `has_more`, never off the item count.
+   */
+  async list(options?: ListConnectLinksOptions): Promise<PaginatedResponse<ConnectLink>> {
     const params: Record<string, string | undefined> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
     if (options?.channel_type) params.channel_type = options.channel_type;
     if (options?.status) params.status = options.status;
     return this.client.get("/api/v1/channels/connect-links", params);
@@ -53,9 +65,21 @@ class ChannelConnectLinks {
 class ChannelConnections {
   constructor(private client: BaseClient) {}
 
-  /** List the workspace's channel connections (generic, channel-agnostic shape). */
-  async list(): Promise<ApiResponse<ChannelConnection[]>> {
-    return this.client.get("/api/v1/channels/connections");
+  /**
+   * List the workspace's channel connections (generic, channel-agnostic
+   * shape), newest first, with cursor-based pagination.
+   *
+   * `limit` defaults to 50 server-side and is capped at 100. Follow
+   * `pagination.next_cursor` while `pagination.has_more` is true. Rows that
+   * are not projectable as connections are dropped within the page, so a page
+   * may hold fewer than `limit` items while `has_more` is still true — drive
+   * the loop off `has_more`, never off the item count.
+   */
+  async list(options?: PaginationOptions): Promise<PaginatedResponse<ChannelConnection>> {
+    const params: Record<string, string | undefined> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
+    return this.client.get("/api/v1/channels/connections", params);
   }
 
   /**

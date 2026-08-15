@@ -324,7 +324,17 @@ await medal.channels.connectLinks.revoke(link.id);
 const { data: connections } = await medal.channels.connections.list();
 // state: 'connecting' | 'active' | 'disconnected' | 'disabled'
 await medal.channels.connections.disconnect(connections[0].id);
+
+// Both listings are cursor-paginated (limit defaults to 50, capped at 100)
+let cursor: string | undefined;
+do {
+  const page = await medal.channels.connections.list({ limit: 100, cursor });
+  for (const connection of page.data) console.log(connection.id, connection.state);
+  cursor = page.pagination.has_more ? page.pagination.next_cursor ?? undefined : undefined;
+} while (cursor);
 ```
+
+Filters (`channel_type`, `status`) are applied **within** each page, so a page may hold fewer than `limit` items while `pagination.has_more` is still `true` — drive the loop off `has_more`, never off the item count.
 
 When the person completes the hosted sign-in, the link flips to `consumed` and your webhook endpoint receives `helpdesk.channel_connected` (subscribe via the Webhooks resource above); disconnects emit `helpdesk.channel_disconnected` with a `reason`. Inbound messages on the connected account then flow into the helpdesk — consume them via `helpdesk.message_received` and reply with `medal.helpdesk.replies.create`.
 
