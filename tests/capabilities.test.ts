@@ -368,6 +368,97 @@ describe("auto-confirm", () => {
     ]);
   });
 
+  it("hands the write payload to previewSummary", async () => {
+    let confirmBody: Record<string, unknown> | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = new URL(url as string).pathname;
+      if (path === "/api/v1/capability-confirmations") {
+        confirmBody = JSON.parse(init?.body as string);
+        return mockJson(confirmationPayload());
+      }
+      return mockJson({ data: { id: "cl_1", url: "https://connect.example.com/l/x" } }, 201);
+    });
+
+    const medal = new Medal("medal_test", {
+      baseUrl: BASE,
+      autoConfirmCapabilities: {
+        previewSummary: (ctx) => {
+          // Narrowing on capabilityId gives the exact payload type.
+          if (ctx.capabilityId === "channel.connect_link.create.execute") {
+            return `Connect ${ctx.body.channel_type} for ${ctx.body.label}`;
+          }
+          return "other";
+        },
+      },
+    });
+    await medal.channels.connectLinks.create({
+      channel_type: "telegram_inbox",
+      label: "Acme support",
+    });
+
+    expect(confirmBody?.preview_summary).toBe("Connect telegram_inbox for Acme support");
+  });
+
+  it("produces different summaries for two different payloads on the same route", async () => {
+    const summaries: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = new URL(url as string).pathname;
+      if (path === "/api/v1/capability-confirmations") {
+        summaries.push(JSON.parse(init?.body as string).preview_summary);
+        return mockJson(confirmationPayload());
+      }
+      return mockJson({ data: { id: "m", conversation_id: "c_1", status: "created" } }, 201);
+    });
+
+    const medal = new Medal("medal_test", {
+      baseUrl: BASE,
+      autoConfirmCapabilities: {
+        previewSummary: (ctx) =>
+          ctx.capabilityId === "helpdesk.conversation.reply.execute"
+            ? `Reply to ${ctx.body.conversation_id}: ${ctx.body.body}`
+            : "other",
+      },
+    });
+    await medal.helpdesk.replies.create({ conversation_id: "c_1", body: "first answer" });
+    await medal.helpdesk.replies.create({ conversation_id: "c_2", body: "second answer" });
+
+    expect(summaries).toEqual(["Reply to c_1: first answer", "Reply to c_2: second answer"]);
+    expect(summaries[0]).not.toBe(summaries[1]);
+  });
+
+  it("passes the payload through unmodified and exposes undefined for bodyless routes", async () => {
+    const contexts: { capabilityId: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = new URL(url as string).pathname;
+      if (path === "/api/v1/capability-confirmations") return mockJson(confirmationPayload());
+      if (init?.method === "PATCH") {
+        // The callback must not be able to alter what actually goes on the wire.
+        expect(JSON.parse(init.body as string)).toEqual({ status: "closed" });
+      }
+      return mockJson({ data: { id: "x", status: "closed" } });
+    });
+
+    const medal = new Medal("medal_test", {
+      baseUrl: BASE,
+      autoConfirmCapabilities: {
+        previewSummary: (ctx) => {
+          contexts.push({ capabilityId: ctx.capabilityId, body: ctx.body });
+          return "approved";
+        },
+      },
+    });
+
+    const input = { status: "closed" } as const;
+    await medal.helpdesk.conversations.update("c_1", input);
+    await medal.channels.connections.disconnect("conn_1");
+
+    // Same object identity — no clone, no redaction of the caller's own payload.
+    expect(contexts[0].body).toBe(input);
+    // DELETE routes have no request body.
+    expect(contexts[1].capabilityId).toBe("channel.connection.disconnect.execute");
+    expect(contexts[1].body).toBeUndefined();
+  });
+
   it("covers helpdesk replies and conversation updates", async () => {
     const paths: string[] = [];
     const capabilityIds: unknown[] = [];

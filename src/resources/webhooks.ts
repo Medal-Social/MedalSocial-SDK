@@ -51,6 +51,7 @@ export class Webhooks {
       "helpdesk.webhook.create.execute",
       undefined,
       options,
+      input,
     );
     return this.client.post("/api/v1/webhooks", input, resolved);
   }
@@ -70,6 +71,7 @@ export class Webhooks {
       "helpdesk.webhook.update.execute",
       { id },
       options,
+      input,
     );
     return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, resolved);
   }
@@ -85,6 +87,7 @@ export class Webhooks {
       "helpdesk.webhook.delete.execute",
       { id },
       options,
+      undefined,
     );
     return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, resolved);
   }

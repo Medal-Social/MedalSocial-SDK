@@ -38,6 +38,7 @@ class ChannelConnectLinks {
       "channel.connect_link.create.execute",
       undefined,
       options,
+      input,
     );
     return this.client.post("/api/v1/channels/connect-links", input, resolved);
   }
@@ -71,6 +72,7 @@ class ChannelConnectLinks {
       "channel.connect_link.revoke.execute",
       { id },
       options,
+      undefined,
     );
     return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, resolved);
   }
@@ -113,6 +115,7 @@ class ChannelConnections {
       "channel.connection.disconnect.execute",
       { id },
       options,
+      undefined,
     );
     return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, resolved);
   }

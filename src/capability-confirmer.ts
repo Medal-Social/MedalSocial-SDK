@@ -1,9 +1,11 @@
 import type { RequestOptions } from "./client";
 import type { CapabilityConfirmations } from "./resources/capability-confirmations";
 import type {
+  AutoConfirmContext,
   AutoConfirmOptions,
   CapabilityId,
   CapabilityPathParamValue,
+  CapabilityWriteBodies,
 } from "./types/capabilities";
 import { CAPABILITY_ROUTES } from "./types/capabilities";
 
@@ -44,11 +46,17 @@ export class CapabilityConfirmer {
   /**
    * Return the request options to use for a confirmable write, minting the
    * idempotency key and confirmation token first when auto-confirm is active.
+   *
+   * `body` is the pending request payload (`undefined` for `DELETE` routes).
+   * It is handed to the `previewSummary` callback by reference so the summary
+   * can describe the specific action, not just the route — it is the caller's
+   * own payload, so it is passed through unmodified and unredacted.
    */
-  async prepare(
-    capabilityId: CapabilityId,
-    pathParams?: Record<string, CapabilityPathParamValue>,
-    options?: RequestOptions,
+  async prepare<K extends CapabilityId>(
+    capabilityId: K,
+    pathParams: Record<string, CapabilityPathParamValue> | undefined,
+    options: RequestOptions | undefined,
+    body: CapabilityWriteBodies[K],
   ): Promise<RequestOptions | undefined> {
     const auto =
       options?.autoConfirm === false ? undefined : (options?.autoConfirm ?? this.defaults);
@@ -66,7 +74,11 @@ export class CapabilityConfirmer {
       path,
       ...(pathParams ? { pathParams } : {}),
       idempotencyKey,
-    });
+      body,
+      // TypeScript cannot prove the `{ capabilityId: K; body: Bodies[K] }`
+      // pair collapses to the AutoConfirmContext union for a generic K, but
+      // the pairing is exactly what the signature enforces at each call site.
+    } as AutoConfirmContext);
     if (typeof previewSummary !== "string" || previewSummary.trim() === "") {
       throw new Error(
         `autoConfirm.previewSummary must return a non-empty summary for ${capabilityId}. ` +

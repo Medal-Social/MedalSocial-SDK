@@ -47,6 +47,7 @@ class HelpdeskConversations {
       "helpdesk.conversation.update.execute",
       { id },
       options,
+      input,
     );
     return this.client.patch(
       `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}`,
@@ -91,6 +92,7 @@ class HelpdeskReplies {
       "helpdesk.conversation.reply.execute",
       undefined,
       options,
+      input,
     );
     return this.client.post("/api/v1/helpdesk/replies", input, resolved);
   }
