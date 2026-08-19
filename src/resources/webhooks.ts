@@ -1,3 +1,4 @@
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
@@ -9,10 +10,21 @@ import type {
   WebhookEndpoint,
   WebhookTestResult,
 } from "../types/webhooks";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Manage webhook endpoints and inspect their deliveries. */
 export class Webhooks {
-  constructor(private client: BaseClient) {}
+  private confirmer: CapabilityConfirmer;
+
+  constructor(
+    private client: BaseClient,
+    confirmer?: CapabilityConfirmer,
+  ) {
+    // Direct consumers (`new Webhooks(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    this.confirmer = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+  }
 
   /** List all webhook endpoints in the workspace. */
   async list(): Promise<ApiResponse<WebhookEndpoint[]>> {
@@ -35,7 +47,12 @@ export class Webhooks {
     input: CreateWebhookInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
-    return this.client.post("/api/v1/webhooks", input, options);
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "helpdesk.webhook.create.execute", body: input },
+      undefined,
+      options,
+    );
+    return this.client.post("/api/v1/webhooks", input, resolved);
   }
 
   /** Get a webhook endpoint by ID. */
@@ -49,7 +66,12 @@ export class Webhooks {
     input: UpdateWebhookInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
-    return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, options);
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "helpdesk.webhook.update.execute", body: input },
+      { id },
+      options,
+    );
+    return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, resolved);
   }
 
   /**
@@ -59,7 +81,12 @@ export class Webhooks {
    * grants on this route. API keys with legacy scopes may omit it.
    */
   async delete(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookDeleteResult>> {
-    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "helpdesk.webhook.delete.execute", body: undefined },
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, resolved);
   }
 
   /** List recent deliveries for an endpoint (most recent first). */

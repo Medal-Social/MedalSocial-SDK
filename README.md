@@ -269,6 +269,19 @@ const { data: reply } = await medal.helpdesk.replies.create(
 );
 ```
 
+**A `201` from `replies.create` means accepted, not delivered.** The channel hand-off happens asynchronously afterwards. Each message carries `delivery_status` (`pending` | `sent` | `delivered` | `failed`) and `delivery_error`, both `null` for inbound messages and internal notes (neither is ever sent to a channel):
+
+```ts
+const { data: messages } = await medal.helpdesk.conversations.messages('conv_id');
+for (const message of messages) {
+  if (message.delivery_status === 'failed') {
+    console.error(message.id, message.delivery_error);
+  }
+}
+```
+
+Subscribe to `helpdesk.message_delivery_updated` for the same values pushed instead of polled.
+
 ### Webhooks
 
 ```ts
@@ -298,6 +311,8 @@ await medal.webhooks.test(endpoint.id); // queues a 'test.ping' delivery
 
 Failed deliveries retry with exponential backoff (up to 6 attempts) before being dead-lettered.
 
+`deliveries()` returns the most recent attempts only — it takes a `limit` and is **not** cursor-paginated. A delivery's `id` is the same value sent as the `X-Medal-Delivery-Id` and `Idempotency-Key` headers on the outbound request, so you can join your own receiving log to this listing exactly. Deliveries **never carry payload bodies** (payloads can contain customer PII); instead each one exposes correlation fields — `resource_id`, `conversation_id`, `message_id`, `connection_ref`, `channel`, `channel_connection_id` — that let you look the subject up through the regular API. All six are nullable and **fail closed to `null`** when no canonical event exists for the delivery (e.g. `test.ping` deliveries, or events that have aged out of retention), so always null-check them.
+
 ### Channels (partner connect)
 
 Mint hosted connect links that let an external person — e.g. a partner's operator, with no Medal account — attach a channel account (today `telegram_inbox`) to the workspace's helpdesk, then track and disconnect the resulting connections. Requires the `channel.connect.manage` scope; OAuth callers additionally need the workspace `admin` role for the writes.
@@ -324,9 +339,122 @@ await medal.channels.connectLinks.revoke(link.id);
 const { data: connections } = await medal.channels.connections.list();
 // state: 'connecting' | 'active' | 'disconnected' | 'disabled'
 await medal.channels.connections.disconnect(connections[0].id);
+
+// Both listings are cursor-paginated (limit defaults to 50, capped at 100)
+let cursor: string | undefined;
+do {
+  const page = await medal.channels.connections.list({ limit: 100, cursor });
+  for (const connection of page.data) console.log(connection.id, connection.state);
+  cursor = page.pagination.has_more ? page.pagination.next_cursor ?? undefined : undefined;
+} while (cursor);
 ```
 
+Filters (`channel_type`, `status`) are applied **within** each page, so a page may hold fewer than `limit` items while `pagination.has_more` is still `true` — drive the loop off `has_more`, never off the item count.
+
 When the person completes the hosted sign-in, the link flips to `consumed` and your webhook endpoint receives `helpdesk.channel_connected` (subscribe via the Webhooks resource above); disconnects emit `helpdesk.channel_disconnected` with a `reason`. Inbound messages on the connected account then flow into the helpdesk — consume them via `helpdesk.message_received` and reply with `medal.helpdesk.replies.create`.
+
+### Capability confirmations
+
+Medal's confirmable write routes require **both** an `Idempotency-Key` and an `X-Capability-Confirmation` token whenever the calling credential holds the capability scope *directly* — which is the case for every correctly-scoped partner key and OAuth grant. (API keys carrying only legacy scopes are exempt.) Affected routes and their capability ids:
+
+| Capability id | Route |
+|---|---|
+| `channel.connect_link.create.execute` | `POST /api/v1/channels/connect-links` |
+| `channel.connect_link.revoke.execute` | `DELETE /api/v1/channels/connect-links/{id}` |
+| `channel.connection.disconnect.execute` | `DELETE /api/v1/channels/connections/{id}` |
+| `helpdesk.conversation.reply.execute` | `POST /api/v1/helpdesk/replies` |
+| `helpdesk.conversation.update.execute` | `PATCH /api/v1/helpdesk/conversations/{id}` |
+| `helpdesk.webhook.create.execute` | `POST /api/v1/webhooks` |
+| `helpdesk.webhook.update.execute` | `PATCH /api/v1/webhooks/{id}` |
+| `helpdesk.webhook.delete.execute` | `DELETE /api/v1/webhooks/{id}` |
+
+These are exported as `CAPABILITY_IDS` (a typed union via `CapabilityId`) and `CAPABILITY_ROUTES`.
+
+#### Explicit flow
+
+```ts
+const idempotencyKey = crypto.randomUUID();
+
+const { data: confirmation } = await medal.capabilityConfirmations.create({
+  capability_id: 'channel.connect_link.create.execute',
+  idempotency_key: idempotencyKey,   // the token is bound to this exact key
+  preview_summary: 'Mint a Telegram connect link for Acme Support',
+  user_approved: true,               // a human on your side approved this action
+});
+
+const { data: link } = await medal.channels.connectLinks.create(
+  { channel_type: 'telegram_inbox', label: 'Acme Support' },
+  { idempotencyKey, capabilityConfirmation: confirmation.confirmation_token },
+);
+```
+
+For an id-bound route, pass `path_params` so the token binds to the concrete path:
+
+```ts
+const { data: confirmation } = await medal.capabilityConfirmations.create({
+  capability_id: 'channel.connection.disconnect.execute',
+  path_params: { id: connectionId },
+  idempotency_key: idempotencyKey,
+  preview_summary: `Disconnect ${connectionId} — approved by ${operator.email}`,
+  user_approved: true,
+});
+
+await medal.channels.connections.disconnect(connectionId, {
+  idempotencyKey,
+  capabilityConfirmation: confirmation.confirmation_token,
+});
+```
+
+Tokens expire within 15 minutes and are single-purpose: bound to the workspace, the auth subject, the method + path, the capability's required scopes, and the idempotency key.
+
+#### Auto-confirm (opt-in, off by default)
+
+If your integration already gates these writes behind a real human approval, let the SDK mint both halves for you:
+
+```ts
+const medal = new Medal(process.env.MEDAL_API_KEY, {
+  autoConfirmCapabilities: {
+    previewSummary: (ctx) => {
+      // `ctx` is a discriminated union on `capabilityId` — narrowing gives you
+      // the exact request payload type, so the summary can describe the
+      // specific action rather than just the route.
+      switch (ctx.capabilityId) {
+        case 'channel.connect_link.create.execute':
+          return `${operator.email} approved a ${ctx.body.channel_type} connect link for "${ctx.body.label}"`;
+        case 'helpdesk.conversation.reply.execute':
+          return `${operator.email} approved replying to ${ctx.body.conversation_id}: "${ctx.body.body}"`;
+        default:
+          // DELETE routes have no body; identify them by path instead.
+          return `${operator.email} approved ${ctx.method} ${ctx.path}`;
+      }
+    },
+  },
+});
+
+// Both headers are minted and attached automatically.
+const { data: link } = await medal.channels.connectLinks.create({
+  channel_type: 'telegram_inbox',
+  label: 'Acme Support',
+});
+```
+
+The callback receives `{ capabilityId, method, path, pathParams, idempotencyKey, body }`. `body` is the exact object you passed to the SDK method, by reference and unmodified — treat it as read-only, since mutating it would change what is actually sent. Prefer a payload-aware summary: `"Reply to conv_1: 'Refund issued'"` is an audit record, `"POST /api/v1/helpdesk/replies"` is not. The server caps `preview_summary` at 4000 characters, so summarise the payload rather than serialising it wholesale.
+
+> **Read before enabling.** Every minted token carries `user_approved: true`, which asserts to Medal that *a human on your side approved that specific action*, and the `previewSummary` you return is retained as the audit record of what they approved. Enable it only on code paths where that is genuinely true — never to rubber-stamp unattended writes. Returning a blank summary throws rather than asserting an approval with no description.
+
+Per-call control:
+
+```ts
+// Opt in for one call only (client default stays off)
+await medal.webhooks.delete(endpointId, {
+  autoConfirm: { previewSummary: () => `${operator.email} approved removing ${endpointId}` },
+});
+
+// Opt out of a client-level default for one call
+await medal.webhooks.delete(endpointId, { autoConfirm: false });
+```
+
+Auto-confirm never overrides what you supply: if a call already carries both `idempotencyKey` and `capabilityConfirmation`, nothing is minted. If it carries only `idempotencyKey`, that key is reused when binding the token.
 
 ### Workspaces
 

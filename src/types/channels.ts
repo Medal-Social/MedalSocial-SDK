@@ -1,3 +1,5 @@
+import type { PaginationOptions } from "./common";
+
 /** Lifecycle status of a hosted connect link. */
 export type ConnectLinkStatus = "pending" | "consumed" | "expired" | "revoked";
 
@@ -46,8 +48,8 @@ export interface ConnectLink {
   created_at: number;
 }
 
-/** Filters for listing connect links. */
-export interface ListConnectLinksOptions {
+/** Filters and cursor pagination for listing connect links. */
+export interface ListConnectLinksOptions extends PaginationOptions {
   channel_type?: string;
   status?: ConnectLinkStatus;
 }

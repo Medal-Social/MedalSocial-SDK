@@ -140,6 +140,46 @@ describe("helpdesk conversations", () => {
     await medal.helpdesk.conversations.messages("conv_1", { limit: 50, cursor: "cur_m1" });
   });
 
+  it("deserializes outbound delivery state on messages", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({
+        data: [
+          {
+            id: "msg_out",
+            conversation_id: "conv_1",
+            author_type: "operator",
+            message_type: "chat",
+            author_user_id: "u_1",
+            author_name: "Ada",
+            body: "On it",
+            delivery_status: "failed",
+            delivery_error: "channel rejected message",
+            created_at: 1755100000000,
+          },
+          {
+            id: "msg_in",
+            conversation_id: "conv_1",
+            author_type: "visitor",
+            message_type: "chat",
+            author_user_id: null,
+            author_name: null,
+            body: "Help",
+            delivery_status: null,
+            delivery_error: null,
+            created_at: 1755100000001,
+          },
+        ],
+        pagination: { has_more: false, next_cursor: null },
+      }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.helpdesk.conversations.messages("conv_1");
+    expect(data[0].delivery_status).toBe("failed");
+    expect(data[0].delivery_error).toBe("channel rejected message");
+    expect(data[1].delivery_status).toBeNull();
+    expect(data[1].delivery_error).toBeNull();
+  });
+
   it("encodes conversation IDs in paths", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       expect(url).toContain("/api/v1/helpdesk/conversations/conv%2F1");
