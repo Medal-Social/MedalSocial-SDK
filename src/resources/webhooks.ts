@@ -48,10 +48,9 @@ export class Webhooks {
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
     const resolved = await this.confirmer.prepare(
-      "helpdesk.webhook.create.execute",
+      { capabilityId: "helpdesk.webhook.create.execute", body: input },
       undefined,
       options,
-      input,
     );
     return this.client.post("/api/v1/webhooks", input, resolved);
   }
@@ -68,10 +67,9 @@ export class Webhooks {
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
     const resolved = await this.confirmer.prepare(
-      "helpdesk.webhook.update.execute",
+      { capabilityId: "helpdesk.webhook.update.execute", body: input },
       { id },
       options,
-      input,
     );
     return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, resolved);
   }
@@ -84,10 +82,9 @@ export class Webhooks {
    */
   async delete(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookDeleteResult>> {
     const resolved = await this.confirmer.prepare(
-      "helpdesk.webhook.delete.execute",
+      { capabilityId: "helpdesk.webhook.delete.execute", body: undefined },
       { id },
       options,
-      undefined,
     );
     return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, resolved);
   }

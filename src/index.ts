@@ -196,6 +196,7 @@ export type {
   CapabilityPathParamValue,
   CapabilityRoute,
   CapabilityWriteBodies,
+  CapabilityWriteRequest,
   IssueCapabilityConfirmationInput,
 } from "./types/capabilities";
 export { CAPABILITY_IDS, CAPABILITY_ROUTES } from "./types/capabilities";

@@ -35,10 +35,9 @@ class ChannelConnectLinks {
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkCreateResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connect_link.create.execute",
+      { capabilityId: "channel.connect_link.create.execute", body: input },
       undefined,
       options,
-      input,
     );
     return this.client.post("/api/v1/channels/connect-links", input, resolved);
   }
@@ -69,10 +68,9 @@ class ChannelConnectLinks {
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkRevokeResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connect_link.revoke.execute",
+      { capabilityId: "channel.connect_link.revoke.execute", body: undefined },
       { id },
       options,
-      undefined,
     );
     return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, resolved);
   }
@@ -112,10 +110,9 @@ class ChannelConnections {
     options?: RequestOptions,
   ): Promise<ApiResponse<ChannelConnectionDisconnectResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connection.disconnect.execute",
+      { capabilityId: "channel.connection.disconnect.execute", body: undefined },
       { id },
       options,
-      undefined,
     );
     return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, resolved);
   }

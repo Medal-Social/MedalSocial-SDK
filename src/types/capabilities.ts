@@ -162,6 +162,23 @@ export interface CapabilityWriteBodies {
   "helpdesk.webhook.delete.execute": undefined;
 }
 
+/**
+ * A capability paired with the request body for that exact route.
+ *
+ * Modelled as a discriminated union rather than two independent parameters so
+ * the pair cannot be decoupled: passing a `helpdesk.conversation.reply.execute`
+ * id alongside a webhook payload is a compile error, even when the id's static
+ * type is the full {@link CapabilityId} union.
+ */
+export type CapabilityWriteRequest = {
+  [K in CapabilityId]: {
+    /** Capability about to be confirmed. */
+    capabilityId: K;
+    /** The request body of the pending write, or `undefined` for `DELETE` routes. */
+    body: CapabilityWriteBodies[K];
+  };
+}[CapabilityId];
+
 /** Fields common to every {@link AutoConfirmContext} variant. */
 interface AutoConfirmContextBase {
   /** HTTP method of the write. */
@@ -195,14 +212,7 @@ interface AutoConfirmContextBase {
  * nothing crosses a tenant boundary. Treat it as read-only: mutating it from
  * the callback would change what is actually sent.
  */
-export type AutoConfirmContext = {
-  [K in CapabilityId]: AutoConfirmContextBase & {
-    /** Capability about to be confirmed. */
-    capabilityId: K;
-    /** The request body of the pending write, or `undefined` for `DELETE` routes. */
-    body: CapabilityWriteBodies[K];
-  };
-}[CapabilityId];
+export type AutoConfirmContext = AutoConfirmContextBase & CapabilityWriteRequest;
 
 /**
  * Opt-in auto-confirmation.

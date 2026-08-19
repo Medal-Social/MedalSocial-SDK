@@ -44,10 +44,9 @@ class HelpdeskConversations {
     options?: RequestOptions,
   ): Promise<ApiResponse<ConversationUpdateResult>> {
     const resolved = await this.confirmer.prepare(
-      "helpdesk.conversation.update.execute",
+      { capabilityId: "helpdesk.conversation.update.execute", body: input },
       { id },
       options,
-      input,
     );
     return this.client.patch(
       `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}`,
@@ -89,10 +88,9 @@ class HelpdeskReplies {
     options?: RequestOptions,
   ): Promise<ApiResponse<ReplyCreateResult>> {
     const resolved = await this.confirmer.prepare(
-      "helpdesk.conversation.reply.execute",
+      { capabilityId: "helpdesk.conversation.reply.execute", body: input },
       undefined,
       options,
-      input,
     );
     return this.client.post("/api/v1/helpdesk/replies", input, resolved);
   }
