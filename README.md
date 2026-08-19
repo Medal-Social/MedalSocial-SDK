@@ -414,7 +414,20 @@ If your integration already gates these writes behind a real human approval, let
 ```ts
 const medal = new Medal(process.env.MEDAL_API_KEY, {
   autoConfirmCapabilities: {
-    previewSummary: (ctx) => `${operator.email} approved ${ctx.method} ${ctx.path}`,
+    previewSummary: (ctx) => {
+      // `ctx` is a discriminated union on `capabilityId` — narrowing gives you
+      // the exact request payload type, so the summary can describe the
+      // specific action rather than just the route.
+      switch (ctx.capabilityId) {
+        case 'channel.connect_link.create.execute':
+          return `${operator.email} approved a ${ctx.body.channel_type} connect link for "${ctx.body.label}"`;
+        case 'helpdesk.conversation.reply.execute':
+          return `${operator.email} approved replying to ${ctx.body.conversation_id}: "${ctx.body.body}"`;
+        default:
+          // DELETE routes have no body; identify them by path instead.
+          return `${operator.email} approved ${ctx.method} ${ctx.path}`;
+      }
+    },
   },
 });
 
@@ -424,6 +437,8 @@ const { data: link } = await medal.channels.connectLinks.create({
   label: 'Acme Support',
 });
 ```
+
+The callback receives `{ capabilityId, method, path, pathParams, idempotencyKey, body }`. `body` is the exact object you passed to the SDK method, by reference and unmodified — treat it as read-only, since mutating it would change what is actually sent. Prefer a payload-aware summary: `"Reply to conv_1: 'Refund issued'"` is an audit record, `"POST /api/v1/helpdesk/replies"` is not. The server caps `preview_summary` at 4000 characters, so summarise the payload rather than serialising it wholesale.
 
 > **Read before enabling.** Every minted token carries `user_approved: true`, which asserts to Medal that *a human on your side approved that specific action*, and the `previewSummary` you return is retained as the audit record of what they approved. Enable it only on code paths where that is genuinely true — never to rubber-stamp unattended writes. Returning a blank summary throws rather than asserting an approval with no description.
 

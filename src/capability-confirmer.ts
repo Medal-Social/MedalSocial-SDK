@@ -2,8 +2,8 @@ import type { RequestOptions } from "./client";
 import type { CapabilityConfirmations } from "./resources/capability-confirmations";
 import type {
   AutoConfirmOptions,
-  CapabilityId,
   CapabilityPathParamValue,
+  CapabilityWriteRequest,
 } from "./types/capabilities";
 import { CAPABILITY_ROUTES } from "./types/capabilities";
 
@@ -44,9 +44,14 @@ export class CapabilityConfirmer {
   /**
    * Return the request options to use for a confirmable write, minting the
    * idempotency key and confirmation token first when auto-confirm is active.
+   *
+   * `body` is the pending request payload (`undefined` for `DELETE` routes).
+   * It is handed to the `previewSummary` callback by reference so the summary
+   * can describe the specific action, not just the route — it is the caller's
+   * own payload, so it is passed through unmodified and unredacted.
    */
   async prepare(
-    capabilityId: CapabilityId,
+    request: CapabilityWriteRequest,
     pathParams?: Record<string, CapabilityPathParamValue>,
     options?: RequestOptions,
   ): Promise<RequestOptions | undefined> {
@@ -56,12 +61,12 @@ export class CapabilityConfirmer {
     // Nothing to mint — the caller already brought both halves.
     if (options?.idempotencyKey && options?.capabilityConfirmation) return options;
 
-    const route = CAPABILITY_ROUTES[capabilityId];
+    const route = CAPABILITY_ROUTES[request.capabilityId];
     const idempotencyKey = options?.idempotencyKey ?? newIdempotencyKey();
     const path = resolvePath(route.path_template, pathParams);
 
     const previewSummary = auto.previewSummary({
-      capabilityId,
+      ...request,
       method: route.method,
       path,
       ...(pathParams ? { pathParams } : {}),
@@ -69,14 +74,14 @@ export class CapabilityConfirmer {
     });
     if (typeof previewSummary !== "string" || previewSummary.trim() === "") {
       throw new Error(
-        `autoConfirm.previewSummary must return a non-empty summary for ${capabilityId}. ` +
+        `autoConfirm.previewSummary must return a non-empty summary for ${request.capabilityId}. ` +
           "The summary is the audit record of what your user approved — refusing to assert " +
           "user_approved: true without one.",
       );
     }
 
     const { data } = await this.confirmations.create({
-      capability_id: capabilityId,
+      capability_id: request.capabilityId,
       ...(pathParams ? { path_params: pathParams } : {}),
       idempotency_key: idempotencyKey,
       preview_summary: previewSummary,
