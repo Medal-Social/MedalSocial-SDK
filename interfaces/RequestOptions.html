@@ -13,9 +13,9 @@
 <section class="tsd-panel tsd-comment">
 <div class="tsd-comment tsd-typography"><p>Per-request options for write operations.</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">RequestOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#capabilityconfirmation">capabilityConfirmation</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotencykey">idempotencyKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">RequestOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#autoconfirm">autoConfirm</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">false</span> <span class="tsd-signature-symbol">|</span> <a href="AutoConfirmOptions.html" class="tsd-signature-type tsd-kind-interface">AutoConfirmOptions</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#capabilityconfirmation">capabilityConfirmation</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotencykey">idempotencyKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/549af653a316a2986ee0942d4123104b5d09b062/src/client.ts#L13">src/client.ts:13</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a144eff961d7660b22744586faf0a1c4d4932654/src/client.ts#L14">src/client.ts:14</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -23,12 +23,28 @@
 <div class="tsd-accordion-details">
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-index-list"><a href="#capabilityconfirmation" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation?</span></a>
+<div class="tsd-index-list"><a href="#autoconfirm" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm?</span></a>
+<a href="#capabilityconfirmation" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation?</span></a>
 <a href="#idempotencykey" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key?</span></a>
 </div></section></div></details></section></section>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="properties-1">Properties<a href="#properties-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="autoconfirm"><code class="tsd-tag">Optional</code><span>auto<wbr/>Confirm</span><a href="#autoconfirm" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">autoConfirm</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">false</span> <span class="tsd-signature-symbol">|</span> <a href="AutoConfirmOptions.html" class="tsd-signature-type tsd-kind-interface">AutoConfirmOptions</a></div>
+<div class="tsd-comment tsd-typography"><p>Opt in to (or out of) automatic capability confirmation for this call.</p>
+<p>Supply <code>{ previewSummary }</code> to have the SDK mint the idempotency key and
+the <code>X-Capability-Confirmation</code> token itself; pass <code>false</code> to suppress a
+client-level <code>autoConfirmCapabilities</code> default. Defaults to the client
+setting, which itself defaults to OFF.</p>
+<p>Auto-confirmation sends <code>user_approved: true</code> on your behalf, asserting
+that a human on your side approved this exact action — only use it where
+that is true.</p>
+<p>Ignored on routes that do not require a capability confirmation.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a144eff961d7660b22744586faf0a1c4d4932654/src/client.ts#L45">src/client.ts:45</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="capabilityconfirmation"><code class="tsd-tag">Optional</code><span>capability<wbr/>Confirmation</span><a href="#capabilityconfirmation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">capabilityConfirmation</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -40,7 +56,7 @@ a confirmable write route. Obtain one from
 not need it.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/549af653a316a2986ee0942d4123104b5d09b062/src/client.ts#L29">src/client.ts:29</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a144eff961d7660b22744586faf0a1c4d4932654/src/client.ts#L30">src/client.ts:30</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="idempotencykey"><code class="tsd-tag">Optional</code><span>idempotency<wbr/>Key</span><a href="#idempotencykey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">idempotencyKey</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -50,7 +66,7 @@ Required by some endpoints for capability-scoped tokens (e.g. helpdesk
 replies, webhook creation).</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/549af653a316a2986ee0942d4123104b5d09b062/src/client.ts#L20">src/client.ts:20</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a144eff961d7660b22744586faf0a1c4d4932654/src/client.ts#L21">src/client.ts:21</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -66,7 +82,7 @@ replies, webhook creation).</p>
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#capabilityconfirmation"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation</span></a><a href="#idempotencykey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key</span></a></div></details></div></details></div>
+<div><a href="#autoconfirm"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm</span></a><a href="#capabilityconfirmation"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation</span></a><a href="#idempotencykey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">Medal Social SDK</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
