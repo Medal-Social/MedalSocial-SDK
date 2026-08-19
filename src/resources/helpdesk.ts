@@ -1,4 +1,4 @@
-import type { CapabilityConfirmer } from "../capability-confirmer";
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
 import type {
@@ -10,6 +10,7 @@ import type {
   ReplyCreateResult,
   UpdateConversationInput,
 } from "../types/helpdesk";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Browse and manage helpdesk conversations. */
 class HelpdeskConversations {
@@ -100,8 +101,12 @@ export class Helpdesk {
   readonly conversations: HelpdeskConversations;
   readonly replies: HelpdeskReplies;
 
-  constructor(client: BaseClient, confirmer: CapabilityConfirmer) {
-    this.conversations = new HelpdeskConversations(client, confirmer);
-    this.replies = new HelpdeskReplies(client, confirmer);
+  constructor(client: BaseClient, confirmer?: CapabilityConfirmer) {
+    // Direct consumers (`new Helpdesk(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    const resolved = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+    this.conversations = new HelpdeskConversations(client, resolved);
+    this.replies = new HelpdeskReplies(client, resolved);
   }
 }

@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CAPABILITY_IDS, CAPABILITY_ROUTES, Medal } from "../src";
+import {
+  BaseClient,
+  CAPABILITY_IDS,
+  CAPABILITY_ROUTES,
+  Channels,
+  Helpdesk,
+  Medal,
+  Webhooks,
+} from "../src";
 
 const BASE = "https://test.example.com";
 
@@ -320,6 +328,44 @@ describe("auto-confirm", () => {
       autoConfirmCapabilities: { previewSummary: () => "   " },
     });
     await expect(medal.webhooks.delete("wh_1")).rejects.toThrow(/previewSummary/);
+  });
+
+  it("still works when a resource class is constructed directly with only a client", async () => {
+    const paths: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const path = new URL(url as string).pathname;
+      paths.push(path);
+      if (path === "/api/v1/capability-confirmations") return mockJson(confirmationPayload());
+      const headers = new Headers(init?.headers);
+      if (path === "/api/v1/webhooks") {
+        // No auto-confirm opted in — no headers minted.
+        expect(headers.get("idempotency-key")).toBeNull();
+        expect(headers.get("x-capability-confirmation")).toBeNull();
+      }
+      return mockJson({ data: { id: "x", status: "deleted" } });
+    });
+
+    const client = new BaseClient({
+      baseUrl: BASE,
+      token: "medal_test",
+      timeout: 30000,
+      userAgent: "test",
+    });
+    // Legacy one-argument construction must keep working.
+    const webhooks = new Webhooks(client);
+    expect(new Channels(client)).toBeInstanceOf(Channels);
+    expect(new Helpdesk(client)).toBeInstanceOf(Helpdesk);
+
+    await webhooks.create({ name: "n", url: "https://example.com/hook", event_types: [] });
+    expect(paths).toEqual(["/api/v1/webhooks"]);
+
+    // Per-call opt-in still works without a client-level default.
+    await webhooks.delete("wh_1", { autoConfirm: { previewSummary: () => "approved" } });
+    expect(paths).toEqual([
+      "/api/v1/webhooks",
+      "/api/v1/capability-confirmations",
+      "/api/v1/webhooks/wh_1",
+    ]);
   });
 
   it("covers helpdesk replies and conversation updates", async () => {

@@ -1,4 +1,4 @@
-import type { CapabilityConfirmer } from "../capability-confirmer";
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type {
   ChannelConnection,
@@ -10,6 +10,7 @@ import type {
   ListConnectLinksOptions,
 } from "../types/channels";
 import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Mint, list, and revoke hosted connect links. */
 class ChannelConnectLinks {
@@ -127,8 +128,12 @@ export class Channels {
   readonly connectLinks: ChannelConnectLinks;
   readonly connections: ChannelConnections;
 
-  constructor(client: BaseClient, confirmer: CapabilityConfirmer) {
-    this.connectLinks = new ChannelConnectLinks(client, confirmer);
-    this.connections = new ChannelConnections(client, confirmer);
+  constructor(client: BaseClient, confirmer?: CapabilityConfirmer) {
+    // Direct consumers (`new Channels(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    const resolved = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+    this.connectLinks = new ChannelConnectLinks(client, resolved);
+    this.connections = new ChannelConnections(client, resolved);
   }
 }

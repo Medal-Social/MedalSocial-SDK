@@ -1,4 +1,4 @@
-import type { CapabilityConfirmer } from "../capability-confirmer";
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
@@ -10,13 +10,21 @@ import type {
   WebhookEndpoint,
   WebhookTestResult,
 } from "../types/webhooks";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Manage webhook endpoints and inspect their deliveries. */
 export class Webhooks {
+  private confirmer: CapabilityConfirmer;
+
   constructor(
     private client: BaseClient,
-    private confirmer: CapabilityConfirmer,
-  ) {}
+    confirmer?: CapabilityConfirmer,
+  ) {
+    // Direct consumers (`new Webhooks(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    this.confirmer = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+  }
 
   /** List all webhook endpoints in the workspace. */
   async list(): Promise<ApiResponse<WebhookEndpoint[]>> {
