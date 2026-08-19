@@ -1,3 +1,4 @@
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
 import type {
@@ -9,10 +10,14 @@ import type {
   ReplyCreateResult,
   UpdateConversationInput,
 } from "../types/helpdesk";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Browse and manage helpdesk conversations. */
 class HelpdeskConversations {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /** List/search conversations with cursor-based pagination and optional filters. */
   async list(options?: ListConversationsOptions): Promise<PaginatedResponse<Conversation>> {
@@ -38,10 +43,15 @@ class HelpdeskConversations {
     input: UpdateConversationInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<ConversationUpdateResult>> {
+    const resolved = await this.confirmer.prepare(
+      "helpdesk.conversation.update.execute",
+      { id },
+      options,
+    );
     return this.client.patch(
       `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}`,
       input,
-      options,
+      resolved,
     );
   }
 
@@ -62,7 +72,10 @@ class HelpdeskConversations {
 
 /** Send operator replies (or internal notes) into conversations. */
 class HelpdeskReplies {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /**
    * Send an operator reply or internal note. Returns HTTP 201.
@@ -74,7 +87,12 @@ class HelpdeskReplies {
     input: CreateReplyInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<ReplyCreateResult>> {
-    return this.client.post("/api/v1/helpdesk/replies", input, options);
+    const resolved = await this.confirmer.prepare(
+      "helpdesk.conversation.reply.execute",
+      undefined,
+      options,
+    );
+    return this.client.post("/api/v1/helpdesk/replies", input, resolved);
   }
 }
 
@@ -83,8 +101,12 @@ export class Helpdesk {
   readonly conversations: HelpdeskConversations;
   readonly replies: HelpdeskReplies;
 
-  constructor(client: BaseClient) {
-    this.conversations = new HelpdeskConversations(client);
-    this.replies = new HelpdeskReplies(client);
+  constructor(client: BaseClient, confirmer?: CapabilityConfirmer) {
+    // Direct consumers (`new Helpdesk(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    const resolved = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+    this.conversations = new HelpdeskConversations(client, resolved);
+    this.replies = new HelpdeskReplies(client, resolved);
   }
 }
