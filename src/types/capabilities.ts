@@ -1,3 +1,7 @@
+import type { CreateConnectLinkInput } from "./channels";
+import type { CreateReplyInput, UpdateConversationInput } from "./helpdesk";
+import type { CreateWebhookInput, UpdateWebhookInput } from "./webhooks";
+
 /**
  * Capability confirmation types.
  *
@@ -142,10 +146,41 @@ export interface CapabilityConfirmation {
   preview_summary: string;
 }
 
-/** Context handed to an {@link AutoConfirmOptions.previewSummary} callback. */
-export interface AutoConfirmContext {
-  /** Capability about to be confirmed. */
-  capabilityId: CapabilityId;
+/**
+ * Request body type for each confirmable capability.
+ *
+ * `undefined` for routes that take no request body (the `DELETE` routes).
+ */
+export interface CapabilityWriteBodies {
+  "channel.connect_link.create.execute": CreateConnectLinkInput;
+  "channel.connect_link.revoke.execute": undefined;
+  "channel.connection.disconnect.execute": undefined;
+  "helpdesk.conversation.reply.execute": CreateReplyInput;
+  "helpdesk.conversation.update.execute": UpdateConversationInput;
+  "helpdesk.webhook.create.execute": CreateWebhookInput;
+  "helpdesk.webhook.update.execute": UpdateWebhookInput;
+  "helpdesk.webhook.delete.execute": undefined;
+}
+
+/**
+ * A capability paired with the request body for that exact route.
+ *
+ * Modelled as a discriminated union rather than two independent parameters so
+ * the pair cannot be decoupled: passing a `helpdesk.conversation.reply.execute`
+ * id alongside a webhook payload is a compile error, even when the id's static
+ * type is the full {@link CapabilityId} union.
+ */
+export type CapabilityWriteRequest = {
+  [K in CapabilityId]: {
+    /** Capability about to be confirmed. */
+    capabilityId: K;
+    /** The request body of the pending write, or `undefined` for `DELETE` routes. */
+    body: CapabilityWriteBodies[K];
+  };
+}[CapabilityId];
+
+/** Fields common to every {@link AutoConfirmContext} variant. */
+interface AutoConfirmContextBase {
   /** HTTP method of the write. */
   method: string;
   /** Resolved API path of the write (path params substituted + encoded). */
@@ -155,6 +190,29 @@ export interface AutoConfirmContext {
   /** Idempotency key that will be bound to the token and sent on the write. */
   idempotencyKey: string;
 }
+
+/**
+ * Context handed to an {@link AutoConfirmOptions.previewSummary} callback.
+ *
+ * A discriminated union on `capabilityId` — narrow on it to get the exact
+ * `body` type for that route:
+ *
+ * ```ts
+ * previewSummary: (ctx) => {
+ *   if (ctx.capabilityId === 'helpdesk.conversation.reply.execute') {
+ *     // ctx.body is CreateReplyInput here
+ *     return `Reply to ${ctx.body.conversation_id}: ${ctx.body.body}`;
+ *   }
+ *   return `${ctx.method} ${ctx.path}`;
+ * }
+ * ```
+ *
+ * `body` is the **exact object you passed to the SDK method**, by reference
+ * and unmodified — it is your own payload, so there is nothing to redact and
+ * nothing crosses a tenant boundary. Treat it as read-only: mutating it from
+ * the callback would change what is actually sent.
+ */
+export type AutoConfirmContext = AutoConfirmContextBase & CapabilityWriteRequest;
 
 /**
  * Opt-in auto-confirmation.
@@ -173,6 +231,15 @@ export interface AutoConfirmOptions {
    * Build the `preview_summary` for the pending write. Must return a
    * non-empty string describing what the user approved; returning blank text
    * throws instead of asserting an approval that has no description.
+   *
+   * The context includes the pending request `body`, so the summary can name
+   * the specific action rather than the route — narrow on
+   * `context.capabilityId` to get the exact payload type. Prefer a
+   * payload-aware summary: `"Reply to conv_1: 'Refund issued'"` is an audit
+   * record, `"POST /api/v1/helpdesk/replies"` is not.
+   *
+   * The server caps `preview_summary` at 4000 characters, so summarise the
+   * payload rather than serialising it wholesale.
    */
   previewSummary: (context: AutoConfirmContext) => string;
 }

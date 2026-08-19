@@ -35,7 +35,7 @@ class ChannelConnectLinks {
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkCreateResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connect_link.create.execute",
+      { capabilityId: "channel.connect_link.create.execute", body: input },
       undefined,
       options,
     );
@@ -68,7 +68,7 @@ class ChannelConnectLinks {
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkRevokeResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connect_link.revoke.execute",
+      { capabilityId: "channel.connect_link.revoke.execute", body: undefined },
       { id },
       options,
     );
@@ -110,7 +110,7 @@ class ChannelConnections {
     options?: RequestOptions,
   ): Promise<ApiResponse<ChannelConnectionDisconnectResult>> {
     const resolved = await this.confirmer.prepare(
-      "channel.connection.disconnect.execute",
+      { capabilityId: "channel.connection.disconnect.execute", body: undefined },
       { id },
       options,
     );
