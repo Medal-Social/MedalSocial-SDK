@@ -35,6 +35,16 @@ export interface Conversation {
   updated_at: number;
 }
 
+/**
+ * Outbound delivery state of a helpdesk message.
+ *
+ * - `pending` — queued for the channel, not handed off yet.
+ * - `sent` — handed to the channel provider, no confirmation yet.
+ * - `delivered` — the channel confirmed delivery to the customer.
+ * - `failed` — delivery failed; see `delivery_error` on the message.
+ */
+export type MessageDeliveryStatus = "pending" | "sent" | "delivered" | "failed";
+
 /** A single message inside a helpdesk conversation. */
 export interface ConversationMessage {
   id: string;
@@ -44,6 +54,22 @@ export interface ConversationMessage {
   author_user_id: string | null;
   author_name: string | null;
   body: string;
+  /**
+   * Outbound delivery state, or `null` for inbound messages and internal
+   * notes — neither is ever sent to a channel, so neither has delivery state.
+   *
+   * **A `201` from `helpdesk.replies.create` means the reply was ACCEPTED, not
+   * delivered.** The channel hand-off happens asynchronously afterwards: poll
+   * this field (or subscribe to the `helpdesk.message_delivery_updated`
+   * webhook event, which carries the same values) to learn whether the message
+   * actually reached the customer.
+   */
+  delivery_status: MessageDeliveryStatus | null;
+  /**
+   * Last send error for a `failed` outbound message, or `null` when there is
+   * no error to report (including on inbound messages and internal notes).
+   */
+  delivery_error: string | null;
   /** Unix timestamp in milliseconds. */
   created_at: number;
 }

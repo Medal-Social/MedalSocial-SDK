@@ -29,6 +29,10 @@ tags:
     description: Read helpdesk conversations, reply, and manage assignment/status.
   - name: Webhooks
     description: Manage webhook endpoints and inspect their deliveries.
+  - name: Capabilities
+    description: >-
+      Mint short-lived capability confirmation tokens for confirmable write
+      routes.
   - name: Channels
     description: >-
       Partner channel connect — mint hosted connect links and manage the
@@ -930,6 +934,34 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_WebhookTestResult"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/capability-confirmations:
+    post:
+      tags: [Capabilities]
+      operationId: issueCapabilityConfirmation
+      summary: Issue a capability confirmation token
+      description: >-
+        Mints a short-lived `X-Capability-Confirmation` token for one pending
+        write. Confirmable write routes require BOTH `Idempotency-Key` and
+        `X-Capability-Confirmation` when the credential holds the capability
+        scope directly; API keys with legacy scopes are exempt. The token is
+        bound to the workspace, auth subject, method, path, required scopes and
+        idempotency key, and expires within 15 minutes. `user_approved: true`
+        asserts that a human on the caller's side approved this exact action.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCapabilityConfirmationInput"
+      responses:
+        "200":
+          description: Minted confirmation token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_CapabilityConfirmation"
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/channels/connect-links:
     post:
       tags: [Channels]
@@ -962,8 +994,20 @@ paths:
       tags: [Channels]
       operationId: listChannelConnectLinks
       summary: List connect links
-      description: Link tokens are never returned.
+      description: >-
+        Link tokens are never returned. Newest first, cursor-paginated. The
+        `channel_type` / `status` filters are applied within each page, so a
+        page may hold fewer than `limit` items while `pagination.has_more` is
+        still true — page off `has_more`, not the item count.
       parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Page size (default 50, capped at 100).
+        - $ref: "#/components/parameters/Cursor"
         - name: channel_type
           in: query
           schema:
@@ -974,11 +1018,11 @@ paths:
             $ref: "#/components/schemas/ConnectLinkStatus"
       responses:
         "200":
-          description: The workspace's connect links.
+          description: Connect links page.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_ConnectLinkArray"
+                $ref: "#/components/schemas/PaginatedResponse_ConnectLink"
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/channels/connect-links/{id}:
@@ -1005,13 +1049,28 @@ paths:
       tags: [Channels]
       operationId: listChannelConnections
       summary: List channel connections
+      description: >-
+        The workspace's channel connections in a generic, channel-agnostic
+        shape. Newest first, cursor-paginated. Rows that are not projectable
+        as connections are dropped within the page, so a page may hold fewer
+        than `limit` items while `pagination.has_more` is still true — page
+        off `has_more`, not the item count.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: Page size (default 50, capped at 100).
+        - $ref: "#/components/parameters/Cursor"
       responses:
         "200":
-          description: The workspace's channel connections (generic shape).
+          description: Channel connections page.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiResponse_ChannelConnectionArray"
+                $ref: "#/components/schemas/PaginatedResponse_ChannelConnection"
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/channels/connections/{id}:
@@ -2154,6 +2213,8 @@ components:
         - author_user_id
         - author_name
         - body
+        - delivery_status
+        - delivery_error
         - created_at
       properties:
         id:
@@ -2170,9 +2231,26 @@ components:
           type: [string, "null"]
         body:
           type: string
+        delivery_status:
+          oneOf:
+            - $ref: "#/components/schemas/HelpdeskMessageDeliveryStatus"
+            - type: "null"
+          description: >-
+            Outbound delivery state, or `null` for inbound messages and
+            internal notes. A `201` from `POST /api/v1/helpdesk/replies` means
+            the reply was accepted, NOT delivered — the channel hand-off is
+            asynchronous, so poll this field (or subscribe to
+            `helpdesk.message_delivery_updated`) to learn the outcome.
+        delivery_error:
+          type: [string, "null"]
+          description: >-
+            Last send error for a `failed` outbound message, otherwise `null`.
         created_at:
           type: integer
           description: Unix timestamp in milliseconds.
+    HelpdeskMessageDeliveryStatus:
+      type: string
+      enum: [pending, sent, delivered, failed]
     UpdateHelpdeskConversationInput:
       type: object
       minProperties: 1
@@ -2363,9 +2441,22 @@ components:
           const: deleted
     WebhookDelivery:
       type: object
+      description: >-
+        A delivery attempt record. `id` is the same value sent as the
+        `X-Medal-Delivery-Id` and `Idempotency-Key` headers on the outbound
+        request. Deliveries never carry payload bodies (payloads can contain
+        customer PII). The correlation fields are derived from the stored event
+        and fail closed to `null` when no canonical event exists — e.g.
+        `test.ping` deliveries or events that have aged out of retention.
       required:
         - id
         - event_type
+        - resource_id
+        - conversation_id
+        - message_id
+        - connection_ref
+        - channel
+        - channel_connection_id
         - status
         - attempt_count
         - next_attempt_at
@@ -2379,6 +2470,19 @@ components:
           type: string
         event_type:
           type: string
+        resource_id:
+          type: [string, "null"]
+          description: Primary subject id of the announced event, or `null`.
+        conversation_id:
+          type: [string, "null"]
+        message_id:
+          type: [string, "null"]
+        connection_ref:
+          type: [string, "null"]
+        channel:
+          type: [string, "null"]
+        channel_connection_id:
+          type: [string, "null"]
         status:
           type: string
           enum: [pending, delivered, dead_letter]
@@ -2604,6 +2708,11 @@ components:
       $ref: "#/components/schemas/Envelope_WebhookTestResult"
     ApiResponse_ConnectLinkCreateResult:
       $ref: "#/components/schemas/Envelope_ConnectLinkCreateResult"
+    # Deprecated: the channels listings are cursor-paginated and now respond
+    # with PaginatedResponse_ConnectLink / PaginatedResponse_ChannelConnection.
+    # These unpaginated aliases are retained (unreferenced by any operation)
+    # so consumers importing the generated contract via
+    # `@medalsocial/sdk/openapi-types` or `OpenApiComponents` keep compiling.
     ApiResponse_ConnectLinkArray:
       $ref: "#/components/schemas/Envelope_ConnectLinkArray"
     ApiResponse_ConnectLinkRevokeResult:
@@ -2670,6 +2779,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HelpdeskMessage"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_ConnectLink:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConnectLink"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_ChannelConnection:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelConnection"
         pagination:
           $ref: "#/components/schemas/Pagination"
     Envelope_PostCreateResult:
@@ -2882,6 +3011,94 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/WebhookDeleteResult"
+    IssueCapabilityConfirmationInput:
+      type: object
+      required: [capability_id, preview_summary, user_approved]
+      properties:
+        capability_id:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Confirmable capability to mint a token for.
+        api_path:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: >-
+            Concrete `/api/v1/...` path to bind the token to. Optional when the
+            capability has exactly one API target; required when it has several.
+        path_params:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean]
+          description: Values for the capability path template's parameters.
+        idempotency_key:
+          type: string
+          minLength: 1
+          description: >-
+            The exact `Idempotency-Key` the confirmed write will send. The token
+            is bound to it.
+        preview_summary:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: >-
+            Human-readable description of the approved action, retained for
+            audit.
+        user_approved:
+          const: true
+          description: >-
+            Asserts that a human on the caller's side approved this specific
+            action.
+    CapabilityConfirmation:
+      type: object
+      required:
+        - confirmation_token
+        - token_type
+        - capability_id
+        - method
+        - path
+        - required_scopes
+        - idempotency_key
+        - expires_in
+        - expires_at
+        - preview_summary
+      properties:
+        confirmation_token:
+          type: string
+          description: Send as the `X-Capability-Confirmation` header on the write.
+        token_type:
+          type: string
+          const: medal_capability_confirmation
+        capability_id:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        required_scopes:
+          type: array
+          items:
+            type: string
+        idempotency_key:
+          type: [string, "null"]
+        expires_in:
+          type: integer
+          minimum: 60
+          maximum: 900
+        expires_at:
+          type: string
+          format: date-time
+        preview_summary:
+          type: string
+    ApiResponse_CapabilityConfirmation:
+      $ref: "#/components/schemas/Envelope_CapabilityConfirmation"
+    Envelope_CapabilityConfirmation:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/CapabilityConfirmation"
     Envelope_WebhookDeliveryArray:
       type: object
       required: [data]
@@ -2904,6 +3121,11 @@ components:
           $ref: "#/components/schemas/ConnectLinkCreateResult"
     Envelope_ConnectLinkArray:
       type: object
+      deprecated: true
+      description: >-
+        Deprecated — `listChannelConnectLinks` responds with
+        `PaginatedResponse_ConnectLink`. Retained for backwards compatibility
+        with consumers of the generated contract types.
       required: [data]
       properties:
         data:
@@ -2918,6 +3140,11 @@ components:
           $ref: "#/components/schemas/ConnectLinkRevokeResult"
     Envelope_ChannelConnectionArray:
       type: object
+      deprecated: true
+      description: >-
+        Deprecated — `listChannelConnections` responds with
+        `PaginatedResponse_ChannelConnection`. Retained for backwards
+        compatibility with consumers of the generated contract types.
       required: [data]
       properties:
         data:

@@ -341,6 +341,14 @@ const expected = [
   ],
   [
     "post",
+    "/api/v1/capability-confirmations",
+    "issueCapabilityConfirmation",
+    "src/resources/capability-confirmations.ts",
+    "post",
+    "/api/v1/capability-confirmations",
+  ],
+  [
+    "post",
     "/api/v1/channels/connect-links",
     "createChannelConnectLink",
     "src/resources/channels.ts",

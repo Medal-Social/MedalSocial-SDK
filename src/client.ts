@@ -1,3 +1,4 @@
+import type { AutoConfirmOptions } from "./types/capabilities";
 import { MedalApiError } from "./types/common";
 
 /** Configuration for the low-level HTTP client. */
@@ -27,6 +28,21 @@ export interface RequestOptions {
    * not need it.
    */
   capabilityConfirmation?: string;
+  /**
+   * Opt in to (or out of) automatic capability confirmation for this call.
+   *
+   * Supply `{ previewSummary }` to have the SDK mint the idempotency key and
+   * the `X-Capability-Confirmation` token itself; pass `false` to suppress a
+   * client-level `autoConfirmCapabilities` default. Defaults to the client
+   * setting, which itself defaults to OFF.
+   *
+   * Auto-confirmation sends `user_approved: true` on your behalf, asserting
+   * that a human on your side approved this exact action — only use it where
+   * that is true.
+   *
+   * Ignored on routes that do not require a capability confirmation.
+   */
+  autoConfirm?: AutoConfirmOptions | false;
 }
 
 /**

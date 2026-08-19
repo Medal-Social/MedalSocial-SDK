@@ -64,10 +64,41 @@ export interface WebhookDeleteResult {
   status: string;
 }
 
-/** A delivery attempt record for a webhook endpoint. */
+/**
+ * A delivery attempt record for a webhook endpoint.
+ *
+ * `id` is the same value sent as the `X-Medal-Delivery-Id` and
+ * `Idempotency-Key` headers on the outbound request, so you can join your own
+ * receiving log to this listing exactly.
+ *
+ * **Deliveries never carry payload bodies.** The event payload can contain
+ * customer PII, so it is not returned here — use the correlation fields below
+ * to look the subject up through the regular API instead.
+ *
+ * All correlation fields (`resource_id`, `conversation_id`, `message_id`,
+ * `connection_ref`, `channel`, `channel_connection_id`) are derived from the
+ * stored event and **fail closed to `null`** whenever no canonical event
+ * exists for the delivery — e.g. `test.ping` deliveries, or events that have
+ * aged out of retention. Always null-check before using them.
+ */
 export interface WebhookDelivery {
   id: string;
   event_type: string;
+  /**
+   * Primary subject id of the announced event (a message id for message
+   * events, a connection id for channel lifecycle events, …), or `null`.
+   */
+  resource_id: string | null;
+  /** Helpdesk conversation the event belongs to, or `null`. */
+  conversation_id: string | null;
+  /** Helpdesk message the event belongs to, or `null`. */
+  message_id: string | null;
+  /** Opaque connection reference carried by the event, or `null`. */
+  connection_ref: string | null;
+  /** Channel type (e.g. `telegram_inbox`, `widget`), or `null`. */
+  channel: string | null;
+  /** Channel connection the event belongs to, or `null`. */
+  channel_connection_id: string | null;
   status: "pending" | "delivered" | "dead_letter";
   attempt_count: number;
   /** Unix timestamp in milliseconds of the next retry, or `null`. */
@@ -80,7 +111,14 @@ export interface WebhookDelivery {
   created_at: number;
 }
 
-/** Options for listing recent deliveries. */
+/**
+ * Options for listing recent deliveries.
+ *
+ * This endpoint is **not** cursor-paginated — it returns the most recent
+ * deliveries only, capped by `limit`. There is no `cursor` parameter; to keep
+ * a durable record, ingest deliveries as they arrive (or poll and de-duplicate
+ * on the delivery `id`).
+ */
 export interface ListDeliveriesOptions {
   limit?: number;
 }

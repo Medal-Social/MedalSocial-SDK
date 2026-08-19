@@ -1,3 +1,4 @@
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type {
   ChannelConnection,
@@ -8,11 +9,15 @@ import type {
   CreateConnectLinkInput,
   ListConnectLinksOptions,
 } from "../types/channels";
-import type { ApiResponse } from "../types/common";
+import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Mint, list, and revoke hosted connect links. */
 class ChannelConnectLinks {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /**
    * Mint a single-use hosted connect link. Returns HTTP 201.
@@ -29,12 +34,29 @@ class ChannelConnectLinks {
     input: CreateConnectLinkInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkCreateResult>> {
-    return this.client.post("/api/v1/channels/connect-links", input, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connect_link.create.execute",
+      undefined,
+      options,
+    );
+    return this.client.post("/api/v1/channels/connect-links", input, resolved);
   }
 
-  /** List the workspace's connect links (tokens are never returned). */
-  async list(options?: ListConnectLinksOptions): Promise<ApiResponse<ConnectLink[]>> {
+  /**
+   * List the workspace's connect links (tokens are never returned), newest
+   * first, with cursor-based pagination.
+   *
+   * `limit` defaults to 50 server-side and is capped at 100. Follow
+   * `pagination.next_cursor` while `pagination.has_more` is true.
+   *
+   * The `channel_type` / `status` filters are applied **within** each page,
+   * so a page may hold fewer than `limit` items while `has_more` is still
+   * true — drive the loop off `has_more`, never off the item count.
+   */
+  async list(options?: ListConnectLinksOptions): Promise<PaginatedResponse<ConnectLink>> {
     const params: Record<string, string | undefined> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
     if (options?.channel_type) params.channel_type = options.channel_type;
     if (options?.status) params.status = options.status;
     return this.client.get("/api/v1/channels/connect-links", params);
@@ -45,17 +67,37 @@ class ChannelConnectLinks {
     id: string,
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkRevokeResult>> {
-    return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connect_link.revoke.execute",
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, resolved);
   }
 }
 
 /** List and disconnect the workspace's channel connections. */
 class ChannelConnections {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
-  /** List the workspace's channel connections (generic, channel-agnostic shape). */
-  async list(): Promise<ApiResponse<ChannelConnection[]>> {
-    return this.client.get("/api/v1/channels/connections");
+  /**
+   * List the workspace's channel connections (generic, channel-agnostic
+   * shape), newest first, with cursor-based pagination.
+   *
+   * `limit` defaults to 50 server-side and is capped at 100. Follow
+   * `pagination.next_cursor` while `pagination.has_more` is true. Rows that
+   * are not projectable as connections are dropped within the page, so a page
+   * may hold fewer than `limit` items while `has_more` is still true — drive
+   * the loop off `has_more`, never off the item count.
+   */
+  async list(options?: PaginationOptions): Promise<PaginatedResponse<ChannelConnection>> {
+    const params: Record<string, string | undefined> = {};
+    if (options?.limit !== undefined) params.limit = String(options.limit);
+    if (options?.cursor) params.cursor = options.cursor;
+    return this.client.get("/api/v1/channels/connections", params);
   }
 
   /**
@@ -67,7 +109,12 @@ class ChannelConnections {
     id: string,
     options?: RequestOptions,
   ): Promise<ApiResponse<ChannelConnectionDisconnectResult>> {
-    return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connection.disconnect.execute",
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, resolved);
   }
 }
 
@@ -81,8 +128,12 @@ export class Channels {
   readonly connectLinks: ChannelConnectLinks;
   readonly connections: ChannelConnections;
 
-  constructor(client: BaseClient) {
-    this.connectLinks = new ChannelConnectLinks(client);
-    this.connections = new ChannelConnections(client);
+  constructor(client: BaseClient, confirmer?: CapabilityConfirmer) {
+    // Direct consumers (`new Channels(client)`) get a confirmer with no
+    // client-level default: auto-confirm stays off unless a call opts in via
+    // `{ autoConfirm: { previewSummary } }`.
+    const resolved = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
+    this.connectLinks = new ChannelConnectLinks(client, resolved);
+    this.connections = new ChannelConnections(client, resolved);
   }
 }
