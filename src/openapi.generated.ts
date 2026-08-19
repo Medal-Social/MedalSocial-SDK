@@ -611,6 +611,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/capability-confirmations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Issue a capability confirmation token
+     * @description Mints a short-lived `X-Capability-Confirmation` token for one pending write. Confirmable write routes require BOTH `Idempotency-Key` and `X-Capability-Confirmation` when the credential holds the capability scope directly; API keys with legacy scopes are exempt. The token is bound to the workspace, auth subject, method, path, required scopes and idempotency key, and expires within 15 minutes. `user_approved: true` asserts that a human on the caller's side approved this exact action.
+     */
+    post: operations["issueCapabilityConfirmation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/channels/connect-links": {
     parameters: {
       query?: never;
@@ -1224,9 +1244,15 @@ export interface components {
       author_user_id: string | null;
       author_name: string | null;
       body: string;
+      /** @description Outbound delivery state, or `null` for inbound messages and internal notes. A `201` from `POST /api/v1/helpdesk/replies` means the reply was accepted, NOT delivered — the channel hand-off is asynchronous, so poll this field (or subscribe to `helpdesk.message_delivery_updated`) to learn the outcome. */
+      delivery_status: components["schemas"]["HelpdeskMessageDeliveryStatus"] | null;
+      /** @description Last send error for a `failed` outbound message, otherwise `null`. */
+      delivery_error: string | null;
       /** @description Unix timestamp in milliseconds. */
       created_at: number;
     };
+    /** @enum {string} */
+    HelpdeskMessageDeliveryStatus: "pending" | "sent" | "delivered" | "failed";
     /** @description At least one field is required. */
     UpdateHelpdeskConversationInput: {
       status?: components["schemas"]["HelpdeskConversationStatus"];
@@ -1318,9 +1344,17 @@ export interface components {
       /** @constant */
       status: "deleted";
     };
+    /** @description A delivery attempt record. `id` is the same value sent as the `X-Medal-Delivery-Id` and `Idempotency-Key` headers on the outbound request. Deliveries never carry payload bodies (payloads can contain customer PII). The correlation fields are derived from the stored event and fail closed to `null` when no canonical event exists — e.g. `test.ping` deliveries or events that have aged out of retention. */
     WebhookDelivery: {
       id: string;
       event_type: string;
+      /** @description Primary subject id of the announced event, or `null`. */
+      resource_id: string | null;
+      conversation_id: string | null;
+      message_id: string | null;
+      connection_ref: string | null;
+      channel: string | null;
+      channel_connection_id: string | null;
       /** @enum {string} */
       status: "pending" | "delivered" | "dead_letter";
       attempt_count: number;
@@ -1571,6 +1605,44 @@ export interface components {
     };
     Envelope_WebhookDeleteResult: {
       data: components["schemas"]["WebhookDeleteResult"];
+    };
+    IssueCapabilityConfirmationInput: {
+      /** @description Confirmable capability to mint a token for. */
+      capability_id: string;
+      /** @description Concrete `/api/v1/...` path to bind the token to. Optional when the capability has exactly one API target; required when it has several. */
+      api_path?: string;
+      /** @description Values for the capability path template's parameters. */
+      path_params?: {
+        [key: string]: string | number | boolean;
+      };
+      /** @description The exact `Idempotency-Key` the confirmed write will send. The token is bound to it. */
+      idempotency_key?: string;
+      /** @description Human-readable description of the approved action, retained for audit. */
+      preview_summary: string;
+      /**
+       * @description Asserts that a human on the caller's side approved this specific action.
+       * @constant
+       */
+      user_approved: true;
+    };
+    CapabilityConfirmation: {
+      /** @description Send as the `X-Capability-Confirmation` header on the write. */
+      confirmation_token: string;
+      /** @constant */
+      token_type: "medal_capability_confirmation";
+      capability_id: string;
+      method: string;
+      path: string;
+      required_scopes: string[];
+      idempotency_key: string | null;
+      expires_in: number;
+      /** Format: date-time */
+      expires_at: string;
+      preview_summary: string;
+    };
+    ApiResponse_CapabilityConfirmation: components["schemas"]["Envelope_CapabilityConfirmation"];
+    Envelope_CapabilityConfirmation: {
+      data: components["schemas"]["CapabilityConfirmation"];
     };
     Envelope_WebhookDeliveryArray: {
       data: components["schemas"]["WebhookDelivery"][];
@@ -2735,6 +2807,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_WebhookTestResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  issueCapabilityConfirmation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IssueCapabilityConfirmationInput"];
+      };
+    };
+    responses: {
+      /** @description Minted confirmation token. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_CapabilityConfirmation"];
         };
       };
       default: components["responses"]["ApiError"];

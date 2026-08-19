@@ -19,7 +19,9 @@
  *
  * @module
  */
+import { CapabilityConfirmer } from "./capability-confirmer";
 import { BaseClient } from "./client";
+import { CapabilityConfirmations } from "./resources/capability-confirmations";
 import { Channels } from "./resources/channels";
 import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
@@ -29,6 +31,7 @@ import { Helpdesk } from "./resources/helpdesk";
 import { Posts } from "./resources/posts";
 import { Webhooks } from "./resources/webhooks";
 import { Workspaces } from "./resources/workspaces";
+import type { AutoConfirmOptions } from "./types/capabilities";
 
 /** Options for configuring the {@link Medal} client. */
 export interface MedalOptions {
@@ -42,6 +45,37 @@ export interface MedalOptions {
    * OAuth tokens can access multiple workspaces, so you must specify which one.
    */
   workspaceId?: string;
+  /**
+   * Opt in to automatic capability confirmation for confirmable writes.
+   * **Defaults to OFF.**
+   *
+   * Medal's confirmable write routes (connect links, channel connections,
+   * helpdesk replies/updates, webhook endpoint writes) require BOTH an
+   * `Idempotency-Key` and an `X-Capability-Confirmation` token whenever the
+   * credential holds the capability scope directly — which is the case for
+   * every correctly-scoped partner key. With this option set, the SDK mints
+   * both for you before each such write instead of making you hand-roll
+   * `POST /api/v1/capability-confirmations`.
+   *
+   * **Read before enabling:** each minted token carries `user_approved: true`,
+   * which asserts to Medal that *a human on your side approved that specific
+   * action*, and the `previewSummary` you return is retained as the audit
+   * record of what they approved. Enable it only on code paths where that is
+   * genuinely true — never to rubber-stamp unattended writes. Pass
+   * `{ autoConfirm: false }` on an individual call to opt out again, or use
+   * `medal.capabilityConfirmations.create(...)` for full manual control.
+   *
+   * @example
+   * ```ts
+   * const medal = new Medal('medal_xxx', {
+   *   autoConfirmCapabilities: {
+   *     previewSummary: (ctx) =>
+   *       `${operator.email} approved ${ctx.method} ${ctx.path}`,
+   *   },
+   * });
+   * ```
+   */
+  autoConfirmCapabilities?: AutoConfirmOptions;
 }
 
 /**
@@ -91,6 +125,7 @@ export interface MedalOptions {
  * ```
  */
 export class Medal {
+  readonly capabilityConfirmations: CapabilityConfirmations;
   readonly channels: Channels;
   readonly emails: Emails;
   readonly contacts: Contacts;
@@ -116,18 +151,25 @@ export class Medal {
       userAgent: "medalsocial-sdk/1.0.0 (+https://github.com/Medal-Social/MedalSocial)",
     });
 
-    this.channels = new Channels(client);
+    this.capabilityConfirmations = new CapabilityConfirmations(client);
+    const confirmer = new CapabilityConfirmer(
+      this.capabilityConfirmations,
+      options?.autoConfirmCapabilities,
+    );
+
+    this.channels = new Channels(client, confirmer);
     this.emails = new Emails(client);
     this.contacts = new Contacts(client);
     this.deals = new Deals(client);
     this.gdpr = new Gdpr(client);
-    this.helpdesk = new Helpdesk(client);
+    this.helpdesk = new Helpdesk(client, confirmer);
     this.posts = new Posts(client);
-    this.webhooks = new Webhooks(client);
+    this.webhooks = new Webhooks(client, confirmer);
     this.workspaces = new Workspaces(client);
   }
 }
 
+export { CapabilityConfirmer } from "./capability-confirmer";
 export type { RequestOptions } from "./client";
 export { BaseClient } from "./client";
 export type {
@@ -136,6 +178,7 @@ export type {
   paths as OpenApiPaths,
 } from "./openapi.generated";
 // Resource class re-exports (for advanced usage)
+export { CapabilityConfirmations } from "./resources/capability-confirmations";
 export { Channels } from "./resources/channels";
 export { Contacts } from "./resources/contacts";
 export { Deals } from "./resources/deals";
@@ -145,6 +188,16 @@ export { Helpdesk } from "./resources/helpdesk";
 export { Posts } from "./resources/posts";
 export { Webhooks } from "./resources/webhooks";
 export { Workspaces } from "./resources/workspaces";
+export type {
+  AutoConfirmContext,
+  AutoConfirmOptions,
+  CapabilityConfirmation,
+  CapabilityId,
+  CapabilityPathParamValue,
+  CapabilityRoute,
+  IssueCapabilityConfirmationInput,
+} from "./types/capabilities";
+export { CAPABILITY_IDS, CAPABILITY_ROUTES } from "./types/capabilities";
 export type {
   ChannelConnection,
   ChannelConnectionDisconnectResult,
@@ -215,6 +268,7 @@ export type {
   HelpdeskMessageType,
   ListConversationsOptions,
   MessageAuthorType,
+  MessageDeliveryStatus,
   ReplyCreateResult,
   UpdateConversationInput,
 } from "./types/helpdesk";

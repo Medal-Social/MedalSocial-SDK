@@ -1,3 +1,4 @@
+import type { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
@@ -12,7 +13,10 @@ import type {
 
 /** Manage webhook endpoints and inspect their deliveries. */
 export class Webhooks {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /** List all webhook endpoints in the workspace. */
   async list(): Promise<ApiResponse<WebhookEndpoint[]>> {
@@ -35,7 +39,12 @@ export class Webhooks {
     input: CreateWebhookInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
-    return this.client.post("/api/v1/webhooks", input, options);
+    const resolved = await this.confirmer.prepare(
+      "helpdesk.webhook.create.execute",
+      undefined,
+      options,
+    );
+    return this.client.post("/api/v1/webhooks", input, resolved);
   }
 
   /** Get a webhook endpoint by ID. */
@@ -49,7 +58,12 @@ export class Webhooks {
     input: UpdateWebhookInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<WebhookEndpoint>> {
-    return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, options);
+    const resolved = await this.confirmer.prepare(
+      "helpdesk.webhook.update.execute",
+      { id },
+      options,
+    );
+    return this.client.patch(`/api/v1/webhooks/${encodeURIComponent(id)}`, input, resolved);
   }
 
   /**
@@ -59,7 +73,12 @@ export class Webhooks {
    * grants on this route. API keys with legacy scopes may omit it.
    */
   async delete(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookDeleteResult>> {
-    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      "helpdesk.webhook.delete.execute",
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, resolved);
   }
 
   /** List recent deliveries for an endpoint (most recent first). */

@@ -1,3 +1,4 @@
+import type { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type {
   ChannelConnection,
@@ -12,7 +13,10 @@ import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types
 
 /** Mint, list, and revoke hosted connect links. */
 class ChannelConnectLinks {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /**
    * Mint a single-use hosted connect link. Returns HTTP 201.
@@ -29,7 +33,12 @@ class ChannelConnectLinks {
     input: CreateConnectLinkInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkCreateResult>> {
-    return this.client.post("/api/v1/channels/connect-links", input, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connect_link.create.execute",
+      undefined,
+      options,
+    );
+    return this.client.post("/api/v1/channels/connect-links", input, resolved);
   }
 
   /**
@@ -57,13 +66,21 @@ class ChannelConnectLinks {
     id: string,
     options?: RequestOptions,
   ): Promise<ApiResponse<ConnectLinkRevokeResult>> {
-    return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connect_link.revoke.execute",
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/channels/connect-links/${encodeURIComponent(id)}`, resolved);
   }
 }
 
 /** List and disconnect the workspace's channel connections. */
 class ChannelConnections {
-  constructor(private client: BaseClient) {}
+  constructor(
+    private client: BaseClient,
+    private confirmer: CapabilityConfirmer,
+  ) {}
 
   /**
    * List the workspace's channel connections (generic, channel-agnostic
@@ -91,7 +108,12 @@ class ChannelConnections {
     id: string,
     options?: RequestOptions,
   ): Promise<ApiResponse<ChannelConnectionDisconnectResult>> {
-    return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, options);
+    const resolved = await this.confirmer.prepare(
+      "channel.connection.disconnect.execute",
+      { id },
+      options,
+    );
+    return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, resolved);
   }
 }
 
@@ -105,8 +127,8 @@ export class Channels {
   readonly connectLinks: ChannelConnectLinks;
   readonly connections: ChannelConnections;
 
-  constructor(client: BaseClient) {
-    this.connectLinks = new ChannelConnectLinks(client);
-    this.connections = new ChannelConnections(client);
+  constructor(client: BaseClient, confirmer: CapabilityConfirmer) {
+    this.connectLinks = new ChannelConnectLinks(client, confirmer);
+    this.connections = new ChannelConnections(client, confirmer);
   }
 }

@@ -143,6 +143,66 @@ describe("webhooks", () => {
     expect(data[0].status).toBe("delivered");
   });
 
+  it("deserializes delivery correlation fields", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({
+        data: [
+          {
+            id: "del_1",
+            event_type: "helpdesk.message_received",
+            resource_id: "msg_1",
+            conversation_id: "conv_1",
+            message_id: "msg_1",
+            connection_ref: "conn_1",
+            channel: "telegram_inbox",
+            channel_connection_id: "cc_1",
+            status: "delivered",
+            attempt_count: 1,
+            next_attempt_at: null,
+            response_status: 200,
+            duration_ms: 42,
+            last_error: null,
+            delivered_at: 1755100000000,
+            created_at: 1755099999000,
+          },
+          {
+            id: "del_ping",
+            event_type: "test.ping",
+            resource_id: null,
+            conversation_id: null,
+            message_id: null,
+            connection_ref: null,
+            channel: null,
+            channel_connection_id: null,
+            status: "pending",
+            attempt_count: 0,
+            next_attempt_at: 1755100005000,
+            response_status: null,
+            duration_ms: null,
+            last_error: null,
+            delivered_at: null,
+            created_at: 1755100000000,
+          },
+        ],
+      }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.webhooks.deliveries("wh_1");
+    expect(data[0].resource_id).toBe("msg_1");
+    expect(data[0].conversation_id).toBe("conv_1");
+    expect(data[0].message_id).toBe("msg_1");
+    expect(data[0].connection_ref).toBe("conn_1");
+    expect(data[0].channel).toBe("telegram_inbox");
+    expect(data[0].channel_connection_id).toBe("cc_1");
+    // Test pings have no canonical event — every correlation field fails closed.
+    expect(data[1].resource_id).toBeNull();
+    expect(data[1].conversation_id).toBeNull();
+    expect(data[1].message_id).toBeNull();
+    expect(data[1].connection_ref).toBeNull();
+    expect(data[1].channel).toBeNull();
+    expect(data[1].channel_connection_id).toBeNull();
+  });
+
   it("lists deliveries with a limit", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);
