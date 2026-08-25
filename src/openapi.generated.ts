@@ -1661,16 +1661,16 @@ export interface components {
       /** @description Versioned findings payload (see the SDK `ScanResultPayload` type); additive per `version`. The stable core is documented below; further sections (registry, signals, pagespeed, seo, ai, gdpr, mailAuth, httpsOk) evolve additively. */
       result:
         | ({
-            version?: number;
+            version: number;
             /** @description Weighted composite score (0-100); null when unmeasurable. */
-            nettskaar?: number | null;
+            nettskaar: number | null;
             /** @description Per-axis 0-100 scores; null axes were unmeasurable. */
-            subScores?: {
-              fart?: number | null;
-              google?: number | null;
-              ai?: number | null;
-              trygghet?: number | null;
-              omdomme?: number | null;
+            subScores: {
+              fart: number | null;
+              google: number | null;
+              ai: number | null;
+              trygghet: number | null;
+              omdomme: number | null;
             };
           } & {
             [key: string]: unknown;

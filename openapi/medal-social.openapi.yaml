@@ -3080,6 +3080,7 @@ components:
             additive per `version`. The stable core is documented below;
             further sections (registry, signals, pagespeed, seo, ai, gdpr,
             mailAuth, httpsOk) evolve additively.
+          required: [version, nettskaar, subScores]
           properties:
             version:
               type: integer
@@ -3089,6 +3090,7 @@ components:
             subScores:
               type: object
               description: Per-axis 0-100 scores; null axes were unmeasurable.
+              required: [fart, google, ai, trygghet, omdomme]
               properties:
                 fart: { type: [integer, "null"] }
                 google: { type: [integer, "null"] }
