@@ -114,4 +114,26 @@ describe("scan", () => {
       medal.scan.waitForResult("scan_1", { intervalMs: 1, timeoutMs: 10 }),
     ).rejects.toThrow(/timed out/i);
   });
+
+  it("waitForResult never sleeps past the deadline on a coarse interval", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "scan_1", status: "running" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const started = Date.now();
+    await expect(
+      medal.scan.waitForResult("scan_1", { intervalMs: 60_000, timeoutMs: 50 }),
+    ).rejects.toThrow(/timed out/i);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("create rejects zero or several selectors before any request", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await expect(medal.scan.create({})).rejects.toThrow(/exactly one/i);
+    await expect(medal.scan.create({ url: "https://a.no", name: "Eksempel" })).rejects.toThrow(
+      /exactly one/i,
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
 });

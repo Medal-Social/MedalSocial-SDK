@@ -21,8 +21,17 @@ export class Scan {
   /**
    * Queue a scan. Provide exactly one of `url`, `orgnr`, or `name`.
    * Runs asynchronously — poll with `get()` or use `waitForResult()`.
+   *
+   * @throws Error before any request when zero or several selectors are set —
+   * the server would reject the body anyway; failing locally is clearer.
    */
   async create(input: ScanCreateInput): Promise<ApiResponse<ScanCreateResult>> {
+    const provided = [input.url, input.orgnr, input.name].filter(
+      (value) => value !== undefined && value !== "",
+    );
+    if (provided.length !== 1) {
+      throw new Error("scan.create requires exactly one of url, orgnr, or name");
+    }
     return this.client.post("/api/v1/scan", input);
   }
 
@@ -48,10 +57,13 @@ export class Scan {
     for (;;) {
       const { data } = await this.get(id);
       if (data.status === "done" || data.status === "failed") return data;
-      if (Date.now() >= deadline) {
+      // Sleep only up to the remaining budget so a coarse interval can never
+      // overshoot the deadline; the final poll happens exactly at timeout.
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
         throw new Error(`Scan ${id} timed out after ${timeoutMs}ms (status: ${data.status})`);
       }
-      await sleep(intervalMs);
+      await sleep(Math.min(intervalMs, remaining));
     }
   }
 }
