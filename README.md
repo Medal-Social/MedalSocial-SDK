@@ -1,6 +1,6 @@
 # Medal Social SDK
 
-TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, helpdesk conversations, webhooks, and GDPR compliance programmatically.
+TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, helpdesk conversations, webhooks, company/site scans, and GDPR compliance programmatically.
 
 ## Install
 
@@ -234,6 +234,22 @@ await medal.gdpr.cookieConsent({
     marketing: { allowed: false },
   },
 });
+```
+
+### Scan
+
+```ts
+// Find the company in the Norwegian registry (typeahead)
+const { data: hits } = await medal.scan.companies('Eksempel Bygg');
+
+// Queue a scan — exactly one of url / orgnr / name
+const { data: job } = await medal.scan.create({ orgnr: hits[0].orgnr });
+
+// Poll until it settles (~30 s; done or failed)
+const finished = await medal.scan.waitForResult(job.id);
+if (finished.status === 'done' && finished.result) {
+  console.log(finished.result.nettskaar, finished.result.subScores);
+}
 ```
 
 ### Helpdesk

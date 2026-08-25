@@ -719,6 +719,62 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/scan": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Queue a company/site scan
+     * @description Queues an asynchronous scan. Provide exactly one of `url`, `orgnr`, or `name`; poll the returned id via `GET /api/v1/scan/{id}`.
+     */
+    post: operations["createScan"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/scan/companies": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search the Norwegian company registry */
+    get: operations["searchScanCompanies"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/scan/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** Get a scan job */
+    get: operations["getScan"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1459,6 +1515,9 @@ export interface components {
     ApiResponse_GdprExportRequest: components["schemas"]["Envelope_GdprExportRequest"];
     ApiResponse_GdprExportArray: components["schemas"]["Envelope_GdprExportArray"];
     ApiResponse_GdprExport: components["schemas"]["Envelope_GdprExport"];
+    ApiResponse_ScanCreateResult: components["schemas"]["Envelope_ScanCreateResult"];
+    ApiResponse_ScanCompanyArray: components["schemas"]["Envelope_ScanCompanyArray"];
+    ApiResponse_ScanJob: components["schemas"]["Envelope_ScanJob"];
     ApiResponse_ConsentResult: components["schemas"]["Envelope_ConsentResult"];
     ApiResponse_ConsentRecordArray: components["schemas"]["Envelope_ConsentRecordArray"];
     ApiResponse_WorkspaceArray: components["schemas"]["Envelope_WorkspaceArray"];
@@ -1569,6 +1628,69 @@ export interface components {
     };
     Envelope_DealRemoveResult: {
       data: components["schemas"]["DealRemoveResult"];
+    };
+    /** @description Provide exactly one of `url`, `orgnr`, or `name`. */
+    ScanCreateInput: {
+      url?: string;
+      orgnr?: string;
+      name?: string;
+    } & (unknown | unknown | unknown);
+    ScanCreateResult: {
+      id: string;
+      status: string;
+      message?: string;
+    };
+    ScanCompany: {
+      orgnr: string;
+      name: string;
+      org_form: string | null;
+      industry: string | null;
+      city: string | null;
+      website: string | null;
+    };
+    ScanJob: {
+      id: string;
+      /** @description pending | running | done | failed */
+      status: string;
+      input: components["schemas"]["ScanCreateInput"];
+      resolved: {
+        orgnr?: string;
+        companyName?: string;
+        websiteUrl?: string;
+      } | null;
+      /** @description Versioned findings payload (see the SDK `ScanResultPayload` type); additive per `version`. The stable core is documented below; further sections (registry, signals, pagespeed, seo, ai, gdpr, mailAuth, httpsOk) evolve additively. */
+      result:
+        | ({
+            version: number;
+            /** @description Weighted composite score (0-100); null when unmeasurable. */
+            nettskaar: number | null;
+            /** @description Per-axis 0-100 scores; null axes were unmeasurable. */
+            subScores: {
+              fart: number | null;
+              google: number | null;
+              ai: number | null;
+              trygghet: number | null;
+              omdomme: number | null;
+            };
+          } & {
+            [key: string]: unknown;
+          })
+        | null;
+      /** @description Public-safe failure code (company_not_found, no_website, …). */
+      error: string | null;
+      /** Format: date-time */
+      created_at: string | null;
+      /** Format: date-time */
+      finished_at: string | null;
+    };
+    Envelope_ScanCreateResult: {
+      data: components["schemas"]["ScanCreateResult"];
+    };
+    Envelope_ScanCompanyArray: {
+      data: components["schemas"]["ScanCompany"][];
+    };
+    Envelope_ScanJob: {
+      data: components["schemas"]["ScanJob"];
     };
     Envelope_GdprExportRequest: {
       data: components["schemas"]["GdprExportRequest"];
@@ -2955,6 +3077,77 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_ChannelConnectionDisconnectResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createScan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ScanCreateInput"];
+      };
+    };
+    responses: {
+      /** @description Scan job queued. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ScanCreateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  searchScanCompanies: {
+    parameters: {
+      query: {
+        q: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Registry matches (top 5, relevance-ranked). */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ScanCompanyArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getScan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Scan job status and, once done, the findings payload. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ScanJob"];
         };
       };
       default: components["responses"]["ApiError"];
