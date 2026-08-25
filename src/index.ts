@@ -29,6 +29,7 @@ import { Emails } from "./resources/emails";
 import { Gdpr } from "./resources/gdpr";
 import { Helpdesk } from "./resources/helpdesk";
 import { Posts } from "./resources/posts";
+import { Scan } from "./resources/scan";
 import { Webhooks } from "./resources/webhooks";
 import { Workspaces } from "./resources/workspaces";
 import type { AutoConfirmOptions } from "./types/capabilities";
@@ -133,6 +134,7 @@ export class Medal {
   readonly gdpr: Gdpr;
   readonly helpdesk: Helpdesk;
   readonly posts: Posts;
+  readonly scan: Scan;
   readonly webhooks: Webhooks;
   readonly workspaces: Workspaces;
 
@@ -164,6 +166,7 @@ export class Medal {
     this.gdpr = new Gdpr(client);
     this.helpdesk = new Helpdesk(client, confirmer);
     this.posts = new Posts(client);
+    this.scan = new Scan(client);
     this.webhooks = new Webhooks(client, confirmer);
     this.workspaces = new Workspaces(client);
   }
@@ -186,6 +189,7 @@ export { Emails } from "./resources/emails";
 export { Gdpr } from "./resources/gdpr";
 export { Helpdesk } from "./resources/helpdesk";
 export { Posts } from "./resources/posts";
+export { Scan } from "./resources/scan";
 export { Webhooks } from "./resources/webhooks";
 export { Workspaces } from "./resources/workspaces";
 export type {
@@ -287,6 +291,16 @@ export type {
   ScheduleResult,
   UpdatePostInput,
 } from "./types/posts";
+export type {
+  ScanCompany,
+  ScanCreateInput,
+  ScanCreateResult,
+  ScanJob,
+  ScanResultPayload,
+  ScanStatus,
+  ScanSubScores,
+  WaitForScanOptions,
+} from "./types/scan";
 export type {
   CreateWebhookInput,
   ListDeliveriesOptions,
