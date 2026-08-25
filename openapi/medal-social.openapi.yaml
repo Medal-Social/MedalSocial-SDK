@@ -37,6 +37,11 @@ tags:
     description: >-
       Partner channel connect — mint hosted connect links and manage the
       resulting channel connections.
+  - name: Scan
+    description: >-
+      Company & website scans (Nettsjekk) — queue a scan by URL, organisation
+      number, or company name, poll the result, and search the Norwegian
+      company registry.
 paths:
   /api/v1/posts:
     get:
@@ -1092,6 +1097,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_ChannelConnectionDisconnectResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/scan:
+    post:
+      tags: [Scan]
+      operationId: createScan
+      summary: Queue a company/site scan
+      description: >-
+        Queues an asynchronous scan. Provide exactly one of `url`, `orgnr`, or
+        `name`; poll the returned id via `GET /api/v1/scan/{id}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanCreateInput"
+      responses:
+        "202":
+          description: Scan job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ScanCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/scan/companies:
+    get:
+      tags: [Scan]
+      operationId: searchScanCompanies
+      summary: Search the Norwegian company registry
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: Registry matches (top 5, relevance-ranked).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ScanCompanyArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/scan/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Scan]
+      operationId: getScan
+      summary: Get a scan job
+      responses:
+        "200":
+          description: Scan job status and, once done, the findings payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ScanJob"
         default:
           $ref: "#/components/responses/ApiError"
 components:
@@ -2684,6 +2749,12 @@ components:
       $ref: "#/components/schemas/Envelope_GdprExportArray"
     ApiResponse_GdprExport:
       $ref: "#/components/schemas/Envelope_GdprExport"
+    ApiResponse_ScanCreateResult:
+      $ref: "#/components/schemas/Envelope_ScanCreateResult"
+    ApiResponse_ScanCompanyArray:
+      $ref: "#/components/schemas/Envelope_ScanCompanyArray"
+    ApiResponse_ScanJob:
+      $ref: "#/components/schemas/Envelope_ScanJob"
     ApiResponse_ConsentResult:
       $ref: "#/components/schemas/Envelope_ConsentResult"
     ApiResponse_ConsentRecordArray:
@@ -2931,6 +3002,102 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/DealRemoveResult"
+    ScanCreateInput:
+      type: object
+      description: Provide exactly one of `url`, `orgnr`, or `name`.
+      properties:
+        url:
+          type: string
+          minLength: 4
+          maxLength: 500
+        orgnr:
+          type: string
+          pattern: "^\\d{9}$"
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+    ScanCreateResult:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+    ScanCompany:
+      type: object
+      required: [orgnr, name, org_form, industry, city, website]
+      properties:
+        orgnr:
+          type: string
+        name:
+          type: string
+        org_form:
+          type: [string, "null"]
+        industry:
+          type: [string, "null"]
+        city:
+          type: [string, "null"]
+        website:
+          type: [string, "null"]
+    ScanJob:
+      type: object
+      required: [id, status, input, resolved, result, error, created_at, finished_at]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          description: pending | running | done | failed
+        input:
+          $ref: "#/components/schemas/ScanCreateInput"
+        resolved:
+          type: [object, "null"]
+          properties:
+            orgnr:
+              type: string
+            companyName:
+              type: string
+            websiteUrl:
+              type: string
+        result:
+          type: [object, "null"]
+          description: >-
+            Versioned findings payload (see the SDK `ScanResultPayload` type);
+            additive per `version`.
+          additionalProperties: true
+        error:
+          type: [string, "null"]
+          description: Public-safe failure code (company_not_found, no_website, …).
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        finished_at:
+          type: [string, "null"]
+          format: date-time
+    Envelope_ScanCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ScanCreateResult"
+    Envelope_ScanCompanyArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanCompany"
+    Envelope_ScanJob:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ScanJob"
     Envelope_GdprExportRequest:
       type: object
       required: [data]

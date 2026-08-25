@@ -387,6 +387,23 @@ const expected = [
     "delete",
     "/api/v1/channels/connections/${encodeURIComponent(id)}",
   ],
+  ["post", "/api/v1/scan", "createScan", "src/resources/scan.ts", "post", "/api/v1/scan"],
+  [
+    "get",
+    "/api/v1/scan/companies",
+    "searchScanCompanies",
+    "src/resources/scan.ts",
+    "get",
+    "/api/v1/scan/companies",
+  ],
+  [
+    "get",
+    "/api/v1/scan/{id}",
+    "getScan",
+    "src/resources/scan.ts",
+    "get",
+    "/api/v1/scan/${encodeURIComponent(id)}",
+  ],
 ];
 
 const errors = [];
