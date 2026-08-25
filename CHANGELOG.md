@@ -1,5 +1,49 @@
 # @medalsocial/sdk
 
+## 1.6.0
+
+### Minor Changes
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Auto-confirm `previewSummary` callbacks now receive the pending request `body`.
+
+  `AutoConfirmContext` is now a discriminated union on `capabilityId`, so narrowing gives the exact payload type for that route (`undefined` for the `DELETE` routes). Previously the callback saw only the capability, method, path, path params and idempotency key, so two replies or two connect-link creations with different payloads produced indistinguishable context — a client-level `previewSummary` could only emit boilerplate, which undermines the audit value of `user_approved: true`.
+
+  The payload is passed by reference and unmodified. New exported types: `CapabilityWriteBodies` and `CapabilityWriteRequest`.
+
+  `CapabilityConfirmer.prepare` now takes the capability and its body as a single discriminated-union argument (`prepare(request, pathParams, options)`) so the two cannot be decoupled — pairing a capability id with another route's payload is a compile error even when the id's static type is the full `CapabilityId` union.
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Cursor pagination on the `medal.channels` listings, closing a gap against the
+  REST surface (both endpoints already accepted `limit`/`cursor` server-side, but
+  the SDK sent neither and dropped the response's `pagination` envelope):
+
+  - `channels.connectLinks.list()` now accepts `limit` and `cursor` alongside the
+    existing `channel_type` / `status` filters (`ListConnectLinksOptions` extends
+    `PaginationOptions`), and returns `PaginatedResponse<ConnectLink>`.
+  - `channels.connections.list()` now accepts `PaginationOptions` and returns
+    `PaginatedResponse<ChannelConnection>`.
+  - Both surface `pagination.has_more` / `pagination.next_cursor` exactly as
+    `helpdesk.conversations.list` and the other paginated resources do. `limit`
+    defaults to 50 server-side and is capped at 100.
+  - Note that both endpoints filter **within** the page (connect-link
+    `channel_type`/`status`, and non-projectable connection rows), so a page can
+    hold fewer than `limit` items while `has_more` is still `true` — page off
+    `has_more`, not the item count.
+  - OpenAPI 3.1 contract updated: `listChannelConnectLinks` and
+    `listChannelConnections` gain the `limit`/`cursor` query parameters and now
+    respond with `PaginatedResponse_ConnectLink` /
+    `PaginatedResponse_ChannelConnection`.
+
+  Existing calls keep working — the new options are optional and the response
+  gains a field rather than losing one.
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Close remaining gaps between the SDK and the Medal Social public API for partner channel-connect integrations:
+
+  - **Helpdesk message delivery state** — `ConversationMessage` now exposes `delivery_status` (`pending | sent | delivered | failed`, typed as a union) and `delivery_error`, both `null` for inbound messages and internal notes. Documents that a `201` from `helpdesk.replies.create` means _accepted_, not delivered.
+  - **Webhook delivery correlation** — `WebhookDelivery` now exposes `resource_id`, `conversation_id`, `message_id`, `connection_ref`, `channel`, and `channel_connection_id`. All are nullable and fail closed to `null` when no canonical event exists (test pings, aged-out events); deliveries never carry payload bodies.
+  - **Capability confirmations** — new `medal.capabilityConfirmations.create()` resource for `POST /api/v1/capability-confirmations`, plus the typed `CapabilityId` union / `CAPABILITY_IDS` and `CAPABILITY_ROUTES` exports. An opt-in `autoConfirmCapabilities: { previewSummary }` client option (and per-call `{ autoConfirm }`) mints the `Idempotency-Key` + `X-Capability-Confirmation` pair for confirmable writes. Defaults to OFF.
+
+- [#100](https://github.com/Medal-Social/MedalSocial-SDK/pull/100) [`fc5ae53`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fc5ae5321ac4a3b6d5e0fc6a835adfa3735ab704) Thanks [@alioftech](https://github.com/alioftech)! - Add the scan resource: queue and poll Nettsjekk company/site scans (`medal.scan.create` / `get` / `waitForResult`) and search the Norwegian company registry (`medal.scan.companies`).
+
 ## 1.5.0
 
 ### Minor Changes
