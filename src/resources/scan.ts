@@ -56,10 +56,11 @@ export class Scan {
   async waitForResult(id: string, options: WaitForScanOptions = {}): Promise<ScanJob> {
     const rawInterval = options.intervalMs ?? 2500;
     const rawTimeout = options.timeoutMs ?? 120_000;
-    // Guard against NaN/negative inputs — they would otherwise disable the
-    // deadline entirely and poll forever.
+    // Guard against NaN — it would disable the deadline and poll forever.
+    // An explicit zero/negative timeout is preserved: one poll, then timeout
+    // (callers passing an exhausted outer budget expect immediate expiry).
     const intervalMs = Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 2500;
-    const timeoutMs = Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 120_000;
+    const timeoutMs = Number.isFinite(rawTimeout) ? rawTimeout : 120_000;
     const deadline = Date.now() + timeoutMs;
     let lastStatus = "pending";
     for (;;) {
