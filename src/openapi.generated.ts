@@ -1634,7 +1634,7 @@ export interface components {
       url?: string;
       orgnr?: string;
       name?: string;
-    };
+    } & (unknown | unknown | unknown);
     ScanCreateResult: {
       id: string;
       status: string;

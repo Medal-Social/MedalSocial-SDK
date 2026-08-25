@@ -51,8 +51,12 @@ export class Scan {
    * the scan is still pending/running.
    */
   async waitForResult(id: string, options: WaitForScanOptions = {}): Promise<ScanJob> {
-    const intervalMs = options.intervalMs ?? 2500;
-    const timeoutMs = options.timeoutMs ?? 120_000;
+    const rawInterval = options.intervalMs ?? 2500;
+    const rawTimeout = options.timeoutMs ?? 120_000;
+    // Guard against NaN/negative inputs — they would otherwise disable the
+    // deadline entirely and poll forever.
+    const intervalMs = Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 2500;
+    const timeoutMs = Number.isFinite(rawTimeout) && rawTimeout > 0 ? rawTimeout : 120_000;
     const deadline = Date.now() + timeoutMs;
     let lastStatus = "pending";
     for (;;) {

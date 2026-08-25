@@ -3005,6 +3005,16 @@ components:
     ScanCreateInput:
       type: object
       description: Provide exactly one of `url`, `orgnr`, or `name`.
+      oneOf:
+        - required: [url]
+          not:
+            anyOf: [{ required: [orgnr] }, { required: [name] }]
+        - required: [orgnr]
+          not:
+            anyOf: [{ required: [url] }, { required: [name] }]
+        - required: [name]
+          not:
+            anyOf: [{ required: [url] }, { required: [orgnr] }]
       properties:
         url:
           type: string
