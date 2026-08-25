@@ -3077,7 +3077,24 @@ components:
           type: [object, "null"]
           description: >-
             Versioned findings payload (see the SDK `ScanResultPayload` type);
-            additive per `version`.
+            additive per `version`. The stable core is documented below;
+            further sections (registry, signals, pagespeed, seo, ai, gdpr,
+            mailAuth, httpsOk) evolve additively.
+          properties:
+            version:
+              type: integer
+            nettskaar:
+              type: [integer, "null"]
+              description: Weighted composite score (0-100); null when unmeasurable.
+            subScores:
+              type: object
+              description: Per-axis 0-100 scores; null axes were unmeasurable.
+              properties:
+                fart: { type: [integer, "null"] }
+                google: { type: [integer, "null"] }
+                ai: { type: [integer, "null"] }
+                trygghet: { type: [integer, "null"] }
+                omdomme: { type: [integer, "null"] }
           additionalProperties: true
         error:
           type: [string, "null"]
