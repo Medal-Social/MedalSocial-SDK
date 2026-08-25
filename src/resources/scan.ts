@@ -54,16 +54,18 @@ export class Scan {
     const intervalMs = options.intervalMs ?? 2500;
     const timeoutMs = options.timeoutMs ?? 120_000;
     const deadline = Date.now() + timeoutMs;
+    let lastStatus = "pending";
     for (;;) {
       const { data } = await this.get(id);
       if (data.status === "done" || data.status === "failed") return data;
-      // Sleep only up to the remaining budget so a coarse interval can never
-      // overshoot the deadline; the final poll happens exactly at timeout.
+      lastStatus = data.status;
+      // Sleep only up to the remaining budget, and re-check the deadline
+      // after sleeping so no extra poll is issued once time is up.
       const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        throw new Error(`Scan ${id} timed out after ${timeoutMs}ms (status: ${data.status})`);
-      }
+      if (remaining <= 0) break;
       await sleep(Math.min(intervalMs, remaining));
+      if (Date.now() >= deadline) break;
     }
+    throw new Error(`Scan ${id} timed out after ${timeoutMs}ms (status: ${lastStatus})`);
   }
 }
