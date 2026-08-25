@@ -1,7 +1,7 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "1.5.0",
-  "description": "TypeScript SDK for Medal Social API \u2014 posts, emails, contacts, deals, helpdesk, webhooks, and GDPR compliance",
+  "version": "1.6.0",
+  "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, helpdesk, webhooks, and GDPR compliance",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.30.3",
   "author": "Medal Social / Ali Aljumaili",
