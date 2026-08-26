@@ -419,6 +419,10 @@ const openApiMethods = new Set([
   "trace",
 ]);
 
+/**
+ * @param {string} sourcePath
+ * @returns {string | null}
+ */
 function readSourceFile(sourcePath) {
   if (sourceCache.has(sourcePath)) {
     return sourceCache.get(sourcePath);
@@ -443,10 +447,16 @@ function readSourceFile(sourcePath) {
   }
 }
 
+/** @param {string} value */
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * @param {string} source
+ * @param {string} clientMethod
+ * @param {string} pathArgument
+ */
 function hasClientCall(source, clientMethod, pathArgument) {
   const escapedPath = escapeRegExp(pathArgument);
   const callPattern = new RegExp(`this\\.client\\.${clientMethod}\\(\\s*(["'\`])${escapedPath}\\1`);

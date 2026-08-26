@@ -19,6 +19,7 @@ const pkgPath = resolve(__dirname, "..", "package.json");
 const pkgDir = dirname(pkgPath);
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 
+/** @type {string[]} */
 const errors = [];
 
 // Matches strings that look like a package-relative file path. We deliberately
@@ -28,6 +29,10 @@ const errors = [];
 // "default" that show up when callers walk objects.
 const PATH_LIKE = /^(\.\/|\.\.\/|\/|[a-zA-Z0-9_-]+\/).+\.[a-zA-Z0-9]+$/;
 
+/**
+ * @param {string} label
+ * @param {unknown} value
+ */
 function check(label, value) {
   if (typeof value !== "string") return;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return; // protocol URL
@@ -38,6 +43,10 @@ function check(label, value) {
   }
 }
 
+/**
+ * @param {unknown} node
+ * @param {string} prefix
+ */
 function walkExports(node, prefix) {
   if (typeof node === "string") {
     check(prefix, node);
@@ -55,7 +64,7 @@ check("module", pkg.module);
 check("types", pkg.types);
 if (pkg.exports) walkExports(pkg.exports, "exports");
 if (Array.isArray(pkg.bin)) {
-  pkg.bin.forEach((v, i) => {
+  pkg.bin.forEach((/** @type {unknown} */ v, /** @type {number} */ i) => {
     check(`bin[${i}]`, v);
   });
 } else if (pkg.bin && typeof pkg.bin === "object") {

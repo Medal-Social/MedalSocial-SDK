@@ -1,7 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // scripts/ is plain .mjs — without these two the `scripts` include below
+    // silently contributes zero files and the gate is a no-op.
+    "allowJs": true,
+    "checkJs": true
   },
   "include": ["src", "tests", "pilot", "scripts"]
 }
