@@ -1634,7 +1634,7 @@ export interface components {
       url?: string;
       orgnr?: string;
       name?: string;
-    };
+    } & (unknown | unknown | unknown);
     ScanCreateResult: {
       id: string;
       status: string;
@@ -1658,10 +1658,24 @@ export interface components {
         companyName?: string;
         websiteUrl?: string;
       } | null;
-      /** @description Versioned findings payload (see the SDK `ScanResultPayload` type); additive per `version`. */
-      result: {
-        [key: string]: unknown;
-      } | null;
+      /** @description Versioned findings payload (see the SDK `ScanResultPayload` type); additive per `version`. The stable core is documented below; further sections (registry, signals, pagespeed, seo, ai, gdpr, mailAuth, httpsOk) evolve additively. */
+      result:
+        | ({
+            version: number;
+            /** @description Weighted composite score (0-100); null when unmeasurable. */
+            nettskaar: number | null;
+            /** @description Per-axis 0-100 scores; null axes were unmeasurable. */
+            subScores: {
+              fart: number | null;
+              google: number | null;
+              ai: number | null;
+              trygghet: number | null;
+              omdomme: number | null;
+            };
+          } & {
+            [key: string]: unknown;
+          })
+        | null;
       /** @description Public-safe failure code (company_not_found, no_website, …). */
       error: string | null;
       /** Format: date-time */

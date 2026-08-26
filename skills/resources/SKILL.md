@@ -1,13 +1,13 @@
 ---
 name: resources
-description: Use when calling any of the SDK resources (contacts, deals, emails, gdpr, posts, workspaces) — listing with pagination, sending transactional or batch emails, scheduling and publishing posts, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
+description: Use when calling any of the SDK resources (contacts, deals, emails, gdpr, posts, scan, workspaces) — listing with pagination, sending transactional or batch emails, scheduling and publishing posts, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
 ---
 
 # Medal Social SDK — Resources
 
 ## When to load this skill
 
-- Calling `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.posts.*`, or `medal.workspaces.*`.
+- Calling `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.posts.*`, `medal.scan.*`, or `medal.workspaces.*`.
 - Looking up an exact method signature or response shape.
 - Building a list view that needs pagination.
 - Sending a single transactional email or a bulk batch.
@@ -35,6 +35,7 @@ Errors throw `MedalApiError` (see the `client` skill for details).
 | `medal.emails.templates` | `src/resources/emails.ts` (`EmailTemplates`) | `list()`, `get(slug, opts?)` |
 | `medal.emails` | `src/resources/emails.ts` (`Emails`) | `send(input)`, `get(id)`, `batch(input)` |
 | `medal.gdpr` | `src/resources/gdpr.ts` | `requestExport()`, `listExports()`, `getExport(id)`, `recordConsent(input)`, `getConsent(email)`, `cookieConsent(input)` |
+| `medal.scan` | `src/resources/scan.ts` | `create(input)` (exactly one of `url`/`orgnr`/`name`; 202 async job), `get(id)`, `companies(q)` (Norwegian registry typeahead), `waitForResult(id, opts?)` (polls until done/failed; returns the job either way, throws only on deadline) |
 | `medal.posts` | `src/resources/posts.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)`, `schedule(id, input)`, `publish(id)`, `channels()` |
 | `medal.workspaces` | `src/resources/workspaces.ts` | `list()` |
 

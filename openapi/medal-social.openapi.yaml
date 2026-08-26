@@ -3005,6 +3005,16 @@ components:
     ScanCreateInput:
       type: object
       description: Provide exactly one of `url`, `orgnr`, or `name`.
+      oneOf:
+        - required: [url]
+          not:
+            anyOf: [{ required: [orgnr] }, { required: [name] }]
+        - required: [orgnr]
+          not:
+            anyOf: [{ required: [url] }, { required: [name] }]
+        - required: [name]
+          not:
+            anyOf: [{ required: [url] }, { required: [orgnr] }]
       properties:
         url:
           type: string
@@ -3067,7 +3077,26 @@ components:
           type: [object, "null"]
           description: >-
             Versioned findings payload (see the SDK `ScanResultPayload` type);
-            additive per `version`.
+            additive per `version`. The stable core is documented below;
+            further sections (registry, signals, pagespeed, seo, ai, gdpr,
+            mailAuth, httpsOk) evolve additively.
+          required: [version, nettskaar, subScores]
+          properties:
+            version:
+              type: integer
+            nettskaar:
+              type: [integer, "null"]
+              description: Weighted composite score (0-100); null when unmeasurable.
+            subScores:
+              type: object
+              description: Per-axis 0-100 scores; null axes were unmeasurable.
+              required: [fart, google, ai, trygghet, omdomme]
+              properties:
+                fart: { type: [integer, "null"] }
+                google: { type: [integer, "null"] }
+                ai: { type: [integer, "null"] }
+                trygghet: { type: [integer, "null"] }
+                omdomme: { type: [integer, "null"] }
           additionalProperties: true
         error:
           type: [string, "null"]

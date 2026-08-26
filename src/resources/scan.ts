@@ -26,13 +26,16 @@ export class Scan {
    * the server would reject the body anyway; failing locally is clearer.
    */
   async create(input: ScanCreateInput): Promise<ApiResponse<ScanCreateResult>> {
-    const provided = [input.url, input.orgnr, input.name].filter(
-      (value) => value !== undefined && value !== "",
+    const entries = (["url", "orgnr", "name"] as const).filter(
+      (key) => input[key] !== undefined && input[key] !== "",
     );
-    if (provided.length !== 1) {
+    if (entries.length !== 1) {
       throw new Error("scan.create requires exactly one of url, orgnr, or name");
     }
-    return this.client.post("/api/v1/scan", input);
+    // Send only the effective selector — blank strings from form state must
+    // not ride along in the payload (they would echo back in ScanJob.input).
+    const key = entries[0];
+    return this.client.post("/api/v1/scan", { [key]: input[key] });
   }
 
   /** Get a scan job's status and, once done, its findings payload. */
@@ -51,8 +54,13 @@ export class Scan {
    * the scan is still pending/running.
    */
   async waitForResult(id: string, options: WaitForScanOptions = {}): Promise<ScanJob> {
-    const intervalMs = options.intervalMs ?? 2500;
-    const timeoutMs = options.timeoutMs ?? 120_000;
+    const rawInterval = options.intervalMs ?? 2500;
+    const rawTimeout = options.timeoutMs ?? 120_000;
+    // Guard against NaN — it would disable the deadline and poll forever.
+    // An explicit zero/negative timeout is preserved: one poll, then timeout
+    // (callers passing an exhausted outer budget expect immediate expiry).
+    const intervalMs = Number.isFinite(rawInterval) && rawInterval > 0 ? rawInterval : 2500;
+    const timeoutMs = Number.isFinite(rawTimeout) ? rawTimeout : 120_000;
     const deadline = Date.now() + timeoutMs;
     let lastStatus = "pending";
     for (;;) {

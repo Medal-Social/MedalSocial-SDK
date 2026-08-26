@@ -1,5 +1,102 @@
 # @medalsocial/sdk
 
+## 1.6.0
+
+### Minor Changes
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Auto-confirm `previewSummary` callbacks now receive the pending request `body`.
+
+  `AutoConfirmContext` is now a discriminated union on `capabilityId`, so narrowing gives the exact payload type for that route (`undefined` for the `DELETE` routes). Previously the callback saw only the capability, method, path, path params and idempotency key, so two replies or two connect-link creations with different payloads produced indistinguishable context — a client-level `previewSummary` could only emit boilerplate, which undermines the audit value of `user_approved: true`.
+
+  The payload is passed by reference and unmodified. New exported types: `CapabilityWriteBodies` and `CapabilityWriteRequest`.
+
+  `CapabilityConfirmer.prepare` now takes the capability and its body as a single discriminated-union argument (`prepare(request, pathParams, options)`) so the two cannot be decoupled — pairing a capability id with another route's payload is a compile error even when the id's static type is the full `CapabilityId` union.
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Cursor pagination on the `medal.channels` listings, closing a gap against the
+  REST surface (both endpoints already accepted `limit`/`cursor` server-side, but
+  the SDK sent neither and dropped the response's `pagination` envelope):
+
+  - `channels.connectLinks.list()` now accepts `limit` and `cursor` alongside the
+    existing `channel_type` / `status` filters (`ListConnectLinksOptions` extends
+    `PaginationOptions`), and returns `PaginatedResponse<ConnectLink>`.
+  - `channels.connections.list()` now accepts `PaginationOptions` and returns
+    `PaginatedResponse<ChannelConnection>`.
+  - Both surface `pagination.has_more` / `pagination.next_cursor` exactly as
+    `helpdesk.conversations.list` and the other paginated resources do. `limit`
+    defaults to 50 server-side and is capped at 100.
+  - Note that both endpoints filter **within** the page (connect-link
+    `channel_type`/`status`, and non-projectable connection rows), so a page can
+    hold fewer than `limit` items while `has_more` is still `true` — page off
+    `has_more`, not the item count.
+  - OpenAPI 3.1 contract updated: `listChannelConnectLinks` and
+    `listChannelConnections` gain the `limit`/`cursor` query parameters and now
+    respond with `PaginatedResponse_ConnectLink` /
+    `PaginatedResponse_ChannelConnection`.
+
+  Existing calls keep working — the new options are optional and the response
+  gains a field rather than losing one.
+
+- [#97](https://github.com/Medal-Social/MedalSocial-SDK/pull/97) [`a144eff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/a144eff961d7660b22744586faf0a1c4d4932654) Thanks [@alioftech](https://github.com/alioftech)! - Close remaining gaps between the SDK and the Medal Social public API for partner channel-connect integrations:
+
+  - **Helpdesk message delivery state** — `ConversationMessage` now exposes `delivery_status` (`pending | sent | delivered | failed`, typed as a union) and `delivery_error`, both `null` for inbound messages and internal notes. Documents that a `201` from `helpdesk.replies.create` means _accepted_, not delivered.
+  - **Webhook delivery correlation** — `WebhookDelivery` now exposes `resource_id`, `conversation_id`, `message_id`, `connection_ref`, `channel`, and `channel_connection_id`. All are nullable and fail closed to `null` when no canonical event exists (test pings, aged-out events); deliveries never carry payload bodies.
+  - **Capability confirmations** — new `medal.capabilityConfirmations.create()` resource for `POST /api/v1/capability-confirmations`, plus the typed `CapabilityId` union / `CAPABILITY_IDS` and `CAPABILITY_ROUTES` exports. An opt-in `autoConfirmCapabilities: { previewSummary }` client option (and per-call `{ autoConfirm }`) mints the `Idempotency-Key` + `X-Capability-Confirmation` pair for confirmable writes. Defaults to OFF.
+
+- [#100](https://github.com/Medal-Social/MedalSocial-SDK/pull/100) [`fc5ae53`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fc5ae5321ac4a3b6d5e0fc6a835adfa3735ab704) Thanks [@alioftech](https://github.com/alioftech)! - Add the scan resource: queue and poll Nettsjekk company/site scans (`medal.scan.create` / `get` / `waitForResult`) and search the Norwegian company registry (`medal.scan.companies`).
+
+## 1.5.0
+
+### Minor Changes
+
+- [#93](https://github.com/Medal-Social/MedalSocial-SDK/pull/93) [`cd82918`](https://github.com/Medal-Social/MedalSocial-SDK/commit/cd82918362ff0b705e7745e8cf33418ee76aa545) Thanks [@alioftech](https://github.com/alioftech)! - Partner channel connect — new `medal.channels` resource plus channel lifecycle
+  webhook events, mirroring the REST surface shipped in medal-monorepo PR [#4061](https://github.com/Medal-Social/MedalSocial/issues/4061):
+
+  - `channels.connectLinks.create/list/revoke` — mint single-use hosted connect
+    links (the one-time `url` is returned exactly once; idempotent replays omit
+    it), list them with `channel_type`/`status` filters, and revoke pending
+    links.
+  - `channels.connections.list/disconnect` — inspect the workspace's channel
+    connections (generic `{ id, channel_type, label, state, masked_identity,
+last_activity_at, helpdesk_connection_id }` shape) and disconnect an
+    account.
+  - New typed webhook events `helpdesk.channel_connected` and
+    `helpdesk.channel_disconnected` (`ChannelConnectedEvent` /
+    `ChannelDisconnectedEvent`, payload `WebhookChannelLifecycleData`) join the
+    `WebhookEvent` union returned by `verifyWebhookSignature`.
+  - OpenAPI 3.1 contract extended with the five `/api/v1/channels/*` operations.
+
+## 1.4.0
+
+### Minor Changes
+
+- [#89](https://github.com/Medal-Social/MedalSocial-SDK/pull/89) [`2b84b85`](https://github.com/Medal-Social/MedalSocial-SDK/commit/2b84b851b7c5aae2d95017fe760de87e9c248199) Thanks [@adaadev](https://github.com/adaadev)! - Emails API now hands out trackable send ids everywhere:
+
+  - `EmailSendResult.id` is the email send id accepted by `emails.get(id)` (it was
+    previously a queue job id the status endpoint rejected), and the result now
+    also types `copy_id` and `contact_id`.
+  - `BatchSendSummary.results` is new: a per-recipient array (request order) of
+    `{ email, id, status, error }`, where `id` is the recipient's send id — batch
+    sends are now trackable per recipient via `emails.get(id)`.
+  - `SendEmailInput` gains the already-supported `idempotency_key`, `copy_to`,
+    and `copy_reply_to` fields.
+  - `EmailSendResult.id` is now typed `string | null` to match the wire contract.
+
+- [#89](https://github.com/Medal-Social/MedalSocial-SDK/pull/89) [`2b84b85`](https://github.com/Medal-Social/MedalSocial-SDK/commit/2b84b851b7c5aae2d95017fe760de87e9c248199) Thanks [@adaadev](https://github.com/adaadev)! - Security and toolchain refresh — zero open vulnerability alerts:
+
+  - All five open Dependabot alerts fixed by lifting the supply-chain override
+    pins to patched releases: `js-yaml` 4.3.0, `fast-uri` 3.1.4, `linkify-it`
+    5.0.2, `brace-expansion` 5.0.9 (plus refreshed `ajv`, `dompurify`,
+    `markdown-it`, `minimatch`, `picomatch`, `rollup`, `yaml` pins).
+    `pnpm audit` is clean.
+  - `zod` upgraded 3 → 4 (the SDK's only runtime dependency). Zod is used
+    solely by the `@medalsocial/sdk/pilot` tool schemas; they now use the
+    zod-4 idioms (`z.email()`, two-argument `z.record()`). Consumers passing
+    those schemas into zod-3-only tooling should upgrade that tooling; modern
+    AI SDKs accept zod 4 via Standard Schema.
+  - Dev toolchain to latest: TypeScript 6.0, Biome 2 (config migrated), knip 6,
+    redocly 2.42, commitlint/changesets/secretlint/lint-staged patch bumps.
+    No public API changes from the toolchain.
+
 ## 1.3.0
 
 ### Minor Changes
@@ -7,12 +104,14 @@
 - Add helpdesk + webhooks support (helpdesk bridge).
 
   **`medal.helpdesk.*`** — read and drive helpdesk conversations:
+
   - `conversations.list({ status, assignee_user_id, requester, query, channels, limit, cursor })` — cursor-paginated list/search (`channels` serialized as CSV)
   - `conversations.get(id)` / `conversations.messages(id, { limit, cursor })`
   - `conversations.update(id, { status, assignee_user_id })` — assign (`null` unassigns), snooze, close
   - `replies.create({ conversation_id, body, message_type, author_name }, { idempotencyKey })` — operator replies and internal notes
 
   **`medal.webhooks.*`** — manage outbound webhook endpoints:
+
   - `list()`, `create(input, opts)`, `get(id)`, `update(id, input)`, `delete(id)`, `deliveries(id, { limit })`, `test(id)`
   - `create` returns the signing `secret` exactly once — store it immediately
 

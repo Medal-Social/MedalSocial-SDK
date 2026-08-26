@@ -2,3 +2,14 @@ packages:
   - "."
   - "examples/*"
 
+# Only one override survives: tsup pins esbuild to `^0.27.0`, and every 0.27.x
+# from 0.27.3 up is affected by GHSA-g7r4-m6w7-qqqr. Everything else this file
+# used to pin now resolves to the patched version on its own — see the PR.
+overrides:
+  esbuild@^0.27.0: 0.28.2
+
+# Neither package needs its lifecycle scripts to install correctly, and running
+# them would execute third-party code at install time.
+allowBuilds:
+  '@medalsocial/sdk': false
+  esbuild: false
