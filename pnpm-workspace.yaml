@@ -2,3 +2,33 @@ packages:
   - "."
   - "examples/*"
 
+# pnpm 11 no longer reads the `pnpm` field from package.json — dependency
+# overrides and install settings live here. Keep the security pins in sync with
+# the advisories they close (referenced below).
+overrides:
+  ajv: 8.20.0
+  brace-expansion: 5.0.9
+  dompurify: 3.4.14
+  esbuild@^0.27.0: 0.28.2
+  # GHSA-7p8r-x3mc-p8w7 — host confusion via backslash authority introducer
+  fast-uri: 3.1.6
+  glob: 10.5.0
+  # GHSA-5p4m-2wfm-xmqj — quadratic CPU consumption in !!omap resolution
+  js-yaml@^3.0.0: 3.15.1
+  js-yaml@^4.0.0: 4.3.1
+  linkify-it: 5.0.2
+  markdown-it: 14.3.0
+  mdast-util-to-hast: 13.2.1
+  minimatch: 10.2.6
+  # GHSA-2v37-7h3g-55p8 — custom generators loop indefinitely when size is 0
+  nanoid@^3.0.0: 3.3.18
+  picomatch: 4.0.7
+  rollup: 4.62.5
+  vite: 8.2.2
+  yaml: 2.9.0
+
+# Neither package needs its lifecycle scripts to install correctly, and running
+# them would execute third-party code at install time.
+allowBuilds:
+  '@medalsocial/sdk': false
+  esbuild: false
