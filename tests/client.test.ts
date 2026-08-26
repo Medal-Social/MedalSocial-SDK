@@ -779,7 +779,6 @@ describe("misc", () => {
         return super.set(name, value);
       }
     }
-    // @ts-expect-error override for test
     globalThis.Headers = ThrowHeaders;
 
     try {
@@ -788,7 +787,6 @@ describe("misc", () => {
       const result = await medal.contacts.list();
       expect(result.data).toEqual([]);
     } finally {
-      // @ts-expect-error restore
       globalThis.Headers = OriginalHeaders;
     }
   });

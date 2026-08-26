@@ -127,6 +127,67 @@ describe("scan", () => {
     expect(Date.now() - started).toBeLessThan(5_000);
   });
 
+  it("waitForResult falls back to the default interval and timeout", async () => {
+    // No options at all — exercises the `?? 2500` / `?? 120_000` defaults.
+    // The job is done on the first poll, so no default-length sleep happens.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "scan_1", status: "done", result: { version: 1, nettskaar: 64 } } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const job = await medal.scan.waitForResult("scan_1");
+    expect(job.status).toBe("done");
+    expect(job.result?.nettskaar).toBe(64);
+  });
+
+  it("waitForResult polls exactly once when the timeout is already exhausted", async () => {
+    // An outer budget that has run out is passed through as timeoutMs: 0. It
+    // must be preserved, not treated as "unset" — one poll, then expiry.
+    let call = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      call += 1;
+      return mockJson({ data: { id: "scan_1", status: "running" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await expect(medal.scan.waitForResult("scan_1", { timeoutMs: 0 })).rejects.toThrow(
+      /timed out after 0ms \(status: running\)/i,
+    );
+    expect(call).toBe(1);
+  });
+
+  it("waitForResult ignores a non-finite interval instead of polling forever", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "scan_1", status: "running" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const started = Date.now();
+    await expect(
+      medal.scan.waitForResult("scan_1", { intervalMs: Number.NaN, timeoutMs: 10 }),
+    ).rejects.toThrow(/timed out/i);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("waitForResult ignores a zero or negative interval", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "scan_1", status: "running" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const started = Date.now();
+    await expect(
+      medal.scan.waitForResult("scan_1", { intervalMs: -1, timeoutMs: 10 }),
+    ).rejects.toThrow(/timed out/i);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("waitForResult ignores a non-finite timeout instead of disabling the deadline", async () => {
+    // NaN must fall back to the 120s default, not to "no deadline".
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "scan_1", status: "done" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const job = await medal.scan.waitForResult("scan_1", { timeoutMs: Number.NaN });
+    expect(job.status).toBe("done");
+  });
+
   it("create rejects zero or several selectors before any request", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     const medal = new Medal("medal_test", { baseUrl: BASE });
