@@ -16,19 +16,37 @@ feat/* → dev → promote/dev-to-prod-<date> → prod
   scanning alerts against `prod`, so a security fix merged to `dev` does not
   clear the security tab until it is promoted.
 
-### `prod` is ahead of `dev`, and that is structural
+### Back-merge `prod` → `dev` after every release
 
 Every release puts a `chore: release packages` commit (version bump +
-CHANGELOG) on `prod` that is never back-merged. So:
+CHANGELOG) on `prod`. If it is never merged back, `prod` stops being an
+ancestor of `dev`: `git merge-base --is-ancestor origin/prod origin/dev` fails,
+a fast-forward promote becomes impossible, and `dev` sits without prod's
+release bookkeeping. That is how the branches drifted 32 commits apart by
+2026-08.
 
-- `prod` is **not** an ancestor of `dev` — `git merge-base --is-ancestor
-  origin/prod origin/dev` fails, and a fast-forward promote is impossible.
-- `dev` is missing prod's release bookkeeping until someone back-merges.
+**So: after every release, back-merge.** It is cheap when done promptly —
+if the trees already match, the merge carries no file changes at all:
 
-Repairing the ancestry does not stick: the next release breaks it again. The
-durable fix is to **back-merge `prod` → `dev` after every release** (as PR #67
-did), or to move the version bump onto `dev`. Until then, promote with the
-tree-swap below.
+```bash
+git fetch origin '+refs/heads/dev:refs/remotes/origin/dev' '+refs/heads/prod:refs/remotes/origin/prod'
+git switch -c chore/back-merge-prod-$(date -u +%Y-%m-%d) origin/dev
+git merge --no-ff origin/prod -m "chore: back-merge prod into dev ($(date -u +%Y-%m-%d))"
+
+# Sanity: the back-merge must not change dev's content.
+git diff --stat origin/dev HEAD      # expect empty
+git merge-base --is-ancestor origin/prod HEAD && echo ancestry-ok
+```
+
+> **Merge this PR with "Create a merge commit" — never squash or rebase.**
+> Both flatten the second parent, which is the entire point of the
+> back-merge. Squash-merging one leaves ancestry exactly as broken as before
+> while looking like it was fixed.
+
+Do NOT force-push `prod` to repair ancestry. It rewrites the default branch of
+a public repo, and it does not stick anyway — the next release breaks it again.
+Back-merging is the durable fix. Note that JSR/npm provenance attestations
+reference published commit SHAs, another reason not to rewrite that history.
 
 `git cherry origin/dev origin/prod` prints ~30 `+` lines here. That is patch-id
 noise from squash-created promote commits, **not** evidence of lost content —
