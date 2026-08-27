@@ -24,6 +24,8 @@ describe("Medal constructor", () => {
     expect(medal.gdpr).toBeDefined();
     expect(medal.posts).toBeDefined();
     expect(medal.workspaces).toBeDefined();
+    expect(medal.bookings).toBeDefined();
+    expect(medal.bookings.manage).toBeDefined();
   });
 
   it("uses default baseUrl and timeout when no options provided", async () => {
@@ -500,6 +502,329 @@ describe("deals", () => {
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.deals.remove("d1");
     expect(data.success).toBe(true);
+  });
+});
+
+describe("bookings", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("lists services without filters", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/services");
+      expect(parsed.searchParams.has("include_inactive")).toBe(false);
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listServices();
+    expect(data).toEqual([]);
+  });
+
+  it("lists services including inactive ones", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("include_inactive")).toBe("true");
+      return mockJson({ data: [{ id: "svc_1", name: "Klipp", price_ore: 49900 }] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listServices({ include_inactive: true });
+    expect(data[0].price_ore).toBe(49900);
+  });
+
+  it("serialises include_inactive: false rather than dropping it", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("include_inactive")).toBe("false");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.listServices({ include_inactive: false });
+  });
+
+  it("lists resources", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/resources");
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: [{ id: "res_1", type: "staff", name: "Nina" }] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listResources();
+    expect(data[0].type).toBe("staff");
+  });
+
+  it("fetches availability for a service", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/availability");
+      expect(parsed.searchParams.get("service_id")).toBe("svc_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("2026-09-01T00:00:00.000Z");
+      expect(parsed.searchParams.has("resource_id")).toBe(false);
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [
+          {
+            start_ts: "2026-09-01T09:00:00.000Z",
+            end_ts: "2026-09-01T09:30:00.000Z",
+            resource_id: "res_1",
+          },
+        ],
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.availability({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: "2026-09-01T00:00:00.000Z",
+    });
+    expect(data[0].resource_id).toBe("res_1");
+  });
+
+  it("narrows availability to one resource", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.availability({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: 1780086400000,
+      resource_id: "res_1",
+    });
+  });
+
+  it("lists bookings without filters", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings");
+      expect([...parsed.searchParams.keys()]).toEqual([]);
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [],
+        pagination: { has_more: false, next_cursor: null, truncated: false },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const page = await medal.bookings.list();
+    expect(page.pagination.truncated).toBe(false);
+  });
+
+  it("lists bookings with every filter and reports truncation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("limit")).toBe("25");
+      expect(parsed.searchParams.get("cursor")).toBe("cur_1");
+      expect(parsed.searchParams.get("status")).toBe("confirmed");
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("1780086400000");
+      return mockJson({
+        data: [{ id: "bk_1", status: "confirmed", amount_ore: 49900 }],
+        pagination: { has_more: true, next_cursor: "cur_2", truncated: true },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const page = await medal.bookings.list({
+      limit: 25,
+      cursor: "cur_1",
+      status: "confirmed",
+      resource_id: "res_1",
+      from_ts: 1780000000000,
+      to_ts: 1780086400000,
+    });
+    expect(page.data[0].amount_ore).toBe(49900);
+    expect(page.pagination.truncated).toBe(true);
+    expect(page.pagination.next_cursor).toBe("cur_2");
+  });
+
+  it("creates a party booking and returns one manage token per booking", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].start_ts).toBe(1780000000000);
+      expect(body.items[1].booked_for_birth_year).toBe(2018);
+      expect(body.contact.phone).toBe("+4790000000");
+      expect(body.notes).toBe("Bursdag");
+      return mockJson(
+        {
+          data: {
+            bookings: [
+              { id: "bk_1", manage_token: "mt_1" },
+              { id: "bk_2", manage_token: "mt_2" },
+            ],
+            contact_id: "c_1",
+          },
+        },
+        201,
+      );
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.create({
+      items: [
+        { service_id: "svc_1", start_ts: 1780000000000 },
+        {
+          service_id: "svc_2",
+          start_ts: "2026-09-01T09:30:00.000Z",
+          resource_id: "res_1",
+          booked_for_name: "Ida",
+          booked_for_birth_year: 2018,
+        },
+      ],
+      contact: { phone: "+4790000000", email: "a@x.com", name: "Ali" },
+      notes: "Bursdag",
+    });
+    expect(data.contact_id).toBe("c_1");
+    expect(data.bookings[1].manage_token).toBe("mt_2");
+  });
+
+  it("forwards an idempotency key on create", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(new Headers(init?.headers).get("idempotency-key")).toBe("key_1");
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "key_1" },
+    );
+  });
+
+  it("gets a booking by ID and encodes it", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk%2F1");
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: { id: "bk/1", status: "confirmed" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.get("bk/1");
+    expect(data.status).toBe("confirmed");
+  });
+
+  it("updates booking notes", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1");
+      expect(init?.method).toBe("PATCH");
+      const body = JSON.parse(init?.body as string);
+      expect(body.internal_notes).toBe("Allergisk");
+      return mockJson({ data: { id: "bk_1", internal_notes: "Allergisk" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.update("bk_1", { internal_notes: "Allergisk" });
+    expect(data.internal_notes).toBe("Allergisk");
+  });
+
+  it("cancels a booking without a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/cancel");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({});
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.cancel("bk_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("cancels a booking with a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string).reason).toBe("Sykdom");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.cancel("bk_1", { reason: "Sykdom" });
+  });
+
+  it("reschedules a booking and returns the new id plus manage token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/reschedule");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.new_start_ts).toBe(1780090000000);
+      expect(body.new_resource_id).toBe("res_2");
+      return mockJson({ data: { success: true, booking_id: "bk_9", manage_token: "mt_9" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.reschedule("bk_1", {
+      new_start_ts: 1780090000000,
+      new_resource_id: "res_2",
+    });
+    expect(data.booking_id).toBe("bk_9");
+    expect(data.manage_token).toBe("mt_9");
+  });
+
+  it("marks a booking as a no-show", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/no-show");
+      expect(init?.method).toBe("POST");
+      expect(init?.body).toBeUndefined();
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.markNoShow("bk_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("reads the customer manage summary by token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok%2Fen");
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: {
+          booking_id: "bk_1",
+          can_cancel: true,
+          can_reschedule: false,
+          time_zone: "Europe/Oslo",
+        },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.get("tok/en");
+    expect(data.can_cancel).toBe(true);
+    expect(data.time_zone).toBe("Europe/Oslo");
+  });
+
+  it("cancels via manage token without a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok_1/cancel");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({});
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.cancel("tok_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("cancels via manage token with a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string).reason).toBe("Endret plan");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.manage.cancel("tok_1", { reason: "Endret plan" });
+  });
+
+  it("reschedules via manage token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok_1/reschedule");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.new_start_ts).toBe("2026-09-02T09:00:00.000Z");
+      expect(body.new_resource_id).toBeUndefined();
+      return mockJson({ data: { success: true, booking_id: "bk_9", manage_token: "mt_9" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.reschedule("tok_1", {
+      new_start_ts: "2026-09-02T09:00:00.000Z",
+    });
+    expect(data.booking_id).toBe("bk_9");
   });
 });
 

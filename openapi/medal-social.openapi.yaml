@@ -21,6 +21,11 @@ tags:
     description: Manage workspace CRM contacts.
   - name: Deals
     description: Manage sponsorship and brand deals.
+  - name: Bookings
+    description: >-
+      Appointment bookings — the service catalogue, free slots, staff actions
+      on a booking, and the customer-facing manage-token routes. Money is
+      always integer øre.
   - name: GDPR
     description: Manage exports, consent records, and cookie consent.
   - name: Workspaces
@@ -541,6 +546,310 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_DealRemoveResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings:
+    get:
+      tags: [Bookings]
+      operationId: listBookings
+      summary: List bookings
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: from_ts
+          in: query
+          description: Only bookings starting at or after this instant.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: to_ts
+          in: query
+          description: Only bookings starting before this instant.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingStatus"
+        - name: resource_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Bookings page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse_Booking"
+        default:
+          $ref: "#/components/responses/ApiError"
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      summary: Create a booking or party
+      description: >-
+        Books every item or none of them. Each created booking carries a
+        `manage_token` returned exactly once — only its hash is stored, and an
+        idempotent replay omits it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingInput"
+      responses:
+        "201":
+          description: Created bookings, in request order.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingCreateResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/services:
+    get:
+      tags: [Bookings]
+      operationId: listBookingServices
+      summary: List bookable services
+      parameters:
+        - name: include_inactive
+          in: query
+          description: >-
+            Include services with `active: false`. Defaults to active-only.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Bookable service catalogue.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingServiceArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/resources:
+    get:
+      tags: [Bookings]
+      operationId: listBookingResources
+      summary: List bookable resources
+      responses:
+        "200":
+          description: Bookable resources — staff, rooms, and equipment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingResourceArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/availability:
+    get:
+      tags: [Bookings]
+      operationId: listBookingAvailability
+      summary: List free slots for a service
+      description: >-
+        Slots reflect opening hours, time off, buffers, and existing bookings
+        at the moment of the call. They are not held.
+      parameters:
+        - name: service_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: from_ts
+          in: query
+          required: true
+          description: Start of the window.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: to_ts
+          in: query
+          required: true
+          description: End of the window; must be after `from_ts`.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: resource_id
+          in: query
+          description: Restrict slots to one resource.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Free slots.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingSlotArray"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Bookings]
+      operationId: getBooking
+      summary: Get a booking
+      responses:
+        "200":
+          description: Booking.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Booking"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Bookings]
+      operationId: updateBooking
+      summary: Annotate a booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBookingInput"
+      responses:
+        "200":
+          description: The updated booking.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_Booking"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      summary: Cancel a booking as the business
+      description: >-
+        Staff semantics — the workspace's cancel window is bypassed and the
+        cancellation is attributed to staff.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingInput"
+      responses:
+        "200":
+          description: Cancel result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingActionResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/{id}/reschedule:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Bookings]
+      operationId: rescheduleBooking
+      summary: Reschedule a booking as the business
+      description: >-
+        Staff semantics — the reschedule window is bypassed. The old booking is
+        cancelled and a new one inserted, so the response carries a new booking
+        id and a freshly minted manage token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RescheduleBookingInput"
+      responses:
+        "200":
+          description: Reschedule result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingRescheduleResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/{id}/no-show:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Bookings]
+      operationId: markBookingNoShow
+      summary: Mark a booking as a no-show
+      responses:
+        "200":
+          description: No-show result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingActionResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/manage/{token}:
+    parameters:
+      - $ref: "#/components/parameters/ManageToken"
+    get:
+      tags: [Bookings]
+      operationId: getManagedBooking
+      summary: Get the customer manage summary for a token
+      responses:
+        "200":
+          description: >-
+            Manage summary. An unknown token and a token belonging to another
+            workspace both answer 404, so this is not an existence oracle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_ManageSummary"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/manage/{token}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/ManageToken"
+    post:
+      tags: [Bookings]
+      operationId: cancelManagedBooking
+      summary: Cancel on the customer's behalf
+      description: >-
+        Customer semantics — the workspace's cancel window is ENFORCED and the
+        cancellation is attributed to the customer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingInput"
+      responses:
+        "200":
+          description: Cancel result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingActionResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/manage/{token}/reschedule:
+    parameters:
+      - $ref: "#/components/parameters/ManageToken"
+    post:
+      tags: [Bookings]
+      operationId: rescheduleManagedBooking
+      summary: Reschedule on the customer's behalf
+      description: >-
+        Customer semantics — the reschedule window is ENFORCED. The response
+        carries a new booking id and a new manage token; the old token stops
+        working.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RescheduleBookingInput"
+      responses:
+        "200":
+          description: Reschedule result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingRescheduleResult"
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/gdpr/export:
@@ -1175,6 +1484,15 @@ components:
       name: slug
       in: path
       required: true
+      schema:
+        type: string
+    ManageToken:
+      name: token
+      in: path
+      required: true
+      description: >-
+        The show-once manage token handed out when the booking was created.
+        Possession of it authorizes the customer's own cancel or reschedule.
       schema:
         type: string
     Cursor:
@@ -2051,6 +2369,442 @@ components:
           format: date
         notes:
           type: string
+    BookingTimestampInput:
+      description: >-
+        A timestamp on the way in — Unix milliseconds, or an ISO 8601
+        date-time string. Responses always render timestamps as ISO 8601.
+      type: [integer, string]
+    BookingStatus:
+      type: string
+      enum: [pending, confirmed, completed, cancelled, no_show]
+    BookingCancelledBy:
+      description: >-
+        Who cancelled. `staff` for the id-addressed cancel, `customer` for the
+        manage-token cancel, `system` for an automated one.
+      type: string
+      enum: [customer, staff, system]
+    BookingPaymentStatus:
+      type: string
+      enum: [none, reserved, captured, refunded]
+    BookingCreatedVia:
+      type: string
+      enum: [web, dashboard, walk_in, api]
+    BookingResourceType:
+      type: string
+      enum: [staff, room, equipment]
+    Booking:
+      type: object
+      required:
+        - id
+        - contact_id
+        - service_id
+        - resource_id
+        - start_ts
+        - end_ts
+        - booked_for_name
+        - booked_for_birth_year
+        - party_sequence_id
+        - status
+        - cancelled_by
+        - cancel_reason
+        - rescheduled_from_id
+        - payment_status
+        - amount_ore
+        - notes
+        - internal_notes
+        - created_via
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        contact_id:
+          type: [string, "null"]
+        service_id:
+          type: [string, "null"]
+        resource_id:
+          type: [string, "null"]
+        start_ts:
+          type: [string, "null"]
+          format: date-time
+        end_ts:
+          type: [string, "null"]
+          format: date-time
+        booked_for_name:
+          type: [string, "null"]
+        booked_for_birth_year:
+          description: A birth year, not a birthdate — the age bracket is all that is stored.
+          type: [integer, "null"]
+        party_sequence_id:
+          description: Shared by every booking created in the same party request.
+          type: [string, "null"]
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        cancelled_by:
+          oneOf:
+            - $ref: "#/components/schemas/BookingCancelledBy"
+            - type: "null"
+        cancel_reason:
+          type: [string, "null"]
+        rescheduled_from_id:
+          description: On a booking created by a reschedule, the booking it replaced.
+          type: [string, "null"]
+        payment_status:
+          $ref: "#/components/schemas/BookingPaymentStatus"
+        amount_ore:
+          description: Price in integer øre. Never a float and never kroner.
+          type: [integer, "null"]
+        notes:
+          description: Customer-visible note.
+          type: [string, "null"]
+        internal_notes:
+          description: Staff-only note; never shown to the customer.
+          type: [string, "null"]
+        created_via:
+          oneOf:
+            - $ref: "#/components/schemas/BookingCreatedVia"
+            - type: "null"
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    BookingService:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - category
+        - duration_minutes
+        - buffer_before_minutes
+        - buffer_after_minutes
+        - price_ore
+        - weekend_surcharge_pct
+        - resource_requirements
+        - bookable_online
+        - max_per_booking
+        - color
+        - sort_order
+        - active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        name:
+          type: [string, "null"]
+        description:
+          type: [string, "null"]
+        category:
+          type: [string, "null"]
+        duration_minutes:
+          type: [integer, "null"]
+        buffer_before_minutes:
+          type: [integer, "null"]
+        buffer_after_minutes:
+          type: [integer, "null"]
+        price_ore:
+          description: Price in integer øre.
+          type: [integer, "null"]
+        weekend_surcharge_pct:
+          type: [number, "null"]
+        resource_requirements:
+          description: Resource types this service needs, e.g. `["staff"]`.
+          type: array
+          items:
+            type: string
+        bookable_online:
+          type: boolean
+        max_per_booking:
+          type: [integer, "null"]
+        color:
+          type: [string, "null"]
+        sort_order:
+          type: [integer, "null"]
+        active:
+          type: boolean
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    BookingResource:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - photo_url
+        - bio
+        - service_ids
+        - capacity
+        - sort_order
+        - active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        type:
+          oneOf:
+            - $ref: "#/components/schemas/BookingResourceType"
+            - type: "null"
+        name:
+          type: [string, "null"]
+        photo_url:
+          type: [string, "null"]
+          format: uri
+        bio:
+          type: [string, "null"]
+        service_ids:
+          description: Services this resource can perform.
+          type: array
+          items:
+            type: string
+        capacity:
+          type: [integer, "null"]
+        sort_order:
+          type: [integer, "null"]
+        active:
+          type: boolean
+        created_at:
+          type: [string, "null"]
+          format: date-time
+        updated_at:
+          type: [string, "null"]
+          format: date-time
+    BookingSlot:
+      type: object
+      required: [start_ts, end_ts, resource_id]
+      properties:
+        start_ts:
+          type: [string, "null"]
+          format: date-time
+        end_ts:
+          type: [string, "null"]
+          format: date-time
+        resource_id:
+          type: [string, "null"]
+    BookingContactInput:
+      description: The person the booking is made under. Phone is the CRM dedupe key.
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          maxLength: 40
+        email:
+          type: string
+          maxLength: 320
+        name:
+          type: string
+          maxLength: 200
+    CreateBookingItemInput:
+      description: One line of a party — a single service on a single slot.
+      type: object
+      required: [service_id, start_ts]
+      properties:
+        service_id:
+          type: string
+        resource_id:
+          description: Omit to let the engine pick a free resource.
+          type: string
+        start_ts:
+          $ref: "#/components/schemas/BookingTimestampInput"
+        booked_for_name:
+          type: string
+          maxLength: 200
+        booked_for_birth_year:
+          type: integer
+          minimum: 1900
+          maximum: 2200
+    CreateBookingInput:
+      type: object
+      required: [items, contact]
+      properties:
+        items:
+          description: >-
+            A PARTY — one request books a whole family in one all-or-nothing
+            transaction.
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/CreateBookingItemInput"
+        contact:
+          $ref: "#/components/schemas/BookingContactInput"
+        notes:
+          type: string
+          maxLength: 5000
+    CreatedBooking:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        manage_token:
+          description: >-
+            Show-once secret for the customer's manage link. Only its hash is
+            stored, and an idempotent replay omits this field entirely.
+          type: string
+    BookingCreateResult:
+      type: object
+      required: [bookings, contact_id]
+      properties:
+        bookings:
+          description: One entry per created booking, in request order.
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatedBooking"
+        contact_id:
+          type: string
+    BookingActionResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    BookingRescheduleResult:
+      type: object
+      required: [success, booking_id]
+      properties:
+        success:
+          type: boolean
+          const: true
+        booking_id:
+          description: >-
+            The NEW booking's id — a reschedule cancels the old row and inserts
+            a new one.
+          type: string
+        manage_token:
+          description: >-
+            Freshly minted manage token for the new booking; omitted on an
+            idempotent replay.
+          type: string
+    ManageSummary:
+      description: >-
+        What the holder of a manage token may see and do. `can_cancel` and
+        `can_reschedule` already apply the workspace's policy windows.
+      type: object
+      required:
+        - booking_id
+        - contact_id
+        - status
+        - cancelled_by
+        - cancel_reason
+        - rescheduled_from_id
+        - start_ts
+        - end_ts
+        - service_id
+        - service_name
+        - resource_id
+        - resource_name
+        - booked_for_name
+        - party_sequence_id
+        - amount_ore
+        - payment_status
+        - time_zone
+        - cancel_window_hours
+        - reschedule_window_hours
+        - can_cancel
+        - can_reschedule
+      properties:
+        booking_id:
+          type: string
+        contact_id:
+          type: [string, "null"]
+        status:
+          oneOf:
+            - $ref: "#/components/schemas/BookingStatus"
+            - type: "null"
+        cancelled_by:
+          oneOf:
+            - $ref: "#/components/schemas/BookingCancelledBy"
+            - type: "null"
+        cancel_reason:
+          type: [string, "null"]
+        rescheduled_from_id:
+          type: [string, "null"]
+        start_ts:
+          type: [string, "null"]
+          format: date-time
+        end_ts:
+          type: [string, "null"]
+          format: date-time
+        service_id:
+          type: [string, "null"]
+        service_name:
+          type: [string, "null"]
+        resource_id:
+          type: [string, "null"]
+        resource_name:
+          type: [string, "null"]
+        booked_for_name:
+          type: [string, "null"]
+        party_sequence_id:
+          type: [string, "null"]
+        amount_ore:
+          description: Price in integer øre.
+          type: [integer, "null"]
+        payment_status:
+          oneOf:
+            - $ref: "#/components/schemas/BookingPaymentStatus"
+            - type: "null"
+        time_zone:
+          description: IANA zone the booking's local times should be rendered in.
+          type: [string, "null"]
+        cancel_window_hours:
+          type: [number, "null"]
+        reschedule_window_hours:
+          type: [number, "null"]
+        can_cancel:
+          type: boolean
+        can_reschedule:
+          type: boolean
+    UpdateBookingInput:
+      description: At least one of `notes` or `internal_notes` is required. `""` clears a field.
+      type: object
+      properties:
+        notes:
+          description: Customer-visible note.
+          type: string
+          maxLength: 5000
+        internal_notes:
+          description: Staff-only note.
+          type: string
+          maxLength: 5000
+    CancelBookingInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    RescheduleBookingInput:
+      type: object
+      required: [new_start_ts]
+      properties:
+        new_start_ts:
+          $ref: "#/components/schemas/BookingTimestampInput"
+        new_resource_id:
+          type: string
+    BookingsPagination:
+      description: >-
+        Pagination for a bookings page. `truncated` is the extra statement:
+        the underlying read is capped, and when the cap binds there are
+        matching bookings no cursor from this call reaches — narrow the window.
+      type: object
+      required: [has_more, next_cursor, truncated]
+      properties:
+        has_more:
+          type: boolean
+        next_cursor:
+          type: [string, "null"]
+        truncated:
+          type: boolean
     GdprExport:
       type: object
       required: [id, request_type, status, submitted_at, completed_at]
@@ -2743,6 +3497,22 @@ components:
       $ref: "#/components/schemas/Envelope_DealUpdateResult"
     ApiResponse_DealRemoveResult:
       $ref: "#/components/schemas/Envelope_DealRemoveResult"
+    ApiResponse_Booking:
+      $ref: "#/components/schemas/Envelope_Booking"
+    ApiResponse_BookingServiceArray:
+      $ref: "#/components/schemas/Envelope_BookingServiceArray"
+    ApiResponse_BookingResourceArray:
+      $ref: "#/components/schemas/Envelope_BookingResourceArray"
+    ApiResponse_BookingSlotArray:
+      $ref: "#/components/schemas/Envelope_BookingSlotArray"
+    ApiResponse_BookingCreateResult:
+      $ref: "#/components/schemas/Envelope_BookingCreateResult"
+    ApiResponse_BookingActionResult:
+      $ref: "#/components/schemas/Envelope_BookingActionResult"
+    ApiResponse_BookingRescheduleResult:
+      $ref: "#/components/schemas/Envelope_BookingRescheduleResult"
+    ApiResponse_ManageSummary:
+      $ref: "#/components/schemas/Envelope_ManageSummary"
     ApiResponse_GdprExportRequest:
       $ref: "#/components/schemas/Envelope_GdprExportRequest"
     ApiResponse_GdprExportArray:
@@ -2832,6 +3602,16 @@ components:
             $ref: "#/components/schemas/Deal"
         pagination:
           $ref: "#/components/schemas/Pagination"
+    PaginatedResponse_Booking:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        pagination:
+          $ref: "#/components/schemas/BookingsPagination"
     PaginatedResponse_HelpdeskConversation:
       type: object
       required: [data, pagination]
@@ -3002,6 +3782,60 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/DealRemoveResult"
+    Envelope_Booking:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Booking"
+    Envelope_BookingServiceArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingService"
+    Envelope_BookingResourceArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingResource"
+    Envelope_BookingSlotArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingSlot"
+    Envelope_BookingCreateResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/BookingCreateResult"
+    Envelope_BookingActionResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/BookingActionResult"
+    Envelope_BookingRescheduleResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/BookingRescheduleResult"
+    Envelope_ManageSummary:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ManageSummary"
     ScanCreateInput:
       type: object
       description: Provide exactly one of `url`, `orgnr`, or `name`.

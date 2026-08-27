@@ -204,6 +204,68 @@ const { data: removed } = await medal.deals.remove(deal.id);
 console.log(updated.success, unlinked.success, removed.success);
 ```
 
+### Bookings
+
+Money is always **integer øre** (`amount_ore`, `price_ore`) — never a float, never kroner. Timestamps come back as ISO 8601 strings; on the way in, either Unix milliseconds or an ISO string is accepted.
+
+```ts
+// Catalogue + free slots
+const { data: services } = await medal.bookings.listServices();
+const { data: resources } = await medal.bookings.listResources();
+const { data: slots } = await medal.bookings.availability({
+  service_id: services[0].id,
+  from_ts: Date.now(),
+  to_ts: Date.now() + 7 * 86_400_000,
+  resource_id: resources[0].id,     // optional — defaults to every capable resource
+});
+
+// Book a party — all items succeed or none do (max 50)
+const { data: created } = await medal.bookings.create(
+  {
+    items: [
+      { service_id: services[0].id, start_ts: slots[0].start_ts! },
+      { service_id: services[0].id, start_ts: slots[1].start_ts!, booked_for_name: 'Ida', booked_for_birth_year: 2018 },
+    ],
+    contact: { phone: '+4790000000', email: 'ida@example.com', name: 'Ida Hansen' },
+    notes: 'Bursdag',
+  },
+  { idempotencyKey: crypto.randomUUID() },   // safe to retry
+);
+// created.bookings[i].manage_token is returned EXACTLY ONCE (only its hash is
+// stored, and an idempotent replay omits it) — persist it for the manage link.
+
+// Staff actions — policy windows are bypassed, cancels attributed to staff
+const { data: booking } = await medal.bookings.get(created.bookings[0].id);
+await medal.bookings.update(booking.id, { internal_notes: 'Allergisk mot parfyme' });
+await medal.bookings.cancel(booking.id, { reason: 'Sykdom' });
+const { data: moved } = await medal.bookings.reschedule(booking.id, {
+  new_start_ts: '2026-09-02T09:00:00.000Z',
+  new_resource_id: resources[0].id,
+});
+// moved.booking_id is a NEW id with a NEW manage_token — the old booking is cancelled
+await medal.bookings.markNoShow(moved.booking_id);
+
+// Listing — check `truncated`: when true, matching bookings exist that no
+// cursor reaches, so narrow the from_ts/to_ts window
+const page = await medal.bookings.list({ status: 'confirmed', from_ts: Date.now(), limit: 50 });
+console.log(page.pagination.has_more, page.pagination.next_cursor, page.pagination.truncated);
+```
+
+**Customer actions go through `medal.bookings.manage`**, keyed by the manage token instead of the booking id. This is not the same route with a different lookup key: the workspace's cancel/reschedule windows are **enforced**, and the cancel is attributed to the customer. Use it to relay a customer's own click on the link in their confirmation email.
+
+```ts
+const { data: summary } = await medal.bookings.manage.get(manageToken);
+if (summary.can_cancel) await medal.bookings.manage.cancel(manageToken, { reason: 'Endret plan' });
+if (summary.can_reschedule) {
+  const { data } = await medal.bookings.manage.reschedule(manageToken, {
+    new_start_ts: '2026-09-02T09:00:00.000Z',
+  });
+  console.log(data.booking_id, data.manage_token); // old token stops working
+}
+```
+
+`can_cancel` / `can_reschedule` already apply the policy windows — honour them rather than re-deriving from `cancel_window_hours`.
+
 ### GDPR
 
 ```ts
