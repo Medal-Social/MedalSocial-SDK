@@ -2770,17 +2770,40 @@ components:
         At least one of `notes` or `internal_notes` is required — the API
         rejects a body carrying neither with a 400. `""` is a meaningful value
         that clears the field, so the constraint is on presence.
-      type: object
-      minProperties: 1
-      properties:
-        notes:
-          description: Customer-visible note.
-          type: string
-          maxLength: 5000
-        internal_notes:
-          description: Staff-only note.
-          type: string
-          maxLength: 5000
+      # Spelled out as two fully-typed branches rather than the terser
+      # `anyOf: [{required: [notes]}, {required: [internal_notes]}]`, because a
+      # branch carrying only `required` generates as `unknown` — and `T |
+      # unknown` collapses to `unknown`, which accepts everything and is worse
+      # than the unconstrained object. Each branch therefore repeats the
+      # properties so openapi-typescript emits a real discriminating union.
+      #
+      # `minProperties: 1` is deliberately absent: `anyOf` on two named
+      # properties already implies it and is strictly stronger (it also rejects
+      # `{ unrelated_key: 1 }`), so keeping both would be two statements of one
+      # invariant to drift apart.
+      anyOf:
+        - type: object
+          required: [notes]
+          properties:
+            notes:
+              description: Customer-visible note.
+              type: string
+              maxLength: 5000
+            internal_notes:
+              description: Staff-only note.
+              type: string
+              maxLength: 5000
+        - type: object
+          required: [internal_notes]
+          properties:
+            notes:
+              description: Customer-visible note.
+              type: string
+              maxLength: 5000
+            internal_notes:
+              description: Staff-only note.
+              type: string
+              maxLength: 5000
     CancelBookingInput:
       type: object
       properties:

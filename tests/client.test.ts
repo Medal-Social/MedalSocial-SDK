@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseClient, createMedalClient, Medal, MedalApiError } from "../src";
+import type { components } from "../src/openapi.generated";
+
+// Compile-time guard: the OPENAPI-DERIVED type must carry the same
+// "at least one of notes / internal_notes" invariant as the handwritten
+// `UpdateBookingInput`. `minProperties` alone does not survive codegen, so
+// this fails the typecheck gate if the `anyOf` branches are ever dropped.
+type GeneratedUpdateBookingInput = components["schemas"]["UpdateBookingInput"];
+// @ts-expect-error - an empty update must not satisfy the generated contract
+const _rejectsEmptyUpdate: GeneratedUpdateBookingInput = {};
+const _acceptsNotesOnly: GeneratedUpdateBookingInput = { notes: "" };
+const _acceptsInternalOnly: GeneratedUpdateBookingInput = { internal_notes: "x" };
+void _rejectsEmptyUpdate;
+void _acceptsNotesOnly;
+void _acceptsInternalOnly;
 
 const BASE = "https://test.convex.site";
 
@@ -770,6 +784,41 @@ describe("bookings", () => {
     expect(keys).toHaveLength(4);
     for (const key of keys) expect(key).toBeTruthy();
     expect(new Set(keys).size, "each call gets its own key").toBe(4);
+  });
+
+  it("generates a key when the caller supplies a blank one", async () => {
+    // `??` would treat "" as supplied, and `writeHeaders` then drops the falsy
+    // value — the POST goes out unkeyed and the 5xx retry can double-book
+    // again. Any caller doing `idempotencyKey: someVar` can hit this.
+    for (const blank of ["", "   ", "\t\n"]) {
+      const keys: (string | null)[] = [];
+      const spy = vi.spyOn(globalThis, "fetch");
+      spy.mockImplementation(async (_url, init) => {
+        keys.push(new Headers(init?.headers).get("idempotency-key"));
+        return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+      });
+
+      const medal = new Medal("medal_test", { baseUrl: BASE });
+      await medal.bookings.create(
+        { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+        { idempotencyKey: blank },
+      );
+
+      expect(keys[0], `blank key ${JSON.stringify(blank)} must be replaced`).toBeTruthy();
+      expect(keys[0]?.trim()).toBe(keys[0]);
+      spy.mockRestore();
+    }
+  });
+
+  it("generates a key when options carry no idempotencyKey at all", async () => {
+    let key: string | null = null;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      key = new Headers(init?.headers).get("idempotency-key");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.markNoShow("bk_1", {});
+    expect(key).toBeTruthy();
   });
 
   it("never overwrites a caller-supplied idempotency key", async () => {

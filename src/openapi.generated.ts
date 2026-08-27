@@ -1572,12 +1572,19 @@ export interface components {
       can_reschedule: boolean;
     };
     /** @description At least one of `notes` or `internal_notes` is required — the API rejects a body carrying neither with a 400. `""` is a meaningful value that clears the field, so the constraint is on presence. */
-    UpdateBookingInput: {
-      /** @description Customer-visible note. */
-      notes?: string;
-      /** @description Staff-only note. */
-      internal_notes?: string;
-    };
+    UpdateBookingInput:
+      | {
+          /** @description Customer-visible note. */
+          notes: string;
+          /** @description Staff-only note. */
+          internal_notes?: string;
+        }
+      | {
+          /** @description Customer-visible note. */
+          notes?: string;
+          /** @description Staff-only note. */
+          internal_notes: string;
+        };
     CancelBookingInput: {
       reason?: string;
     };

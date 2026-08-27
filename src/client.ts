@@ -110,11 +110,20 @@ export class BaseClient {
    * attempt of the same logical call carries the same value — a key minted per
    * attempt would deduplicate nothing. A caller-supplied key always wins, so
    * callers keeping their own records stay in control.
+   *
+   * A blank key counts as no key. `??` alone would treat `""` as supplied,
+   * `writeHeaders` would then drop the falsy value, and the write would go out
+   * with no header at all — silently unprotected, which is the one failure
+   * this method exists to rule out. Whitespace-only is the same hazard by a
+   * different route: header values are stripped in transit, so `"   "` reaches
+   * the server as `""` and is ignored there too. Both are reachable from an
+   * ordinary `idempotencyKey: someVar` where the variable happens to be blank.
    */
   async postOnce<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    const supplied = (options?.idempotencyKey ?? "").trim();
     return this.post(path, body, {
       ...options,
-      idempotencyKey: options?.idempotencyKey ?? randomIdempotencyKey(),
+      idempotencyKey: supplied || randomIdempotencyKey(),
     });
   }
 
