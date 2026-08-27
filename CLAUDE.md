@@ -16,19 +16,36 @@ feat/* → dev → promote/dev-to-prod-<date> → prod
   scanning alerts against `prod`, so a security fix merged to `dev` does not
   clear the security tab until it is promoted.
 
-### `prod` is ahead of `dev`, and that is structural
+### `prod` is ahead of `dev` permanently — do not try to "fix" it
+
+`prod` is **not** an ancestor of `dev` and cannot be made one:
+
+```bash
+git merge-base --is-ancestor origin/prod origin/dev   # fails, by design
+```
 
 Every release puts a `chore: release packages` commit (version bump +
-CHANGELOG) on `prod` that is never back-merged. So:
+CHANGELOG) on `prod`, and every promote adds a squash commit that exists only
+there. So `prod` always carries commits `dev` lacks.
 
-- `prod` is **not** an ancestor of `dev` — `git merge-base --is-ancestor
-  origin/prod origin/dev` fails, and a fast-forward promote is impossible.
-- `dev` is missing prod's release bookkeeping until someone back-merges.
+**A back-merge cannot repair this.** `dev` has classic branch protection with
+`required_linear_history: true` and `enforce_admins: true`, so merge commits
+are refused outright — the API returns `405 Merge commits are not allowed on
+this repository`, and `--admin` does not get past `enforce_admins`. Squash and
+rebase both flatten the second parent, so a back-merge PR merged either way
+restores nothing while looking like it did.
 
-Repairing the ancestry does not stick: the next release breaks it again. The
-durable fix is to **back-merge `prod` → `dev` after every release** (as PR #67
-did), or to move the version bump onto `dev`. Until then, promote with the
-tree-swap below.
+Do not cite PR #67 ("chore: back-merge prod into dev") as precedent. It merged
+as `e1f0599` with a **single parent** — it was squashed, so it never restored
+ancestry. The only true merge commits on `dev` predate linear history.
+
+This is therefore a consequence of the branch policy, not neglect, and the
+tree-swap promote below is the correct permanent procedure — not a workaround.
+Changing it would mean relaxing linear history on `dev` and allowing
+fast-forward pushes to `prod`, which is a deliberate policy decision, not a
+cleanup task. Do not force-push `prod` either: it rewrites a public repo's
+default branch, npm/JSR provenance attestations reference published commit
+SHAs, and the next release breaks it again regardless.
 
 `git cherry origin/dev origin/prod` prints ~30 `+` lines here. That is patch-id
 noise from squash-created promote commits, **not** evidence of lost content —
