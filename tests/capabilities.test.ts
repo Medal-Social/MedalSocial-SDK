@@ -3,6 +3,7 @@ import {
   BaseClient,
   CAPABILITY_IDS,
   CAPABILITY_ROUTES,
+  CapabilityConfirmer,
   Channels,
   Helpdesk,
   Medal,
@@ -485,5 +486,69 @@ describe("auto-confirm", () => {
     ]);
     expect(paths).toContain("/api/v1/helpdesk/replies");
     expect(paths).toContain("/api/v1/helpdesk/conversations/c_1");
+  });
+});
+
+describe("capability confirmer internals", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  /** Records what `prepare()` sends to the confirmations endpoint. */
+  function recordingConfirmations() {
+    const seen: { path_params?: unknown; idempotency_key?: string; preview_summary?: string }[] =
+      [];
+    return {
+      seen,
+      api: {
+        create: async (input: Record<string, unknown>) => {
+          seen.push(input);
+          return { data: { confirmation_token: "mcct_token_1" } };
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: minimal stand-in for the resource
+      } as any,
+    };
+  }
+
+  it("leaves an unsupplied path param as a literal placeholder in the preview", async () => {
+    // `/connect-links/{id}` with no pathParams must NOT silently become
+    // `/connect-links/undefined` — the summary the user approves has to show
+    // the template it could not fill.
+    const { api, seen } = recordingConfirmations();
+    let seenPath = "";
+    const confirmer = new CapabilityConfirmer(api, {
+      previewSummary: (ctx) => {
+        seenPath = ctx.path;
+        return "revoke a connect link";
+      },
+    });
+
+    const options = await confirmer.prepare({
+      capabilityId: "channel.connect_link.revoke.execute",
+      body: undefined,
+    });
+
+    expect(seenPath).toBe("/api/v1/channels/connect-links/{id}");
+    expect(seen[0]?.path_params).toBeUndefined();
+    expect(options?.capabilityConfirmation).toBe("mcct_token_1");
+  });
+
+  it("mints an idempotency key without WebCrypto randomUUID", async () => {
+    // Runtimes without `crypto.randomUUID` must still get a usable key rather
+    // than throwing on the optional chain.
+    vi.stubGlobal("crypto", undefined);
+    const { api } = recordingConfirmations();
+    const confirmer = new CapabilityConfirmer(api, {
+      previewSummary: () => "approved",
+    });
+
+    const options = await confirmer.prepare({
+      capabilityId: "channel.connect_link.create.execute",
+      body: { platform: "instagram" },
+      // biome-ignore lint/suspicious/noExplicitAny: body shape is not under test here
+    } as any);
+
+    expect(options?.idempotencyKey).toMatch(/^idem_/);
   });
 });

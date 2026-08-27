@@ -7,11 +7,99 @@ TypeScript SDK for the Medal Social API. Public open-source package published to
 ## Branch Strategy
 
 ```
-feat/* → dev → prod
+feat/* → dev → promote/dev-to-prod-<date> → prod
 ```
 
-- `dev` — default branch, all PRs merge here first
-- `prod` — production branch, triggers release and docs deploy on push
+- `dev` — where all feature PRs merge first
+- `prod` — **the repository's default branch**. Pushing to it triggers the
+  release and the docs deploy. GitHub also evaluates Dependabot and code
+  scanning alerts against `prod`, so a security fix merged to `dev` does not
+  clear the security tab until it is promoted.
+
+### `prod` is ahead of `dev` permanently — do not try to "fix" it
+
+`prod` is **not** an ancestor of `dev` and cannot be made one:
+
+```bash
+git merge-base --is-ancestor origin/prod origin/dev   # fails, by design
+```
+
+Every release puts a `chore: release packages` commit (version bump +
+CHANGELOG) on `prod`, and every promote adds a squash commit that exists only
+there. So `prod` always carries commits `dev` lacks.
+
+**A back-merge cannot repair this.** `dev` has classic branch protection with
+`required_linear_history: true` and `enforce_admins: true`, so merge commits
+are refused outright — the API returns `405 Merge commits are not allowed on
+this repository`, and `--admin` does not get past `enforce_admins`. Squash and
+rebase both flatten the second parent, so a back-merge PR merged either way
+restores nothing while looking like it did.
+
+Do not cite PR #67 ("chore: back-merge prod into dev") as precedent. It merged
+as `e1f0599` with a **single parent** — it was squashed, so it never restored
+ancestry. The only true merge commits on `dev` predate linear history.
+
+This is therefore a consequence of the branch policy, not neglect, and the
+tree-swap promote below is the correct permanent procedure — not a workaround.
+Changing it would mean relaxing linear history on `dev` and allowing
+fast-forward pushes to `prod`, which is a deliberate policy decision, not a
+cleanup task. Do not force-push `prod` either: it rewrites a public repo's
+default branch, npm/JSR provenance attestations reference published commit
+SHAs, and the next release breaks it again regardless.
+
+`git cherry origin/dev origin/prod` prints ~30 `+` lines here. That is patch-id
+noise from squash-created promote commits, **not** evidence of lost content —
+do not use it as the pre-flight. Use the tree diff instead.
+
+## Promoting `dev` → `prod`
+
+One commit carrying **dev's exact tree** with prod's tip as its parent. Never
+open a `base=prod head=dev` PR directly — it shows as conflicting.
+
+```bash
+git fetch origin '+refs/heads/dev:refs/remotes/origin/dev' '+refs/heads/prod:refs/remotes/origin/prod'
+
+# Pre-flight — this is the check that matters. Every line must be an expected
+# `M`. An unexpected `D` means the swap would DROP content that only exists on
+# prod: stop and back-merge prod into dev first.
+git diff --name-status origin/prod origin/dev
+
+DATE=$(date -u +%Y-%m-%d)
+SHA=$(git commit-tree 'origin/dev^{tree}' -p origin/prod   -m "chore(release): promote dev → prod ($DATE)")
+
+# Verify the promote commit really carries dev's tree — must print nothing.
+git diff "$SHA" origin/dev
+
+git push origin "$SHA:refs/heads/promote/dev-to-prod-$DATE"
+gh pr create --base prod --head "promote/dev-to-prod-$DATE"   --title "chore(release): promote dev → prod ($DATE)"
+```
+
+Then, once `lint` / `test` / `build` are green on the PR:
+
+```bash
+# --match-head-commit refuses the merge if anything landed on the branch after
+# you opened it, so the approval cannot be transferred to a different tree.
+gh pr merge --squash --match-head-commit "$SHA" "promote/dev-to-prod-$DATE"
+```
+
+`prod` requires **1 approving review from another account** — whoever pushed
+the branch cannot approve it.
+
+### What the promote triggers
+
+- `release.yml` — Changesets. With pending `.changeset/*.md` files it opens a
+  `chore: release packages` version PR (bot-pushed, so it is self-mergeable);
+  merging that publishes to npm + JSR. **With no pending changesets nothing is
+  published** and the version stays put.
+- `docs.yml` — TypeDoc to GitHub Pages.
+- `codeql.yml` / `scorecard.yml` — re-scan, which is what closes security alerts.
+
+### Rollback
+
+There is none, and there cannot be one: npm and JSR releases are immutable and
+npm blocks unpublish after 72 hours. **Releases are roll-forward only** — fix
+on `dev`, promote again, publish a new patch. Treat the promote as the point of
+no return and make sure CI is green before merging, not after.
 
 ## Release Pipeline
 
@@ -20,7 +108,7 @@ Publishing uses **Changesets** with **npm OIDC trusted publishing** — no stati
 ### How it works
 
 1. Merge a PR with a `.changeset/*.md` file into `dev`
-2. PR `dev → prod`
+2. Promote `dev → prod` (see [Promoting `dev` → `prod`](#promoting-dev--prod) — it is a tree-swap, not a plain PR)
 3. Merging to `prod` triggers `.github/workflows/release.yml`
 4. The workflow runs inside the `npm` GitHub Environment (locked to `prod` branch only)
 5. `id-token: write` permission issues an OIDC token
@@ -54,9 +142,17 @@ Add support for X resource
 
 | Job | What it checks |
 |-----|---------------|
-| `test` | Vitest unit tests + Codecov coverage upload |
+| `test` | Vitest via `pnpm test:coverage` + Codecov upload. Coverage thresholds are **100%** on statements/branches/functions/lines — a new uncovered branch fails CI |
 | `lint` | Biome |
-| `build` | `tsup` — ensures dist builds clean |
+| `build` | `pnpm typecheck`, then OpenAPI lint, `tsup` build, OpenAPI coverage, entry-point verification |
+| `security` | secretlint over tracked files + knip |
+
+`pnpm typecheck` runs `tsc --noEmit` twice: once on `tsconfig.json` (`src` only,
+the shipped surface) and once on `tsconfig.test.json`, which widens it to
+`tests`, `pilot` and `scripts`. Vitest never typechecks, so without the second
+pass test files are unchecked.
+
+`prod`'s ruleset requires the `lint`, `test` and `build` contexts.
 
 ## Security Workflows
 
