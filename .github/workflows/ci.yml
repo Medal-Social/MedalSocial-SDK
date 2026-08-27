@@ -100,38 +100,60 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run tsgo --noEmit on both configs (timed)
-        continue-on-error: true
         run: |
+          # NOTE: no step-level continue-on-error. This step is MEANT to go red
+          # when TS 7 rejects our source — that red is the entire signal. The
+          # job-level continue-on-error above is what keeps it non-gating, so
+          # a red job here never fails the workflow or blocks a merge.
+          #
           # dlx runs the package's default bin (tsc) directly. Naming the bin as
           # an extra token would make it treat that token as a source file and
           # die with TS5042 ("'project' cannot be mixed with source files").
           #
           # Unpinned within 7.x on purpose: the point is to track the newest
           # TS 7. pnpm 11 quarantines releases younger than 24h, so a very
-          # fresh 7.x can make this step fail to install — advisory, so fine.
+          # fresh 7.x can make this step fail to install — which is advisory
+          # too, and indistinguishable from drift only until you read the log.
+          SUMMARY=$(mktemp)
+
           run_one() {
-            local cfg="$1" start end
+            local cfg="$1" start
             start=$(date +%s)
+            # tsgo's own output goes to the job log, not the step summary.
             if pnpm dlx typescript@7 --noEmit -p "$cfg"; then
-              echo "  $cfg: clean in $(($(date +%s) - start))s"
+              echo "- \`$cfg\`: clean in $(($(date +%s) - start))s" >> "$SUMMARY"
             else
-              echo "  $cfg: ERRORS in $(($(date +%s) - start))s"
+              echo "- \`$cfg\`: **ERRORS** in $(($(date +%s) - start))s" >> "$SUMMARY"
               return 1
             fi
           }
-          verdict=clean
+
           {
             echo "### tsgo shadow (TypeScript 7, advisory)"
             echo ""
-            run_one tsconfig.json || verdict=errors
-            run_one tsconfig.test.json || verdict=errors
+          } > "$SUMMARY"
+
+          # Deliberately NOT inside a `{ ... } | tee` group: that runs in a
+          # subshell, so the verdict assignments below would be discarded and
+          # the step could never report drift.
+          verdict=clean
+          run_one tsconfig.json || verdict=errors
+          run_one tsconfig.test.json || verdict=errors
+
+          {
             echo ""
-            echo "verdict: **$verdict** — tsc 6 baseline for the same two configs is ~2s in the build job."
+            echo "verdict: **$verdict** (tsc 6 baseline for the same two configs: ~2s in the build job)"
             if [ "$verdict" = errors ]; then
               echo ""
-              echo "Our source drifted from TS 7. Advisory only — nothing is blocked."
+              echo "Our source drifted from TypeScript 7. This job is red on purpose; nothing is gated by it."
             fi
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          } >> "$SUMMARY"
+
+          cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          cat "$SUMMARY"
+
+          # Propagate the verdict so the job actually turns red on drift.
+          [ "$verdict" = clean ]
 
   security:
     runs-on: ubuntu-latest
