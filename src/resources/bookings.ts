@@ -48,7 +48,7 @@ class BookingsManage {
     input?: CancelBookingInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingActionResult>> {
-    return this.client.post(
+    return this.client.postOnce(
       `/api/v1/bookings/manage/${encodeURIComponent(token)}/cancel`,
       input ?? {},
       options,
@@ -65,7 +65,7 @@ class BookingsManage {
     input: RescheduleBookingInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingRescheduleResult>> {
-    return this.client.post(
+    return this.client.postOnce(
       `/api/v1/bookings/manage/${encodeURIComponent(token)}/reschedule`,
       input,
       options,
@@ -157,14 +157,18 @@ export class Bookings {
    *
    * Each created booking comes back with a `manage_token` exactly once; only
    * its hash is stored, so persist it if you need the customer's manage link.
-   * Pass `options.idempotencyKey` to make a retried create safe — a replay
-   * returns the same ids with the tokens redacted.
+   *
+   * Automatically idempotent: the SDK mints an `Idempotency-Key` so its own
+   * 5xx retries replay rather than book the slot twice. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too — the
+   * server keys on it for 24 hours, so re-sending the same key after a network
+   * timeout returns the original bookings instead of a second set.
    */
   async create(
     input: CreateBookingInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingCreateResult>> {
-    return this.client.post("/api/v1/bookings", input, options);
+    return this.client.postOnce("/api/v1/bookings", input, options);
   }
 
   /** Get a booking by ID. */
@@ -190,7 +194,7 @@ export class Bookings {
     input?: CancelBookingInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingActionResult>> {
-    return this.client.post(
+    return this.client.postOnce(
       `/api/v1/bookings/${encodeURIComponent(id)}/cancel`,
       input ?? {},
       options,
@@ -207,7 +211,7 @@ export class Bookings {
     input: RescheduleBookingInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingRescheduleResult>> {
-    return this.client.post(
+    return this.client.postOnce(
       `/api/v1/bookings/${encodeURIComponent(id)}/reschedule`,
       input,
       options,
@@ -219,7 +223,7 @@ export class Bookings {
     id: string,
     options?: RequestOptions,
   ): Promise<ApiResponse<BookingActionResult>> {
-    return this.client.post(
+    return this.client.postOnce(
       `/api/v1/bookings/${encodeURIComponent(id)}/no-show`,
       undefined,
       options,

@@ -229,10 +229,12 @@ const { data: created } = await medal.bookings.create(
     contact: { phone: '+4790000000', email: 'ida@example.com', name: 'Ida Hansen' },
     notes: 'Bursdag',
   },
-  { idempotencyKey: crypto.randomUUID() },   // safe to retry
+  { idempotencyKey: crypto.randomUUID() },   // optional — see the note below
 );
 // created.bookings[i].manage_token is returned EXACTLY ONCE (only its hash is
 // stored, and an idempotent replay omits it) — persist it for the manage link.
+// It is UNRECOVERABLE if lost: `Booking` has no token field, so re-reading the
+// booking gives you nothing. Reschedule to mint a fresh one, or act by id.
 
 // Staff actions — policy windows are bypassed, cancels attributed to staff
 const { data: booking } = await medal.bookings.get(created.bookings[0].id);
@@ -265,6 +267,10 @@ if (summary.can_reschedule) {
 ```
 
 `can_cancel` / `can_reschedule` already apply the policy windows — honour them rather than re-deriving from `cancel_window_hours`.
+
+**Booking writes are idempotent by default.** The SDK retries 429/5xx automatically, so every booking `POST` (`create`, `cancel`, `reschedule`, `markNoShow`, and both `manage` writes) carries a generated `Idempotency-Key` — a retry after a gateway failure replays the original result instead of booking the slot twice. Supply your own `options.idempotencyKey` to extend that guarantee across *your* retries too: the server remembers a key for 24 hours, keyed by `(key, workspace, method + path)`.
+
+`update(id, input)` requires at least one of `notes` / `internal_notes`; `update(id, {})` is a compile error, matching the API's own 400.
 
 ### GDPR
 

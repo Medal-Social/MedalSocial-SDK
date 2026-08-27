@@ -142,10 +142,16 @@ export interface CreateBookingInput {
 export interface CreatedBooking {
   id: string;
   /**
-   * Show-once secret for the customer's manage link. Only its hash is stored,
-   * so this is your only chance to keep it — **absent** when the response is
-   * replayed from an `Idempotency-Key`, where tokens are redacted. Re-read the
-   * booking if you lost it.
+   * Show-once secret for the customer's manage link.
+   *
+   * Only its SHA-256 hash is stored, so this response is the ONLY place it
+   * ever appears — persist it here or it is gone. It is **absent** (the key is
+   * dropped, not nulled) when the response is replayed from an
+   * `Idempotency-Key`, since tokens are redacted from replays.
+   *
+   * A lost token cannot be recovered: {@link Booking} carries no token field,
+   * so re-reading the booking will not produce it. Either reschedule the
+   * booking (which mints a fresh token) or have staff act on it by id.
    */
   manage_token?: string;
 }
@@ -208,13 +214,26 @@ export interface ManageSummary {
   can_reschedule: boolean;
 }
 
-/** Input for annotating a booking. At least one field is required. */
-export interface UpdateBookingInput {
+/** The annotation fields a booking accepts. */
+interface BookingNoteFields {
   /** Customer-visible note. Pass `""` to clear it. */
   notes?: string;
-  /** Staff-only note. Pass `""` to clear it. */
+  /** Staff-only note; never shown to the customer. Pass `""` to clear it. */
   internal_notes?: string;
 }
+
+/**
+ * Input for annotating a booking.
+ *
+ * At least one of `notes` or `internal_notes` must be present: the API's
+ * `updateBookingSchema` refuses a body carrying neither with a 400, so the
+ * union turns `update(id, {})` into a compile error rather than a wasted round
+ * trip. Note that `""` is a meaningful value — it clears the field — which is
+ * why the constraint is on presence, not on emptiness.
+ */
+export type UpdateBookingInput =
+  | (BookingNoteFields & { notes: string })
+  | (BookingNoteFields & { internal_notes: string });
 
 /** Optional reason recorded against a cancellation. */
 export interface CancelBookingInput {

@@ -46,6 +46,29 @@ export interface RequestOptions {
 }
 
 /**
+ * A fresh idempotency key for one logical write.
+ *
+ * `crypto.randomUUID` is gated to secure contexts in browsers, so a page
+ * served over http:// has `crypto` but not `randomUUID`. `getRandomValues` is
+ * available in every context, so fall back to assembling a v4 UUID by hand
+ * rather than letting a write go out unkeyed — an unkeyed write is exactly the
+ * one a retry can duplicate.
+ */
+function randomIdempotencyKey(): string {
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  webCrypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
  * Low-level HTTP client used by all resource classes.
  * Handles authentication, retries, timeout, and error parsing.
  */
@@ -69,6 +92,29 @@ export class BaseClient {
       method: "POST",
       headers: this.writeHeaders(options),
       body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  /**
+   * Execute a POST that must never execute twice, guaranteeing an
+   * `Idempotency-Key`.
+   *
+   * {@link BaseClient.post} retries 429 and 5xx automatically, so a write
+   * whose transaction committed before the gateway failed would otherwise be
+   * submitted a second time — booking the same slot twice. A key turns that
+   * retry into a replay: the server keys on the key, the workspace, and the
+   * method+path, and answers a repeat with the stored response, or 409 while
+   * the first attempt is still in flight. Either way the write happens once.
+   *
+   * The key is minted ONCE here, outside the retry loop in `request`, so every
+   * attempt of the same logical call carries the same value — a key minted per
+   * attempt would deduplicate nothing. A caller-supplied key always wins, so
+   * callers keeping their own records stay in control.
+   */
+  async postOnce<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.post(path, body, {
+      ...options,
+      idempotencyKey: options?.idempotencyKey ?? randomIdempotencyKey(),
     });
   }
 

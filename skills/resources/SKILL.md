@@ -133,7 +133,9 @@ data.bookings[0].manage_token;  // SHOW-ONCE
 data.contact_id;
 ```
 
-`manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so this is the only time you will ever see it — persist it if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`. A caller that lost it must re-read the booking; it cannot be recovered.
+`manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.
+
+**A lost token cannot be recovered.** `bookings.get(id)` returns a `Booking`, which has no token field — there is nothing to re-read, and the stored hash is one-way. The only ways forward are to reschedule the booking (`reschedule` mints a fresh token) or to have staff act on it by id.
 
 **The two semantics are picked by which namespace you call, not by an argument:**
 
@@ -316,7 +318,9 @@ The `with { type: "json" }` import-attribute syntax requires Node 24+ or a bundl
 | `medal.bookings.cancel(id)` to relay a customer's cancel | Bypasses the policy window and records `cancelled_by: 'staff'` | `medal.bookings.manage.cancel(token)` |
 | Dividing `amount_ore` / `price_ore` into kroner for storage | Integer øre; a float rounds and the invoice is wrong | Keep the integer; format only at the point of display |
 | Reusing the old id or manage token after a reschedule | Reschedule inserts a NEW booking and mints a NEW token | Store `result.booking_id` and `result.manage_token` |
-| Expecting `manage_token` on an idempotent replay | Tokens are redacted from replayed responses | Persist it on the first response; re-read the booking otherwise |
+| Expecting `manage_token` on an idempotent replay | Tokens are redacted from replayed responses | Persist it from the first response — a replay cannot give it back |
+| Re-reading a booking to recover a lost `manage_token` | `Booking` has no token field and only the hash is stored — it is unrecoverable | Reschedule to mint a fresh token, or act by booking id as staff |
+| `medal.bookings.update(id, {})` | Rejected by the API; now also a compile error | Pass at least one of `notes` / `internal_notes` |
 | Ignoring `pagination.truncated` on `bookings.list` | Matching bookings exist that no cursor reaches | Narrow `from_ts`/`to_ts` and page again |
 | Converting `start_ts` to a fixed format before sending | The API takes Unix ms **or** ISO 8601 | Pass a slot's `start_ts` straight through |
 | Building a custom client when only types are needed | Reinventing the wheel | Import from `@medalsocial/sdk/openapi-types` |

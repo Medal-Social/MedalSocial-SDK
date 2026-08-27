@@ -2766,8 +2766,12 @@ components:
         can_reschedule:
           type: boolean
     UpdateBookingInput:
-      description: At least one of `notes` or `internal_notes` is required. `""` clears a field.
+      description: >-
+        At least one of `notes` or `internal_notes` is required — the API
+        rejects a body carrying neither with a 400. `""` is a meaningful value
+        that clears the field, so the constraint is on presence.
       type: object
+      minProperties: 1
       properties:
         notes:
           description: Customer-visible note.

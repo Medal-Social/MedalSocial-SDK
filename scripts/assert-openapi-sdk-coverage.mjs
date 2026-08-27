@@ -200,7 +200,7 @@ const expected = [
     "/api/v1/bookings",
     "createBooking",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings",
   ],
   [
@@ -248,7 +248,7 @@ const expected = [
     "/api/v1/bookings/{id}/cancel",
     "cancelBooking",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings/${encodeURIComponent(id)}/cancel",
   ],
   [
@@ -256,7 +256,7 @@ const expected = [
     "/api/v1/bookings/{id}/reschedule",
     "rescheduleBooking",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings/${encodeURIComponent(id)}/reschedule",
   ],
   [
@@ -264,7 +264,7 @@ const expected = [
     "/api/v1/bookings/{id}/no-show",
     "markBookingNoShow",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings/${encodeURIComponent(id)}/no-show",
   ],
   [
@@ -280,7 +280,7 @@ const expected = [
     "/api/v1/bookings/manage/{token}/cancel",
     "cancelManagedBooking",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings/manage/${encodeURIComponent(token)}/cancel",
   ],
   [
@@ -288,7 +288,7 @@ const expected = [
     "/api/v1/bookings/manage/{token}/reschedule",
     "rescheduleManagedBooking",
     "src/resources/bookings.ts",
-    "post",
+    "postOnce",
     "/api/v1/bookings/manage/${encodeURIComponent(token)}/reschedule",
   ],
   [

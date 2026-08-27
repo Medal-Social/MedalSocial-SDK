@@ -696,6 +696,113 @@ describe("bookings", () => {
     );
   });
 
+  it("cannot create two bookings when a 5xx is retried", async () => {
+    // Simulates the server's idempotency machinery: a write only executes for
+    // an Idempotency-Key it has not seen. The first attempt commits the booking
+    // and THEN fails at the gateway — the exact window in which a keyless retry
+    // double-books.
+    const booked: string[] = [];
+    const seenKeys = new Set<string>();
+    let attempt = 0;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      attempt += 1;
+      const key = new Headers(init?.headers).get("idempotency-key");
+      expect(key, "every non-idempotent booking write must carry a key").toBeTruthy();
+
+      if (seenKeys.has(key as string)) {
+        // Replay — the server returns the stored response, tokens redacted.
+        return mockJson({ data: { bookings: [{ id: booked[0] }], contact_id: "c_1" } }, 201);
+      }
+      seenKeys.add(key as string);
+      booked.push(`bk_${booked.length + 1}`);
+
+      // Committed, then the gateway 500s. The SDK retries.
+      if (attempt === 1) return new Response("", { status: 503, statusText: "Error" });
+      return mockJson(
+        { data: { bookings: [{ id: booked[0], manage_token: "mt_1" }], contact_id: "c_1" } },
+        201,
+      );
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const { data } = await medal.bookings.create({
+      items: [{ service_id: "svc_1", start_ts: 1780000000000 }],
+      contact: { phone: "+4790000000" },
+    });
+
+    expect(attempt).toBe(2); // it really did retry
+    expect(seenKeys.size).toBe(1); // …under one key
+    expect(booked).toEqual(["bk_1"]); // …so exactly ONE booking exists
+    expect(data.bookings).toHaveLength(1);
+  });
+
+  it("reuses one generated key across every retry of a reschedule", async () => {
+    const keys: (string | null)[] = [];
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      if (keys.length === 1) return new Response("", { status: 500, statusText: "Error" });
+      return mockJson({ data: { success: true, booking_id: "bk_9" } });
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    await medal.bookings.reschedule("bk_1", { new_start_ts: 1780090000000 });
+
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it("keys the customer reschedule and cancel paths too", async () => {
+    const keys: (string | null)[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      return mockJson({ data: { success: true, booking_id: "bk_9" } });
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.manage.reschedule("tok_1", { new_start_ts: 1780090000000 });
+    await medal.bookings.manage.cancel("tok_1");
+    await medal.bookings.cancel("bk_1");
+    await medal.bookings.markNoShow("bk_1");
+
+    expect(keys).toHaveLength(4);
+    for (const key of keys) expect(key).toBeTruthy();
+    expect(new Set(keys).size, "each call gets its own key").toBe(4);
+  });
+
+  it("never overwrites a caller-supplied idempotency key", async () => {
+    const keys: (string | null)[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "caller_key" },
+    );
+    expect(keys).toEqual(["caller_key"]);
+  });
+
+  it("rejects an update that would change nothing", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "bk_1" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+
+    // The server's updateBookingSchema .refine()s that at least one of notes /
+    // internal_notes is present, so `{}` is a 400. The type must say so first.
+    // @ts-expect-error - at least one of notes / internal_notes is required
+    await medal.bookings.update("bk_1", {});
+
+    await medal.bookings.update("bk_1", { notes: "" }); // clearing IS meaningful
+    await medal.bookings.update("bk_1", { internal_notes: "x" });
+    await medal.bookings.update("bk_1", { notes: "a", internal_notes: "b" });
+  });
+
   it("gets a booking by ID and encodes it", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       expect(url).toContain("/api/v1/bookings/bk%2F1");
@@ -1134,6 +1241,34 @@ describe("misc", () => {
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await medal.gdpr.getConsent("user@example.com");
+  });
+
+  it("still keys a write when crypto.randomUUID is unavailable", async () => {
+    // `randomUUID` is secure-context gated in browsers, so an http:// page has
+    // `crypto` but not `randomUUID`. The write must still go out keyed.
+    const original = globalThis.crypto.randomUUID;
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+
+    try {
+      let key: string | null = null;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        key = new Headers(init?.headers).get("idempotency-key");
+        return mockJson({ data: { success: true } });
+      });
+
+      const medal = new Medal("medal_test", { baseUrl: BASE });
+      await medal.bookings.markNoShow("bk_1");
+
+      expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    } finally {
+      Object.defineProperty(globalThis.crypto, "randomUUID", {
+        value: original,
+        configurable: true,
+      });
+    }
   });
 
   it("skips query params whose value is undefined", async () => {
