@@ -7,7 +7,8 @@ export default defineConfig({
     exclude: ["tests/integration.test.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      // lcov is what the Codecov upload step consumes; text/html are for humans.
+      reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],
       exclude: [
         "src/types/**/*.ts",
