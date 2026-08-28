@@ -141,8 +141,10 @@ describe("error handling", () => {
   });
 
   it("handles non-JSON error responses", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("Server Error", { status: 502, statusText: "Bad Gateway" }),
+    // 502 is retried, so this needs a fresh Response per attempt — the first
+    // attempt drains the body of the one it abandons.
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response("Server Error", { status: 502, statusText: "Bad Gateway" }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
@@ -172,9 +174,11 @@ describe("retries", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  // A fresh Response per call, the way fetch behaves: one shared instance would
+  // be consumed by the first attempt's drain and unusable on the next.
   it("throws after exhausting all retry attempts on persistent 500", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValue(new Response("", { status: 500 }));
+    spy.mockImplementation(async () => new Response("", { status: 500 }));
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
     expect(spy).toHaveBeenCalledTimes(3);
@@ -182,7 +186,9 @@ describe("retries", () => {
 
   it("throws after exhausting all retry attempts on persistent 429", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValue(new Response("", { status: 429, headers: { "retry-after": "0" } }));
+    spy.mockImplementation(
+      async () => new Response("", { status: 429, headers: { "retry-after": "0" } }),
+    );
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
     expect(spy).toHaveBeenCalledTimes(3);
@@ -197,6 +203,87 @@ describe("retries", () => {
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     const result = await medal.contacts.list();
     expect(result.data).toEqual([]);
+  });
+
+  it("drains the body of a response it abandons to a retry", async () => {
+    // Until a response body is consumed, undici keeps its socket out of the
+    // connection pool, so every retry opens a fresh connection — the churn
+    // lands exactly when the server is least able to absorb it.
+    const abandoned = new Response("x".repeat(4096), { status: 503, statusText: "Error" });
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(abandoned);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(abandoned.bodyUsed, "the abandoned response body must be consumed").toBe(true);
+  });
+
+  it("discards the abandoned body without materialising it", async () => {
+    // A 429/5xx body can be large — a proxy's HTML error page, say. Buffering
+    // one into a string only to throw it away costs several times its size in
+    // RSS, on every attempt of every in-flight request, which is the opposite
+    // of what a client under retry pressure should be doing. Consume the
+    // stream and keep nothing.
+    const abandoned = new Response("x".repeat(4096), { status: 503, statusText: "Error" });
+    Object.defineProperty(abandoned, "text", {
+      value: () => {
+        throw new Error("the drain must not buffer the abandoned body into a string");
+      },
+    });
+
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(abandoned);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(abandoned.bodyUsed, "the stream was still consumed").toBe(true);
+  });
+
+  it("retries a response that carries no body at all", async () => {
+    // `new Response(null)`, 204 and 304 all have `body === null`. Draining must
+    // cope with that rather than assuming a stream is always there.
+    const empty = new Response(null, { status: 503, statusText: "Error" });
+    expect(empty.body, "fixture precondition: this response has no body").toBeNull();
+
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(empty);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("still retries when draining the abandoned body fails", async () => {
+    // A body that errors mid-read has already released its socket, so a failed
+    // drain must not turn a retryable 5xx into a thrown stream error.
+    const broken = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error("connection reset"));
+        },
+      }),
+      { status: 500, statusText: "Error" },
+    );
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(broken);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(broken.bodyUsed, "a failed drain still consumes the body").toBe(true);
   });
 });
 
@@ -1339,6 +1426,51 @@ describe("misc", () => {
 
 describe("timeout and Retry-After handling", () => {
   beforeEach(() => vi.restoreAllMocks());
+
+  /**
+   * A response whose headers arrive at once and whose body then stalls
+   * forever — the shape `fetch` alone cannot protect against, since it
+   * resolves at the headers. Mirrors real fetch, which errors the body
+   * stream with an AbortError when the signal aborts.
+   */
+  function stallsAfterHeaders(init: RequestInit | undefined, responseInit: ResponseInit): Response {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("partial"));
+        init?.signal?.addEventListener("abort", () =>
+          controller.error(new DOMException("This operation was aborted", "AbortError")),
+        );
+        // never closed
+      },
+    });
+    return new Response(body, responseInit);
+  }
+
+  it("times out when the server stalls after sending the response headers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) =>
+      stallsAfterHeaders(init, {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
+  }, 2000);
+
+  it("does not let a stalled error body block the retry", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockImplementationOnce(async (_url, init) =>
+      stallsAfterHeaders(init, { status: 503, statusText: "Error" }),
+    );
+    spy.mockImplementationOnce(async () => mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  }, 2000);
 
   it("waits for a positive numeric Retry-After before retrying", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
