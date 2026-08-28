@@ -222,6 +222,30 @@ describe("retries", () => {
     expect(abandoned.bodyUsed, "the abandoned response body must be consumed").toBe(true);
   });
 
+  it("discards the abandoned body without materialising it", async () => {
+    // A 429/5xx body can be large — a proxy's HTML error page, say. Buffering
+    // one into a string only to throw it away costs several times its size in
+    // RSS, on every attempt of every in-flight request, which is the opposite
+    // of what a client under retry pressure should be doing. Consume the
+    // stream and keep nothing.
+    const abandoned = new Response("x".repeat(4096), { status: 503, statusText: "Error" });
+    Object.defineProperty(abandoned, "text", {
+      value: () => {
+        throw new Error("the drain must not buffer the abandoned body into a string");
+      },
+    });
+
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(abandoned);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(abandoned.bodyUsed, "the stream was still consumed").toBe(true);
+  });
+
   it("retries a response that carries no body at all", async () => {
     // `new Response(null)`, 204 and 304 all have `body === null`. Draining must
     // cope with that rather than assuming a stream is always there.

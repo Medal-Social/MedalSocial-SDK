@@ -213,12 +213,22 @@ export class BaseClient {
         // Release the response we are about to abandon. Until a body is
         // consumed, undici holds its socket out of the connection pool, so a
         // retry storm burns a fresh connection per attempt — exactly when the
-        // server can least afford it. Reading returns the socket to the pool;
-        // `res.body?.cancel()` frees it too, but by destroying the connection,
-        // which is the churn this exists to avoid. Error bodies are small, and
-        // a read that fails has already released the socket, so a failure here
+        // server can least afford it.
+        //
+        // Consuming returns the socket to the pool. `res.body?.cancel()` frees
+        // it too, but by destroying the connection rather than reusing it,
+        // which is the churn this exists to avoid. Pipe to a sink rather than
+        // `res.text()`: an error body can be arbitrarily large, and buffering
+        // one into a string only to discard it costs several times its size in
+        // memory on every attempt of every in-flight request.
+        //
+        // Fall back to `text()` where there is no stream to pipe: a bodyless
+        // response, or a runtime that exposes `text()` but not `body`.
+        const drained = res.body ? res.body.pipeTo(new WritableStream()) : res.text();
+
+        // A read that fails has already released the socket, so a failure here
         // is not worth propagating over the status we are retrying on.
-        await res.text().catch(() => {});
+        await drained.catch(() => {});
 
         const retryAfter = res.headers.get("retry-after");
         let delayMs = 0;

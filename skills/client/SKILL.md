@@ -67,7 +67,7 @@ Every request gets:
 - Network errors (fetch throws) are NOT retried — they bubble up.
 - The request is aborted via `AbortController` after `timeout` ms.
 
-The SDK does **not** drain the response body between retries — if you observe a connection leak in long-running processes, that's worth investigating.
+The SDK **drains** the response body of any attempt it abandons to a retry, so the connection returns to the pool instead of being held open. The body is streamed to a sink rather than buffered, so a large error page costs no memory. A drain that fails is ignored — the retry proceeds on the status.
 
 ## Errors
 
