@@ -69,6 +69,27 @@ function randomIdempotencyKey(): string {
 }
 
 /**
+ * The `Idempotency-Key` one logical write goes out under: the caller's if they
+ * supplied a usable one, otherwise a fresh key.
+ *
+ * A blank key counts as NO key. `??` alone would treat `""` as supplied,
+ * {@link BaseClient} would then drop the falsy value, and the write would go
+ * out with no header at all — silently unprotected, which is the one failure
+ * this exists to rule out. Whitespace-only is the same hazard by a different
+ * route: header values are stripped in transit, so `"   "` reaches the server
+ * as `""` and is ignored there too. Both are reachable from an ordinary
+ * `idempotencyKey: someVar` where the variable happens to be blank.
+ *
+ * Every part of the SDK that decides which key a write carries resolves it
+ * here, so those parts cannot disagree. A capability confirmation is bound to
+ * its idempotency key: bind one value, send another, and the server rejects a
+ * write both sides believed they had authorized.
+ */
+export function resolveIdempotencyKey(supplied?: string): string {
+  return (supplied ?? "").trim() || randomIdempotencyKey();
+}
+
+/**
  * Low-level HTTP client used by all resource classes.
  * Handles authentication, retries, timeout, and error parsing.
  */
@@ -109,21 +130,13 @@ export class BaseClient {
    * The key is minted ONCE here, outside the retry loop in `request`, so every
    * attempt of the same logical call carries the same value — a key minted per
    * attempt would deduplicate nothing. A caller-supplied key always wins, so
-   * callers keeping their own records stay in control.
-   *
-   * A blank key counts as no key. `??` alone would treat `""` as supplied,
-   * `writeHeaders` would then drop the falsy value, and the write would go out
-   * with no header at all — silently unprotected, which is the one failure
-   * this method exists to rule out. Whitespace-only is the same hazard by a
-   * different route: header values are stripped in transit, so `"   "` reaches
-   * the server as `""` and is ignored there too. Both are reachable from an
-   * ordinary `idempotencyKey: someVar` where the variable happens to be blank.
+   * callers keeping their own records stay in control. See
+   * {@link resolveIdempotencyKey} for what counts as supplied.
    */
   async postOnce<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    const supplied = (options?.idempotencyKey ?? "").trim();
     return this.post(path, body, {
       ...options,
-      idempotencyKey: supplied || randomIdempotencyKey(),
+      idempotencyKey: resolveIdempotencyKey(options?.idempotencyKey),
     });
   }
 

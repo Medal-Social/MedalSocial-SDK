@@ -538,20 +538,38 @@ describe("capability confirmer internals", () => {
   });
 
   it("mints an idempotency key without WebCrypto randomUUID", async () => {
-    // Runtimes without `crypto.randomUUID` must still get a usable key rather
-    // than throwing on the optional chain.
-    vi.stubGlobal("crypto", undefined);
-    const { api } = recordingConfirmations();
-    const confirmer = new CapabilityConfirmer(api, {
-      previewSummary: () => "approved",
+    // `randomUUID` is secure-context gated in browsers, so an http:// page has
+    // `crypto` but not `randomUUID`. The confirmer shares the client's key
+    // generator, which falls back to `getRandomValues` — available in every
+    // context — rather than to a timestamp. A guessable key would be the wrong
+    // trade here: it is the value the confirmation token is bound to, and the
+    // server's replay lookup is keyed on it.
+    const original = globalThis.crypto.randomUUID;
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
     });
 
-    const options = await confirmer.prepare({
-      capabilityId: "channel.connect_link.create.execute",
-      body: { platform: "instagram" },
-      // biome-ignore lint/suspicious/noExplicitAny: body shape is not under test here
-    } as any);
+    try {
+      const { api } = recordingConfirmations();
+      const confirmer = new CapabilityConfirmer(api, {
+        previewSummary: () => "approved",
+      });
 
-    expect(options?.idempotencyKey).toMatch(/^idem_/);
+      const options = await confirmer.prepare({
+        capabilityId: "channel.connect_link.create.execute",
+        body: { platform: "instagram" },
+        // biome-ignore lint/suspicious/noExplicitAny: body shape is not under test here
+      } as any);
+
+      expect(options?.idempotencyKey).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    } finally {
+      Object.defineProperty(globalThis.crypto, "randomUUID", {
+        value: original,
+        configurable: true,
+      });
+    }
   });
 });

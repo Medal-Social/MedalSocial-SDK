@@ -281,4 +281,77 @@ describe("capability confirmation binding survives the conversion", () => {
     expect(keys).toEqual(["idem_caller"]);
     expect(token).toBe("mcct_caller");
   });
+
+  // A blank key has to read as "no key" to the confirmer as well, not just to
+  // `postOnce`. Bind the token to `"   "` and let `postOnce` swap in a real key
+  // and the two halves no longer agree — the server rejects a write that both
+  // sides believed they had authorized.
+  it.each(CONFIRMED_WRITES)(
+    "$name binds the token to the key it sends, even when the caller's key is blank",
+    async ({ path, call }) => {
+      for (const blank of ["", "   ", "\t\n"]) {
+        let mintedKey: string | undefined;
+        let sentKey: string | null = null;
+
+        const spy = vi.spyOn(globalThis, "fetch");
+        spy.mockImplementation(async (url, init) => {
+          const { pathname } = new URL(url as string);
+          if (pathname === "/api/v1/capability-confirmations") {
+            mintedKey = JSON.parse(init?.body as string).idempotency_key;
+            return mockJson({ data: { confirmation_token: "mcct_1", idempotency_key: mintedKey } });
+          }
+          expect(pathname).toBe(path);
+          sentKey = new Headers(init?.headers).get("idempotency-key");
+          return mockJson({ data: {} }, 201);
+        });
+
+        const medal = new Medal("medal_test", {
+          baseUrl: BASE,
+          autoConfirmCapabilities: { previewSummary: () => "Approved by a human" },
+        });
+        await call(medal, { idempotencyKey: blank });
+
+        const label = `blank key ${JSON.stringify(blank)}`;
+        expect(mintedKey, `${label} must not be bound into the token`).toBeTruthy();
+        expect(mintedKey?.trim(), label).toBe(mintedKey);
+        expect(sentKey, `${label}: minted and transmitted keys must match`).toBe(mintedKey);
+        spy.mockRestore();
+      }
+    },
+  );
+
+  it.each(CONFIRMED_WRITES)(
+    "$name re-mints when the caller pairs a blank key with a token",
+    async ({ path, call }) => {
+      // The caller's token is bound to a key the server can never receive, so
+      // it is already unusable. Auto-confirm was opted into — repair the pair
+      // rather than send a token that is guaranteed to be rejected.
+      let mintedKey: string | undefined;
+      let sentKey: string | null = null;
+      let sentToken: string | null = null;
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+        const { pathname } = new URL(url as string);
+        if (pathname === "/api/v1/capability-confirmations") {
+          mintedKey = JSON.parse(init?.body as string).idempotency_key;
+          return mockJson({ data: { confirmation_token: "mcct_fresh" } });
+        }
+        expect(pathname).toBe(path);
+        const headers = new Headers(init?.headers);
+        sentKey = headers.get("idempotency-key");
+        sentToken = headers.get("x-capability-confirmation");
+        return mockJson({ data: {} }, 201);
+      });
+
+      const medal = new Medal("medal_test", {
+        baseUrl: BASE,
+        autoConfirmCapabilities: { previewSummary: () => "Approved by a human" },
+      });
+      await call(medal, { idempotencyKey: "   ", capabilityConfirmation: "mcct_stale" });
+
+      expect(mintedKey).toBeTruthy();
+      expect(sentKey).toBe(mintedKey);
+      expect(sentToken).toBe("mcct_fresh");
+    },
+  );
 });
