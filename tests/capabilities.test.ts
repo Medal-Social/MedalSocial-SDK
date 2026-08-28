@@ -156,12 +156,15 @@ describe("capabilityConfirmations.create", () => {
 describe("auto-confirm", () => {
   beforeEach(() => vi.restoreAllMocks());
 
-  it("is OFF by default — no confirmation request, no headers", async () => {
+  it("is OFF by default — no confirmation request, no confirmation header", async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       calls.push(new URL(url as string).pathname);
       const headers = new Headers(init?.headers);
-      expect(headers.get("idempotency-key")).toBeNull();
+      // The write still carries its own retry key — that is `postOnce`, not
+      // auto-confirm. What must stay absent with auto-confirm off is the
+      // confirmation itself, and the round trip that mints it.
+      expect(headers.get("idempotency-key")).toBeTruthy();
       expect(headers.get("x-capability-confirmation")).toBeNull();
       return mockJson({ data: { id: "cl_1", url: "https://connect.example.com/l/x" } }, 201);
     });
@@ -339,8 +342,8 @@ describe("auto-confirm", () => {
       if (path === "/api/v1/capability-confirmations") return mockJson(confirmationPayload());
       const headers = new Headers(init?.headers);
       if (path === "/api/v1/webhooks") {
-        // No auto-confirm opted in — no headers minted.
-        expect(headers.get("idempotency-key")).toBeNull();
+        // No auto-confirm opted in — no confirmation minted. The retry key is
+        // `postOnce`'s and rides along regardless.
         expect(headers.get("x-capability-confirmation")).toBeNull();
       }
       return mockJson({ data: { id: "x", status: "deleted" } });

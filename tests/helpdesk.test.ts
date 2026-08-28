@@ -218,10 +218,12 @@ describe("helpdesk replies", () => {
     expect(data.status).toBe("created");
   });
 
-  it("creates an internal note without an idempotency key", async () => {
+  it("keys an internal note the caller left unkeyed", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       const headers = new Headers(init?.headers);
-      expect(headers.get("idempotency-key")).toBeNull();
+      // A note duplicates on retry exactly like a customer-facing reply does,
+      // so it gets a generated key rather than going out bare.
+      expect(headers.get("idempotency-key")).toBeTruthy();
       const body = JSON.parse(init?.body as string);
       expect(body.message_type).toBe("note");
       return mockJson({ data: { id: "msg_3", conversation_id: "conv_1", status: "created" } }, 201);

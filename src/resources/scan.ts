@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
   ScanCompany,
@@ -22,10 +22,18 @@ export class Scan {
    * Queue a scan. Provide exactly one of `url`, `orgnr`, or `name`.
    * Runs asynchronously — poll with `get()` or use `waitForResult()`.
    *
+   * Automatically idempotent: a scan job is queued the moment it is created,
+   * so an unkeyed retry starts a second crawl of the same site and returns an
+   * id for a job that duplicates one already running. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   *
    * @throws Error before any request when zero or several selectors are set —
    * the server would reject the body anyway; failing locally is clearer.
    */
-  async create(input: ScanCreateInput): Promise<ApiResponse<ScanCreateResult>> {
+  async create(
+    input: ScanCreateInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ScanCreateResult>> {
     const entries = (["url", "orgnr", "name"] as const).filter(
       (key) => input[key] !== undefined && input[key] !== "",
     );
@@ -35,7 +43,7 @@ export class Scan {
     // Send only the effective selector — blank strings from form state must
     // not ride along in the payload (they would echo back in ScanJob.input).
     const key = entries[0];
-    return this.client.post("/api/v1/scan", { [key]: input[key] });
+    return this.client.postOnce("/api/v1/scan", { [key]: input[key] }, options);
   }
 
   /** Get a scan job's status and, once done, its findings payload. */
