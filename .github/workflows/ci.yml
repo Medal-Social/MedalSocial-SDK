@@ -106,9 +106,19 @@ jobs:
           # job-level continue-on-error above is what keeps it non-gating, so
           # a red job here never fails the workflow or blocks a merge.
           #
-          # dlx runs the package's default bin (tsc) directly. Naming the bin as
-          # an extra token would make it treat that token as a source file and
-          # die with TS5042 ("'project' cannot be mixed with source files").
+          # `--package=` selects what to install; `tsc` after it is the binary to
+          # run. Do NOT collapse this to `pnpm dlx typescript@7 ...`: that form
+          # only works while the package exposes exactly one bin, so pnpm can
+          # infer it. typescript@7.0.2 does (`{"tsc": "bin/tsc"}`) — but 6.x
+          # ships `tsc` AND `tsserver`, and the spec below is unpinned within
+          # 7.x on purpose, so any 7.x that adds a second bin would break the
+          # inference with ERR_PNPM_DLX_MULTIPLE_BINS. Since this step no longer
+          # swallows failures, that would surface as a permanent red job and
+          # read as TS 7 drift when it is really a broken installer.
+          #
+          # Equally, do not write the bin without `--package=`: a bare trailing
+          # token is treated as a source file and dies with TS5042 ("'project'
+          # cannot be mixed with source files").
           #
           # Unpinned within 7.x on purpose: the point is to track the newest
           # TS 7. pnpm 11 quarantines releases younger than 24h, so a very
@@ -120,7 +130,7 @@ jobs:
             local cfg="$1" start
             start=$(date +%s)
             # tsgo's own output goes to the job log, not the step summary.
-            if pnpm dlx typescript@7 --noEmit -p "$cfg"; then
+            if pnpm dlx --package=typescript@7 tsc --noEmit -p "$cfg"; then
               echo "- \`$cfg\`: clean in $(($(date +%s) - start))s" >> "$SUMMARY"
             else
               echo "- \`$cfg\`: **ERRORS** in $(($(date +%s) - start))s" >> "$SUMMARY"
