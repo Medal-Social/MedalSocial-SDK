@@ -1,4 +1,5 @@
 import type { RequestOptions } from "./client";
+import { resolveIdempotencyKey } from "./client";
 import type { CapabilityConfirmations } from "./resources/capability-confirmations";
 import type {
   AutoConfirmOptions,
@@ -6,15 +7,6 @@ import type {
   CapabilityWriteRequest,
 } from "./types/capabilities";
 import { CAPABILITY_ROUTES } from "./types/capabilities";
-
-function newIdempotencyKey(): string {
-  const cryptoRef = globalThis.crypto;
-  if (typeof cryptoRef?.randomUUID === "function") {
-    return cryptoRef.randomUUID();
-  }
-  /* v8 ignore next 2 -- fallback for runtimes without WebCrypto randomUUID */
-  return `idem_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
-}
 
 function resolvePath(
   template: string,
@@ -58,11 +50,20 @@ export class CapabilityConfirmer {
     const auto =
       options?.autoConfirm === false ? undefined : (options?.autoConfirm ?? this.defaults);
     if (!auto) return options;
-    // Nothing to mint — the caller already brought both halves.
-    if (options?.idempotencyKey && options?.capabilityConfirmation) return options;
+
+    // Resolve the key the SAME way the write itself will, so the value bound
+    // into the token is the value that reaches the server. A blank key resolves
+    // to a fresh one here exactly as it would at POST time — binding the blank
+    // and sending the replacement would produce a token the server refuses.
+    const idempotencyKey = resolveIdempotencyKey(options?.idempotencyKey);
+    const callerKeyIsUsable = idempotencyKey === options?.idempotencyKey;
+
+    // Nothing to mint — the caller already brought both halves. A blank key is
+    // not a half: the token paired with it was bound to a value the server can
+    // never receive, so re-mint rather than send a doomed pair.
+    if (callerKeyIsUsable && options?.capabilityConfirmation) return options;
 
     const route = CAPABILITY_ROUTES[request.capabilityId];
-    const idempotencyKey = options?.idempotencyKey ?? newIdempotencyKey();
     const path = resolvePath(route.path_template, pathParams);
 
     const previewSummary = auto.previewSummary({

@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse, PaginatedResponse } from "../types/common";
 import type {
   CreateDealInput,
@@ -24,9 +24,18 @@ export class Deals {
     return this.client.get("/api/v1/deals", params);
   }
 
-  /** Create a new deal. */
-  async create(input: CreateDealInput): Promise<ApiResponse<DealCreateResult>> {
-    return this.client.post("/api/v1/deals", input);
+  /**
+   * Create a new deal.
+   *
+   * Automatically idempotent: nothing about a deal is unique, so an unkeyed
+   * retry puts a second identical deal in the pipeline. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   */
+  async create(
+    input: CreateDealInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<DealCreateResult>> {
+    return this.client.postOnce("/api/v1/deals", input, options);
   }
 
   /** Get a deal by ID. */

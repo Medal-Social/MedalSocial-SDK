@@ -42,6 +42,13 @@ export class Webhooks {
    * `secret` is typed optional because an idempotent replay (retrying with the
    * same `Idempotency-Key`, `X-Idempotent-Replayed: true`) returns the existing
    * endpoint WITHOUT the secret — handle that case (rotate if you lost it).
+   *
+   * Automatically idempotent: a duplicate endpoint is not a stray row, it is a
+   * second copy of every future delivery to the same URL, forever. The key the
+   * confirmer chose is the key that goes out — a capability confirmation is
+   * bound to its idempotency key, so minting a fresh one here would invalidate
+   * the confirmation. That the SDK now always sends a key is also what makes
+   * the replay-without-secret case above reachable on a plain 5xx retry.
    */
   async create(
     input: CreateWebhookInput,
@@ -52,7 +59,7 @@ export class Webhooks {
       undefined,
       options,
     );
-    return this.client.post("/api/v1/webhooks", input, resolved);
+    return this.client.postOnce("/api/v1/webhooks", input, resolved);
   }
 
   /** Get a webhook endpoint by ID. */
@@ -99,7 +106,14 @@ export class Webhooks {
     return this.client.get(`/api/v1/webhooks/${encodeURIComponent(id)}/deliveries`, params);
   }
 
-  /** Queue a signed `test.ping` delivery to the endpoint. Returns HTTP 202. */
+  /**
+   * Queue a signed `test.ping` delivery to the endpoint. Returns HTTP 202.
+   *
+   * Deliberately unkeyed: a duplicate ping is the one duplicate that costs
+   * nothing. Real deliveries are retried too, so any endpoint worth pointing at
+   * already tolerates receiving the same event twice — that is what this call
+   * exists to prove.
+   */
   async test(id: string): Promise<ApiResponse<WebhookTestResult>> {
     return this.client.post(`/api/v1/webhooks/${encodeURIComponent(id)}/test`);
   }

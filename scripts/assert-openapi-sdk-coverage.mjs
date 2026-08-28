@@ -15,7 +15,7 @@ const spec = JSON.parse(readFileSync(specPath, "utf8"));
 
 const expected = [
   ["get", "/api/v1/posts", "listPosts", "src/resources/posts.ts", "get", "/api/v1/posts"],
-  ["post", "/api/v1/posts", "createPost", "src/resources/posts.ts", "post", "/api/v1/posts"],
+  ["post", "/api/v1/posts", "createPost", "src/resources/posts.ts", "postOnce", "/api/v1/posts"],
   [
     "get",
     "/api/v1/posts/{id}",
@@ -64,7 +64,7 @@ const expected = [
     "get",
     "/api/v1/posts/channels",
   ],
-  ["post", "/api/v1/emails", "sendEmail", "src/resources/emails.ts", "post", "/api/v1/emails"],
+  ["post", "/api/v1/emails", "sendEmail", "src/resources/emails.ts", "postOnce", "/api/v1/emails"],
   [
     "get",
     "/api/v1/emails/{id}",
@@ -78,7 +78,7 @@ const expected = [
     "/api/v1/emails/batch",
     "batchSendEmails",
     "src/resources/emails.ts",
-    "post",
+    "postOnce",
     "/api/v1/emails/batch",
   ],
   [
@@ -110,7 +110,7 @@ const expected = [
     "/api/v1/contacts",
     "createContact",
     "src/resources/contacts.ts",
-    "post",
+    "postOnce",
     "/api/v1/contacts",
   ],
   [
@@ -150,7 +150,7 @@ const expected = [
     "/api/v1/contacts/{id}/notes",
     "addContactNote",
     "src/resources/contacts.ts",
-    "post",
+    "postOnce",
     "/api/v1/contacts/${encodeURIComponent(id)}/notes",
   ],
   [
@@ -158,11 +158,11 @@ const expected = [
     "/api/v1/contacts/import",
     "importContacts",
     "src/resources/contacts.ts",
-    "post",
+    "postOnce",
     "/api/v1/contacts/import",
   ],
   ["get", "/api/v1/deals", "listDeals", "src/resources/deals.ts", "get", "/api/v1/deals"],
-  ["post", "/api/v1/deals", "createDeal", "src/resources/deals.ts", "post", "/api/v1/deals"],
+  ["post", "/api/v1/deals", "createDeal", "src/resources/deals.ts", "postOnce", "/api/v1/deals"],
   [
     "get",
     "/api/v1/deals/{id}",
@@ -296,7 +296,7 @@ const expected = [
     "/api/v1/gdpr/export",
     "requestGdprExport",
     "src/resources/gdpr.ts",
-    "post",
+    "postOnce",
     "/api/v1/gdpr/export",
   ],
   [
@@ -384,7 +384,7 @@ const expected = [
     "/api/v1/helpdesk/replies",
     "createHelpdeskReply",
     "src/resources/helpdesk.ts",
-    "post",
+    "postOnce",
     "/api/v1/helpdesk/replies",
   ],
   [
@@ -400,7 +400,7 @@ const expected = [
     "/api/v1/webhooks",
     "createWebhook",
     "src/resources/webhooks.ts",
-    "post",
+    "postOnce",
     "/api/v1/webhooks",
   ],
   [
@@ -456,7 +456,7 @@ const expected = [
     "/api/v1/channels/connect-links",
     "createChannelConnectLink",
     "src/resources/channels.ts",
-    "post",
+    "postOnce",
     "/api/v1/channels/connect-links",
   ],
   [
@@ -491,7 +491,7 @@ const expected = [
     "delete",
     "/api/v1/channels/connections/${encodeURIComponent(id)}",
   ],
-  ["post", "/api/v1/scan", "createScan", "src/resources/scan.ts", "post", "/api/v1/scan"],
+  ["post", "/api/v1/scan", "createScan", "src/resources/scan.ts", "postOnce", "/api/v1/scan"],
   [
     "get",
     "/api/v1/scan/companies",

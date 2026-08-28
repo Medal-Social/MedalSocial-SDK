@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
 import type {
   Activity,
@@ -31,9 +31,20 @@ export class Contacts {
     return this.client.get("/api/v1/contacts", params);
   }
 
-  /** Create a new contact. Email must be unique in the workspace. */
-  async create(input: CreateContactInput): Promise<ApiResponse<ContactCreateResult>> {
-    return this.client.post("/api/v1/contacts", input);
+  /**
+   * Create a new contact. Email must be unique in the workspace.
+   *
+   * Automatically idempotent: the SDK mints an `Idempotency-Key` so its own
+   * 5xx retries replay rather than run the create a second time. Uniqueness
+   * alone would not save you here — it turns the retry of a committed create
+   * into a spurious conflict, which reads as "the contact was not created".
+   * Supply `options.idempotencyKey` to deduplicate across your OWN retries too.
+   */
+  async create(
+    input: CreateContactInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ContactCreateResult>> {
+    return this.client.postOnce("/api/v1/contacts", input, options);
   }
 
   /** Get a contact by ID. */
@@ -59,13 +70,33 @@ export class Contacts {
     return this.client.get(`/api/v1/contacts/${encodeURIComponent(id)}/activities`, params);
   }
 
-  /** Add a note to a contact's timeline. */
-  async addNote(id: string, input: AddNoteInput): Promise<ApiResponse<ContactNoteResult>> {
-    return this.client.post(`/api/v1/contacts/${encodeURIComponent(id)}/notes`, input);
+  /**
+   * Add a note to a contact's timeline.
+   *
+   * Automatically idempotent: nothing about a note is unique, so an unkeyed
+   * retry appends the same text to the timeline twice. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   */
+  async addNote(
+    id: string,
+    input: AddNoteInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ContactNoteResult>> {
+    return this.client.postOnce(`/api/v1/contacts/${encodeURIComponent(id)}/notes`, input, options);
   }
 
-  /** Bulk import contacts (max 500). Duplicates are skipped. */
-  async import(contacts: ImportContactInput[]): Promise<ApiResponse<ImportContactsResult>> {
-    return this.client.post("/api/v1/contacts/import", { contacts });
+  /**
+   * Bulk import contacts (max 500). Duplicates are skipped.
+   *
+   * Automatically idempotent: the import is processed in chunks, so a retry
+   * after a partial failure re-walks the whole batch and reports `added` /
+   * `skipped` counts for a run that was not the first. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   */
+  async import(
+    contacts: ImportContactInput[],
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ImportContactsResult>> {
+    return this.client.postOnce("/api/v1/contacts/import", { contacts }, options);
   }
 }
