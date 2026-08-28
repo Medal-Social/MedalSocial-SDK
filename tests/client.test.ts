@@ -1427,6 +1427,51 @@ describe("misc", () => {
 describe("timeout and Retry-After handling", () => {
   beforeEach(() => vi.restoreAllMocks());
 
+  /**
+   * A response whose headers arrive at once and whose body then stalls
+   * forever — the shape `fetch` alone cannot protect against, since it
+   * resolves at the headers. Mirrors real fetch, which errors the body
+   * stream with an AbortError when the signal aborts.
+   */
+  function stallsAfterHeaders(init: RequestInit | undefined, responseInit: ResponseInit): Response {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("partial"));
+        init?.signal?.addEventListener("abort", () =>
+          controller.error(new DOMException("This operation was aborted", "AbortError")),
+        );
+        // never closed
+      },
+    });
+    return new Response(body, responseInit);
+  }
+
+  it("times out when the server stalls after sending the response headers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) =>
+      stallsAfterHeaders(init, {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
+  }, 2000);
+
+  it("does not let a stalled error body block the retry", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockImplementationOnce(async (_url, init) =>
+      stallsAfterHeaders(init, { status: 503, statusText: "Error" }),
+    );
+    spy.mockImplementationOnce(async () => mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  }, 2000);
+
   it("waits for a positive numeric Retry-After before retrying", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     spy.mockResolvedValueOnce(new Response("", { status: 429, headers: { "retry-after": "1" } }));
