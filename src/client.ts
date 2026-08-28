@@ -210,6 +210,16 @@ export class BaseClient {
         (res.status === 429 || (res.status >= 500 && res.status <= 599)) &&
         attempt < maxAttempts
       ) {
+        // Release the response we are about to abandon. Until a body is
+        // consumed, undici holds its socket out of the connection pool, so a
+        // retry storm burns a fresh connection per attempt — exactly when the
+        // server can least afford it. Reading returns the socket to the pool;
+        // `res.body?.cancel()` frees it too, but by destroying the connection,
+        // which is the churn this exists to avoid. Error bodies are small, and
+        // a read that fails has already released the socket, so a failure here
+        // is not worth propagating over the status we are retrying on.
+        await res.text().catch(() => {});
+
         const retryAfter = res.headers.get("retry-after");
         let delayMs = 0;
         if (retryAfter) {
