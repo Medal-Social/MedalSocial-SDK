@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prestart": "pnpm -w run build",
     "start": "node index.mjs"
   },
   "dependencies": {
