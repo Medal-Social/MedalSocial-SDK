@@ -208,6 +208,7 @@ export type {
   BookingActionResult,
   BookingAvailabilityOptions,
   BookingCancelledBy,
+  BookingClaimableCreatedVia,
   BookingContactInput,
   BookingCreatedVia,
   BookingCreateResult,

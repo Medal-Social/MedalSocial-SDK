@@ -2703,6 +2703,16 @@ components:
         notes:
           type: string
           maxLength: 5000
+        created_via:
+          description: >-
+            Where the booking came from. Defaults to `api`. A workspace's OWN
+            website should send `web`, so its bookings can be told apart from
+            integrations. `dashboard` and `walk_in` are staff-only and are
+            rejected with 400 — a bearer token proves which workspace is calling,
+            not that a member typed the booking in.
+          type: string
+          enum: [web, api]
+          default: api
     CreatedBooking:
       type: object
       required: [id]

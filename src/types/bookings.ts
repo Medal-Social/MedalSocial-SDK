@@ -148,10 +148,20 @@ export interface BookingContactInput {
  * Input for `bookings.create(...)`. `items` is a PARTY — one request books a
  * whole family in one all-or-nothing transaction (max 50 items).
  */
+/** Provenance an API caller may claim. `dashboard` and `walk_in` are staff-only and rejected. */
+export type BookingClaimableCreatedVia = "web" | "api";
+
 export interface CreateBookingInput {
   items: CreateBookingItemInput[];
   contact: BookingContactInput;
   notes?: string;
+  /**
+   * Defaults to `api`. A workspace's OWN website should send `web`, so "how
+   * many bookings did the site bring in" is answerable; integrations leave it
+   * unset. `dashboard` and `walk_in` are refused with 400 — a bearer token
+   * proves which workspace is calling, not that a member typed it in.
+   */
+  created_via?: BookingClaimableCreatedVia;
 }
 
 /** One entry of `BookingCreateResult.bookings`, in request order. */

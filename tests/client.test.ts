@@ -655,6 +655,21 @@ describe("bookings", () => {
     expect(data[0].type).toBe("staff");
   });
 
+  it("sends created_via on create so a site's bookings are not filed as an integration's", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(new URL(url as string).pathname).toBe("/api/v1/bookings");
+      expect(JSON.parse(init?.body as string).created_via).toBe("web");
+      return mockJson({ data: { bookings: [{ id: "bk_1", manage_token: "t" }] } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.create({
+      items: [{ service_id: "svc_1", start_ts: 1780000000000 }],
+      contact: { phone: "+4740000000" },
+      created_via: "web",
+    });
+    expect(data.bookings[0].id).toBe("bk_1");
+  });
+
   it("fetches the schedule for a service", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       const parsed = new URL(url as string);
