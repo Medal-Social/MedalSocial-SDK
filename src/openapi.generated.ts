@@ -395,6 +395,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/bookings/schedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List the dates a service can be booked on
+     * @description The other half of `availability`. Availability returns free slots and nothing else, so a closed day, an evening past closing and a fully booked day all come back as the same empty array. This returns one entry per date the workspace keeps opening hours on; a date ABSENT from the response is closed. `last_start_ts` is the last start this service could occupy on that date (it depends on the service's duration and buffers, not just the closing time) and is `null` for a date with posted hours that is shut outright, such as a public holiday.
+     */
+    get: operations["listBookingSchedule"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/bookings/{id}": {
     parameters: {
       query?: never;
@@ -1500,6 +1520,20 @@ export interface components {
       end_ts: string | null;
       resource_id: string | null;
     };
+    /** @description One date a service can be booked on. `date` is the workspace's own calendar date, not a timestamp. */
+    BookingScheduleDay: {
+      /** Format: date */
+      date: string | null;
+      /** Format: date-time */
+      opens_ts: string | null;
+      /** Format: date-time */
+      closes_ts: string | null;
+      /**
+       * Format: date-time
+       * @description Last start this service could occupy on the date; `null` when the date is shut outright.
+       */
+      last_start_ts: string | null;
+    };
     /** @description The person the booking is made under. Phone is the CRM dedupe key. */
     BookingContactInput: {
       phone: string;
@@ -1520,6 +1554,11 @@ export interface components {
       items: components["schemas"]["CreateBookingItemInput"][];
       contact: components["schemas"]["BookingContactInput"];
       notes?: string;
+      /**
+       * @description Where the booking came from. Defaults to `api`. A workspace's OWN website should send `web`, so its bookings can be told apart from integrations. `dashboard` and `walk_in` are staff-only and are rejected with 400 — a bearer token proves which workspace is calling, not that a member typed the booking in.
+       * @enum {string}
+       */
+      created_via?: "web" | "api";
     };
     CreatedBooking: {
       id: string;
@@ -1932,6 +1971,7 @@ export interface components {
     ApiResponse_BookingServiceArray: components["schemas"]["Envelope_BookingServiceArray"];
     ApiResponse_BookingResourceArray: components["schemas"]["Envelope_BookingResourceArray"];
     ApiResponse_BookingSlotArray: components["schemas"]["Envelope_BookingSlotArray"];
+    ApiResponse_BookingScheduleDayArray: components["schemas"]["Envelope_BookingScheduleDayArray"];
     ApiResponse_BookingCreateResult: components["schemas"]["Envelope_BookingCreateResult"];
     ApiResponse_BookingActionResult: components["schemas"]["Envelope_BookingActionResult"];
     ApiResponse_BookingRescheduleResult: components["schemas"]["Envelope_BookingRescheduleResult"];
@@ -2068,6 +2108,9 @@ export interface components {
     };
     Envelope_BookingSlotArray: {
       data: components["schemas"]["BookingSlot"][];
+    };
+    Envelope_BookingScheduleDayArray: {
+      data: components["schemas"]["BookingScheduleDay"][];
     };
     Envelope_BookingCreateResult: {
       data: components["schemas"]["BookingCreateResult"];
@@ -3043,6 +3086,35 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_BookingSlotArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingSchedule: {
+    parameters: {
+      query: {
+        service_id: string;
+        /** @description Start of the window. */
+        from_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description End of the window; must be after `from_ts`. */
+        to_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description Restrict to one resource's hours. */
+        resource_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Open dates. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingScheduleDayArray"];
         };
       };
       default: components["responses"]["ApiError"];

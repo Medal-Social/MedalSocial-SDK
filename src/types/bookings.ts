@@ -110,6 +110,22 @@ export interface BookingSlot {
   resource_id: string | null;
 }
 
+/**
+ * One date a service can be booked on, from `bookings.schedule(...)`.
+ *
+ * `date` is the workspace's own calendar date (`YYYY-MM-DD`), not a timestamp.
+ * `last_start_ts` is the last start this service could occupy on that date —
+ * not the closing time; a 30-minute service at a salon closing 17:00 has its
+ * last start at 16:30 — and is `null` for a date with posted hours that is
+ * shut outright (a public holiday). A date ABSENT from the list is closed.
+ */
+export interface BookingScheduleDay {
+  date: string | null;
+  opens_ts: string | null;
+  closes_ts: string | null;
+  last_start_ts: string | null;
+}
+
 /** One line of a party booking — a single service on a single slot. */
 export interface CreateBookingItemInput {
   service_id: string;
@@ -132,10 +148,20 @@ export interface BookingContactInput {
  * Input for `bookings.create(...)`. `items` is a PARTY — one request books a
  * whole family in one all-or-nothing transaction (max 50 items).
  */
+/** Provenance an API caller may claim. `dashboard` and `walk_in` are staff-only and rejected. */
+export type BookingClaimableCreatedVia = "web" | "api";
+
 export interface CreateBookingInput {
   items: CreateBookingItemInput[];
   contact: BookingContactInput;
   notes?: string;
+  /**
+   * Defaults to `api`. A workspace's OWN website should send `web`, so "how
+   * many bookings did the site bring in" is answerable; integrations leave it
+   * unset. `dashboard` and `walk_in` are refused with 400 — a bearer token
+   * proves which workspace is calling, not that a member typed it in.
+   */
+  created_via?: BookingClaimableCreatedVia;
 }
 
 /** One entry of `BookingCreateResult.bookings`, in request order. */
@@ -277,6 +303,21 @@ export interface ListBookingsOptions extends PaginationOptions {
 export interface ListBookingServicesOptions {
   /** Include services with `active: false`. Defaults to active-only. */
   include_inactive?: boolean;
+}
+
+/**
+ * Options for `bookings.schedule(...)`. Same shape as availability, and for
+ * the same reason: the last bookable start depends on the service's duration
+ * and buffers, so a 30-minute cut and a 90-minute colour run out at different
+ * hours of the same afternoon.
+ */
+export interface BookingScheduleOptions {
+  service_id: string;
+  from_ts: BookingTimestampInput;
+  /** Must be after `from_ts`. */
+  to_ts: BookingTimestampInput;
+  /** Restrict to one resource's hours. */
+  resource_id?: string;
 }
 
 /** Options for querying free slots. The window is required and half-open. */

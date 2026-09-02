@@ -6,6 +6,8 @@ import type {
   BookingCreateResult,
   BookingRescheduleResult,
   BookingResource,
+  BookingScheduleDay,
+  BookingScheduleOptions,
   BookingService,
   BookingSlot,
   BookingsPage,
@@ -133,6 +135,23 @@ export class Bookings {
     };
     if (options.resource_id) params.resource_id = options.resource_id;
     return this.client.get("/api/v1/bookings/availability", params);
+  }
+
+  /**
+   * The dates a service can be booked on — the half `availability` cannot
+   * answer. Availability returns free slots and nothing else, so a closed day,
+   * an evening past closing and a fully booked day are all the same empty
+   * array. A date absent from this list is closed; on a listed date, compare
+   * `last_start_ts` against the clock to tell "too late today" from "full".
+   */
+  async schedule(options: BookingScheduleOptions): Promise<ApiResponse<BookingScheduleDay[]>> {
+    const params: Record<string, string | undefined> = {
+      service_id: options.service_id,
+      from_ts: String(options.from_ts),
+      to_ts: String(options.to_ts),
+    };
+    if (options.resource_id) params.resource_id = options.resource_id;
+    return this.client.get("/api/v1/bookings/schedule", params);
   }
 
   /**

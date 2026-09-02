@@ -655,6 +655,76 @@ describe("bookings", () => {
     expect(data[0].type).toBe("staff");
   });
 
+  it("sends created_via on create so a site's bookings are not filed as an integration's", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(new URL(url as string).pathname).toBe("/api/v1/bookings");
+      expect(JSON.parse(init?.body as string).created_via).toBe("web");
+      return mockJson({ data: { bookings: [{ id: "bk_1", manage_token: "t" }] } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.create({
+      items: [{ service_id: "svc_1", start_ts: 1780000000000 }],
+      contact: { phone: "+4740000000" },
+      created_via: "web",
+    });
+    expect(data.bookings[0].id).toBe("bk_1");
+  });
+
+  it("fetches the schedule for a service", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/schedule");
+      expect(parsed.searchParams.get("service_id")).toBe("svc_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("2026-09-08T00:00:00.000Z");
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [
+          {
+            date: "2026-09-01",
+            opens_ts: "2026-09-01T09:00:00.000Z",
+            closes_ts: "2026-09-01T15:00:00.000Z",
+            last_start_ts: "2026-09-01T14:30:00.000Z",
+          },
+          // Posted hours but shut outright — a public holiday.
+          {
+            date: "2026-09-02",
+            opens_ts: "2026-09-02T09:00:00.000Z",
+            closes_ts: "2026-09-02T15:00:00.000Z",
+            last_start_ts: null,
+          },
+        ],
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.schedule({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: "2026-09-08T00:00:00.000Z",
+      resource_id: "res_1",
+    });
+    expect(data).toHaveLength(2);
+    expect(data[0].date).toBe("2026-09-01");
+    expect(data[0].last_start_ts).toBe("2026-09-01T14:30:00.000Z");
+    expect(data[1].last_start_ts).toBeNull();
+  });
+
+  it("omits resource_id from the schedule query when not given", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.has("resource_id")).toBe(false);
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.schedule({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: 1780600000000,
+    });
+    expect(data).toEqual([]);
+  });
+
   it("fetches availability for a service", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       const parsed = new URL(url as string);
