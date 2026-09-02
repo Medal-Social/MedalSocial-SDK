@@ -1,5 +1,64 @@
 # @medalsocial/sdk
 
+## 1.7.0
+
+### Minor Changes
+
+- [#119](https://github.com/Medal-Social/MedalSocial-SDK/pull/119) [`c4dbbb6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/c4dbbb6a30c54eb84e0649ead303a6d69aef0118) Thanks [@alioftech](https://github.com/alioftech)! - Add the bookings resource: the bookable catalogue (`medal.bookings.listServices` / `listResources`), free slots (`availability`), and the bookings themselves (`list` / `create` / `get` / `update` / `cancel` / `reschedule` / `markNoShow`). `medal.bookings.manage.*` covers the customer-facing manage-token routes, where the workspace's cancel and reschedule windows are enforced and a cancellation is attributed to the customer rather than to staff. Money is integer øre; `bookings.list` reports `pagination.truncated` when the read window was clipped.
+  
+  Every booking write is idempotent by default. The client retries 429/5xx automatically, so each booking `POST` now carries a generated `Idempotency-Key` — a retry after a gateway failure replays the original result instead of booking the slot a second time. Callers can still pass `options.idempotencyKey` to extend the guarantee across their own retries. This is exposed as a new `BaseClient.postOnce` method for resources that need the same protection.
+
+- [#119](https://github.com/Medal-Social/MedalSocial-SDK/pull/119) [`c4dbbb6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/c4dbbb6a30c54eb84e0649ead303a6d69aef0118) Thanks [@alioftech](https://github.com/alioftech)! - Add `medal.bookings.schedule(...)`: the dates a service can be booked on, with each date's opening window and the last start the service could occupy. It is the half `availability` cannot answer — availability returns free slots and nothing else, so a closed day, an evening past closing and a fully booked day all come back as the same empty array. A date absent from `schedule` is closed; on a listed date, compare `last_start_ts` against the clock to tell "too late today" from "full".
+  
+  Also adds `created_via` to `CreateBookingInput` (`"web" | "api"`, default `api`): a workspace's own website should send `web` so its bookings can be told apart from integrations. Staff-only provenances (`dashboard`, `walk_in`) are rejected by the API with 400. Requires medal-monorepo [#4449](https://github.com/Medal-Social/MedalSocial/issues/4449) on the server; older servers ignore the field.
+
+- [#119](https://github.com/Medal-Social/MedalSocial-SDK/pull/119) [`c4dbbb6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/c4dbbb6a30c54eb84e0649ead303a6d69aef0118) Thanks [@alioftech](https://github.com/alioftech)! - Guarantee an `Idempotency-Key` on every non-idempotent write, not just bookings.
+  
+  `BaseClient.request` retries 429 and 5xx three times. A POST whose transaction
+  committed on the server before the gateway failed was therefore submitted
+  again — and an unkeyed write does not merely miss deduplication, it skips the
+  server's idempotency machinery entirely and runs the handler a second time.
+  Twelve write methods went out unkeyed and now mint a key once per logical call,
+  outside the retry loop, so every attempt carries the same value:
+  
+  - `posts.create`
+  - `contacts.create`, `contacts.addNote`, `contacts.import`
+  - `emails.send`, `emails.batch`
+  - `deals.create`
+  - `scan.create`
+  - `helpdesk.replies.create`
+  - `webhooks.create`
+  - `channels.connectLinks.create`
+  - `gdpr.requestExport`
+  
+  A caller-supplied `idempotencyKey` still always wins, and a capability
+  confirmation keeps the key it was minted with — the confirmation is bound to
+  that key, so it is reused rather than replaced.
+  
+  Methods that previously took no per-request options now accept an optional
+  `RequestOptions` argument (`posts.create`, `contacts.create`,
+  `contacts.addNote`, `contacts.import`, `emails.send`, `emails.batch`,
+  `deals.create`, `scan.create`, `gdpr.requestExport`). This is additive — every
+  existing call compiles unchanged.
+  
+  Left deliberately unkeyed, each for a stated reason on the method:
+  `posts.schedule`, `posts.publish`, `gdpr.recordConsent`, `gdpr.cookieConsent`,
+  `webhooks.test`, and `capabilityConfirmations.create`.
+
+### Patch Changes
+
+- [#119](https://github.com/Medal-Social/MedalSocial-SDK/pull/119) [`c4dbbb6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/c4dbbb6a30c54eb84e0649ead303a6d69aef0118) Thanks [@alioftech](https://github.com/alioftech)! - Make `timeout` bound the whole response, not just the headers. `fetch` settles as soon as the response headers arrive, and the client cleared its abort timer at that point — so every body read ran with no deadline at all. A server that sent headers and then stalled mid-body hung the SDK indefinitely; `timeout` only ever meant time-to-headers, despite being documented as "Request timeout in ms".
+  
+  The abort signal is now held until the body is in hand. A stalled response rejects with `AbortError` at the configured timeout, and a stalled error body no longer blocks the automatic 429/5xx retry — it aborts, and the retry proceeds. Retry backoff stays outside the deadline, since that is time the client chooses to wait rather than time it spends waiting on the server.
+  
+  **Behaviour change:** `timeout` is a fixed wall-clock budget per attempt, and progress on the body does not extend it. A response that takes longer than `timeout` to finish arriving now fails, where before it either hung forever or eventually succeeded. The default of 30s is ample for the JSON these endpoints return, but raise it if you pull pages large enough to take longer than that to transfer.
+
+- [#119](https://github.com/Medal-Social/MedalSocial-SDK/pull/119) [`c4dbbb6`](https://github.com/Medal-Social/MedalSocial-SDK/commit/c4dbbb6a30c54eb84e0649ead303a6d69aef0118) Thanks [@alioftech](https://github.com/alioftech)! - Drain the response body before retrying a 429/5xx. The retry branch abandoned the response without consuming it, and undici keeps a socket out of its connection pool until the body is consumed — so a retry storm opened a fresh connection per attempt, exactly when the server was least able to absorb them. Against a local server returning large 5xx bodies, 24 requests cost 17 TCP connections before this change and 2 after.
+  
+  The body is piped to a sink rather than cancelled or buffered. `res.body?.cancel()` releases the socket too, but by destroying the connection instead of returning it to the pool — the same churn this fixes. Reading it into a string with `res.text()` would return the socket, but materialises an error page that is then thrown away: draining a 64 MB body that way costs ~235 MB of RSS, against ~1 MB streamed. Responses with no stream to pipe fall back to `text()`.
+  
+  This affects every resource, since they all share `BaseClient.request`.
+
 ## 1.6.0
 
 ### Minor Changes
