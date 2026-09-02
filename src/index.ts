@@ -1,9 +1,9 @@
 /**
  * Official TypeScript SDK for the Medal Social API.
  *
- * Provides typed access to posts, emails, contacts, deals, GDPR compliance,
- * helpdesk conversations, partner channel connect, webhooks, and workspace
- * management. Works in
+ * Provides typed access to posts, emails, contacts, deals, bookings, GDPR
+ * compliance, helpdesk conversations, partner channel connect, webhooks, and
+ * workspace management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
  * @example
@@ -21,6 +21,7 @@
  */
 import { CapabilityConfirmer } from "./capability-confirmer";
 import { BaseClient } from "./client";
+import { Bookings } from "./resources/bookings";
 import { CapabilityConfirmations } from "./resources/capability-confirmations";
 import { Channels } from "./resources/channels";
 import { Contacts } from "./resources/contacts";
@@ -118,6 +119,13 @@ export interface MedalOptions {
  *   variables: { name: 'John' },
  * });
  *
+ * // Bookings — free slots, then book a party (money is integer øre)
+ * const { data: slots } = await medal.bookings.availability({
+ *   service_id: 'svc_1',
+ *   from_ts: Date.now(),
+ *   to_ts: Date.now() + 7 * 86_400_000,
+ * });
+ *
  * // Contacts, Deals, GDPR, Workspaces
  * const contacts = await medal.contacts.list({ status: 'lead' });
  * const { data: deal } = await medal.deals.create({ title: 'Acme', value: 50000 });
@@ -126,6 +134,7 @@ export interface MedalOptions {
  * ```
  */
 export class Medal {
+  readonly bookings: Bookings;
   readonly capabilityConfirmations: CapabilityConfirmations;
   readonly channels: Channels;
   readonly emails: Emails;
@@ -159,6 +168,7 @@ export class Medal {
       options?.autoConfirmCapabilities,
     );
 
+    this.bookings = new Bookings(client);
     this.channels = new Channels(client, confirmer);
     this.emails = new Emails(client);
     this.contacts = new Contacts(client);
@@ -181,6 +191,7 @@ export type {
   paths as OpenApiPaths,
 } from "./openapi.generated";
 // Resource class re-exports (for advanced usage)
+export { Bookings } from "./resources/bookings";
 export { CapabilityConfirmations } from "./resources/capability-confirmations";
 export { Channels } from "./resources/channels";
 export { Contacts } from "./resources/contacts";
@@ -192,6 +203,37 @@ export { Posts } from "./resources/posts";
 export { Scan } from "./resources/scan";
 export { Webhooks } from "./resources/webhooks";
 export { Workspaces } from "./resources/workspaces";
+export type {
+  Booking,
+  BookingActionResult,
+  BookingAvailabilityOptions,
+  BookingCancelledBy,
+  BookingClaimableCreatedVia,
+  BookingContactInput,
+  BookingCreatedVia,
+  BookingCreateResult,
+  BookingPaymentStatus,
+  BookingRescheduleResult,
+  BookingResource,
+  BookingResourceType,
+  BookingScheduleDay,
+  BookingScheduleOptions,
+  BookingService,
+  BookingSlot,
+  BookingStatus,
+  BookingsPage,
+  BookingsPagination,
+  BookingTimestampInput,
+  CancelBookingInput,
+  CreateBookingInput,
+  CreateBookingItemInput,
+  CreatedBooking,
+  ListBookingServicesOptions,
+  ListBookingsOptions,
+  ManageSummary,
+  RescheduleBookingInput,
+  UpdateBookingInput,
+} from "./types/bookings";
 export type {
   AutoConfirmContext,
   AutoConfirmOptions,

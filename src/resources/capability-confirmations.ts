@@ -44,6 +44,13 @@ export class CapabilityConfirmations {
    * Setting `user_approved: true` asserts that a human on your side approved
    * this specific action. `preview_summary` is what they approved, and is
    * retained for audit — write it for a human reader, not a log parser.
+   *
+   * Deliberately unkeyed, unlike the writes it authorizes. Minting is not the
+   * state change the guarantee exists to protect: the write itself is already
+   * bound to `idempotency_key`, so a retry that mints a second token cannot
+   * produce a second write. Keying this call would instead park a credential
+   * designed to expire in 15 minutes inside a replay cache that answers for 24
+   * hours — a worse trade than the duplicate token it would avoid.
    */
   async create(
     input: IssueCapabilityConfirmationInput,

@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse, PaginatedResponse } from "../types/common";
 import type {
   Channel,
@@ -26,9 +26,18 @@ export class Posts {
     return this.client.get("/api/v1/posts", params);
   }
 
-  /** Create a new post with content and target channels. */
-  async create(input: CreatePostInput): Promise<ApiResponse<{ id: string }>> {
-    return this.client.post("/api/v1/posts", input);
+  /**
+   * Create a new post with content and target channels.
+   *
+   * Automatically idempotent: the SDK mints an `Idempotency-Key` so its own
+   * 5xx retries replay rather than draft the post twice. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   */
+  async create(
+    input: CreatePostInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<{ id: string }>> {
+    return this.client.postOnce("/api/v1/posts", input, options);
   }
 
   /** Get a post by ID, including its per-channel variants. */
@@ -46,12 +55,27 @@ export class Posts {
     return this.client.delete(`/api/v1/posts/${encodeURIComponent(id)}`);
   }
 
-  /** Schedule a post for future publication. */
+  /**
+   * Schedule a post for future publication.
+   *
+   * Deliberately unkeyed: re-sending the same `scheduled_at` for an
+   * already-scheduled post returns the original `workflow_id` rather than
+   * starting a second one, so a retried schedule cannot double-publish. A
+   * *different* time is rejected — unschedule first.
+   */
   async schedule(id: string, input: SchedulePostInput): Promise<ApiResponse<ScheduleResult>> {
     return this.client.post(`/api/v1/posts/${encodeURIComponent(id)}/schedule`, input);
   }
 
-  /** Publish a post immediately to all target channels. */
+  /**
+   * Publish a post immediately to all target channels.
+   *
+   * Deliberately unkeyed: publishing moves the post out of the set of statuses
+   * that may be published, so the retry of a publish that already committed is
+   * refused rather than posting a second time. It is refused with a 400 though
+   * — treat an error here as "check the post's status", not as "nothing
+   * happened".
+   */
   async publish(id: string): Promise<ApiResponse<PublishResult>> {
     return this.client.post(`/api/v1/posts/${encodeURIComponent(id)}/publish`);
   }

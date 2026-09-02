@@ -29,6 +29,13 @@ class ChannelConnectLinks {
    *
    * Requires the `channel.connect.manage` scope; OAuth callers additionally
    * need the workspace `admin` role.
+   *
+   * Automatically idempotent: an unkeyed retry mints a SECOND live single-use
+   * link for the same person, and only one of the two can ever be consumed —
+   * the other stays outstanding until it is revoked or expires. The key the
+   * confirmer chose is the key that goes out — a capability confirmation is
+   * bound to its idempotency key, so minting a fresh one here would invalidate
+   * the confirmation.
    */
   async create(
     input: CreateConnectLinkInput,
@@ -39,7 +46,7 @@ class ChannelConnectLinks {
       undefined,
       options,
     );
-    return this.client.post("/api/v1/channels/connect-links", input, resolved);
+    return this.client.postOnce("/api/v1/channels/connect-links", input, resolved);
   }
 
   /**
