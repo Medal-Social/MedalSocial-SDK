@@ -229,6 +229,14 @@ const expected = [
   ],
   [
     "get",
+    "/api/v1/bookings/schedule",
+    "listBookingSchedule",
+    "src/resources/bookings.ts",
+    "get",
+    "/api/v1/bookings/schedule",
+  ],
+  [
+    "get",
     "/api/v1/bookings/{id}",
     "getBooking",
     "src/resources/bookings.ts",

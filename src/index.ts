@@ -215,6 +215,8 @@ export type {
   BookingRescheduleResult,
   BookingResource,
   BookingResourceType,
+  BookingScheduleDay,
+  BookingScheduleOptions,
   BookingService,
   BookingSlot,
   BookingStatus,

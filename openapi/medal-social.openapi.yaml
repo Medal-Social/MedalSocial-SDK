@@ -681,6 +681,52 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_BookingSlotArray"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/schedule:
+    get:
+      tags: [Bookings]
+      operationId: listBookingSchedule
+      summary: List the dates a service can be booked on
+      description: >-
+        The other half of `availability`. Availability returns free slots and
+        nothing else, so a closed day, an evening past closing and a fully
+        booked day all come back as the same empty array. This returns one
+        entry per date the workspace keeps opening hours on; a date ABSENT from
+        the response is closed. `last_start_ts` is the last start this service
+        could occupy on that date (it depends on the service's duration and
+        buffers, not just the closing time) and is `null` for a date with
+        posted hours that is shut outright, such as a public holiday.
+      parameters:
+        - name: service_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: from_ts
+          in: query
+          required: true
+          description: Start of the window.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: to_ts
+          in: query
+          required: true
+          description: End of the window; must be after `from_ts`.
+          schema:
+            $ref: "#/components/schemas/BookingTimestampInput"
+        - name: resource_id
+          in: query
+          description: Restrict to one resource's hours.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Open dates.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_BookingScheduleDayArray"
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/bookings/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
@@ -2588,6 +2634,24 @@ components:
           format: date-time
         resource_id:
           type: [string, "null"]
+    BookingScheduleDay:
+      description: One date a service can be booked on. `date` is the workspace's own calendar date, not a timestamp.
+      type: object
+      required: [date, opens_ts, closes_ts, last_start_ts]
+      properties:
+        date:
+          type: [string, "null"]
+          format: date
+        opens_ts:
+          type: [string, "null"]
+          format: date-time
+        closes_ts:
+          type: [string, "null"]
+          format: date-time
+        last_start_ts:
+          description: Last start this service could occupy on the date; `null` when the date is shut outright.
+          type: [string, "null"]
+          format: date-time
     BookingContactInput:
       description: The person the booking is made under. Phone is the CRM dedupe key.
       type: object
@@ -3532,6 +3596,8 @@ components:
       $ref: "#/components/schemas/Envelope_BookingResourceArray"
     ApiResponse_BookingSlotArray:
       $ref: "#/components/schemas/Envelope_BookingSlotArray"
+    ApiResponse_BookingScheduleDayArray:
+      $ref: "#/components/schemas/Envelope_BookingScheduleDayArray"
     ApiResponse_BookingCreateResult:
       $ref: "#/components/schemas/Envelope_BookingCreateResult"
     ApiResponse_BookingActionResult:
@@ -3839,6 +3905,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BookingSlot"
+    Envelope_BookingScheduleDayArray:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookingScheduleDay"
     Envelope_BookingCreateResult:
       type: object
       required: [data]
