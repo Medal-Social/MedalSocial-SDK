@@ -2712,7 +2712,6 @@ components:
             not that a member typed the booking in.
           type: string
           enum: [web, api]
-          default: api
     CreatedBooking:
       type: object
       required: [id]

@@ -1556,10 +1556,9 @@ export interface components {
       notes?: string;
       /**
        * @description Where the booking came from. Defaults to `api`. A workspace's OWN website should send `web`, so its bookings can be told apart from integrations. `dashboard` and `walk_in` are staff-only and are rejected with 400 — a bearer token proves which workspace is calling, not that a member typed the booking in.
-       * @default api
        * @enum {string}
        */
-      created_via: "web" | "api";
+      created_via?: "web" | "api";
     };
     CreatedBooking: {
       id: string;

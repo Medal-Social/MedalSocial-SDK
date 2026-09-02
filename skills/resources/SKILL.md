@@ -35,7 +35,7 @@ Errors throw `MedalApiError` (see the `client` skill for details).
 
 | Namespace | Source | Methods |
 |---|---|---|
-| `medal.bookings` | `src/resources/bookings.ts` | `listServices(opts?)`, `listResources()`, `availability(opts)`, `list(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `cancel(id, input?, opts?)`, `reschedule(id, input, opts?)`, `markNoShow(id, opts?)` — all **staff** semantics (policy windows bypassed) |
+| `medal.bookings` | `src/resources/bookings.ts` | `listServices(opts?)`, `listResources()`, `availability(opts)`, `schedule(opts)`, `list(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `cancel(id, input?, opts?)`, `reschedule(id, input, opts?)`, `markNoShow(id, opts?)` — all **staff** semantics (policy windows bypassed) |
 | `medal.bookings.manage` | `src/resources/bookings.ts` (`BookingsManage`) | `get(token)`, `cancel(token, input?, opts?)`, `reschedule(token, input, opts?)` — **customer** semantics (policy windows enforced) |
 | `medal.contacts` | `src/resources/contacts.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)`, `activities(id, opts?)`, `addNote(id, { content })`, `import(contacts[])` |
 | `medal.deals` | `src/resources/deals.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)` |
@@ -119,6 +119,20 @@ const { data: slots } = await medal.bookings.availability({
 
 Slots are computed at call time and are **not held** — a slot can be taken between `availability()` and `create()`. Handle the conflict error; don't assume a fetched slot is reserved.
 
+**An empty `availability()` does not say why.** A closed day, an evening past closing and a fully booked day all come back as `[]`. `schedule()` is the other half — one entry per date the workspace keeps hours on, same parameters as `availability()`:
+
+```ts
+const { data: days } = await medal.bookings.schedule({
+  service_id: services[0].id,
+  from_ts: Date.now(),
+  to_ts: Date.now() + 7 * 86_400_000,
+});
+// A date ABSENT from `days` is closed. On a listed date, `last_start_ts` is the last
+// start THIS service could occupy (duration + buffers, not the closing time) — compare
+// it against the clock to tell "too late today" from "fully booked"; it is `null` on a
+// date with posted hours that is shut outright (a public holiday).
+```
+
 **Creating is a party operation.** `items` is an array because one request books a whole family in one all-or-nothing transaction (max 50). A single appointment is just `items` of length 1.
 
 ```ts
@@ -126,12 +140,15 @@ const { data } = await medal.bookings.create(
   {
     items: [{ service_id: services[0].id, start_ts: slots[0].start_ts! }],
     contact: { phone: '+4790000000', name: 'Ida' },   // phone is the CRM dedupe key and is required
+    created_via: 'web',   // only from the workspace's OWN site; omit (=> 'api') from integrations
   },
   { idempotencyKey: crypto.randomUUID() },
 );
 data.bookings[0].manage_token;  // SHOW-ONCE
 data.contact_id;
 ```
+
+`created_via` is optional and defaults to `api`. Send `web` **only** from the workspace's own website, so its bookings can be told apart from integrations'. `dashboard` and `walk_in` are staff-only and the API rejects them with 400 — an API key proves which workspace is calling, not that a member typed the booking in.
 
 `manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.
 
