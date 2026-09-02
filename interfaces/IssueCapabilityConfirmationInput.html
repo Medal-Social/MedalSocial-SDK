@@ -15,7 +15,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">IssueCapabilityConfirmationInput</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#api_path">api_path</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#capability_id">capability_id</a><span class="tsd-signature-symbol">:</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connect_link.create.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connect_link.revoke.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connection.disconnect.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.conversation.reply.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.conversation.update.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.create.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.update.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.delete.execute&quot;</span><br/>        <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{}</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotency_key">idempotency_key</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#path_params">path_params</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <a href="../types/CapabilityPathParamValue.html" class="tsd-signature-type tsd-kind-type-alias">CapabilityPathParamValue</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#preview_summary">preview_summary</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#user_approved">user_approved</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">true</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L90">src/types/capabilities.ts:90</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L90">src/types/capabilities.ts:90</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -42,7 +42,7 @@ the capability has exactly one API target (all capabilities in
 path built from the capability's own templates.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L103">src/types/capabilities.ts:103</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L103">src/types/capabilities.ts:103</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="capability_id"><span>capability_<wbr/>id</span><a href="#capability_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">capability_id</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connect_link.create.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connect_link.revoke.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;channel.connection.disconnect.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.conversation.reply.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.conversation.update.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.create.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.update.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;helpdesk.webhook.delete.execute&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{}</span></div>
@@ -51,7 +51,7 @@ path built from the capability's own templates.</p>
 <code>CAPABILITY_NOT_CONFIRMABLE</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L96">src/types/capabilities.ts:96</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L96">src/types/capabilities.ts:96</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="idempotency_key"><code class="tsd-tag">Optional</code><span>idempotency_<wbr/>key</span><a href="#idempotency_key" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">idempotency_key</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -60,14 +60,14 @@ token is bound to it — a mismatch is rejected. Required for every
 capability in <a href="../variables/CAPABILITY_ROUTES.html" class="tsd-kind-variable">CAPABILITY_ROUTES</a>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L111">src/types/capabilities.ts:111</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L111">src/types/capabilities.ts:111</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="path_params"><code class="tsd-tag">Optional</code><span>path_<wbr/>params</span><a href="#path_params" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">path_params</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <a href="../types/CapabilityPathParamValue.html" class="tsd-signature-type tsd-kind-type-alias">CapabilityPathParamValue</a><span class="tsd-signature-symbol">&gt;</span></div>
 <div class="tsd-comment tsd-typography"><p>Values for the capability path template's parameters, e.g. <code>{ id: 'wh_1' }</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L105">src/types/capabilities.ts:105</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L105">src/types/capabilities.ts:105</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="preview_summary"><span>preview_<wbr/>summary</span><a href="#preview_summary" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">preview_summary</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -75,7 +75,7 @@ capability in <a href="../variables/CAPABILITY_ROUTES.html" class="tsd-kind-vari
 This is the text your user saw and approved, and it is retained for audit.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L116">src/types/capabilities.ts:116</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L116">src/types/capabilities.ts:116</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="user_approved"><span>user_<wbr/>approved</span><a href="#user_approved" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">user_approved</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">true</span></div>
@@ -85,7 +85,7 @@ Do not send it to rubber-stamp unattended writes — it is the audit record
 that a person, not a script, authorised the change.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a68d2ec05b67b42621c5506f664fa564a583afae/src/types/capabilities.ts#L124">src/types/capabilities.ts:124</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/c4dbbb6a30c54eb84e0649ead303a6d69aef0118/src/types/capabilities.ts#L124">src/types/capabilities.ts:124</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
