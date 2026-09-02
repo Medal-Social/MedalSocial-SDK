@@ -80,8 +80,16 @@ class HelpdeskReplies {
   /**
    * Send an operator reply or internal note. Returns HTTP 201.
    *
-   * Pass an `idempotencyKey` so retried requests do not create duplicate
-   * messages — it is REQUIRED for capability-scoped tokens.
+   * Automatically idempotent: a reply is a message to a real person, and an
+   * unkeyed retry sends it to them twice. The key the confirmer chose is the
+   * key that goes out — a capability confirmation is bound to its idempotency
+   * key, so minting a fresh one here would invalidate the confirmation.
+   *
+   * Pass `options.idempotencyKey` to deduplicate across your OWN retries too.
+   * It is REQUIRED for capability-scoped tokens, which need it paired with a
+   * `capabilityConfirmation` — a generated key satisfies the pairing's key
+   * half only; the confirmation is still yours to supply (or to let
+   * `autoConfirm` mint).
    */
   async create(
     input: CreateReplyInput,
@@ -92,7 +100,7 @@ class HelpdeskReplies {
       undefined,
       options,
     );
-    return this.client.post("/api/v1/helpdesk/replies", input, resolved);
+    return this.client.postOnce("/api/v1/helpdesk/replies", input, resolved);
   }
 }
 

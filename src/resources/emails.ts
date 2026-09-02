@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
   BatchSendInput,
@@ -40,9 +40,21 @@ export class Emails {
   /**
    * Send a transactional email using a template (HTTP 202). The returned `id`
    * is an email send id — poll `emails.get(id)` with it to track delivery.
+   *
+   * Automatically idempotent: the SDK mints an `Idempotency-Key` so its own
+   * 5xx retries replay rather than queue a second copy into someone's inbox —
+   * a send that already committed cannot be un-sent. Supply
+   * `options.idempotencyKey` to deduplicate across your OWN retries too.
+   *
+   * `input.idempotency_key` is the older, body-level form of the same control
+   * and still takes precedence server-side, so setting it keeps working
+   * unchanged.
    */
-  async send(input: SendEmailInput): Promise<ApiResponse<EmailSendResult>> {
-    return this.client.post("/api/v1/emails", input);
+  async send(
+    input: SendEmailInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<EmailSendResult>> {
+    return this.client.postOnce("/api/v1/emails", input, options);
   }
 
   /** Get the delivery status of a sent email. */
@@ -53,8 +65,16 @@ export class Emails {
   /**
    * Send the same template to multiple recipients (max 100, HTTP 202). Each
    * queued recipient gets its own send id in `results` for `emails.get(id)`.
+   *
+   * Automatically idempotent — and this is the call where it matters most: an
+   * unkeyed retry of a batch that already committed sends up to 100 duplicate
+   * emails. Supply `options.idempotencyKey` to deduplicate across your OWN
+   * retries too.
    */
-  async batch(input: BatchSendInput): Promise<ApiResponse<BatchSendSummary>> {
-    return this.client.post("/api/v1/emails/batch", input);
+  async batch(
+    input: BatchSendInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<BatchSendSummary>> {
+    return this.client.postOnce("/api/v1/emails/batch", input, options);
   }
 }

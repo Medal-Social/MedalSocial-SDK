@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BaseClient, createMedalClient, Medal, MedalApiError } from "../src";
+import type { components } from "../src/openapi.generated";
+
+// Compile-time guard: the OPENAPI-DERIVED type must carry the same
+// "at least one of notes / internal_notes" invariant as the handwritten
+// `UpdateBookingInput`. `minProperties` alone does not survive codegen, so
+// this fails the typecheck gate if the `anyOf` branches are ever dropped.
+type GeneratedUpdateBookingInput = components["schemas"]["UpdateBookingInput"];
+// @ts-expect-error - an empty update must not satisfy the generated contract
+const _rejectsEmptyUpdate: GeneratedUpdateBookingInput = {};
+const _acceptsNotesOnly: GeneratedUpdateBookingInput = { notes: "" };
+const _acceptsInternalOnly: GeneratedUpdateBookingInput = { internal_notes: "x" };
+void _rejectsEmptyUpdate;
+void _acceptsNotesOnly;
+void _acceptsInternalOnly;
 
 const BASE = "https://test.convex.site";
 
@@ -24,6 +38,8 @@ describe("Medal constructor", () => {
     expect(medal.gdpr).toBeDefined();
     expect(medal.posts).toBeDefined();
     expect(medal.workspaces).toBeDefined();
+    expect(medal.bookings).toBeDefined();
+    expect(medal.bookings.manage).toBeDefined();
   });
 
   it("uses default baseUrl and timeout when no options provided", async () => {
@@ -125,8 +141,10 @@ describe("error handling", () => {
   });
 
   it("handles non-JSON error responses", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("Server Error", { status: 502, statusText: "Bad Gateway" }),
+    // 502 is retried, so this needs a fresh Response per attempt — the first
+    // attempt drains the body of the one it abandons.
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response("Server Error", { status: 502, statusText: "Bad Gateway" }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
@@ -156,9 +174,11 @@ describe("retries", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
+  // A fresh Response per call, the way fetch behaves: one shared instance would
+  // be consumed by the first attempt's drain and unusable on the next.
   it("throws after exhausting all retry attempts on persistent 500", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValue(new Response("", { status: 500 }));
+    spy.mockImplementation(async () => new Response("", { status: 500 }));
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
     expect(spy).toHaveBeenCalledTimes(3);
@@ -166,7 +186,9 @@ describe("retries", () => {
 
   it("throws after exhausting all retry attempts on persistent 429", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
-    spy.mockResolvedValue(new Response("", { status: 429, headers: { "retry-after": "0" } }));
+    spy.mockImplementation(
+      async () => new Response("", { status: 429, headers: { "retry-after": "0" } }),
+    );
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalApiError);
     expect(spy).toHaveBeenCalledTimes(3);
@@ -181,6 +203,87 @@ describe("retries", () => {
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
     const result = await medal.contacts.list();
     expect(result.data).toEqual([]);
+  });
+
+  it("drains the body of a response it abandons to a retry", async () => {
+    // Until a response body is consumed, undici keeps its socket out of the
+    // connection pool, so every retry opens a fresh connection — the churn
+    // lands exactly when the server is least able to absorb it.
+    const abandoned = new Response("x".repeat(4096), { status: 503, statusText: "Error" });
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(abandoned);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(abandoned.bodyUsed, "the abandoned response body must be consumed").toBe(true);
+  });
+
+  it("discards the abandoned body without materialising it", async () => {
+    // A 429/5xx body can be large — a proxy's HTML error page, say. Buffering
+    // one into a string only to throw it away costs several times its size in
+    // RSS, on every attempt of every in-flight request, which is the opposite
+    // of what a client under retry pressure should be doing. Consume the
+    // stream and keep nothing.
+    const abandoned = new Response("x".repeat(4096), { status: 503, statusText: "Error" });
+    Object.defineProperty(abandoned, "text", {
+      value: () => {
+        throw new Error("the drain must not buffer the abandoned body into a string");
+      },
+    });
+
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(abandoned);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(abandoned.bodyUsed, "the stream was still consumed").toBe(true);
+  });
+
+  it("retries a response that carries no body at all", async () => {
+    // `new Response(null)`, 204 and 304 all have `body === null`. Draining must
+    // cope with that rather than assuming a stream is always there.
+    const empty = new Response(null, { status: 503, statusText: "Error" });
+    expect(empty.body, "fixture precondition: this response has no body").toBeNull();
+
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(empty);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("still retries when draining the abandoned body fails", async () => {
+    // A body that errors mid-read has already released its socket, so a failed
+    // drain must not turn a retryable 5xx into a thrown stream error.
+    const broken = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.error(new Error("connection reset"));
+        },
+      }),
+      { status: 500, statusText: "Error" },
+    );
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockResolvedValueOnce(broken);
+    spy.mockResolvedValueOnce(mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(broken.bodyUsed, "a failed drain still consumes the body").toBe(true);
   });
 });
 
@@ -503,6 +606,541 @@ describe("deals", () => {
   });
 });
 
+describe("bookings", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  it("lists services without filters", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/services");
+      expect(parsed.searchParams.has("include_inactive")).toBe(false);
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listServices();
+    expect(data).toEqual([]);
+  });
+
+  it("lists services including inactive ones", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("include_inactive")).toBe("true");
+      return mockJson({ data: [{ id: "svc_1", name: "Klipp", price_ore: 49900 }] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listServices({ include_inactive: true });
+    expect(data[0].price_ore).toBe(49900);
+  });
+
+  it("serialises include_inactive: false rather than dropping it", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("include_inactive")).toBe("false");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.listServices({ include_inactive: false });
+  });
+
+  it("lists resources", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/resources");
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: [{ id: "res_1", type: "staff", name: "Nina" }] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.listResources();
+    expect(data[0].type).toBe("staff");
+  });
+
+  it("sends created_via on create so a site's bookings are not filed as an integration's", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(new URL(url as string).pathname).toBe("/api/v1/bookings");
+      expect(JSON.parse(init?.body as string).created_via).toBe("web");
+      return mockJson({ data: { bookings: [{ id: "bk_1", manage_token: "t" }] } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.create({
+      items: [{ service_id: "svc_1", start_ts: 1780000000000 }],
+      contact: { phone: "+4740000000" },
+      created_via: "web",
+    });
+    expect(data.bookings[0].id).toBe("bk_1");
+  });
+
+  it("fetches the schedule for a service", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/schedule");
+      expect(parsed.searchParams.get("service_id")).toBe("svc_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("2026-09-08T00:00:00.000Z");
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [
+          {
+            date: "2026-09-01",
+            opens_ts: "2026-09-01T09:00:00.000Z",
+            closes_ts: "2026-09-01T15:00:00.000Z",
+            last_start_ts: "2026-09-01T14:30:00.000Z",
+          },
+          // Posted hours but shut outright — a public holiday.
+          {
+            date: "2026-09-02",
+            opens_ts: "2026-09-02T09:00:00.000Z",
+            closes_ts: "2026-09-02T15:00:00.000Z",
+            last_start_ts: null,
+          },
+        ],
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.schedule({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: "2026-09-08T00:00:00.000Z",
+      resource_id: "res_1",
+    });
+    expect(data).toHaveLength(2);
+    expect(data[0].date).toBe("2026-09-01");
+    expect(data[0].last_start_ts).toBe("2026-09-01T14:30:00.000Z");
+    expect(data[1].last_start_ts).toBeNull();
+  });
+
+  it("omits resource_id from the schedule query when not given", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.has("resource_id")).toBe(false);
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.schedule({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: 1780600000000,
+    });
+    expect(data).toEqual([]);
+  });
+
+  it("fetches availability for a service", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings/availability");
+      expect(parsed.searchParams.get("service_id")).toBe("svc_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("2026-09-01T00:00:00.000Z");
+      expect(parsed.searchParams.has("resource_id")).toBe(false);
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [
+          {
+            start_ts: "2026-09-01T09:00:00.000Z",
+            end_ts: "2026-09-01T09:30:00.000Z",
+            resource_id: "res_1",
+          },
+        ],
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.availability({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: "2026-09-01T00:00:00.000Z",
+    });
+    expect(data[0].resource_id).toBe("res_1");
+  });
+
+  it("narrows availability to one resource", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.availability({
+      service_id: "svc_1",
+      from_ts: 1780000000000,
+      to_ts: 1780086400000,
+      resource_id: "res_1",
+    });
+  });
+
+  it("lists bookings without filters", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings");
+      expect([...parsed.searchParams.keys()]).toEqual([]);
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: [],
+        pagination: { has_more: false, next_cursor: null, truncated: false },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const page = await medal.bookings.list();
+    expect(page.pagination.truncated).toBe(false);
+  });
+
+  it("lists bookings with every filter and reports truncation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const parsed = new URL(url as string);
+      expect(parsed.searchParams.get("limit")).toBe("25");
+      expect(parsed.searchParams.get("cursor")).toBe("cur_1");
+      expect(parsed.searchParams.get("status")).toBe("confirmed");
+      expect(parsed.searchParams.get("resource_id")).toBe("res_1");
+      expect(parsed.searchParams.get("from_ts")).toBe("1780000000000");
+      expect(parsed.searchParams.get("to_ts")).toBe("1780086400000");
+      return mockJson({
+        data: [{ id: "bk_1", status: "confirmed", amount_ore: 49900 }],
+        pagination: { has_more: true, next_cursor: "cur_2", truncated: true },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const page = await medal.bookings.list({
+      limit: 25,
+      cursor: "cur_1",
+      status: "confirmed",
+      resource_id: "res_1",
+      from_ts: 1780000000000,
+      to_ts: 1780086400000,
+    });
+    expect(page.data[0].amount_ore).toBe(49900);
+    expect(page.pagination.truncated).toBe(true);
+    expect(page.pagination.next_cursor).toBe("cur_2");
+  });
+
+  it("creates a party booking and returns one manage token per booking", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      expect(parsed.pathname).toBe("/api/v1/bookings");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].start_ts).toBe(1780000000000);
+      expect(body.items[1].booked_for_birth_year).toBe(2018);
+      expect(body.contact.phone).toBe("+4790000000");
+      expect(body.notes).toBe("Bursdag");
+      return mockJson(
+        {
+          data: {
+            bookings: [
+              { id: "bk_1", manage_token: "mt_1" },
+              { id: "bk_2", manage_token: "mt_2" },
+            ],
+            contact_id: "c_1",
+          },
+        },
+        201,
+      );
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.create({
+      items: [
+        { service_id: "svc_1", start_ts: 1780000000000 },
+        {
+          service_id: "svc_2",
+          start_ts: "2026-09-01T09:30:00.000Z",
+          resource_id: "res_1",
+          booked_for_name: "Ida",
+          booked_for_birth_year: 2018,
+        },
+      ],
+      contact: { phone: "+4790000000", email: "a@x.com", name: "Ali" },
+      notes: "Bursdag",
+    });
+    expect(data.contact_id).toBe("c_1");
+    expect(data.bookings[1].manage_token).toBe("mt_2");
+  });
+
+  it("forwards an idempotency key on create", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(new Headers(init?.headers).get("idempotency-key")).toBe("key_1");
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "key_1" },
+    );
+  });
+
+  it("cannot create two bookings when a 5xx is retried", async () => {
+    // Simulates the server's idempotency machinery: a write only executes for
+    // an Idempotency-Key it has not seen. The first attempt commits the booking
+    // and THEN fails at the gateway — the exact window in which a keyless retry
+    // double-books.
+    const booked: string[] = [];
+    const seenKeys = new Set<string>();
+    let attempt = 0;
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      attempt += 1;
+      const key = new Headers(init?.headers).get("idempotency-key");
+      expect(key, "every non-idempotent booking write must carry a key").toBeTruthy();
+
+      if (seenKeys.has(key as string)) {
+        // Replay — the server returns the stored response, tokens redacted.
+        return mockJson({ data: { bookings: [{ id: booked[0] }], contact_id: "c_1" } }, 201);
+      }
+      seenKeys.add(key as string);
+      booked.push(`bk_${booked.length + 1}`);
+
+      // Committed, then the gateway 500s. The SDK retries.
+      if (attempt === 1) return new Response("", { status: 503, statusText: "Error" });
+      return mockJson(
+        { data: { bookings: [{ id: booked[0], manage_token: "mt_1" }], contact_id: "c_1" } },
+        201,
+      );
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    const { data } = await medal.bookings.create({
+      items: [{ service_id: "svc_1", start_ts: 1780000000000 }],
+      contact: { phone: "+4790000000" },
+    });
+
+    expect(attempt).toBe(2); // it really did retry
+    expect(seenKeys.size).toBe(1); // …under one key
+    expect(booked).toEqual(["bk_1"]); // …so exactly ONE booking exists
+    expect(data.bookings).toHaveLength(1);
+  });
+
+  it("reuses one generated key across every retry of a reschedule", async () => {
+    const keys: (string | null)[] = [];
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      if (keys.length === 1) return new Response("", { status: 500, statusText: "Error" });
+      return mockJson({ data: { success: true, booking_id: "bk_9" } });
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 5000 });
+    await medal.bookings.reschedule("bk_1", { new_start_ts: 1780090000000 });
+
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it("keys the customer reschedule and cancel paths too", async () => {
+    const keys: (string | null)[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      return mockJson({ data: { success: true, booking_id: "bk_9" } });
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.manage.reschedule("tok_1", { new_start_ts: 1780090000000 });
+    await medal.bookings.manage.cancel("tok_1");
+    await medal.bookings.cancel("bk_1");
+    await medal.bookings.markNoShow("bk_1");
+
+    expect(keys).toHaveLength(4);
+    for (const key of keys) expect(key).toBeTruthy();
+    expect(new Set(keys).size, "each call gets its own key").toBe(4);
+  });
+
+  it("generates a key when the caller supplies a blank one", async () => {
+    // `??` would treat "" as supplied, and `writeHeaders` then drops the falsy
+    // value — the POST goes out unkeyed and the 5xx retry can double-book
+    // again. Any caller doing `idempotencyKey: someVar` can hit this.
+    for (const blank of ["", "   ", "\t\n"]) {
+      const keys: (string | null)[] = [];
+      const spy = vi.spyOn(globalThis, "fetch");
+      spy.mockImplementation(async (_url, init) => {
+        keys.push(new Headers(init?.headers).get("idempotency-key"));
+        return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+      });
+
+      const medal = new Medal("medal_test", { baseUrl: BASE });
+      await medal.bookings.create(
+        { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+        { idempotencyKey: blank },
+      );
+
+      expect(keys[0], `blank key ${JSON.stringify(blank)} must be replaced`).toBeTruthy();
+      expect(keys[0]?.trim()).toBe(keys[0]);
+      spy.mockRestore();
+    }
+  });
+
+  it("generates a key when options carry no idempotencyKey at all", async () => {
+    let key: string | null = null;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      key = new Headers(init?.headers).get("idempotency-key");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.markNoShow("bk_1", {});
+    expect(key).toBeTruthy();
+  });
+
+  it("never overwrites a caller-supplied idempotency key", async () => {
+    const keys: (string | null)[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      keys.push(new Headers(init?.headers).get("idempotency-key"));
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "caller_key" },
+    );
+    expect(keys).toEqual(["caller_key"]);
+  });
+
+  it("rejects an update that would change nothing", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      mockJson({ data: { id: "bk_1" } }),
+    );
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+
+    // The server's updateBookingSchema .refine()s that at least one of notes /
+    // internal_notes is present, so `{}` is a 400. The type must say so first.
+    // @ts-expect-error - at least one of notes / internal_notes is required
+    await medal.bookings.update("bk_1", {});
+
+    await medal.bookings.update("bk_1", { notes: "" }); // clearing IS meaningful
+    await medal.bookings.update("bk_1", { internal_notes: "x" });
+    await medal.bookings.update("bk_1", { notes: "a", internal_notes: "b" });
+  });
+
+  it("gets a booking by ID and encodes it", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk%2F1");
+      expect(init?.method).toBe("GET");
+      return mockJson({ data: { id: "bk/1", status: "confirmed" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.get("bk/1");
+    expect(data.status).toBe("confirmed");
+  });
+
+  it("updates booking notes", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1");
+      expect(init?.method).toBe("PATCH");
+      const body = JSON.parse(init?.body as string);
+      expect(body.internal_notes).toBe("Allergisk");
+      return mockJson({ data: { id: "bk_1", internal_notes: "Allergisk" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.update("bk_1", { internal_notes: "Allergisk" });
+    expect(data.internal_notes).toBe("Allergisk");
+  });
+
+  it("cancels a booking without a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/cancel");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({});
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.cancel("bk_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("cancels a booking with a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string).reason).toBe("Sykdom");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.cancel("bk_1", { reason: "Sykdom" });
+  });
+
+  it("reschedules a booking and returns the new id plus manage token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/reschedule");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.new_start_ts).toBe(1780090000000);
+      expect(body.new_resource_id).toBe("res_2");
+      return mockJson({ data: { success: true, booking_id: "bk_9", manage_token: "mt_9" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.reschedule("bk_1", {
+      new_start_ts: 1780090000000,
+      new_resource_id: "res_2",
+    });
+    expect(data.booking_id).toBe("bk_9");
+    expect(data.manage_token).toBe("mt_9");
+  });
+
+  it("marks a booking as a no-show", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/bk_1/no-show");
+      expect(init?.method).toBe("POST");
+      expect(init?.body).toBeUndefined();
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.markNoShow("bk_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("reads the customer manage summary by token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok%2Fen");
+      expect(init?.method).toBe("GET");
+      return mockJson({
+        data: {
+          booking_id: "bk_1",
+          can_cancel: true,
+          can_reschedule: false,
+          time_zone: "Europe/Oslo",
+        },
+      });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.get("tok/en");
+    expect(data.can_cancel).toBe(true);
+    expect(data.time_zone).toBe("Europe/Oslo");
+  });
+
+  it("cancels via manage token without a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok_1/cancel");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(init?.body as string)).toEqual({});
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.cancel("tok_1");
+    expect(data.success).toBe(true);
+  });
+
+  it("cancels via manage token with a reason", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string).reason).toBe("Endret plan");
+      return mockJson({ data: { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.manage.cancel("tok_1", { reason: "Endret plan" });
+  });
+
+  it("reschedules via manage token", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(url).toContain("/api/v1/bookings/manage/tok_1/reschedule");
+      expect(init?.method).toBe("POST");
+      const body = JSON.parse(init?.body as string);
+      expect(body.new_start_ts).toBe("2026-09-02T09:00:00.000Z");
+      expect(body.new_resource_id).toBeUndefined();
+      return mockJson({ data: { success: true, booking_id: "bk_9", manage_token: "mt_9" } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.bookings.manage.reschedule("tok_1", {
+      new_start_ts: "2026-09-02T09:00:00.000Z",
+    });
+    expect(data.booking_id).toBe("bk_9");
+  });
+});
+
 describe("posts", () => {
   beforeEach(() => vi.restoreAllMocks());
 
@@ -811,6 +1449,34 @@ describe("misc", () => {
     await medal.gdpr.getConsent("user@example.com");
   });
 
+  it("still keys a write when crypto.randomUUID is unavailable", async () => {
+    // `randomUUID` is secure-context gated in browsers, so an http:// page has
+    // `crypto` but not `randomUUID`. The write must still go out keyed.
+    const original = globalThis.crypto.randomUUID;
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+
+    try {
+      let key: string | null = null;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+        key = new Headers(init?.headers).get("idempotency-key");
+        return mockJson({ data: { success: true } });
+      });
+
+      const medal = new Medal("medal_test", { baseUrl: BASE });
+      await medal.bookings.markNoShow("bk_1");
+
+      expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    } finally {
+      Object.defineProperty(globalThis.crypto, "randomUUID", {
+        value: original,
+        configurable: true,
+      });
+    }
+  });
+
   it("skips query params whose value is undefined", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);
@@ -830,6 +1496,51 @@ describe("misc", () => {
 
 describe("timeout and Retry-After handling", () => {
   beforeEach(() => vi.restoreAllMocks());
+
+  /**
+   * A response whose headers arrive at once and whose body then stalls
+   * forever — the shape `fetch` alone cannot protect against, since it
+   * resolves at the headers. Mirrors real fetch, which errors the body
+   * stream with an AbortError when the signal aborts.
+   */
+  function stallsAfterHeaders(init: RequestInit | undefined, responseInit: ResponseInit): Response {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("partial"));
+        init?.signal?.addEventListener("abort", () =>
+          controller.error(new DOMException("This operation was aborted", "AbortError")),
+        );
+        // never closed
+      },
+    });
+    return new Response(body, responseInit);
+  }
+
+  it("times out when the server stalls after sending the response headers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) =>
+      stallsAfterHeaders(init, {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
+  }, 2000);
+
+  it("does not let a stalled error body block the retry", async () => {
+    const spy = vi.spyOn(globalThis, "fetch");
+    spy.mockImplementationOnce(async (_url, init) =>
+      stallsAfterHeaders(init, { status: 503, statusText: "Error" }),
+    );
+    spy.mockImplementationOnce(async () => mockJson({ data: [] }));
+
+    const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
+    const result = await medal.contacts.list();
+
+    expect(result.data).toEqual([]);
+    expect(spy).toHaveBeenCalledTimes(2);
+  }, 2000);
 
   it("waits for a positive numeric Retry-After before retrying", async () => {
     const spy = vi.spyOn(globalThis, "fetch");

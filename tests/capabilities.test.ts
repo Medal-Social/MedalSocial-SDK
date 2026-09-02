@@ -156,12 +156,15 @@ describe("capabilityConfirmations.create", () => {
 describe("auto-confirm", () => {
   beforeEach(() => vi.restoreAllMocks());
 
-  it("is OFF by default — no confirmation request, no headers", async () => {
+  it("is OFF by default — no confirmation request, no confirmation header", async () => {
     const calls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       calls.push(new URL(url as string).pathname);
       const headers = new Headers(init?.headers);
-      expect(headers.get("idempotency-key")).toBeNull();
+      // The write still carries its own retry key — that is `postOnce`, not
+      // auto-confirm. What must stay absent with auto-confirm off is the
+      // confirmation itself, and the round trip that mints it.
+      expect(headers.get("idempotency-key")).toBeTruthy();
       expect(headers.get("x-capability-confirmation")).toBeNull();
       return mockJson({ data: { id: "cl_1", url: "https://connect.example.com/l/x" } }, 201);
     });
@@ -339,8 +342,8 @@ describe("auto-confirm", () => {
       if (path === "/api/v1/capability-confirmations") return mockJson(confirmationPayload());
       const headers = new Headers(init?.headers);
       if (path === "/api/v1/webhooks") {
-        // No auto-confirm opted in — no headers minted.
-        expect(headers.get("idempotency-key")).toBeNull();
+        // No auto-confirm opted in — no confirmation minted. The retry key is
+        // `postOnce`'s and rides along regardless.
         expect(headers.get("x-capability-confirmation")).toBeNull();
       }
       return mockJson({ data: { id: "x", status: "deleted" } });
@@ -535,20 +538,38 @@ describe("capability confirmer internals", () => {
   });
 
   it("mints an idempotency key without WebCrypto randomUUID", async () => {
-    // Runtimes without `crypto.randomUUID` must still get a usable key rather
-    // than throwing on the optional chain.
-    vi.stubGlobal("crypto", undefined);
-    const { api } = recordingConfirmations();
-    const confirmer = new CapabilityConfirmer(api, {
-      previewSummary: () => "approved",
+    // `randomUUID` is secure-context gated in browsers, so an http:// page has
+    // `crypto` but not `randomUUID`. The confirmer shares the client's key
+    // generator, which falls back to `getRandomValues` — available in every
+    // context — rather than to a timestamp. A guessable key would be the wrong
+    // trade here: it is the value the confirmation token is bound to, and the
+    // server's replay lookup is keyed on it.
+    const original = globalThis.crypto.randomUUID;
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
     });
 
-    const options = await confirmer.prepare({
-      capabilityId: "channel.connect_link.create.execute",
-      body: { platform: "instagram" },
-      // biome-ignore lint/suspicious/noExplicitAny: body shape is not under test here
-    } as any);
+    try {
+      const { api } = recordingConfirmations();
+      const confirmer = new CapabilityConfirmer(api, {
+        previewSummary: () => "approved",
+      });
 
-    expect(options?.idempotencyKey).toMatch(/^idem_/);
+      const options = await confirmer.prepare({
+        capabilityId: "channel.connect_link.create.execute",
+        body: { platform: "instagram" },
+        // biome-ignore lint/suspicious/noExplicitAny: body shape is not under test here
+      } as any);
+
+      expect(options?.idempotencyKey).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    } finally {
+      Object.defineProperty(globalThis.crypto, "randomUUID", {
+        value: original,
+        configurable: true,
+      });
+    }
   });
 });

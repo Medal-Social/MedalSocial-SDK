@@ -65,9 +65,9 @@ Every request gets:
 - Otherwise it waits `250 * attempt` ms (so 250, 500 between the first three attempts).
 - Other 4xx errors are NOT retried — they throw `MedalApiError` immediately.
 - Network errors (fetch throws) are NOT retried — they bubble up.
-- The request is aborted via `AbortController` after `timeout` ms.
+- The request is aborted via `AbortController` after `timeout` ms. That budget covers the **whole exchange** — headers and body — per attempt. It is fixed wall-clock time: progress on the body does not extend it, so raise `timeout` if you pull responses large enough to take longer than it to arrive. Retry backoff is not charged against it.
 
-The SDK does **not** drain the response body between retries — if you observe a connection leak in long-running processes, that's worth investigating.
+The SDK **drains** the response body of any attempt it abandons to a retry, so the connection returns to the pool instead of being held open. The body is streamed to a sink rather than buffered, so a large error page costs no memory. A drain that fails is ignored — the retry proceeds on the status.
 
 ## Errors
 

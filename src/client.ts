@@ -46,6 +46,50 @@ export interface RequestOptions {
 }
 
 /**
+ * A fresh idempotency key for one logical write.
+ *
+ * `crypto.randomUUID` is gated to secure contexts in browsers, so a page
+ * served over http:// has `crypto` but not `randomUUID`. `getRandomValues` is
+ * available in every context, so fall back to assembling a v4 UUID by hand
+ * rather than letting a write go out unkeyed — an unkeyed write is exactly the
+ * one a retry can duplicate.
+ */
+function randomIdempotencyKey(): string {
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  webCrypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/**
+ * The `Idempotency-Key` one logical write goes out under: the caller's if they
+ * supplied a usable one, otherwise a fresh key.
+ *
+ * A blank key counts as NO key. `??` alone would treat `""` as supplied,
+ * {@link BaseClient} would then drop the falsy value, and the write would go
+ * out with no header at all — silently unprotected, which is the one failure
+ * this exists to rule out. Whitespace-only is the same hazard by a different
+ * route: header values are stripped in transit, so `"   "` reaches the server
+ * as `""` and is ignored there too. Both are reachable from an ordinary
+ * `idempotencyKey: someVar` where the variable happens to be blank.
+ *
+ * Every part of the SDK that decides which key a write carries resolves it
+ * here, so those parts cannot disagree. A capability confirmation is bound to
+ * its idempotency key: bind one value, send another, and the server rejects a
+ * write both sides believed they had authorized.
+ */
+export function resolveIdempotencyKey(supplied?: string): string {
+  return (supplied ?? "").trim() || randomIdempotencyKey();
+}
+
+/**
  * Low-level HTTP client used by all resource classes.
  * Handles authentication, retries, timeout, and error parsing.
  */
@@ -69,6 +113,30 @@ export class BaseClient {
       method: "POST",
       headers: this.writeHeaders(options),
       body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  }
+
+  /**
+   * Execute a POST that must never execute twice, guaranteeing an
+   * `Idempotency-Key`.
+   *
+   * {@link BaseClient.post} retries 429 and 5xx automatically, so a write
+   * whose transaction committed before the gateway failed would otherwise be
+   * submitted a second time — booking the same slot twice. A key turns that
+   * retry into a replay: the server keys on the key, the workspace, and the
+   * method+path, and answers a repeat with the stored response, or 409 while
+   * the first attempt is still in flight. Either way the write happens once.
+   *
+   * The key is minted ONCE here, outside the retry loop in `request`, so every
+   * attempt of the same logical call carries the same value — a key minted per
+   * attempt would deduplicate nothing. A caller-supplied key always wins, so
+   * callers keeping their own records stay in control. See
+   * {@link resolveIdempotencyKey} for what counts as supplied.
+   */
+  async postOnce<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
+    return this.post(path, body, {
+      ...options,
+      idempotencyKey: resolveIdempotencyKey(options?.idempotencyKey),
     });
   }
 
@@ -128,20 +196,53 @@ export class BaseClient {
       }
 
       const controller = new AbortController();
+      // Armed across the body read, not just the fetch. `fetch` settles as soon
+      // as the response HEADERS arrive, so a timer cleared there bounded only
+      // time-to-headers: a server that sent headers and then stalled mid-body
+      // left the reads below waiting forever, with no deadline of any kind.
+      // Holding the signal until the body is in hand makes `timeout` mean what
+      // it says — a budget for the whole exchange, per attempt.
       const timeout = setTimeout(() => controller.abort(), this.config.timeout);
 
       let res: Response;
+      let text = "";
+      let retrying = false;
       try {
         res = await fetch(url, { ...init, headers, signal: controller.signal });
+
+        // Retry on 429 / 5xx (but not on the final attempt)
+        retrying =
+          (res.status === 429 || (res.status >= 500 && res.status <= 599)) && attempt < maxAttempts;
+
+        if (retrying) {
+          // Release the response we are about to abandon. Until a body is
+          // consumed, undici holds its socket out of the connection pool, so a
+          // retry storm burns a fresh connection per attempt — exactly when the
+          // server can least afford it.
+          //
+          // Consuming returns the socket to the pool. `res.body?.cancel()` frees
+          // it too, but by destroying the connection rather than reusing it,
+          // which is the churn this exists to avoid. Pipe to a sink rather than
+          // `res.text()`: an error body can be arbitrarily large, and buffering
+          // one into a string only to discard it costs several times its size in
+          // memory on every attempt of every in-flight request.
+          //
+          // Fall back to `text()` where there is no stream to pipe: a bodyless
+          // response, or a runtime that exposes `text()` but not `body`.
+          const drained = res.body ? res.body.pipeTo(new WritableStream()) : res.text();
+
+          // A read that fails — including one the deadline above aborts — has
+          // already released the socket, so a failure here is not worth
+          // propagating over the status we are retrying on.
+          await drained.catch(() => {});
+        } else {
+          text = await res.text();
+        }
       } finally {
         clearTimeout(timeout);
       }
 
-      // Retry on 429 / 5xx (but not on the final attempt)
-      if (
-        (res.status === 429 || (res.status >= 500 && res.status <= 599)) &&
-        attempt < maxAttempts
-      ) {
+      if (retrying) {
         const retryAfter = res.headers.get("retry-after");
         let delayMs = 0;
         if (retryAfter) {
@@ -151,12 +252,13 @@ export class BaseClient {
         if (delayMs <= 0) {
           delayMs = 250 * attempt;
         }
+        // Outside the deadline above: the backoff is time we choose to wait,
+        // not time we are waiting on the server.
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
 
       // Parse response
-      const text = await res.text();
       let parsed: unknown;
       try {
         parsed = text ? JSON.parse(text) : undefined;

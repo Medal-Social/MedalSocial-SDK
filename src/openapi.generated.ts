@@ -320,6 +320,250 @@ export interface paths {
     patch: operations["updateDeal"];
     trace?: never;
   };
+  "/api/v1/bookings": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List bookings */
+    get: operations["listBookings"];
+    put?: never;
+    /**
+     * Create a booking or party
+     * @description Books every item or none of them. Each created booking carries a `manage_token` returned exactly once — only its hash is stored, and an idempotent replay omits it.
+     */
+    post: operations["createBooking"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/services": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List bookable services */
+    get: operations["listBookingServices"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/resources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List bookable resources */
+    get: operations["listBookingResources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/availability": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List free slots for a service
+     * @description Slots reflect opening hours, time off, buffers, and existing bookings at the moment of the call. They are not held.
+     */
+    get: operations["listBookingAvailability"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/schedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List the dates a service can be booked on
+     * @description The other half of `availability`. Availability returns free slots and nothing else, so a closed day, an evening past closing and a fully booked day all come back as the same empty array. This returns one entry per date the workspace keeps opening hours on; a date ABSENT from the response is closed. `last_start_ts` is the last start this service could occupy on that date (it depends on the service's duration and buffers, not just the closing time) and is `null` for a date with posted hours that is shut outright, such as a public holiday.
+     */
+    get: operations["listBookingSchedule"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /** Get a booking */
+    get: operations["getBooking"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Annotate a booking */
+    patch: operations["updateBooking"];
+    trace?: never;
+  };
+  "/api/v1/bookings/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel a booking as the business
+     * @description Staff semantics — the workspace's cancel window is bypassed and the cancellation is attributed to staff.
+     */
+    post: operations["cancelBooking"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/{id}/reschedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reschedule a booking as the business
+     * @description Staff semantics — the reschedule window is bypassed. The old booking is cancelled and a new one inserted, so the response carries a new booking id and a freshly minted manage token.
+     */
+    post: operations["rescheduleBooking"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/{id}/no-show": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a booking as a no-show */
+    post: operations["markBookingNoShow"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/manage/{token}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    /** Get the customer manage summary for a token */
+    get: operations["getManagedBooking"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/manage/{token}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel on the customer's behalf
+     * @description Customer semantics — the workspace's cancel window is ENFORCED and the cancellation is attributed to the customer.
+     */
+    post: operations["cancelManagedBooking"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/manage/{token}/reschedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reschedule on the customer's behalf
+     * @description Customer semantics — the reschedule window is ENFORCED. The response carries a new booking id and a new manage token; the old token stops working.
+     */
+    post: operations["rescheduleManagedBooking"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/gdpr/export": {
     parameters: {
       query?: never;
@@ -1182,6 +1426,217 @@ export interface components {
       end_date?: string;
       notes?: string;
     };
+    /** @description A timestamp on the way in — Unix milliseconds, or an ISO 8601 date-time string. Responses always render timestamps as ISO 8601. */
+    BookingTimestampInput: number | string;
+    /** @enum {string} */
+    BookingStatus: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+    /**
+     * @description Who cancelled. `staff` for the id-addressed cancel, `customer` for the manage-token cancel, `system` for an automated one.
+     * @enum {string}
+     */
+    BookingCancelledBy: "customer" | "staff" | "system";
+    /** @enum {string} */
+    BookingPaymentStatus: "none" | "reserved" | "captured" | "refunded";
+    /** @enum {string} */
+    BookingCreatedVia: "web" | "dashboard" | "walk_in" | "api";
+    /** @enum {string} */
+    BookingResourceType: "staff" | "room" | "equipment";
+    Booking: {
+      id: string;
+      contact_id: string | null;
+      service_id: string | null;
+      resource_id: string | null;
+      /** Format: date-time */
+      start_ts: string | null;
+      /** Format: date-time */
+      end_ts: string | null;
+      booked_for_name: string | null;
+      /** @description A birth year, not a birthdate — the age bracket is all that is stored. */
+      booked_for_birth_year: number | null;
+      /** @description Shared by every booking created in the same party request. */
+      party_sequence_id: string | null;
+      status: components["schemas"]["BookingStatus"];
+      cancelled_by: components["schemas"]["BookingCancelledBy"] | null;
+      cancel_reason: string | null;
+      /** @description On a booking created by a reschedule, the booking it replaced. */
+      rescheduled_from_id: string | null;
+      payment_status: components["schemas"]["BookingPaymentStatus"];
+      /** @description Price in integer øre. Never a float and never kroner. */
+      amount_ore: number | null;
+      /** @description Customer-visible note. */
+      notes: string | null;
+      /** @description Staff-only note; never shown to the customer. */
+      internal_notes: string | null;
+      created_via: components["schemas"]["BookingCreatedVia"] | null;
+      /** Format: date-time */
+      created_at: string | null;
+      /** Format: date-time */
+      updated_at: string | null;
+    };
+    BookingService: {
+      id: string;
+      name: string | null;
+      description: string | null;
+      category: string | null;
+      duration_minutes: number | null;
+      buffer_before_minutes: number | null;
+      buffer_after_minutes: number | null;
+      /** @description Price in integer øre. */
+      price_ore: number | null;
+      weekend_surcharge_pct: number | null;
+      /** @description Resource types this service needs, e.g. `["staff"]`. */
+      resource_requirements: string[];
+      bookable_online: boolean;
+      max_per_booking: number | null;
+      color: string | null;
+      sort_order: number | null;
+      active: boolean;
+      /** Format: date-time */
+      created_at: string | null;
+      /** Format: date-time */
+      updated_at: string | null;
+    };
+    BookingResource: {
+      id: string;
+      type: components["schemas"]["BookingResourceType"] | null;
+      name: string | null;
+      /** Format: uri */
+      photo_url: string | null;
+      bio: string | null;
+      /** @description Services this resource can perform. */
+      service_ids: string[];
+      capacity: number | null;
+      sort_order: number | null;
+      active: boolean;
+      /** Format: date-time */
+      created_at: string | null;
+      /** Format: date-time */
+      updated_at: string | null;
+    };
+    BookingSlot: {
+      /** Format: date-time */
+      start_ts: string | null;
+      /** Format: date-time */
+      end_ts: string | null;
+      resource_id: string | null;
+    };
+    /** @description One date a service can be booked on. `date` is the workspace's own calendar date, not a timestamp. */
+    BookingScheduleDay: {
+      /** Format: date */
+      date: string | null;
+      /** Format: date-time */
+      opens_ts: string | null;
+      /** Format: date-time */
+      closes_ts: string | null;
+      /**
+       * Format: date-time
+       * @description Last start this service could occupy on the date; `null` when the date is shut outright.
+       */
+      last_start_ts: string | null;
+    };
+    /** @description The person the booking is made under. Phone is the CRM dedupe key. */
+    BookingContactInput: {
+      phone: string;
+      email?: string;
+      name?: string;
+    };
+    /** @description One line of a party — a single service on a single slot. */
+    CreateBookingItemInput: {
+      service_id: string;
+      /** @description Omit to let the engine pick a free resource. */
+      resource_id?: string;
+      start_ts: components["schemas"]["BookingTimestampInput"];
+      booked_for_name?: string;
+      booked_for_birth_year?: number;
+    };
+    CreateBookingInput: {
+      /** @description A PARTY — one request books a whole family in one all-or-nothing transaction. */
+      items: components["schemas"]["CreateBookingItemInput"][];
+      contact: components["schemas"]["BookingContactInput"];
+      notes?: string;
+      /**
+       * @description Where the booking came from. Defaults to `api`. A workspace's OWN website should send `web`, so its bookings can be told apart from integrations. `dashboard` and `walk_in` are staff-only and are rejected with 400 — a bearer token proves which workspace is calling, not that a member typed the booking in.
+       * @enum {string}
+       */
+      created_via?: "web" | "api";
+    };
+    CreatedBooking: {
+      id: string;
+      /** @description Show-once secret for the customer's manage link. Only its hash is stored, and an idempotent replay omits this field entirely. */
+      manage_token?: string;
+    };
+    BookingCreateResult: {
+      /** @description One entry per created booking, in request order. */
+      bookings: components["schemas"]["CreatedBooking"][];
+      contact_id: string;
+    };
+    BookingActionResult: {
+      /** @constant */
+      success: true;
+    };
+    BookingRescheduleResult: {
+      /** @constant */
+      success: true;
+      /** @description The NEW booking's id — a reschedule cancels the old row and inserts a new one. */
+      booking_id: string;
+      /** @description Freshly minted manage token for the new booking; omitted on an idempotent replay. */
+      manage_token?: string;
+    };
+    /** @description What the holder of a manage token may see and do. `can_cancel` and `can_reschedule` already apply the workspace's policy windows. */
+    ManageSummary: {
+      booking_id: string;
+      contact_id: string | null;
+      status: components["schemas"]["BookingStatus"] | null;
+      cancelled_by: components["schemas"]["BookingCancelledBy"] | null;
+      cancel_reason: string | null;
+      rescheduled_from_id: string | null;
+      /** Format: date-time */
+      start_ts: string | null;
+      /** Format: date-time */
+      end_ts: string | null;
+      service_id: string | null;
+      service_name: string | null;
+      resource_id: string | null;
+      resource_name: string | null;
+      booked_for_name: string | null;
+      party_sequence_id: string | null;
+      /** @description Price in integer øre. */
+      amount_ore: number | null;
+      payment_status: components["schemas"]["BookingPaymentStatus"] | null;
+      /** @description IANA zone the booking's local times should be rendered in. */
+      time_zone: string | null;
+      cancel_window_hours: number | null;
+      reschedule_window_hours: number | null;
+      can_cancel: boolean;
+      can_reschedule: boolean;
+    };
+    /** @description At least one of `notes` or `internal_notes` is required — the API rejects a body carrying neither with a 400. `""` is a meaningful value that clears the field, so the constraint is on presence. */
+    UpdateBookingInput:
+      | {
+          /** @description Customer-visible note. */
+          notes: string;
+          /** @description Staff-only note. */
+          internal_notes?: string;
+        }
+      | {
+          /** @description Customer-visible note. */
+          notes?: string;
+          /** @description Staff-only note. */
+          internal_notes: string;
+        };
+    CancelBookingInput: {
+      reason?: string;
+    };
+    RescheduleBookingInput: {
+      new_start_ts: components["schemas"]["BookingTimestampInput"];
+      new_resource_id?: string;
+    };
+    /** @description Pagination for a bookings page. `truncated` is the extra statement: the underlying read is capped, and when the cap binds there are matching bookings no cursor from this call reaches — narrow the window. */
+    BookingsPagination: {
+      has_more: boolean;
+      next_cursor: string | null;
+      truncated: boolean;
+    };
     GdprExport: {
       id: string;
       request_type: string;
@@ -1512,6 +1967,15 @@ export interface components {
     ApiResponse_DealCreateResult: components["schemas"]["Envelope_DealCreateResult"];
     ApiResponse_DealUpdateResult: components["schemas"]["Envelope_DealUpdateResult"];
     ApiResponse_DealRemoveResult: components["schemas"]["Envelope_DealRemoveResult"];
+    ApiResponse_Booking: components["schemas"]["Envelope_Booking"];
+    ApiResponse_BookingServiceArray: components["schemas"]["Envelope_BookingServiceArray"];
+    ApiResponse_BookingResourceArray: components["schemas"]["Envelope_BookingResourceArray"];
+    ApiResponse_BookingSlotArray: components["schemas"]["Envelope_BookingSlotArray"];
+    ApiResponse_BookingScheduleDayArray: components["schemas"]["Envelope_BookingScheduleDayArray"];
+    ApiResponse_BookingCreateResult: components["schemas"]["Envelope_BookingCreateResult"];
+    ApiResponse_BookingActionResult: components["schemas"]["Envelope_BookingActionResult"];
+    ApiResponse_BookingRescheduleResult: components["schemas"]["Envelope_BookingRescheduleResult"];
+    ApiResponse_ManageSummary: components["schemas"]["Envelope_ManageSummary"];
     ApiResponse_GdprExportRequest: components["schemas"]["Envelope_GdprExportRequest"];
     ApiResponse_GdprExportArray: components["schemas"]["Envelope_GdprExportArray"];
     ApiResponse_GdprExport: components["schemas"]["Envelope_GdprExport"];
@@ -1549,6 +2013,10 @@ export interface components {
     PaginatedResponse_Deal: {
       data: components["schemas"]["Deal"][];
       pagination: components["schemas"]["Pagination"];
+    };
+    PaginatedResponse_Booking: {
+      data: components["schemas"]["Booking"][];
+      pagination: components["schemas"]["BookingsPagination"];
     };
     PaginatedResponse_HelpdeskConversation: {
       data: components["schemas"]["HelpdeskConversation"][];
@@ -1628,6 +2096,33 @@ export interface components {
     };
     Envelope_DealRemoveResult: {
       data: components["schemas"]["DealRemoveResult"];
+    };
+    Envelope_Booking: {
+      data: components["schemas"]["Booking"];
+    };
+    Envelope_BookingServiceArray: {
+      data: components["schemas"]["BookingService"][];
+    };
+    Envelope_BookingResourceArray: {
+      data: components["schemas"]["BookingResource"][];
+    };
+    Envelope_BookingSlotArray: {
+      data: components["schemas"]["BookingSlot"][];
+    };
+    Envelope_BookingScheduleDayArray: {
+      data: components["schemas"]["BookingScheduleDay"][];
+    };
+    Envelope_BookingCreateResult: {
+      data: components["schemas"]["BookingCreateResult"];
+    };
+    Envelope_BookingActionResult: {
+      data: components["schemas"]["BookingActionResult"];
+    };
+    Envelope_BookingRescheduleResult: {
+      data: components["schemas"]["BookingRescheduleResult"];
+    };
+    Envelope_ManageSummary: {
+      data: components["schemas"]["ManageSummary"];
     };
     /** @description Provide exactly one of `url`, `orgnr`, or `name`. */
     ScanCreateInput: {
@@ -1810,6 +2305,8 @@ export interface components {
   parameters: {
     Id: string;
     Slug: string;
+    /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+    ManageToken: string;
     Cursor: string;
     Limit: number;
   };
@@ -2460,6 +2957,371 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_DealUpdateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookings: {
+    parameters: {
+      query?: {
+        limit?: components["parameters"]["Limit"];
+        cursor?: components["parameters"]["Cursor"];
+        /** @description Only bookings starting at or after this instant. */
+        from_ts?: components["schemas"]["BookingTimestampInput"];
+        /** @description Only bookings starting before this instant. */
+        to_ts?: components["schemas"]["BookingTimestampInput"];
+        status?: components["schemas"]["BookingStatus"];
+        resource_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bookings page. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PaginatedResponse_Booking"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateBookingInput"];
+      };
+    };
+    responses: {
+      /** @description Created bookings, in request order. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingCreateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingServices: {
+    parameters: {
+      query?: {
+        /** @description Include services with `active: false`. Defaults to active-only. */
+        include_inactive?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bookable service catalogue. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingServiceArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingResources: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bookable resources — staff, rooms, and equipment. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingResourceArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingAvailability: {
+    parameters: {
+      query: {
+        service_id: string;
+        /** @description Start of the window. */
+        from_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description End of the window; must be after `from_ts`. */
+        to_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description Restrict slots to one resource. */
+        resource_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Free slots. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingSlotArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingSchedule: {
+    parameters: {
+      query: {
+        service_id: string;
+        /** @description Start of the window. */
+        from_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description End of the window; must be after `from_ts`. */
+        to_ts: components["schemas"]["BookingTimestampInput"];
+        /** @description Restrict to one resource's hours. */
+        resource_id?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Open dates. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingScheduleDayArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Booking. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_Booking"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updateBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateBookingInput"];
+      };
+    };
+    responses: {
+      /** @description The updated booking. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_Booking"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  cancelBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CancelBookingInput"];
+      };
+    };
+    responses: {
+      /** @description Cancel result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingActionResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  rescheduleBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RescheduleBookingInput"];
+      };
+    };
+    responses: {
+      /** @description Reschedule result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingRescheduleResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  markBookingNoShow: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No-show result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingActionResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getManagedBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Manage summary. An unknown token and a token belonging to another workspace both answer 404, so this is not an existence oracle. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ManageSummary"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  cancelManagedBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CancelBookingInput"];
+      };
+    };
+    responses: {
+      /** @description Cancel result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingActionResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  rescheduleManagedBooking: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
+        token: components["parameters"]["ManageToken"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RescheduleBookingInput"];
+      };
+    };
+    responses: {
+      /** @description Reschedule result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingRescheduleResult"];
         };
       };
       default: components["responses"]["ApiError"];
