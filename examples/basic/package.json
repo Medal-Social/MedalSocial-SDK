@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prestart": "pnpm -w run build",
+    "prestart": "pnpm --filter @medalsocial/sdk run build",
     "start": "node index.mjs"
   },
   "dependencies": {
