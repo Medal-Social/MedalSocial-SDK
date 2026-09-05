@@ -43,6 +43,13 @@ export interface RequestOptions {
    * Ignored on routes that do not require a capability confirmation.
    */
   autoConfirm?: AutoConfirmOptions | false;
+  /**
+   * Extra request headers, e.g. `x-portal-session` for the customer portal.
+   * Applied first: the named options (`idempotencyKey`,
+   * `capabilityConfirmation`) win over a same-named entry here, so a bag can
+   * never smuggle in a key the SDK did not resolve.
+   */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -102,9 +109,13 @@ export class BaseClient {
   }
 
   /** Execute an authenticated GET request and return the parsed JSON body. */
-  async get<T>(path: string, params?: Record<string, string | undefined>): Promise<T> {
+  async get<T>(
+    path: string,
+    params?: Record<string, string | undefined>,
+    options?: Pick<RequestOptions, "headers">,
+  ): Promise<T> {
     const url = this.buildUrl(path, params);
-    return this.request<T>(url, { method: "GET" });
+    return this.request<T>(url, { method: "GET", headers: options?.headers });
   }
 
   /** Execute an authenticated POST request with a JSON body. */
@@ -158,7 +169,10 @@ export class BaseClient {
   }
 
   private writeHeaders(options?: RequestOptions): Record<string, string> {
-    const headers: Record<string, string> = { "content-type": "application/json" };
+    const headers: Record<string, string> = {
+      ...options?.headers,
+      "content-type": "application/json",
+    };
     if (options?.idempotencyKey) {
       headers["idempotency-key"] = options.idempotencyKey;
     }

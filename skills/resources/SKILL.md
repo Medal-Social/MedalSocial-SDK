@@ -1,19 +1,20 @@
 ---
 name: resources
-description: Use when calling any of the SDK resources (bookings, contacts, deals, emails, gdpr, posts, scan, workspaces) — listing with pagination, sending transactional or batch emails, scheduling and publishing posts, booking appointments or querying free slots, cancelling or rescheduling a booking as staff or on a customer's behalf, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
+description: Use when calling any of the SDK resources (bookings, contacts, deals, emails, gdpr, portal, posts, scan, workspaces) — listing with pagination, sending transactional or batch emails, scheduling and publishing posts, booking appointments or querying free slots, cancelling or rescheduling a booking as staff or on a customer's behalf, signing a customer into the self-service portal and reading their own profile/bookings/export, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
 ---
 
 # Medal Social SDK — Resources
 
 ## When to load this skill
 
-- Calling `medal.bookings.*`, `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.posts.*`, `medal.scan.*`, or `medal.workspaces.*`.
+- Calling `medal.bookings.*`, `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.portal.*`, `medal.posts.*`, `medal.scan.*`, or `medal.workspaces.*`.
 - Looking up an exact method signature or response shape.
 - Building a list view that needs pagination.
 - Sending a single transactional email or a bulk batch.
 - Booking an appointment: reading the catalogue, querying free slots, creating a booking or party.
 - Cancelling or rescheduling a booking — and deciding between the staff route and the customer manage-token route.
 - Running a GDPR data-export workflow (request → poll → fetch).
+- Building a customer self-service portal: e-mail code login, then the signed-in contact's own profile, bookings, export and erasure.
 - Importing contacts from a CSV-like source.
 - Needing OpenAPI-derived types for a custom fetch wrapper, generated mocks, or contract tests.
 
@@ -42,6 +43,8 @@ Errors throw `MedalApiError` (see the `client` skill for details).
 | `medal.emails.templates` | `src/resources/emails.ts` (`EmailTemplates`) | `list()`, `get(slug, opts?)` |
 | `medal.emails` | `src/resources/emails.ts` (`Emails`) | `send(input)`, `get(id)`, `batch(input)` |
 | `medal.gdpr` | `src/resources/gdpr.ts` | `requestExport()`, `listExports()`, `getExport(id)`, `recordConsent(input)`, `getConsent(email)`, `cookieConsent(input)` |
+| `medal.portal.login` | `src/resources/portal.ts` (`PortalLogin`) | `start({ email, locale? })` (always 202 `{ status: 'sent' }`), `verify({ email, code })` → `PortalSession` |
+| `medal.portal` | `src/resources/portal.ts` | `me(session)`, `updateMe(session, patch)`, `myBookings(session)`, `exportMyData(session)`, `deleteMe(session)`, `logout(session)` — every one takes the `session_token` first and sends it as `X-Portal-Session`; `deleteMe`/`logout` resolve to `undefined` (204) |
 | `medal.scan` | `src/resources/scan.ts` | `create(input)` (exactly one of `url`/`orgnr`/`name`; 202 async job), `get(id)`, `companies(q)` (Norwegian registry typeahead), `waitForResult(id, opts?)` (polls until done/failed; returns the job either way, throws only on deadline) |
 | `medal.posts` | `src/resources/posts.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)`, `schedule(id, input)`, `publish(id)`, `channels()` |
 | `medal.workspaces` | `src/resources/workspaces.ts` | `list()` |
@@ -223,6 +226,44 @@ const { data: summary } = await medal.emails.batch({
 
 For more than 100 recipients, chunk into multiple `batch()` calls. There is no built-in chunker.
 
+## Customer portal — e-mail code login, then session-bound self-service
+
+`medal.portal` is for the workspace's **own customers**, not staff. A customer proves they own an e-mail address, gets a session, and can then see and change what the workspace holds about *them* — profile, family members, bookings, consents — export it, or erase it. The API key needs `read:portal` + `write:portal` (`403 FORBIDDEN` otherwise).
+
+**The session token is a bearer credential for ONE contact.** `verify()` returns it once; your site's *server* keeps it in an HttpOnly, Secure cookie on the site's own domain and forwards it on every call. Never send it to the browser as JSON, never put it in a URL, and never let the browser call Medal directly — the API key would leak with it.
+
+```ts
+// Step 1 — send the code. ALWAYS { status: 'sent' }, whether or not the address is a
+// contact: enumeration-safe, so do not treat "sent" as "this customer exists".
+await medal.portal.login.start({ email, locale: 'nb' });
+
+// Step 2 — exchange the code. Wrong, burned and expired codes ALL answer
+// 401 PORTAL_CODE_INVALID; there is no way to tell them apart, by design.
+const { data: session } = await medal.portal.login.verify({ email, code });
+cookies.set('portal_session', session.session_token, {
+  httpOnly: true, secure: true, sameSite: 'lax', expires: new Date(session.expires_at),
+});
+
+// Step 3 — session-bound calls, token read back from the cookie
+const token = cookies.get('portal_session');
+const { data: me } = await medal.portal.me(token);
+const { data: mine } = await medal.portal.myBookings(token);          // { upcoming, past }
+await medal.portal.updateMe(token, { family: [{ name: 'Ola', birth_year: 2018 }] });
+const { data: exported } = await medal.portal.exportMyData(token);    // GDPR Art. 15 — synchronous JSON
+await medal.portal.deleteMe(token);                                   // GDPR Art. 17 — 204, session revoked
+await medal.portal.logout(token);                                     // 204
+```
+
+**`myBookings` hands you manage tokens.** An `upcoming` booking still inside the workspace's policy windows carries `manage_token` (string) and `can_manage: true`; everything else has `manage_token: null`. Use it with `medal.bookings.manage.*` — the customer routes, where the windows are enforced — never with the id-addressed staff routes.
+
+**`updateMe` is a partial patch.** Only supplied fields change; `phone: null` clears the number; `family` replaces the whole list (send the full new list, not the delta); `marketing_consent` records a `marketing_email` consent decision with source `portal`, so it shows up in `medal.gdpr.getConsent(email)`.
+
+**Two 401s, one meaning.** `PORTAL_SESSION_REQUIRED` (header missing) and `PORTAL_SESSION_INVALID` (unknown, expired, revoked — including after `deleteMe` or `logout`) both mean "sign in again": clear the cookie and send the customer back to step 1. Do not retry them.
+
+**Nothing here is idempotency-keyed.** The login routes cannot duplicate anything (a retried `start` sends at most one more code; a retried `verify` meets a burned code), `me`/`myBookings`/`exportMyData` are reads, and `logout`/`deleteMe` are terminal — a retry meets a revoked session. Passing `idempotencyKey` is not possible on these methods and would change nothing if it were.
+
+**Portal export vs. GDPR export.** `medal.portal.exportMyData(token)` is one contact's data, synchronous, returned inline. `medal.gdpr.requestExport()` is the whole *workspace*, asynchronous, polled via `getExport`. They are not interchangeable.
+
 ## GDPR — consent + export workflow
 
 **Consent (per-contact):**
@@ -340,4 +381,10 @@ The `with { type: "json" }` import-attribute syntax requires Node 24+ or a bundl
 | `medal.bookings.update(id, {})` | Rejected by the API; now also a compile error | Pass at least one of `notes` / `internal_notes` |
 | Ignoring `pagination.truncated` on `bookings.list` | Matching bookings exist that no cursor reaches | Narrow `from_ts`/`to_ts` and page again |
 | Converting `start_ts` to a fixed format before sending | The API takes Unix ms **or** ISO 8601 | Pass a slot's `start_ts` straight through |
+| Sending `session_token` to the browser (JSON, URL, non-HttpOnly cookie) | It is a bearer credential for that contact — whoever holds it is them | HttpOnly, Secure cookie on the site's server; the server calls `medal.portal.*` |
+| Treating `login.start` → `{ status: 'sent' }` as "this customer exists" | Enumeration-safe: unknown addresses answer `sent` too | Show "check your e-mail" unconditionally |
+| Branching on why `verify` failed | Wrong, burned and expired codes all answer `PORTAL_CODE_INVALID` | One message: "that code did not work — request a new one" |
+| Retrying a `PORTAL_SESSION_INVALID` | The session is gone (expired, revoked, or the contact was deleted) | Clear the cookie and restart the login |
+| Passing a portal `manage_token` to `medal.bookings.cancel(id)` | Wrong route: staff semantics, and it takes an id not a token | `medal.bookings.manage.cancel(manage_token)` |
+| `updateMe(token, { family: [newMember] })` to add one member | `family` REPLACES the list — the others are dropped | Send the full list: `[...me.family, newMember]` |
 | Building a custom client when only types are needed | Reinventing the wheel | Import from `@medalsocial/sdk/openapi-types` |

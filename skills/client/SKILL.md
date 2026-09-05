@@ -57,6 +57,8 @@ Every request gets:
 - `x-workspace-id: <workspaceId>` (only if `workspaceId` was set on the constructor)
 - `User-Agent: medalsocial-sdk/<version>` (best-effort — browsers reject custom User-Agent; the SDK swallows that error silently)
 
+Per-call extras go in `RequestOptions.headers` (accepted by `get`, `post`, `postOnce`, `patch`, `delete` on `BaseClient`). The named options win over a same-named bag entry: `{ headers: { "idempotency-key": "a" }, idempotencyKey: "b" }` sends `b`. The SDK uses this itself for the customer portal's `X-Portal-Session` header — you never set that one by hand; pass the session token to `medal.portal.*` instead.
+
 ## Retry behavior
 
 `BaseClient.request` retries on **429 and 5xx** for up to **3 attempts total**:
