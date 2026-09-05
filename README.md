@@ -272,6 +272,44 @@ if (summary.can_reschedule) {
 
 `update(id, input)` requires at least one of `notes` / `internal_notes`; `update(id, {})` is a compile error, matching the API's own 400.
 
+### Customer portal
+
+Self-service for the workspace's own customers: they sign in with an e-mailed one-time code, then see and change their profile, list their bookings, export their data, or erase their account. The API key needs `read:portal` and `write:portal`.
+
+The session token is a **bearer credential for one contact**. Your site's server exchanges the code for it and keeps it in an **HttpOnly cookie on the site's own domain** — never hand it to the browser, and never let the browser call Medal directly. Session-bound methods take the token as their first argument and send it as `X-Portal-Session`.
+
+```ts
+// 1. Send the code. Always { status: 'sent' } — enumeration-safe, so "sent" does
+//    not confirm the address belongs to a contact.
+await medal.portal.login.start({ email: 'ida@example.com', locale: 'nb' });
+
+// 2. Exchange the code the customer typed. Wrong, burned and expired codes all
+//    answer 401 PORTAL_CODE_INVALID.
+const { data: session } = await medal.portal.login.verify({ email: 'ida@example.com', code: '123456' });
+// -> set an HttpOnly, Secure, SameSite cookie holding session.session_token,
+//    expiring at session.expires_at (Unix ms)
+
+// 3. Session-bound calls, from your server, with the token read back from the cookie
+const { data: me } = await medal.portal.me(session.session_token);
+const { data: bookings } = await medal.portal.myBookings(session.session_token);
+// bookings.upcoming[i].manage_token is set while the booking is still manageable —
+// it opens your site's manage page (medal.bookings.manage.*); past bookings carry null
+await medal.portal.updateMe(session.session_token, {
+  phone: '+4790000000',
+  family: [{ name: 'Ola', birth_year: 2018 }],   // replaces the whole list
+  marketing_consent: true,                        // recorded as a marketing_email consent, source 'portal'
+});
+const { data: exported } = await medal.portal.exportMyData(session.session_token); // GDPR Art. 15, synchronous
+await medal.portal.logout(session.session_token);     // 204 — revokes this session only
+// …or, when the customer asks to be forgotten (terminal — the session is revoked, a later
+// logout() would answer 401 PORTAL_SESSION_INVALID):
+await medal.portal.deleteMe(session.session_token);   // GDPR Art. 17 — 204
+```
+
+`401 PORTAL_SESSION_REQUIRED` (header missing) and `401 PORTAL_SESSION_INVALID` (unknown, expired or revoked) both mean "sign in again" — clear the cookie and send the customer back to step 1. `403 FORBIDDEN` means the key lacks the portal scopes; `429 RATE_LIMITED` applies per address and per caller on `login.start`.
+
+None of the portal calls carries an `Idempotency-Key`: the two login routes cannot duplicate anything, and the session routes are either reads or terminal.
+
 ### GDPR
 
 ```ts

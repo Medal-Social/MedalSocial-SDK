@@ -40,6 +40,8 @@ describe("Medal constructor", () => {
     expect(medal.workspaces).toBeDefined();
     expect(medal.bookings).toBeDefined();
     expect(medal.bookings.manage).toBeDefined();
+    expect(medal.portal).toBeDefined();
+    expect(medal.portal.login).toBeDefined();
   });
 
   it("uses default baseUrl and timeout when no options provided", async () => {
@@ -1491,6 +1493,102 @@ describe("misc", () => {
       userAgent: "test-agent",
     });
     await client.get("/api/v1/contacts", { present: "yes", absent: undefined });
+  });
+});
+
+describe("request headers", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  function client() {
+    return new BaseClient({
+      baseUrl: BASE,
+      token: "medal_test",
+      timeout: 5000,
+      userAgent: "test-agent",
+    });
+  }
+
+  it("sends options.headers on a POST alongside the JSON content-type", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-portal-session")).toBe("sess_1");
+      expect(headers.get("content-type")).toBe("application/json");
+      expect(headers.get("authorization")).toBe("Bearer medal_test");
+      return mockJson({ data: { ok: true } });
+    });
+    await client().post("/api/v1/portal/me/export", undefined, {
+      headers: { "x-portal-session": "sess_1" },
+    });
+  });
+
+  it("sends options.headers on a GET", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-portal-session")).toBe("sess_1");
+      expect(headers.get("authorization")).toBe("Bearer medal_test");
+      return mockJson({ data: {} });
+    });
+    await client().get("/api/v1/portal/me", undefined, {
+      headers: { "x-portal-session": "sess_1" },
+    });
+  });
+
+  it("lets the named idempotencyKey win over a same-named header in the bag", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("idempotency-key")).toBe("named");
+      expect(headers.get("x-capability-confirmation")).toBe("named-cap");
+      return mockJson({ data: { ok: true } });
+    });
+    await client().post(
+      "/api/v1/posts",
+      {},
+      {
+        headers: { "idempotency-key": "bag", "x-capability-confirmation": "bag-cap" },
+        idempotencyKey: "named",
+        capabilityConfirmation: "named-cap",
+      },
+    );
+  });
+
+  it("normalises capitalised bag keys so they cannot bypass the protected names", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("content-type")).toBe("application/json");
+      expect(headers.get("idempotency-key")).toBe("named");
+      expect(headers.get("x-portal-session")).toBe("sess_1");
+      return mockJson({ data: { ok: true } });
+    });
+    await client().post(
+      "/api/v1/posts",
+      {},
+      {
+        headers: {
+          "Content-Type": "text/plain",
+          "Idempotency-Key": "bag",
+          "X-Portal-Session": "sess_1",
+        },
+        idempotencyKey: "named",
+      },
+    );
+  });
+
+  it("retry: false sends a 503 exactly once and surfaces it", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockJson({ error: { code: "UPSTREAM", message: "down" } }, 503));
+    await expect(
+      client().post("/api/v1/portal/logout", undefined, { retry: false }),
+    ).rejects.toMatchObject({ status: 503, code: "UPSTREAM" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let the bag override the JSON content-type", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
+      return mockJson({ data: { ok: true } });
+    });
+    await client().patch("/api/v1/portal/me", {}, { headers: { "content-type": "text/plain" } });
   });
 });
 

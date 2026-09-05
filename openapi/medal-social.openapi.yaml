@@ -26,6 +26,11 @@ tags:
       Appointment bookings — the service catalogue, free slots, staff actions
       on a booking, and the customer-facing manage-token routes. Money is
       always integer øre.
+  - name: Portal
+    description: >-
+      Customer self-service portal — e-mail one-time-code login, then
+      session-bound access to the signed-in contact's own profile, bookings,
+      data export and erasure. Session routes carry `X-Portal-Session`.
   - name: GDPR
     description: Manage exports, consent records, and cookie consent.
   - name: Workspaces
@@ -898,6 +903,184 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_BookingRescheduleResult"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/portal/login/start:
+    post:
+      tags: [Portal]
+      operationId: startPortalLogin
+      summary: E-mail a one-time login code
+      description: >-
+        Always answers 202 `{ status: "sent" }`, whether or not the address
+        belongs to a contact — enumeration-safe by design. Rate-limited per
+        address and per caller (`429 RATE_LIMITED`). Not idempotency-keyed.
+        Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN` (key lacks
+        `write:portal`), `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalLoginStartInput"
+      responses:
+        "202":
+          description: Code queued (or silently not, for an unknown address).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalLoginStartResult"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/login/verify:
+    post:
+      tags: [Portal]
+      operationId: verifyPortalLogin
+      summary: Exchange the e-mailed code for a session
+      description: >-
+        A wrong, burned or expired code all answer `401 PORTAL_CODE_INVALID` —
+        the three are not distinguished, so the response is not an oracle for
+        which codes exist. The returned `session_token` is a bearer credential
+        for ONE contact: keep it in an HttpOnly cookie on the site's server and
+        never hand it to the browser. Not idempotency-keyed. Errors:
+        `400 VALIDATION_ERROR`, `401 PORTAL_CODE_INVALID`, `403 FORBIDDEN`,
+        `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalVerifyInput"
+      responses:
+        "200":
+          description: The new session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalSession"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/logout:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: logoutPortal
+      summary: Revoke the session
+      description: >-
+        Revoking twice reaches the same state — the second call answers
+        `401 PORTAL_SESSION_INVALID`. Not idempotency-keyed. Errors:
+        `401 PORTAL_SESSION_REQUIRED` (header missing),
+        `401 PORTAL_SESSION_INVALID` (unknown, expired or revoked),
+        `403 FORBIDDEN`, `429 RATE_LIMITED`.
+      responses:
+        "204":
+          description: Session revoked.
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: getPortalProfile
+      summary: The signed-in contact's profile
+      description: >-
+        Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN` (key lacks `read:portal`), `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: Profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalProfile"
+        default:
+          $ref: "#/components/responses/ApiError"
+    patch:
+      tags: [Portal]
+      operationId: updatePortalProfile
+      summary: Update the signed-in contact's profile
+      description: >-
+        Only the supplied fields change. `phone: null` clears the number,
+        `family` replaces the whole list, and `marketing_consent` records a
+        `marketing_email` consent decision with source `portal`. Answers the
+        profile as it is after the change. Errors: `400 VALIDATION_ERROR`,
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalProfilePatch"
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalProfile"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me/bookings:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: listPortalBookings
+      summary: The signed-in contact's bookings
+      description: >-
+        Split into `upcoming` and `past`. An upcoming booking still inside the
+        workspace's policy windows carries `manage_token` and
+        `can_manage: true`; the token opens the site's manage page. Errors:
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: Bookings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalBookings"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me/export:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: exportPortalData
+      summary: Export everything held about the signed-in contact
+      description: >-
+        A synchronous GDPR Art. 15 export of the contact's profile, family,
+        consents and bookings, as one JSON document. Read-only, so not
+        idempotency-keyed. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalExport"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me/delete:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: deletePortalAccount
+      summary: Erase the signed-in contact
+      description: >-
+        GDPR Art. 17 erasure. The session is revoked as part of the deletion,
+        so a retry answers `401 PORTAL_SESSION_INVALID` rather than deleting
+        anything else. Not idempotency-keyed. Errors:
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
+      responses:
+        "204":
+          description: Contact erased and session revoked.
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/gdpr/export:
     post:
       tags: [GDPR]
@@ -1539,6 +1722,18 @@ components:
       description: >-
         The show-once manage token handed out when the booking was created.
         Possession of it authorizes the customer's own cancel or reschedule.
+      schema:
+        type: string
+    PortalSession:
+      name: X-Portal-Session
+      in: header
+      required: true
+      description: >-
+        The `session_token` returned by `verifyPortalLogin`. A bearer
+        credential for ONE contact — the site's server keeps it in an HttpOnly
+        cookie and forwards it here. Missing answers
+        `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers
+        `401 PORTAL_SESSION_INVALID`.
       schema:
         type: string
     Cursor:
@@ -3615,6 +3810,16 @@ components:
       $ref: "#/components/schemas/Envelope_BookingRescheduleResult"
     ApiResponse_ManageSummary:
       $ref: "#/components/schemas/Envelope_ManageSummary"
+    ApiResponse_PortalLoginStartResult:
+      $ref: "#/components/schemas/Envelope_PortalLoginStartResult"
+    ApiResponse_PortalSession:
+      $ref: "#/components/schemas/Envelope_PortalSession"
+    ApiResponse_PortalProfile:
+      $ref: "#/components/schemas/Envelope_PortalProfile"
+    ApiResponse_PortalBookings:
+      $ref: "#/components/schemas/Envelope_PortalBookings"
+    ApiResponse_PortalExport:
+      $ref: "#/components/schemas/Envelope_PortalExport"
     ApiResponse_GdprExportRequest:
       $ref: "#/components/schemas/Envelope_GdprExportRequest"
     ApiResponse_GdprExportArray:
@@ -3946,6 +4151,247 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/ManageSummary"
+    PortalLoginStartInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: The address the code is sent to.
+        locale:
+          type: string
+          description: Locale for the e-mail (e.g. `nb`, `en`); the workspace default when omitted.
+    PortalLoginStartResult:
+      description: >-
+        Always `sent`, whether or not the address is a known contact — the
+        route is enumeration-safe by design.
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: sent
+    PortalVerifyInput:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          description: The one-time code from the e-mail.
+    PortalContactSummary:
+      type: object
+      required: [contact_id, first_name]
+      properties:
+        contact_id:
+          type: string
+        first_name:
+          type: [string, "null"]
+    PortalSession:
+      description: >-
+        A portal session. `session_token` is a bearer credential for ONE
+        contact — keep it in an HttpOnly cookie on the site's server and never
+        hand it to the browser.
+      type: object
+      required: [session_token, expires_at, contact]
+      properties:
+        session_token:
+          type: string
+        expires_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        contact:
+          $ref: "#/components/schemas/PortalContactSummary"
+    PortalFamilyMember:
+      type: object
+      required: [name, birth_year]
+      properties:
+        name:
+          type: string
+        birth_year:
+          type: integer
+    PortalProfile:
+      type: object
+      required:
+        - contact_id
+        - email
+        - first_name
+        - last_name
+        - phone
+        - family
+        - marketing_consent
+        - created_at
+      properties:
+        contact_id:
+          type: string
+        email:
+          type: string
+        first_name:
+          type: [string, "null"]
+        last_name:
+          type: [string, "null"]
+        phone:
+          type: [string, "null"]
+        family:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalFamilyMember"
+        marketing_consent:
+          type: boolean
+        created_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+    PortalProfilePatch:
+      description: Only the supplied fields change.
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: [string, "null"]
+          description: "`null` clears the number."
+        family:
+          type: array
+          description: Replaces the whole list.
+          items:
+            $ref: "#/components/schemas/PortalFamilyMember"
+        marketing_consent:
+          type: boolean
+          description: Records a `marketing_email` consent change with source `portal`.
+    PortalBooking:
+      type: object
+      required:
+        - booking_id
+        - status
+        - start_ts
+        - end_ts
+        - service_id
+        - service_name
+        - resource_id
+        - resource_name
+        - booked_for_name
+        - amount_ore
+        - notes
+        - manage_token
+        - can_manage
+      properties:
+        booking_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        start_ts:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        end_ts:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        service_id:
+          type: [string, "null"]
+        service_name:
+          type: [string, "null"]
+        resource_id:
+          type: [string, "null"]
+        resource_name:
+          type: [string, "null"]
+        booked_for_name:
+          type: [string, "null"]
+        amount_ore:
+          type: [integer, "null"]
+          description: Integer øre, or `null` when the service has no price.
+        notes:
+          type: [string, "null"]
+        manage_token:
+          type: [string, "null"]
+          description: >-
+            Present only while the booking is upcoming and manageable; opens
+            the site's manage page.
+        can_manage:
+          type: boolean
+    PortalBookings:
+      type: object
+      required: [upcoming, past]
+      properties:
+        upcoming:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalBooking"
+        past:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalBooking"
+    PortalConsentRecord:
+      type: object
+      required: [consent_type, granted, granted_at, revoked_at, source]
+      properties:
+        consent_type:
+          type: string
+        granted:
+          type: boolean
+        granted_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null`.
+        revoked_at:
+          type: [integer, "null"]
+          description: Unix timestamp in milliseconds, or `null`.
+        source:
+          type: string
+    PortalExport:
+      description: Everything the workspace holds about the signed-in contact (GDPR Art. 15).
+      type: object
+      required: [exported_at, contact, family, consents, bookings]
+      properties:
+        exported_at:
+          type: integer
+          description: Unix timestamp in milliseconds.
+        contact:
+          $ref: "#/components/schemas/PortalProfile"
+        family:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalFamilyMember"
+        consents:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalConsentRecord"
+        bookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalBooking"
+    Envelope_PortalLoginStartResult:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalLoginStartResult"
+    Envelope_PortalSession:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalSession"
+    Envelope_PortalProfile:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalProfile"
+    Envelope_PortalBookings:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalBookings"
+    Envelope_PortalExport:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalExport"
     ScanCreateInput:
       type: object
       description: Provide exactly one of `url`, `orgnr`, or `name`.

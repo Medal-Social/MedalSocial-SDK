@@ -1,9 +1,9 @@
 /**
  * Official TypeScript SDK for the Medal Social API.
  *
- * Provides typed access to posts, emails, contacts, deals, bookings, GDPR
- * compliance, helpdesk conversations, partner channel connect, webhooks, and
- * workspace management. Works in
+ * Provides typed access to posts, emails, contacts, deals, bookings, the
+ * customer portal, GDPR compliance, helpdesk conversations, partner channel
+ * connect, webhooks, and workspace management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
  * @example
@@ -29,6 +29,7 @@ import { Deals } from "./resources/deals";
 import { Emails } from "./resources/emails";
 import { Gdpr } from "./resources/gdpr";
 import { Helpdesk } from "./resources/helpdesk";
+import { Portal } from "./resources/portal";
 import { Posts } from "./resources/posts";
 import { Scan } from "./resources/scan";
 import { Webhooks } from "./resources/webhooks";
@@ -126,6 +127,12 @@ export interface MedalOptions {
  *   to_ts: Date.now() + 7 * 86_400_000,
  * });
  *
+ * // Customer portal — e-mail code login, then session-bound self-service.
+ * // Keep `session_token` in an HttpOnly cookie on your server.
+ * await medal.portal.login.start({ email: 'ida@example.com' });
+ * const { data: session } = await medal.portal.login.verify({ email: 'ida@example.com', code: '123456' });
+ * const { data: mine } = await medal.portal.myBookings(session.session_token);
+ *
  * // Contacts, Deals, GDPR, Workspaces
  * const contacts = await medal.contacts.list({ status: 'lead' });
  * const { data: deal } = await medal.deals.create({ title: 'Acme', value: 50000 });
@@ -142,6 +149,7 @@ export class Medal {
   readonly deals: Deals;
   readonly gdpr: Gdpr;
   readonly helpdesk: Helpdesk;
+  readonly portal: Portal;
   readonly posts: Posts;
   readonly scan: Scan;
   readonly webhooks: Webhooks;
@@ -175,6 +183,7 @@ export class Medal {
     this.deals = new Deals(client);
     this.gdpr = new Gdpr(client);
     this.helpdesk = new Helpdesk(client, confirmer);
+    this.portal = new Portal(client);
     this.posts = new Posts(client);
     this.scan = new Scan(client);
     this.webhooks = new Webhooks(client, confirmer);
@@ -199,6 +208,7 @@ export { Deals } from "./resources/deals";
 export { Emails } from "./resources/emails";
 export { Gdpr } from "./resources/gdpr";
 export { Helpdesk } from "./resources/helpdesk";
+export { Portal } from "./resources/portal";
 export { Posts } from "./resources/posts";
 export { Scan } from "./resources/scan";
 export { Webhooks } from "./resources/webhooks";
@@ -320,6 +330,21 @@ export type {
   ReplyCreateResult,
   UpdateConversationInput,
 } from "./types/helpdesk";
+export type {
+  PortalBooking,
+  PortalBookingStatus,
+  PortalBookings,
+  PortalConsentRecord,
+  PortalContactSummary,
+  PortalExport,
+  PortalFamilyMember,
+  PortalLoginStartInput,
+  PortalLoginStartResult,
+  PortalProfile,
+  PortalProfilePatch,
+  PortalSession,
+  PortalVerifyInput,
+} from "./types/portal";
 export type {
   Channel,
   CreatePostInput,

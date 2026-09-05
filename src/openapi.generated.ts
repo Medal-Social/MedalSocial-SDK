@@ -564,6 +564,165 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/portal/login/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * E-mail a one-time login code
+     * @description Always answers 202 `{ status: "sent" }`, whether or not the address belongs to a contact — enumeration-safe by design. Rate-limited per address and per caller (`429 RATE_LIMITED`). Not idempotency-keyed. Errors: `400 VALIDATION_ERROR`, `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
+     */
+    post: operations["startPortalLogin"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/login/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Exchange the e-mailed code for a session
+     * @description A wrong, burned or expired code all answer `401 PORTAL_CODE_INVALID` — the three are not distinguished, so the response is not an oracle for which codes exist. The returned `session_token` is a bearer credential for ONE contact: keep it in an HttpOnly cookie on the site's server and never hand it to the browser. Not idempotency-keyed. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_CODE_INVALID`, `403 FORBIDDEN`, `429 RATE_LIMITED`.
+     */
+    post: operations["verifyPortalLogin"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/logout": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Revoke the session
+     * @description Revoking twice reaches the same state — the second call answers `401 PORTAL_SESSION_INVALID`. Not idempotency-keyed. Errors: `401 PORTAL_SESSION_REQUIRED` (header missing), `401 PORTAL_SESSION_INVALID` (unknown, expired or revoked), `403 FORBIDDEN`, `429 RATE_LIMITED`.
+     */
+    post: operations["logoutPortal"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/me": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The signed-in contact's profile
+     * @description Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `read:portal`), `429 RATE_LIMITED`.
+     */
+    get: operations["getPortalProfile"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update the signed-in contact's profile
+     * @description Only the supplied fields change. `phone: null` clears the number, `family` replaces the whole list, and `marketing_consent` records a `marketing_email` consent decision with source `portal`. Answers the profile as it is after the change. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
+     */
+    patch: operations["updatePortalProfile"];
+    trace?: never;
+  };
+  "/api/v1/portal/me/bookings": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The signed-in contact's bookings
+     * @description Split into `upcoming` and `past`. An upcoming booking still inside the workspace's policy windows carries `manage_token` and `can_manage: true`; the token opens the site's manage page. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `429 RATE_LIMITED`.
+     */
+    get: operations["listPortalBookings"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/me/export": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Export everything held about the signed-in contact
+     * @description A synchronous GDPR Art. 15 export of the contact's profile, family, consents and bookings, as one JSON document. Read-only, so not idempotency-keyed. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `429 RATE_LIMITED`.
+     */
+    post: operations["exportPortalData"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/me/delete": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Erase the signed-in contact
+     * @description GDPR Art. 17 erasure. The session is revoked as part of the deletion, so a retry answers `401 PORTAL_SESSION_INVALID` rather than deleting anything else. Not idempotency-keyed. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
+     */
+    post: operations["deletePortalAccount"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/gdpr/export": {
     parameters: {
       query?: never;
@@ -1976,6 +2135,11 @@ export interface components {
     ApiResponse_BookingActionResult: components["schemas"]["Envelope_BookingActionResult"];
     ApiResponse_BookingRescheduleResult: components["schemas"]["Envelope_BookingRescheduleResult"];
     ApiResponse_ManageSummary: components["schemas"]["Envelope_ManageSummary"];
+    ApiResponse_PortalLoginStartResult: components["schemas"]["Envelope_PortalLoginStartResult"];
+    ApiResponse_PortalSession: components["schemas"]["Envelope_PortalSession"];
+    ApiResponse_PortalProfile: components["schemas"]["Envelope_PortalProfile"];
+    ApiResponse_PortalBookings: components["schemas"]["Envelope_PortalBookings"];
+    ApiResponse_PortalExport: components["schemas"]["Envelope_PortalExport"];
     ApiResponse_GdprExportRequest: components["schemas"]["Envelope_GdprExportRequest"];
     ApiResponse_GdprExportArray: components["schemas"]["Envelope_GdprExportArray"];
     ApiResponse_GdprExport: components["schemas"]["Envelope_GdprExport"];
@@ -2123,6 +2287,119 @@ export interface components {
     };
     Envelope_ManageSummary: {
       data: components["schemas"]["ManageSummary"];
+    };
+    PortalLoginStartInput: {
+      /**
+       * Format: email
+       * @description The address the code is sent to.
+       */
+      email: string;
+      /** @description Locale for the e-mail (e.g. `nb`, `en`); the workspace default when omitted. */
+      locale?: string;
+    };
+    /** @description Always `sent`, whether or not the address is a known contact — the route is enumeration-safe by design. */
+    PortalLoginStartResult: {
+      /** @constant */
+      status: "sent";
+    };
+    PortalVerifyInput: {
+      /** Format: email */
+      email: string;
+      /** @description The one-time code from the e-mail. */
+      code: string;
+    };
+    PortalContactSummary: {
+      contact_id: string;
+      first_name: string | null;
+    };
+    /** @description A portal session. `session_token` is a bearer credential for ONE contact — keep it in an HttpOnly cookie on the site's server and never hand it to the browser. */
+    PortalSession: {
+      session_token: string;
+      /** @description Unix timestamp in milliseconds. */
+      expires_at: number;
+      contact: components["schemas"]["PortalContactSummary"];
+    };
+    PortalFamilyMember: {
+      name: string;
+      birth_year: number;
+    };
+    PortalProfile: {
+      contact_id: string;
+      email: string;
+      first_name: string | null;
+      last_name: string | null;
+      phone: string | null;
+      family: components["schemas"]["PortalFamilyMember"][];
+      marketing_consent: boolean;
+      /** @description Unix timestamp in milliseconds. */
+      created_at: number;
+    };
+    /** @description Only the supplied fields change. */
+    PortalProfilePatch: {
+      first_name?: string;
+      last_name?: string;
+      /** @description `null` clears the number. */
+      phone?: string | null;
+      /** @description Replaces the whole list. */
+      family?: components["schemas"]["PortalFamilyMember"][];
+      /** @description Records a `marketing_email` consent change with source `portal`. */
+      marketing_consent?: boolean;
+    };
+    PortalBooking: {
+      booking_id: string;
+      status: components["schemas"]["BookingStatus"];
+      /** @description Unix timestamp in milliseconds. */
+      start_ts: number;
+      /** @description Unix timestamp in milliseconds. */
+      end_ts: number;
+      service_id: string | null;
+      service_name: string | null;
+      resource_id: string | null;
+      resource_name: string | null;
+      booked_for_name: string | null;
+      /** @description Integer øre, or `null` when the service has no price. */
+      amount_ore: number | null;
+      notes: string | null;
+      /** @description Present only while the booking is upcoming and manageable; opens the site's manage page. */
+      manage_token: string | null;
+      can_manage: boolean;
+    };
+    PortalBookings: {
+      upcoming: components["schemas"]["PortalBooking"][];
+      past: components["schemas"]["PortalBooking"][];
+    };
+    PortalConsentRecord: {
+      consent_type: string;
+      granted: boolean;
+      /** @description Unix timestamp in milliseconds, or `null`. */
+      granted_at: number | null;
+      /** @description Unix timestamp in milliseconds, or `null`. */
+      revoked_at: number | null;
+      source: string;
+    };
+    /** @description Everything the workspace holds about the signed-in contact (GDPR Art. 15). */
+    PortalExport: {
+      /** @description Unix timestamp in milliseconds. */
+      exported_at: number;
+      contact: components["schemas"]["PortalProfile"];
+      family: components["schemas"]["PortalFamilyMember"][];
+      consents: components["schemas"]["PortalConsentRecord"][];
+      bookings: components["schemas"]["PortalBooking"][];
+    };
+    Envelope_PortalLoginStartResult: {
+      data: components["schemas"]["PortalLoginStartResult"];
+    };
+    Envelope_PortalSession: {
+      data: components["schemas"]["PortalSession"];
+    };
+    Envelope_PortalProfile: {
+      data: components["schemas"]["PortalProfile"];
+    };
+    Envelope_PortalBookings: {
+      data: components["schemas"]["PortalBookings"];
+    };
+    Envelope_PortalExport: {
+      data: components["schemas"]["PortalExport"];
     };
     /** @description Provide exactly one of `url`, `orgnr`, or `name`. */
     ScanCreateInput: {
@@ -2307,6 +2584,8 @@ export interface components {
     Slug: string;
     /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
     ManageToken: string;
+    /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+    PortalSession: string;
     Cursor: string;
     Limit: number;
   };
@@ -3323,6 +3602,200 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["ApiResponse_BookingRescheduleResult"];
         };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  startPortalLogin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalLoginStartInput"];
+      };
+    };
+    responses: {
+      /** @description Code queued (or silently not, for an unknown address). */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalLoginStartResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  verifyPortalLogin: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalVerifyInput"];
+      };
+    };
+    responses: {
+      /** @description The new session. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalSession"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  logoutPortal: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Session revoked. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getPortalProfile: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Profile. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalProfile"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updatePortalProfile: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalProfilePatch"];
+      };
+    };
+    responses: {
+      /** @description Updated profile. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalProfile"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listPortalBookings: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bookings. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalBookings"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  exportPortalData: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The export. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalExport"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  deletePortalAccount: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Contact erased and session revoked. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       default: components["responses"]["ApiError"];
     };
