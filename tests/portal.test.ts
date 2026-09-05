@@ -272,6 +272,30 @@ describe("portal", () => {
     expect(apiError.message).toBe("Session expired or revoked");
   });
 
+  it.each([
+    ["verify", (m: Medal) => m.portal.login.verify({ email: "ida@example.com", code: "123456" })],
+    ["logout", (m: Medal) => m.portal.logout("sess_1")],
+    ["deleteMe", (m: Medal) => m.portal.deleteMe("sess_1")],
+  ])("%s goes to the wire exactly once even on a 503", async (_name, call) => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockJson({ error: { code: "UPSTREAM", message: "down" } }, 503));
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await expect(call(medal)).rejects.toMatchObject({ status: 503 });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("login.start still retries a 503 (re-sending the same code is harmless)", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(mockJson({ error: { code: "UPSTREAM", message: "down" } }, 503))
+      .mockResolvedValueOnce(mockJson({ data: { status: "sent" } }, 202));
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const { data } = await medal.portal.login.start({ email: "ida@example.com" });
+    expect(data.status).toBe("sent");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces a wrong code as PORTAL_CODE_INVALID without retrying", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

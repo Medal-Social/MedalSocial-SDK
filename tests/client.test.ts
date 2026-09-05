@@ -1551,6 +1551,38 @@ describe("request headers", () => {
     );
   });
 
+  it("normalises capitalised bag keys so they cannot bypass the protected names", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("content-type")).toBe("application/json");
+      expect(headers.get("idempotency-key")).toBe("named");
+      expect(headers.get("x-portal-session")).toBe("sess_1");
+      return mockJson({ data: { ok: true } });
+    });
+    await client().post(
+      "/api/v1/posts",
+      {},
+      {
+        headers: {
+          "Content-Type": "text/plain",
+          "Idempotency-Key": "bag",
+          "X-Portal-Session": "sess_1",
+        },
+        idempotencyKey: "named",
+      },
+    );
+  });
+
+  it("retry: false sends a 503 exactly once and surfaces it", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockJson({ error: { code: "UPSTREAM", message: "down" } }, 503));
+    await expect(
+      client().post("/api/v1/portal/logout", undefined, { retry: false }),
+    ).rejects.toMatchObject({ status: 503, code: "UPSTREAM" });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("does not let the bag override the JSON content-type", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(new Headers(init?.headers).get("content-type")).toBe("application/json");

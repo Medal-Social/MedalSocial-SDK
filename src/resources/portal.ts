@@ -17,6 +17,15 @@ function withSession(session: string): { headers: Record<string, string> } {
 }
 
 /**
+ * For calls whose first attempt may have SUCCEEDED while the response was
+ * lost: verifying burns the code, logout and deleteMe revoke the session. An
+ * automatic retry would then meet `PORTAL_CODE_INVALID` /
+ * `PORTAL_SESSION_INVALID` and report a completed operation as a failure, so
+ * these go to the wire exactly once. A 5xx surfaces as-is; the caller decides.
+ */
+const ONCE = { retry: false } as const;
+
+/**
  * E-mail one-time-code login.
  *
  * Both routes are plain POSTs — deliberately not idempotency-keyed. A start
@@ -47,7 +56,7 @@ class PortalLogin {
    * response is not an oracle for which codes exist.
    */
   async verify(input: PortalVerifyInput): Promise<ApiResponse<PortalSession>> {
-    return this.client.post("/api/v1/portal/login/verify", input);
+    return this.client.post("/api/v1/portal/login/verify", input, ONCE);
   }
 }
 
@@ -77,7 +86,10 @@ export class Portal {
    * `401 PORTAL_SESSION_INVALID`, which is the outcome you wanted anyway.
    */
   async logout(session: string): Promise<void> {
-    await this.client.post("/api/v1/portal/logout", undefined, withSession(session));
+    await this.client.post("/api/v1/portal/logout", undefined, {
+      ...withSession(session),
+      ...ONCE,
+    });
   }
 
   /** The signed-in contact's own profile. */
@@ -125,6 +137,9 @@ export class Portal {
    * answers `401 PORTAL_SESSION_INVALID` rather than deleting anything else.
    */
   async deleteMe(session: string): Promise<void> {
-    await this.client.post("/api/v1/portal/me/delete", undefined, withSession(session));
+    await this.client.post("/api/v1/portal/me/delete", undefined, {
+      ...withSession(session),
+      ...ONCE,
+    });
   }
 }

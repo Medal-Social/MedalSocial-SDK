@@ -44,6 +44,15 @@ export interface RequestOptions {
    */
   autoConfirm?: AutoConfirmOptions | false;
   /**
+   * Set to `false` to send the request exactly once — no automatic retry on
+   * 429/5xx. Use it for writes whose FIRST attempt may have succeeded even
+   * though the response was lost: a one-time code that is burned on use, a
+   * logout or erasure that revokes the very credential a retry would present.
+   * A retry there does not repeat the operation, it misreports it as failed.
+   * Defaults to `true`.
+   */
+  retry?: boolean;
+  /**
    * Extra request headers, e.g. `x-portal-session` for the customer portal.
    * Applied first: the named options (`idempotencyKey`,
    * `capabilityConfirmation`) win over a same-named entry here, so a bag can
@@ -120,11 +129,15 @@ export class BaseClient {
 
   /** Execute an authenticated POST request with a JSON body. */
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
-    return this.request<T>(this.buildUrl(path), {
-      method: "POST",
-      headers: this.writeHeaders(options),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    return this.request<T>(
+      this.buildUrl(path),
+      {
+        method: "POST",
+        headers: this.writeHeaders(options),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      },
+      options?.retry,
+    );
   }
 
   /**
@@ -169,10 +182,15 @@ export class BaseClient {
   }
 
   private writeHeaders(options?: RequestOptions): Record<string, string> {
-    const headers: Record<string, string> = {
-      ...options?.headers,
-      "content-type": "application/json",
-    };
+    // Lower-case the bag's keys first. A plain object is case-sensitive but
+    // `Headers` is not: `{ "Content-Type": "text/plain", "content-type":
+    // "application/json" }` would reach the wire as BOTH values joined, so a
+    // capitalised bag entry could smuggle past the protected names below.
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(options?.headers ?? {})) {
+      headers[key.toLowerCase()] = value;
+    }
+    headers["content-type"] = "application/json";
     if (options?.idempotencyKey) {
       headers["idempotency-key"] = options.idempotencyKey;
     }
@@ -194,8 +212,8 @@ export class BaseClient {
     return url.toString();
   }
 
-  private async request<T>(url: string, init: RequestInit): Promise<T> {
-    const maxAttempts = 3;
+  private async request<T>(url: string, init: RequestInit, retry = true): Promise<T> {
+    const maxAttempts = retry ? 3 : 1;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const headers = new Headers(init.headers);

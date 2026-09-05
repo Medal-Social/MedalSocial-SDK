@@ -57,7 +57,7 @@ Every request gets:
 - `x-workspace-id: <workspaceId>` (only if `workspaceId` was set on the constructor)
 - `User-Agent: medalsocial-sdk/<version>` (best-effort — browsers reject custom User-Agent; the SDK swallows that error silently)
 
-Per-call extras go in `RequestOptions.headers` (accepted by `get`, `post`, `postOnce`, `patch`, `delete` on `BaseClient`). The named options win over a same-named bag entry: `{ headers: { "idempotency-key": "a" }, idempotencyKey: "b" }` sends `b`. The SDK uses this itself for the customer portal's `X-Portal-Session` header — you never set that one by hand; pass the session token to `medal.portal.*` instead.
+Per-call extras go in `RequestOptions.headers` (accepted by `get`, `post`, `postOnce`, `patch`, `delete` on `BaseClient`). The named options win over a same-named bag entry: `{ headers: { "idempotency-key": "a" }, idempotencyKey: "b" }` sends `b`. The SDK uses this itself for the customer portal's `X-Portal-Session` header — you never set that one by hand; pass the session token to `medal.portal.*` instead. Bag keys are lower-cased before the protected names (`content-type`, the named options) are applied, so capitalisation cannot smuggle a duplicate past them. `retry: false` sends a request exactly once (no 429/5xx retry) — used by `portal.login.verify`, `portal.logout` and `portal.deleteMe`, where the first attempt may have consumed the code or revoked the session and a retry would misreport success as failure.
 
 ## Retry behavior
 
