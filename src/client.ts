@@ -10,7 +10,7 @@ export interface ClientConfig {
   userAgent: string;
 }
 
-/** Per-request options for write operations. */
+/** Per-request options. `headers` applies to every verb; the named options only matter on writes. */
 export interface RequestOptions {
   /**
    * Idempotency key sent as the `Idempotency-Key` header. Retries with the

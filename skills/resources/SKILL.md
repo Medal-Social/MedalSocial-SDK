@@ -250,8 +250,9 @@ const { data: me } = await medal.portal.me(token);
 const { data: mine } = await medal.portal.myBookings(token);          // { upcoming, past }
 await medal.portal.updateMe(token, { family: [{ name: 'Ola', birth_year: 2018 }] });
 const { data: exported } = await medal.portal.exportMyData(token);    // GDPR Art. 15 — synchronous JSON
-await medal.portal.deleteMe(token);                                   // GDPR Art. 17 — 204, session revoked
-await medal.portal.logout(token);                                     // 204
+await medal.portal.logout(token);                                     // 204 — revokes this session only
+// …or, terminal (a later logout() on the same token answers 401 PORTAL_SESSION_INVALID):
+await medal.portal.deleteMe(token);                                   // GDPR Art. 17 — 204
 ```
 
 **`myBookings` hands you manage tokens.** An `upcoming` booking still inside the workspace's policy windows carries `manage_token` (string) and `can_manage: true`; everything else has `manage_token: null`. Use it with `medal.bookings.manage.*` — the customer routes, where the windows are enforced — never with the id-addressed staff routes.

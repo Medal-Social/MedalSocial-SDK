@@ -300,8 +300,10 @@ await medal.portal.updateMe(session.session_token, {
   marketing_consent: true,                        // recorded as a marketing_email consent, source 'portal'
 });
 const { data: exported } = await medal.portal.exportMyData(session.session_token); // GDPR Art. 15, synchronous
-await medal.portal.deleteMe(session.session_token);   // GDPR Art. 17 — 204, session revoked
-await medal.portal.logout(session.session_token);     // 204
+await medal.portal.logout(session.session_token);     // 204 — revokes this session only
+// …or, when the customer asks to be forgotten (terminal — the session is revoked, a later
+// logout() would answer 401 PORTAL_SESSION_INVALID):
+await medal.portal.deleteMe(session.session_token);   // GDPR Art. 17 — 204
 ```
 
 `401 PORTAL_SESSION_REQUIRED` (header missing) and `401 PORTAL_SESSION_INVALID` (unknown, expired or revoked) both mean "sign in again" — clear the cookie and send the customer back to step 1. `403 FORBIDDEN` means the key lacks the portal scopes; `429 RATE_LIMITED` applies per address and per caller on `login.start`.

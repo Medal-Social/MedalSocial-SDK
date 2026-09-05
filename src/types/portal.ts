@@ -1,3 +1,5 @@
+import type { BookingStatus } from "./bookings";
+
 /** Input for starting an e-mail one-time-code login. */
 export interface PortalLoginStartInput {
   /** The address the code is sent to. */
@@ -72,7 +74,7 @@ export interface PortalProfilePatch {
 }
 
 /** Lifecycle state of a booking as seen from the portal. */
-export type PortalBookingStatus = "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
+export type PortalBookingStatus = BookingStatus;
 
 /** One of the signed-in contact's bookings. */
 export interface PortalBooking {
