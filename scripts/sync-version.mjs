@@ -4,6 +4,7 @@
 //   - jsr.json `version`             (the JSR publish manifest)
 //   - src/version.ts `SDK_VERSION`   (what the User-Agent header reports)
 //   - openapi/*.yaml `info.version`  (the published contract's own version)
+//   - plugin.toml `[plugin] version` (the Pilot plugin manifest)
 //
 // Wired into `pnpm run version` right after `changeset version` bumps
 // package.json, so a release carries the new number everywhere. Run with
@@ -12,6 +13,8 @@
 //
 // History: through 1.10.0 the User-Agent said `medalsocial-sdk/1.0.0` and the
 // OpenAPI document said `1.1.7` — each was hand-edited once and never again.
+// plugin.toml said `1.0.0` until #142 hand-bumped it, and the 1.11.0 version
+// PR promptly left it behind again.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -88,6 +91,30 @@ const targets = [];
     if (!match) continue;
     current = match[2];
     lines[i] = `${match[1]}${version}${line.slice(match[0].length)}`;
+    next = lines.join("\n");
+    break;
+  }
+  targets.push({ file, current, next });
+}
+
+// plugin.toml — only the `version = "…"` line of the `[plugin]` table is
+// touched, found by the same kind of line walk: the table ends at the next
+// `[` header, so a `version` key under a later table (a `[[tools]]` entry, say)
+// is never mistaken for it.
+{
+  const file = resolve(root, "plugin.toml");
+  const raw = readFileSync(file, "utf8");
+  const lines = raw.split("\n");
+  const tableAt = lines.findIndex((line) => /^\[plugin\]\s*$/.test(line));
+  let current = null;
+  let next = raw;
+  for (let i = tableAt === -1 ? lines.length : tableAt + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^[ \t]*\[/.test(line)) break; // the next table — [plugin] is over
+    const match = line.match(/^([ \t]*version[ \t]*=[ \t]*")([^"]*)"/);
+    if (!match) continue;
+    current = match[2];
+    lines[i] = `${match[1]}${version}"${line.slice(match[0].length)}`;
     next = lines.join("\n");
     break;
   }

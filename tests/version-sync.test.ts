@@ -46,6 +46,21 @@ describe("version is derived from package.json everywhere", () => {
     expect(versionLine?.trim()).toBe(`version: ${pkg.version}`);
   });
 
+  it("the Pilot plugin manifest's [plugin] version matches", () => {
+    const toml = readFileSync(resolve(root, "plugin.toml"), "utf8");
+    // The [plugin] table ends at the next `[` header — the same walk as
+    // scripts/sync-version.mjs, so a `version` under a later table never counts.
+    const lines = toml.split("\n");
+    const tableAt = lines.findIndex((line) => /^\[plugin\]\s*$/.test(line));
+    expect(tableAt).toBeGreaterThanOrEqual(0);
+    const table = lines.slice(tableAt + 1);
+    const endAt = table.findIndex((line) => /^[ \t]*\[/.test(line));
+    const versionLine = table
+      .slice(0, endAt === -1 ? undefined : endAt)
+      .find((line) => /^[ \t]*version[ \t]*=/.test(line));
+    expect(versionLine?.trim()).toBe(`version = "${pkg.version}"`);
+  });
+
   it("the User-Agent header names the published version and this repository", async () => {
     let userAgent: string | null = null;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
