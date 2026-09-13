@@ -1,10 +1,10 @@
 [plugin]
 name = "medalsocial-sdk"
-version = "1.0.0"
+version = "1.10.0"
 description = "Medal Social API client for Pilot crew"
 
 [permissions]
-network = ["api.medalsocial.com"]
+network = ["io.medalsocial.com"]
 
 [[tools]]
 name = "send_email"

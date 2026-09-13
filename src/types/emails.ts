@@ -26,10 +26,28 @@ export interface EmailSendResult {
   status: string;
 }
 
+/**
+ * Delivery lifecycle of a sent email — the only values the send row can hold.
+ * `queued` is what a fresh send reports; `opened` / `clicked` come from the
+ * tracker; `bounced` / `complained` / `failed` / `cancelled` are terminal.
+ */
+export type EmailSendStatus =
+  | "pending"
+  | "queued"
+  | "sending"
+  | "sent"
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "bounced"
+  | "complained"
+  | "failed"
+  | "cancelled";
+
 /** Full record for a sent email, including delivery timestamps. */
 export interface EmailSend {
   id: string;
-  status: string;
+  status: EmailSendStatus;
   recipient_email: string;
   recipient_name: string | null;
   subject: string | null;

@@ -64,7 +64,12 @@ export class CapabilityConfirmer {
     if (callerKeyIsUsable && options?.capabilityConfirmation) return options;
 
     const route = CAPABILITY_ROUTES[request.capabilityId];
-    const path = resolvePath(route.path_template, pathParams);
+    const template = request.pathTemplate ?? route.path_template;
+    const path = resolvePath(template, pathParams);
+    // A capability with several API targets cannot be minted without naming
+    // one: the server answers 400 CAPABILITY_API_PATH_REQUIRED. Sending
+    // `api_path` only for those keeps every other request body unchanged.
+    const apiPath = route.alternate_path_templates ? path : undefined;
 
     const previewSummary = auto.previewSummary({
       ...request,
@@ -83,6 +88,7 @@ export class CapabilityConfirmer {
 
     const { data } = await this.confirmations.create({
       capability_id: request.capabilityId,
+      ...(apiPath ? { api_path: apiPath } : {}),
       ...(pathParams ? { path_params: pathParams } : {}),
       idempotency_key: idempotencyKey,
       preview_summary: previewSummary,

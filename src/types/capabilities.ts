@@ -1,5 +1,13 @@
 import type { CreateConnectLinkInput } from "./channels";
-import type { CreateReplyInput, UpdateConversationInput } from "./helpdesk";
+import type { AddNoteInput } from "./contacts";
+import type { CreateDealInput, UpdateDealInput } from "./deals";
+import type { BatchSendInput, SendEmailInput } from "./emails";
+import type {
+  CreateReplyInput,
+  LinkConversationContactInput,
+  UpdateConversationInput,
+} from "./helpdesk";
+import type { CreatePostInput, SchedulePostInput } from "./posts";
 import type { CreateWebhookInput, UpdateWebhookInput } from "./webhooks";
 
 /**
@@ -15,20 +23,50 @@ import type { CreateWebhookInput, UpdateWebhookInput } from "./webhooks";
  */
 
 /**
- * Confirmable capability ids backing the write routes this SDK exposes.
+ * Every confirmable capability the server registers against a public API route.
  *
- * Mirrors the server-side capability registry. Each id maps to exactly one
- * method + path template — see {@link CAPABILITY_ROUTES}.
+ * Mirrors the server-side capability registry — the whole of it, not just the
+ * routes this SDK wraps. The first version of this list named 8 ids (the
+ * helpdesk-bridge routes), so `autoConfirmCapabilities` silently did nothing
+ * for deals, contacts, posts, e-mails and GDPR exports, and a capability-scoped
+ * key calling `deals.update` had no way to reach a `428` route at all.
+ *
+ * Ids the SDK has no method for are listed too: they are still valid input to
+ * `medal.capabilityConfirmations.create(...)`, which is how an integrator mints
+ * a token for a route it calls with `fetch` (AI generation, image generation,
+ * flow enrollments, Sanity documents, media assets, post media, e-mail drafts,
+ * the Telegram sync config).
+ *
+ * Each id maps to a method + path template — see {@link CAPABILITY_ROUTES}.
  */
 export const CAPABILITY_IDS = [
+  "ai.text.generate",
   "channel.connect_link.create.execute",
   "channel.connect_link.revoke.execute",
   "channel.connection.disconnect.execute",
+  "channel.telegram_sync_config.update.execute",
+  "compliance.gdpr.export.execute",
+  "content.post.draft.create",
+  "content.post.media.attach.execute",
+  "content.post.publish.execute",
+  "content.post.schedule.execute",
+  "crm.contact.note.create.execute",
+  "deals.deal.create.execute",
+  "deals.deal.update.execute",
+  "email.campaign.send.execute",
+  "email.draft.create.execute",
+  "flows.enrollment.create.execute",
+  "helpdesk.conversation.link_contact.execute",
   "helpdesk.conversation.reply.execute",
+  "helpdesk.conversation.unlink_contact.execute",
   "helpdesk.conversation.update.execute",
   "helpdesk.webhook.create.execute",
   "helpdesk.webhook.update.execute",
   "helpdesk.webhook.delete.execute",
+  "image.generation.execute",
+  "media.generated_asset.save.execute",
+  "site.sanity.document.create.execute",
+  "site.sanity.document.update.execute",
 ] as const;
 
 /** A confirmable capability id backing an SDK write route. */
@@ -36,9 +74,20 @@ export type CapabilityId = (typeof CAPABILITY_IDS)[number];
 
 /** The API route a capability confirms, as registered server-side. */
 export interface CapabilityRoute {
-  method: "POST" | "PATCH" | "DELETE";
+  method: "POST" | "PUT" | "PATCH" | "DELETE";
   /** Path template; `{id}` is filled from `path_params.id`. */
   path_template: string;
+  /**
+   * Further paths the SAME capability id confirms, when the server registry
+   * binds several routes to it (`email.campaign.send.execute` covers both the
+   * single send and the batch; `ai.text.generate` covers the AI and Pilot
+   * entry points).
+   *
+   * It matters because `POST /api/v1/capability-confirmations` then REFUSES a
+   * request that does not say which one — `400 CAPABILITY_API_PATH_REQUIRED` —
+   * so the SDK sends an explicit `api_path` for these and only these.
+   */
+  alternate_path_templates?: readonly string[];
 }
 
 /**
@@ -49,6 +98,11 @@ export interface CapabilityRoute {
  * `path_params` without a round trip.
  */
 export const CAPABILITY_ROUTES: Record<CapabilityId, CapabilityRoute> = {
+  "ai.text.generate": {
+    method: "POST",
+    path_template: "/api/v1/ai/generate",
+    alternate_path_templates: ["/api/v1/pilot/ask"],
+  },
   "channel.connect_link.create.execute": {
     method: "POST",
     path_template: "/api/v1/channels/connect-links",
@@ -61,9 +115,66 @@ export const CAPABILITY_ROUTES: Record<CapabilityId, CapabilityRoute> = {
     method: "DELETE",
     path_template: "/api/v1/channels/connections/{id}",
   },
+  "channel.telegram_sync_config.update.execute": {
+    method: "PATCH",
+    path_template: "/api/v1/channels/telegram/sync-config",
+  },
+  "compliance.gdpr.export.execute": {
+    method: "POST",
+    path_template: "/api/v1/gdpr/export",
+  },
+  "content.post.draft.create": {
+    method: "POST",
+    path_template: "/api/v1/posts",
+  },
+  "content.post.media.attach.execute": {
+    method: "POST",
+    path_template: "/api/v1/posts/{id}/media",
+  },
+  "content.post.publish.execute": {
+    method: "POST",
+    path_template: "/api/v1/posts/{id}/publish",
+  },
+  "content.post.schedule.execute": {
+    method: "POST",
+    path_template: "/api/v1/posts/{id}/schedule",
+  },
+  "crm.contact.note.create.execute": {
+    method: "POST",
+    path_template: "/api/v1/contacts/{id}/notes",
+  },
+  "deals.deal.create.execute": {
+    method: "POST",
+    path_template: "/api/v1/deals",
+  },
+  "deals.deal.update.execute": {
+    method: "PATCH",
+    path_template: "/api/v1/deals/{id}",
+  },
+  "email.campaign.send.execute": {
+    method: "POST",
+    path_template: "/api/v1/emails",
+    alternate_path_templates: ["/api/v1/emails/batch"],
+  },
+  "email.draft.create.execute": {
+    method: "POST",
+    path_template: "/api/v1/emails/drafts",
+  },
+  "flows.enrollment.create.execute": {
+    method: "POST",
+    path_template: "/api/v1/flows/enrollments",
+  },
+  "helpdesk.conversation.link_contact.execute": {
+    method: "PUT",
+    path_template: "/api/v1/helpdesk/conversations/{id}/contact",
+  },
   "helpdesk.conversation.reply.execute": {
     method: "POST",
     path_template: "/api/v1/helpdesk/replies",
+  },
+  "helpdesk.conversation.unlink_contact.execute": {
+    method: "DELETE",
+    path_template: "/api/v1/helpdesk/conversations/{id}/contact",
   },
   "helpdesk.conversation.update.execute": {
     method: "PATCH",
@@ -80,6 +191,22 @@ export const CAPABILITY_ROUTES: Record<CapabilityId, CapabilityRoute> = {
   "helpdesk.webhook.delete.execute": {
     method: "DELETE",
     path_template: "/api/v1/webhooks/{id}",
+  },
+  "image.generation.execute": {
+    method: "POST",
+    path_template: "/api/v1/images/generations",
+  },
+  "media.generated_asset.save.execute": {
+    method: "POST",
+    path_template: "/api/v1/media/generated-assets",
+  },
+  "site.sanity.document.create.execute": {
+    method: "POST",
+    path_template: "/api/v1/site/sanity/documents",
+  },
+  "site.sanity.document.update.execute": {
+    method: "PATCH",
+    path_template: "/api/v1/site/sanity/documents/{id}",
   },
 };
 
@@ -149,17 +276,39 @@ export interface CapabilityConfirmation {
 /**
  * Request body type for each confirmable capability.
  *
- * `undefined` for routes that take no request body (the `DELETE` routes).
+ * `undefined` for routes that take no request body (the `DELETE` routes, the
+ * GDPR export, a post publish). `unknown` for the confirmable routes this SDK
+ * has no method for: the id is still mintable, but the SDK cannot claim to
+ * know the payload's shape.
  */
 export interface CapabilityWriteBodies {
+  "ai.text.generate": unknown;
   "channel.connect_link.create.execute": CreateConnectLinkInput;
   "channel.connect_link.revoke.execute": undefined;
   "channel.connection.disconnect.execute": undefined;
+  "channel.telegram_sync_config.update.execute": unknown;
+  "compliance.gdpr.export.execute": undefined;
+  "content.post.draft.create": CreatePostInput;
+  "content.post.media.attach.execute": unknown;
+  "content.post.publish.execute": undefined;
+  "content.post.schedule.execute": SchedulePostInput;
+  "crm.contact.note.create.execute": AddNoteInput;
+  "deals.deal.create.execute": CreateDealInput;
+  "deals.deal.update.execute": UpdateDealInput;
+  "email.campaign.send.execute": SendEmailInput | BatchSendInput;
+  "email.draft.create.execute": unknown;
+  "flows.enrollment.create.execute": unknown;
+  "helpdesk.conversation.link_contact.execute": LinkConversationContactInput;
   "helpdesk.conversation.reply.execute": CreateReplyInput;
+  "helpdesk.conversation.unlink_contact.execute": undefined;
   "helpdesk.conversation.update.execute": UpdateConversationInput;
   "helpdesk.webhook.create.execute": CreateWebhookInput;
   "helpdesk.webhook.update.execute": UpdateWebhookInput;
   "helpdesk.webhook.delete.execute": undefined;
+  "image.generation.execute": unknown;
+  "media.generated_asset.save.execute": unknown;
+  "site.sanity.document.create.execute": unknown;
+  "site.sanity.document.update.execute": unknown;
 }
 
 /**
@@ -176,6 +325,13 @@ export type CapabilityWriteRequest = {
     capabilityId: K;
     /** The request body of the pending write, or `undefined` for `DELETE` routes. */
     body: CapabilityWriteBodies[K];
+    /**
+     * Which of the capability's routes this write is for, when the capability
+     * has {@link CapabilityRoute.alternate_path_templates}. Defaults to the
+     * route's `path_template` — so `emails.send` needs nothing and
+     * `emails.batch` names `/api/v1/emails/batch`.
+     */
+    pathTemplate?: string;
   };
 }[CapabilityId];
 

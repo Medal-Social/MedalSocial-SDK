@@ -1,5 +1,6 @@
 import type { AutoConfirmOptions } from "./types/capabilities";
-import { MedalApiError } from "./types/common";
+import type { PaginatedResponse } from "./types/common";
+import { MedalApiError, MedalNetworkError, MedalTimeoutError } from "./types/common";
 
 /** Configuration for the low-level HTTP client. */
 export interface ClientConfig {
@@ -59,6 +60,150 @@ export interface RequestOptions {
    * never smuggle in a key the SDK did not resolve.
    */
   headers?: Record<string, string>;
+  /**
+   * Your own cancellation signal — a React effect cleanup, a closing request,
+   * a user who navigated away. It is merged with the client's per-attempt
+   * `timeout`, and it also interrupts a retry that is waiting out its backoff,
+   * so an abandoned call stops costing time immediately.
+   *
+   * Aborting rejects with YOUR abort reason unchanged (an `AbortError` by
+   * default), never with {@link MedalTimeoutError} — cancelling is not a Medal
+   * failure and must not be reported as one.
+   */
+  signal?: AbortSignal;
+}
+
+/** First backoff step, doubled per attempt. */
+const RETRY_BASE_DELAY_MS = 250;
+/** Fraction of the backoff each attempt is spread over, either way. */
+const RETRY_JITTER_RATIO = 0.25;
+
+/**
+ * How long to wait before attempt `attempt + 1`: exponential, spread ±25%.
+ *
+ * The jitter is the point. Every client that a single 503 knocked back used to
+ * wait exactly 250 ms and then 500 ms, so a fleet retried in lock-step and hit
+ * the recovering server as one wave — the behaviour that turns a blip into an
+ * outage. `random` is injectable so the spread can be asserted rather than
+ * hoped for.
+ *
+ * @param attempt 1-based number of the attempt that just failed.
+ * @param random Uniform `[0, 1)` source; defaults to `Math.random`.
+ */
+export function backoffDelayMs(attempt: number, random: () => number = Math.random): number {
+  const base = RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1);
+  const jitter = base * RETRY_JITTER_RATIO * (random() * 2 - 1);
+  return Math.max(0, Math.round(base + jitter));
+}
+
+/**
+ * `Retry-After` in milliseconds, or `null` when the header is absent or makes
+ * no sense.
+ *
+ * RFC 9110 allows BOTH forms and Medal's own 429s send delay-seconds, but a
+ * proxy or WAF in front of an integrator's egress may answer with an
+ * HTTP-date. Reading only the numeric form turned those into "no header",
+ * which silently replaced a server-specified wait with the SDK's own backoff.
+ *
+ * A date already in the past clamps to `0` rather than going negative, so a
+ * clock skew cannot make the SDK wait "forever ago".
+ */
+export function parseRetryAfterMs(value: string | null, now: number = Date.now()): number | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  // RFC 9110's delay-seconds is a non-negative integer, but accept a decimal
+  // too: a proxy that answers `1.5` means a second and a half, and reading that
+  // as "no header" would replace a server-specified wait with our own guess.
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed) * 1000;
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, at - now);
+}
+
+/**
+ * The reason an aborted signal carries.
+ *
+ * Per spec `abort()` always leaves a reason behind (a DOM `AbortError` when the
+ * caller supplied none), so the fallback is for runtimes that predate that —
+ * unreachable on every engine the test suite can run, hence ignored for
+ * coverage rather than pretended to be tested.
+ */
+function abortReason(signal: AbortSignal): unknown {
+  /* v8 ignore next -- unreachable: a spec-compliant abort() always sets a reason */
+  return signal.reason ?? new DOMException("This operation was aborted", "AbortError");
+}
+
+/**
+ * A `TypeError` is how `fetch` reports "the request never produced a
+ * response" — DNS, TLS, connection reset, offline. Anything else thrown out of
+ * `fetch` is a programming error and must not be dressed up as a network
+ * failure.
+ */
+function isNetworkFailure(error: unknown): boolean {
+  return error instanceof TypeError;
+}
+
+/**
+ * Walk every page of a cursor-paginated endpoint, yielding one row at a time.
+ *
+ * ```ts
+ * for await (const contact of medal.contacts.iter({ status: "lead" })) {
+ *   await sync(contact);
+ * }
+ * ```
+ *
+ * The loop is driven off `pagination.has_more`, never off the row count — the
+ * API applies several filters WITHIN a page (helpdesk channels, connect-link
+ * status), so a page can legitimately be short or even empty while more pages
+ * remain. Stopping when the rows run out is the trap this exists to remove; the
+ * README used to print the six-line cursor loop for every caller to re-derive.
+ *
+ * A `has_more` with no `next_cursor` ends the walk rather than re-requesting
+ * page one forever.
+ *
+ * Rows are yielded lazily, one page at a time: `break` out of the loop and no
+ * further page is fetched.
+ */
+export async function* paginate<T>(
+  fetchPage: (cursor?: string) => Promise<PaginatedResponse<T>>,
+): AsyncGenerator<T, void, undefined> {
+  let cursor: string | undefined;
+  for (;;) {
+    const page = await fetchPage(cursor);
+    for (const row of page.data) yield row;
+    if (!page.pagination.has_more) return;
+    const next = page.pagination.next_cursor;
+    if (!next) return;
+    cursor = next;
+  }
+}
+
+/**
+ * Plain sleep. Exported for the poll helpers (`scan.waitForResult`,
+ * `bookings.payment.waitForSettlement`) so there is ONE of these in the SDK
+ * rather than a copy per resource; not re-exported from the package entry.
+ */
+export const sleep = (ms: number): Promise<void> =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Sleep, but wake early (and reject) if the caller's signal aborts. */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(abortReason(signal as AbortSignal));
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /**
@@ -121,10 +266,10 @@ export class BaseClient {
   async get<T>(
     path: string,
     params?: Record<string, string | undefined>,
-    options?: Pick<RequestOptions, "headers">,
+    options?: Pick<RequestOptions, "headers" | "signal" | "retry">,
   ): Promise<T> {
     const url = this.buildUrl(path, params);
-    return this.request<T>(url, { method: "GET", headers: options?.headers });
+    return this.request<T>(url, { method: "GET", headers: options?.headers }, options);
   }
 
   /** Execute an authenticated POST request with a JSON body. */
@@ -136,7 +281,7 @@ export class BaseClient {
         headers: this.writeHeaders(options),
         body: body !== undefined ? JSON.stringify(body) : undefined,
       },
-      options?.retry,
+      options,
     );
   }
 
@@ -164,6 +309,19 @@ export class BaseClient {
     });
   }
 
+  /** Execute an authenticated PUT request with a JSON body. */
+  async put<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(
+      this.buildUrl(path),
+      {
+        method: "PUT",
+        headers: this.writeHeaders(options),
+        body: JSON.stringify(body),
+      },
+      options,
+    );
+  }
+
   /** Execute an authenticated PATCH request with a JSON body. */
   async patch<T>(path: string, body: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(
@@ -173,7 +331,7 @@ export class BaseClient {
         headers: this.writeHeaders(options),
         body: JSON.stringify(body),
       },
-      options?.retry,
+      options,
     );
   }
 
@@ -185,7 +343,7 @@ export class BaseClient {
         method: "DELETE",
         headers: this.writeHeaders(options),
       },
-      options?.retry,
+      options,
     );
   }
 
@@ -220,10 +378,19 @@ export class BaseClient {
     return url.toString();
   }
 
-  private async request<T>(url: string, init: RequestInit, retry = true): Promise<T> {
-    const maxAttempts = retry ? 3 : 1;
+  private async request<T>(
+    url: string,
+    init: RequestInit,
+    control?: Pick<RequestOptions, "retry" | "signal">,
+  ): Promise<T> {
+    const maxAttempts = control?.retry === false ? 1 : 3;
+    const callerSignal = control?.signal;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Checked before every attempt, including the first: a signal that was
+      // already aborted must not open a connection at all.
+      if (callerSignal?.aborted) throw abortReason(callerSignal);
+
       const headers = new Headers(init.headers);
       headers.set("authorization", `Bearer ${this.config.token}`);
       if (this.config.workspaceId) {
@@ -235,6 +402,13 @@ export class BaseClient {
         // Browsers disallow setting user-agent
       }
 
+      // A network failure is only safe to repeat when repeating it cannot
+      // duplicate anything: a GET, or a write that carries an
+      // `Idempotency-Key` the server replays on. An unkeyed POST stays
+      // single-shot — "the connection dropped" says nothing about whether the
+      // write committed.
+      const replayable = init.method === "GET" || headers.has("idempotency-key");
+
       const controller = new AbortController();
       // Armed across the body read, not just the fetch. `fetch` settles as soon
       // as the response HEADERS arrive, so a timer cleared there bounded only
@@ -243,6 +417,19 @@ export class BaseClient {
       // Holding the signal until the body is in hand makes `timeout` mean what
       // it says — a budget for the whole exchange, per attempt.
       const timeout = setTimeout(() => controller.abort(), this.config.timeout);
+      let timedOut = false;
+      const onTimeout = () => {
+        timedOut = true;
+      };
+      controller.signal.addEventListener("abort", onTimeout, { once: true });
+      // The caller's cancellation is forwarded into the SAME controller the
+      // deadline uses, rather than merged with `AbortSignal.any` (not present
+      // in every runtime this SDK supports). That sets `timedOut` as well — it
+      // is one abort event either way — so the catch below checks the caller's
+      // signal FIRST, and that ordering is what keeps a cancellation from being
+      // reported as a timeout.
+      const onCallerAbort = () => controller.abort(abortReason(callerSignal as AbortSignal));
+      callerSignal?.addEventListener("abort", onCallerAbort, { once: true });
 
       let res: Response;
       let text = "";
@@ -278,23 +465,38 @@ export class BaseClient {
         } else {
           text = await res.text();
         }
+      } catch (error) {
+        // The caller's own cancellation wins over every classification below:
+        // it is their reason, and reporting it as a Medal failure would make an
+        // abandoned page look like an outage.
+        if (callerSignal?.aborted) throw abortReason(callerSignal);
+        if (timedOut) throw new MedalTimeoutError(this.config.timeout);
+        if (isNetworkFailure(error) && replayable && attempt < maxAttempts) {
+          await delay(backoffDelayMs(attempt), callerSignal);
+          continue;
+        }
+        if (isNetworkFailure(error)) {
+          throw new MedalNetworkError(
+            `Request to ${new URL(url).pathname} failed before a response was received`,
+            { cause: error },
+          );
+        }
+        throw error;
       } finally {
         clearTimeout(timeout);
+        controller.signal.removeEventListener("abort", onTimeout);
+        callerSignal?.removeEventListener("abort", onCallerAbort);
       }
 
       if (retrying) {
-        const retryAfter = res.headers.get("retry-after");
-        let delayMs = 0;
-        if (retryAfter) {
-          const seconds = Number(retryAfter);
-          delayMs = Number.isFinite(seconds) ? seconds * 1000 : 0;
-        }
-        if (delayMs <= 0) {
-          delayMs = 250 * attempt;
-        }
         // Outside the deadline above: the backoff is time we choose to wait,
-        // not time we are waiting on the server.
-        await new Promise((r) => setTimeout(r, delayMs));
+        // not time we are waiting on the server. A server-specified
+        // `Retry-After` wins over our own guess; `0` (or a date already past)
+        // means "no useful window", so fall back to the jittered backoff.
+        const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after"));
+        const delayMs =
+          retryAfterMs !== null && retryAfterMs > 0 ? retryAfterMs : backoffDelayMs(attempt);
+        await delay(delayMs, callerSignal);
         continue;
       }
 
@@ -308,13 +510,27 @@ export class BaseClient {
 
       if (!res.ok) {
         const body = parsed as
-          | { error?: { code?: string; message?: string; details?: unknown } }
+          | { error?: string | { code?: string; message?: string; details?: unknown } }
           | undefined;
+        // `/api/v1/` answers `{ error: { code, message } }`. The routes that
+        // predate it — `/api/cookie-consent` and friends — answer
+        // `{ success: false, error: "why" }` with a plain string. Reading only
+        // the object form turned every one of those into "HTTP 403: Error",
+        // so the caller could not tell an unowned domain from a bad key.
+        const detail = typeof body?.error === "string" ? body.error : undefined;
+        const structured = typeof body?.error === "object" ? body.error : undefined;
         throw new MedalApiError(
           res.status,
-          body?.error?.code ?? "UNKNOWN_ERROR",
-          body?.error?.message ?? `HTTP ${res.status}: ${res.statusText}`,
-          body?.error?.details,
+          structured?.code ?? "UNKNOWN_ERROR",
+          detail ?? structured?.message ?? `HTTP ${res.status}: ${res.statusText}`,
+          structured?.details,
+          {
+            // Every Medal API response carries `X-Request-ID`; it is the only
+            // handle support has on one specific call, and reading the body
+            // alone threw it away.
+            requestId: res.headers.get("x-request-id"),
+            retryAfterMs: parseRetryAfterMs(res.headers.get("retry-after")),
+          },
         );
       }
 

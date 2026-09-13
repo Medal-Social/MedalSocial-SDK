@@ -1,4 +1,5 @@
 import type { BaseClient, RequestOptions } from "../client";
+import { sleep } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
   ScanCompany,
@@ -7,8 +8,6 @@ import type {
   ScanJob,
   WaitForScanOptions,
 } from "../types/scan";
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Company & website scans (Nettsjekk) — score a Norwegian company's web

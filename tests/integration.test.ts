@@ -208,7 +208,7 @@ describe.skipIf(!token)("integration: live API", () => {
     it("updates the deal", async () => {
       if (!createdId) return;
       try {
-        const res = await medal.deals.update(createdId, { status: "won" });
+        const res = await medal.deals.update(createdId, { status: "negotiating" });
         expect(res.data.success).toBe(true);
       } catch (err) {
         if (err instanceof MedalApiError && err.status >= 500) {

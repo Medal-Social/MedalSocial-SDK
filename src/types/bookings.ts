@@ -421,6 +421,12 @@ export interface ListBookingsOptions extends PaginationOptions {
   to_ts?: BookingTimestampInput;
   status?: BookingStatus;
   resource_id?: string;
+  /**
+   * Only bookings with this provenance. Unlike `create`, EVERY value the
+   * column holds is filterable here — asking about walk-ins is not the same
+   * as claiming to be one. Any other value is a `400`.
+   */
+  created_via?: BookingCreatedVia;
 }
 
 /** Options for listing the service catalogue. The endpoint is not paginated. */
@@ -562,6 +568,8 @@ export interface ListBookingEventsOptions {
   from: string;
   to: string;
   status?: BookingEventStatus;
+  /** Restrict to arrangementer at one host. */
+  host_id?: string;
 }
 
 /** Input for `bookings.events.create(...)`. */
@@ -576,4 +584,290 @@ export interface CreateBookingEventInput {
   minimum?: number;
   service_ids: string[];
   resource_ids: string[];
+}
+
+/** The guardian registering a child for an arrangement. Phone is the CRM dedupe key. */
+export interface RegisterBookingEventGuardianInput {
+  name: string;
+  email?: string;
+  phone?: string;
+}
+
+/** The child being registered. Birth year, not a birthdate — the age bracket is all that is stored. */
+export interface RegisterBookingEventChildInput {
+  name: string;
+  birth_year: number;
+}
+
+/**
+ * Input for `bookings.events.register(...)` — a guardian registering a child
+ * for an arrangement. Lands as a {@link Booking} with `event_id` set and
+ * `event_order` recording its position in the roster.
+ */
+export interface RegisterBookingEventInput {
+  guardian: RegisterBookingEventGuardianInput;
+  child: RegisterBookingEventChildInput;
+  service_id: string;
+  note?: string;
+  /**
+   * REQUIRED, and must be `true`. Mirrors {@link StartBookingPaymentInput.terms_accepted}:
+   * the guardian has to actively consent before the registration is recorded.
+   */
+  consent_accepted: true;
+  /** Your own version label for the consent wording shown; defaults server-side to `event-consent-v1`. */
+  consent_version?: string;
+  /** The exact wording shown, stored on the consent record. */
+  consent_text?: string;
+  /** Where the wallet returns the guardian, when the registration starts a payment. Must be a URL one of your own sites vouches for. */
+  return_url?: string;
+}
+
+/**
+ * A payment could not be started for a registration that otherwise succeeded.
+ * The booking itself is still created — read `code`/`message` to decide
+ * whether to retry `bookings.payment.start(...)` on the returned booking.
+ */
+export interface BookingEventRegistrationPaymentError {
+  code: string;
+  message: string;
+}
+
+/**
+ * Result of `bookings.events.register(...)`.
+ *
+ * `payment` is `null` when the registration's service needs no payment.
+ * `manage_token` is SHOW-ONCE, exactly like {@link CreatedBooking.manage_token}
+ * — persist it here or it is gone. It is present on every fresh registration;
+ * an idempotent replay omits it (only its hash is stored, so a replay cannot
+ * reproduce the plaintext).
+ */
+export interface BookingEventRegistrationResult {
+  booking: Booking;
+  manage_token?: string;
+  /** The guardian's contact, created or reused. */
+  contact_id: string;
+  /** The child's {@link ContactPerson}, created or reused. */
+  person_id: string;
+  payment: BookingPaymentStart | null;
+  payment_error?: BookingEventRegistrationPaymentError;
+}
+
+/**
+ * One row of an arrangement's roster (SP10a).
+ *
+ * A PROJECTION, not a snapshot: `contact_name` / `participant_name` /
+ * `participant_birth_year` come from the live contact and person, so a child
+ * renamed since registering reads as they are now.
+ */
+export interface BookingEventRegistration {
+  booking_id: string | null;
+  /** Position of this booking within the arrangement's registrations. */
+  event_order: number | null;
+  contact_id: string | null;
+  contact_name: string | null;
+  /** The {@link ContactPerson} this registration was made for, if any. */
+  person_id: string | null;
+  participant_name: string | null;
+  participant_birth_year: number | null;
+  service_id: string | null;
+  resource_id: string | null;
+  start_ts: string | null;
+  status: BookingStatus | null;
+  amount_ore: number | null;
+  payment_status: BookingPaymentStatus;
+}
+
+/**
+ * Result of `bookings.events.registrations(id)` — an arrangement's roster,
+ * ordered by `event_order`. Cancelled registrations are returned, not
+ * filtered — the event's `registered_count` answers the capacity question
+ * separately.
+ */
+export interface ListBookingEventRegistrationsResult {
+  registrations: BookingEventRegistration[];
+  /**
+   * The roster is capped at 300 rows; `true` means the page was cut and the
+   * `event_order` ordering can no longer be trusted.
+   */
+  truncated: boolean;
+}
+
+// ── Operating reads (Medal Bookings SP12) ─────────────────────
+
+/** Where the money on one local day came from. */
+export type BookingRevenueProvider = "in_house" | "vipps";
+
+/** One provider's share of a day's takings, in integer øre. */
+export interface BookingRevenueByProvider {
+  provider: BookingRevenueProvider;
+  /** Integer øre. */
+  amount_ore: number;
+  /** Bookings behind `amount_ore`. */
+  count: number;
+}
+
+/** The next stretch a resource is free, as both minutes-of-day and an instant. */
+export interface BookingNextGap {
+  resource_id: string;
+  /** Minutes since midnight in the workspace time zone. */
+  start_minute: number;
+  end_minute: number;
+  /** ISO 8601 — the same moment as `start_minute`, resolved through the salon's clock. */
+  start_ts: string;
+}
+
+/**
+ * The salon's operating summary for ONE local date — Medal's own «I dag» board
+ * over the API.
+ *
+ * The date is the WORKSPACE's, not the caller's: omit `date_key` and the
+ * workspace time zone decides which Thursday this is. `truncated` says a source
+ * hit its read cap, so the counts are floors rather than totals.
+ */
+export interface BookingsToday {
+  /** `yyyymmdd` in the workspace time zone. */
+  date_key: number;
+  /** IANA zone the minutes below are counted in, e.g. `Europe/Oslo`. */
+  time_zone: string;
+  /** Minutes since midnight the first resource comes on duty, or `null` when nobody does. */
+  opens_minute: number | null;
+  closes_minute: number | null;
+  /**
+   * Past the last opening window of a day that DID open. A day nobody works at
+   * all is `opens_minute: null` with `on_duty_count: 0` instead.
+   */
+  closed_for_today: boolean;
+  /** Set only alongside `closed_for_today` — when the salon opens again. */
+  next_open: { start_ts: string } | null;
+  on_duty_count: number;
+  total: number;
+  completed: number;
+  remaining: number;
+  no_show: number;
+  cancelled: number;
+  next_gap: BookingNextGap | null;
+  revenue: {
+    /** Integer øre. */
+    total_ore: number;
+    by_provider: BookingRevenueByProvider[];
+  };
+  /** A source stopped at its cap, so the counts above are floors. */
+  truncated: boolean;
+}
+
+/** Options for `bookings.today(...)`. */
+export interface BookingsTodayOptions {
+  /**
+   * `yyyymmdd` in the WORKSPACE time zone. Defaults to the salon's today, so a
+   * caller in another zone still reads the salon's day.
+   */
+  date_key?: number;
+}
+
+/**
+ * What kind of open item needs a human.
+ *
+ * No prose crosses the wire: the sentence is the caller's to render, so the
+ * same feed reads correctly for a salon, a vet and a consultancy.
+ */
+export type BookingAttentionKind =
+  | "payment_failed"
+  | "payment_released"
+  | "payment_partial_capture"
+  | "waitlist_offer_expiring"
+  | "event_consent_missing"
+  | "booking_attachment"
+  | "no_show_today";
+
+/**
+ * One «Trenger deg» item. Derived on every call from facts recorded elsewhere,
+ * so ids and timestamps are all it carries; every optional field answers `null`
+ * rather than being omitted, so one shape destructures for every `kind`.
+ */
+export interface BookingAttentionItem {
+  /** Stable within one answer, so a list key survives a refetch. */
+  id: string;
+  kind: BookingAttentionKind;
+  /** ISO 8601. */
+  occurred_at: string | null;
+  booking_id: string | null;
+  event_id: string | null;
+  contact_id: string | null;
+  resource_id: string | null;
+  /** Money the item is about, in integer øre. */
+  amount_ore: number | null;
+  /** How many of a thing the item is about — unconsented registrations, say. */
+  count: number | null;
+  /** ISO 8601 — when the window closes. */
+  deadline_at: string | null;
+}
+
+/**
+ * The attention feed. NOT a page: `truncated` is a read budget, not a cursor,
+ * and `total` is exact only while it is false (a lower bound otherwise).
+ */
+export interface BookingAttentionFeed {
+  data: BookingAttentionItem[];
+  truncated: boolean;
+  total: number;
+}
+
+// ── Arrangement hosts (D57) ───────────────────────────────────
+
+/** A place an arrangement is held — the address a confirmation e-mail prints. */
+export interface BookingEventHost {
+  id: string;
+  name: string;
+  /** Stable public URL segment; never changes after creation. */
+  slug: string;
+  address: string | null;
+  /** The half-sentence an address cannot carry («inngang B, ring på»). */
+  note: string | null;
+  /** `true` once the host is retired — events already pointing at it still resolve. */
+  retired: boolean;
+}
+
+/** Input for `bookings.events.hosts.create(...)` — find-or-create by name. */
+export interface CreateBookingEventHostInput {
+  /** 1–120 characters. An existing host with the same name is returned unchanged. */
+  name: string;
+  address?: string;
+  note?: string;
+}
+
+/**
+ * Input for `bookings.events.hosts.update(...)`. At least one field is required.
+ * `null` ERASES `address` / `note`; an omitted key leaves the stored value alone.
+ */
+export interface UpdateBookingEventHostInput {
+  name?: string;
+  address?: string | null;
+  note?: string | null;
+  retired?: boolean;
+}
+
+/**
+ * What removing an arrangement day reports. `hard` means the row itself is
+ * gone; `soft` means cancelled registrations still point at it and it was kept
+ * as an invisible tombstone. Either way the day is gone from every read.
+ */
+export interface BookingEventRemoveResult {
+  success: boolean;
+  mode: "hard" | "soft";
+}
+
+/**
+ * Options for `bookings.payment.waitForSettlement(...)` and its manage-token
+ * twin.
+ */
+export interface WaitForSettlementOptions {
+  /**
+   * How long to wait between polls. Defaults to 2500 ms on the booking-id route
+   * (which shares the workspace's `apiRead` bucket) and 1000 ms on the
+   * manage-token route, which has its own `apiBookingPoll` bucket at 600/min
+   * precisely so a return page can poll while the customer is in the Vipps app.
+   */
+  intervalMs?: number;
+  /** Give up after this long. Defaults to 600000 ms (ten minutes). */
+  timeoutMs?: number;
 }

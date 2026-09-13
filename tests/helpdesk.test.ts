@@ -154,6 +154,7 @@ describe("helpdesk conversations", () => {
             body: "On it",
             delivery_status: "failed",
             delivery_error: "channel rejected message",
+            externally_deleted_at: null,
             created_at: 1755100000000,
           },
           {
@@ -166,7 +167,23 @@ describe("helpdesk conversations", () => {
             body: "Help",
             delivery_status: null,
             delivery_error: null,
+            externally_deleted_at: null,
             created_at: 1755100000001,
+          },
+          {
+            // A tombstone: the customer erased it upstream, so the body is
+            // empty and only the timestamp says why.
+            id: "msg_gone",
+            conversation_id: "conv_1",
+            author_type: "visitor",
+            message_type: "chat",
+            author_user_id: null,
+            author_name: null,
+            body: "",
+            delivery_status: null,
+            delivery_error: null,
+            externally_deleted_at: 1755100000500,
+            created_at: 1755100000002,
           },
         ],
         pagination: { has_more: false, next_cursor: null },
@@ -176,8 +193,11 @@ describe("helpdesk conversations", () => {
     const { data } = await medal.helpdesk.conversations.messages("conv_1");
     expect(data[0].delivery_status).toBe("failed");
     expect(data[0].delivery_error).toBe("channel rejected message");
+    expect(data[0].externally_deleted_at).toBeNull();
     expect(data[1].delivery_status).toBeNull();
     expect(data[1].delivery_error).toBeNull();
+    expect(data[2].body).toBe("");
+    expect(data[2].externally_deleted_at).toBe(1755100000500);
   });
 
   it("encodes conversation IDs in paths", async () => {

@@ -1,5 +1,6 @@
 import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
+import { paginate } from "../client";
 import type {
   ChannelConnection,
   ChannelConnectionDisconnectResult,
@@ -69,6 +70,25 @@ class ChannelConnectLinks {
     return this.client.get("/api/v1/channels/connect-links", params);
   }
 
+  /**
+   * Every connect link the filters match, page after page.
+   *
+   * The `channel_type` / `status` filters are applied WITHIN a page, so a page
+   * may hold fewer than `limit` links while `has_more` is still true — the
+   * reason this iterator exists rather than a loop over the item count.
+   */
+  iter(options?: ListConnectLinksOptions): AsyncGenerator<ConnectLink, void, undefined> {
+    return paginate((cursor) => this.list({ ...options, ...(cursor ? { cursor } : {}) }));
+  }
+
+  /** `delete` reads better at some call sites; identical to {@link revoke}. */
+  async delete(
+    id: string,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ConnectLinkRevokeResult>> {
+    return this.revoke(id, options);
+  }
+
   /** Revoke a pending connect link so it can no longer be consumed. */
   async revoke(
     id: string,
@@ -108,6 +128,15 @@ class ChannelConnections {
   }
 
   /**
+   * Every channel connection, page after page. Rows that are not projectable as
+   * connections are dropped within the page, so this walks `has_more` rather
+   * than the item count.
+   */
+  iter(options?: PaginationOptions): AsyncGenerator<ChannelConnection, void, undefined> {
+    return paginate((cursor) => this.list({ ...options, ...(cursor ? { cursor } : {}) }));
+  }
+
+  /**
    * Disconnect a connected channel account (best-effort platform logout, then
    * local revoke). Emits a `helpdesk.channel_disconnected` webhook event with
    * `reason: "api_disconnect"` if the account was previously connected.
@@ -122,6 +151,14 @@ class ChannelConnections {
       options,
     );
     return this.client.delete(`/api/v1/channels/connections/${encodeURIComponent(id)}`, resolved);
+  }
+
+  /** `delete` reads better at some call sites; identical to {@link disconnect}. */
+  async delete(
+    id: string,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ChannelConnectionDisconnectResult>> {
+    return this.disconnect(id, options);
   }
 }
 

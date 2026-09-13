@@ -1,11 +1,23 @@
-import type { BookingStatus, RelationType } from "./bookings";
+import type {
+  BookingPaymentMode,
+  BookingPaymentStatus,
+  BookingStatus,
+  RelationType,
+} from "./bookings";
+
+/**
+ * Locale of the one-time-code e-mail. The API accepts exactly these two —
+ * `nb`, `nn`, `no-NB` and every other spelling of Norwegian are a
+ * `400 VALIDATION_ERROR`.
+ */
+export type PortalLocale = "no" | "en";
 
 /** Input for starting an e-mail one-time-code login. */
 export interface PortalLoginStartInput {
   /** The address the code is sent to. */
   email: string;
-  /** Locale for the e-mail (e.g. `nb`, `en`); the workspace default when omitted. */
-  locale?: string;
+  /** Locale for the e-mail (`no` or `en`); the workspace default when omitted. */
+  locale?: PortalLocale;
 }
 
 /**
@@ -100,10 +112,20 @@ export type PortalBookingStatus = BookingStatus;
 export interface PortalBooking {
   booking_id: string;
   status: PortalBookingStatus;
-  /** Unix timestamp in milliseconds. */
+  /**
+   * Unix timestamp in MILLISECONDS — unlike `/api/v1/bookings/*`, where
+   * `start_ts` is an ISO 8601 string. The portal endpoints answer both forms:
+   * the number here and the ISO twin below. (The API is inconsistent between
+   * the two surfaces; the SDK encodes what each endpoint actually returns
+   * rather than normalising one into the other.)
+   */
   start_ts: number;
   /** Unix timestamp in milliseconds. */
   end_ts: number;
+  /** ISO 8601 twin of `start_ts`. */
+  start_ts_iso: string;
+  /** ISO 8601 twin of `end_ts`. */
+  end_ts_iso: string;
   service_id: string | null;
   service_name: string | null;
   resource_id: string | null;
@@ -111,6 +133,10 @@ export interface PortalBooking {
   booked_for_name: string | null;
   /** Integer øre, or `null` when the service has no price. */
   amount_ore: number | null;
+  /** What the booking required when it was made. */
+  payment_mode: BookingPaymentMode;
+  /** What has actually been paid. */
+  payment_status: BookingPaymentStatus;
   notes: string | null;
   /** Present only while the booking is upcoming and manageable; opens the site's manage page. */
   manage_token: string | null;
@@ -131,6 +157,10 @@ export interface PortalConsentRecord {
   granted_at: number | null;
   /** Unix timestamp in milliseconds, or `null`. */
   revoked_at: number | null;
+  /** ISO 8601 twin of `granted_at`. */
+  granted_at_iso: string | null;
+  /** ISO 8601 twin of `revoked_at`. */
+  revoked_at_iso: string | null;
   source: string;
 }
 
@@ -153,4 +183,50 @@ export interface PortalExport {
   consents: PortalConsentRecord[];
   bookings: PortalBooking[];
   relations: PortalExportRelation[];
+}
+
+// -- "Log in with Vipps" (Medal Bookings SP8a) --
+
+/** Input for starting a Vipps login. */
+export interface PortalVippsStartInput {
+  /**
+   * Where Vipps sends the customer back. Must be an `https` URL under one of the
+   * workspace's own sites, or the call is refused with
+   * `400 INVALID_RETURN_URL` — the allow-list is the salon's site origins, not
+   * a pattern you supply.
+   */
+  return_url: string;
+}
+
+/** What `portal.login.vipps.start(...)` hands back. */
+export interface PortalVippsStart {
+  /**
+   * Send the customer here UNCHANGED. It carries a one-time `state`, so it is
+   * never cached and never reused — start again instead.
+   */
+  authorize_url: string;
+}
+
+/** Input for exchanging the one-time grant the callback put on your return URL. */
+export interface PortalVippsExchangeInput {
+  /**
+   * The `grant` query parameter Vipps' callback appended to your `return_url`.
+   * Single-use: a second exchange answers `404 GRANT_NOT_FOUND`, which is also
+   * the answer for an expired grant or one minted under another workspace.
+   */
+  grant: string;
+}
+
+/**
+ * A portal session minted from a Vipps login. Same credential as
+ * {@link PortalSession}, plus the ISO twin of `expires_at`; it carries no
+ * `contact` summary — read {@link PortalProfile} through
+ * `medal.portal.session(token).profile()` when you need the name.
+ */
+export interface PortalVippsSession {
+  session_token: string;
+  /** Unix timestamp in milliseconds. */
+  expires_at: number;
+  /** ISO 8601 twin of `expires_at`. */
+  expires_at_iso: string;
 }

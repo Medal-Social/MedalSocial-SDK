@@ -1,13 +1,13 @@
 ---
 name: resources
-description: Use when calling any of the SDK resources (bookings, contacts, deals, emails, gdpr, portal, posts, scan, workspaces) — listing with pagination, sending transactional or batch emails, scheduling and publishing posts, booking appointments or querying free slots, cancelling or rescheduling a booking as staff or on a customer's behalf, signing a customer into the self-service portal and reading their own profile/bookings/export, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
+description: Use when calling any of the SDK resources (bookings, channels, contacts, deals, emails, gdpr, helpdesk, portal, posts, scan, webhooks, capabilityConfirmations, workspaces) — listing with pagination and filters, sending transactional or batch emails, scheduling and publishing posts, booking appointments or querying free slots, cancelling or rescheduling a booking as staff or on a customer's behalf, signing a customer into the self-service portal and reading their own profile/bookings/export, reading and replying to helpdesk conversations, registering webhook endpoints, connecting partner channels, recording GDPR consent or running an export workflow, fetching a contact's activity timeline — or when needing OpenAPI-derived TypeScript types or the raw OpenAPI document from `@medalsocial/sdk`.
 ---
 
 # Medal Social SDK — Resources
 
 ## When to load this skill
 
-- Calling `medal.bookings.*`, `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.portal.*`, `medal.posts.*`, `medal.scan.*`, or `medal.workspaces.*`.
+- Calling `medal.bookings.*`, `medal.channels.*`, `medal.contacts.*`, `medal.deals.*`, `medal.emails.*`, `medal.gdpr.*`, `medal.helpdesk.*`, `medal.portal.*`, `medal.posts.*`, `medal.scan.*`, `medal.webhooks.*`, `medal.capabilityConfirmations.*`, or `medal.workspaces.*`.
 - Looking up an exact method signature or response shape.
 - Building a list view that needs pagination.
 - Sending a single transactional email or a bulk batch.
@@ -30,31 +30,41 @@ Most methods return one of:
 - `medal.gdpr.cookieConsent(input)` returns a plain `{ success: boolean, logId?: string }` directly — no `data` envelope. Don't destructure `{ data }` from it. See the GDPR section below.
 - `medal.bookings.list(opts?)` returns `BookingsPage`, not `PaginatedResponse<Booking>` — its `pagination` carries an extra `truncated: boolean`. See the Bookings section below.
 
-Errors throw `MedalApiError` (see the `client` skill for details).
+Errors throw `MedalApiError`, a timeout throws `MedalTimeoutError` and a failed connection throws `MedalNetworkError` — all three extend `MedalError` (see the `client` skill for details).
 
 ## Resource map
 
 | Namespace | Source | Methods |
 |---|---|---|
-| `medal.bookings` | `src/resources/bookings.ts` | `listServices(opts?)`, `listResources()`, `availability(opts)`, `schedule(opts)`, `list(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `cancel(id, input?, opts?)`, `reschedule(id, input, opts?)`, `markNoShow(id, opts?)` — all **staff** semantics (policy windows bypassed) |
+| `medal.bookings` | `src/resources/bookings.ts` | `services.list(opts?)` (≡ `listServices`), `resources.list()` (≡ `listResources`), `availability(opts)`, `schedule(opts)`, `today(opts?)`, `attention()`, `list(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `cancel(id, input?, opts?)`, `reschedule(id, input, opts?)`, `markNoShow(id, opts?)` — all **staff** semantics (policy windows bypassed). `attention()` returns its own `{ data, truncated, total }` envelope, not `ApiResponse` |
 | `medal.bookings.manage` | `src/resources/bookings.ts` (`BookingsManage`) | `get(token)`, `cancel(token, input?, opts?)`, `reschedule(token, input, opts?)` — **customer** semantics (policy windows enforced) |
-| `medal.bookings.payment` | `src/resources/bookings.ts` (`BookingsPayment`) | `start(id, input, opts?)`, `get(id)` — Vipps payment on a booking, as the business |
-| `medal.bookings.manage.payment` | `src/resources/bookings.ts` (`BookingsManagePayment`) | `start(token, input, opts?)`, `get(token)` — the same two, on the customer's behalf |
+| `medal.bookings.payment` | `src/resources/bookings.ts` (`BookingsPayment`) | `start(id, input, opts?)`, `get(id)`, `waitForSettlement(id, opts?)` — Vipps payment on a booking, as the business; `waitForSettlement` resolves for every settled state and throws only on its deadline |
+| `medal.bookings.manage.payment` | `src/resources/bookings.ts` (`BookingsManagePayment`) | `start(token, input, opts?)`, `get(token)`, `waitForSettlement(token, opts?)` — the same three, on the customer's behalf; the poll defaults to 1 s (its own `apiBookingPoll` bucket) |
 | `medal.bookings.persons` | `src/resources/bookings.ts` (`BookingsPersons`) | `list(contactId, { include_inactive? })`, `create(input)` — persons a contact books for (children, pets, employees) |
 | `medal.bookings.relations` | `src/resources/bookings.ts` (`BookingsRelations`) | `list(contactId)` → `{ outgoing, incoming }`, `create(input)` — directional relations between contacts |
-| `medal.bookings.events` | `src/resources/bookings.ts` (`BookingsEvents`) | `list({ from, to, status? })`, `get(id)`, `create(input)` — arrangementer (scheduled group sessions); registering a booking to an event ships in a later release |
-| `medal.contacts` | `src/resources/contacts.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)`, `activities(id, opts?)`, `addNote(id, { content })`, `import(contacts[])` |
-| `medal.deals` | `src/resources/deals.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)` |
+| `medal.bookings.events` | `src/resources/bookings.ts` (`BookingsEvents`) | `list({ from, to, status?, host_id? })`, `get(id)`, `create(input)`, `register(id, input, opts?)`, `registrations(id)`, `remove(id, opts?)` / `delete(id, opts?)` — arrangementer (scheduled group sessions); `register` enrolls a child, optionally starting a Vipps payment; `remove` needs the workspace `admin` role for OAuth callers and answers `mode: 'hard' \| 'soft'` |
+| `medal.bookings.events.hosts` | `src/resources/bookings.ts` (`BookingEventHosts`) | `list()`, `create(input, opts?)` (find-or-create by name: 201 inserted / 200 matched, and a match is returned UNCHANGED), `update(id, input, opts?)` (`null` erases `address`/`note`; `retired: true` retires) |
+| `medal.contacts` | `src/resources/contacts.ts` | `list(opts?)`, `iter(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `remove(id, opts?)` / `delete(id, opts?)`, `activities(id, opts?)`, `addNote(id, { content }, opts?)` (confirmable write), `import(contacts[], opts?)` |
+| `medal.deals` | `src/resources/deals.ts` | `list(opts?)`, `iter(opts?)`, `create(input, opts?)` (confirmable write), `get(id)`, `update(id, input, opts?)` (confirmable write), `remove(id, opts?)` / `delete(id, opts?)`. `value` is in MAJOR currency units (50000 = fifty thousand kroner), unlike bookings' integer øre |
 | `medal.emails.templates` | `src/resources/emails.ts` (`EmailTemplates`) | `list()`, `get(slug, opts?)` |
-| `medal.emails` | `src/resources/emails.ts` (`Emails`) | `send(input)`, `get(id)`, `batch(input)` |
-| `medal.gdpr` | `src/resources/gdpr.ts` | `requestExport()`, `listExports()`, `getExport(id)`, `recordConsent(input)`, `getConsent(email)`, `cookieConsent(input)` |
+| `medal.emails` | `src/resources/emails.ts` (`Emails`) | `send(input, opts?)`, `get(id)`, `batch(input, opts?)` — both writes are confirmable, and both map to the SAME capability id, so the SDK sends an explicit `api_path` when minting |
+| `medal.gdpr` | `src/resources/gdpr.ts` | `requestExport(opts?)` (confirmable write; OAuth callers need the workspace `owner` role), `listExports()`, `getExport(id)`, `recordConsent(input, opts?)`, `getConsent(email)`, `cookieConsent(input, opts?)` |
 | `medal.portal.login` | `src/resources/portal.ts` (`PortalLogin`) | `start({ email, locale? })` (always 202 `{ status: 'sent' }`), `verify({ email, code })` → `PortalSession` |
-| `medal.portal` | `src/resources/portal.ts` | `me(session)`, `updateMe(session, patch)`, `myBookings(session)`, `exportMyData(session)`, `deleteMe(session)`, `logout(session)` — every one takes the `session_token` first and sends it as `X-Portal-Session`; `deleteMe`/`logout` resolve to `undefined` (204) |
+| `medal.portal.login.vipps` | `src/resources/portal.ts` (`PortalVippsLogin`) | `start({ return_url })` → `{ authorize_url }` (one-time state; never cache it), `exchange({ grant })` → session. The middle leg is the customer's browser; the callback redirects back with `?grant=…` or `?vipps=needs_email_login` / `?vipps=failed` |
+| `medal.portal` | `src/resources/portal.ts` | `session(token)` → a bound scope with `profile()`, `update(patch)`, `bookings()`, `export()`, `delete()`, `logout()`; or the flat `me(session)`, `updateMe(session, patch)`, `myBookings(session)`, `exportMyData(session)`, `deleteMe(session)`, `logout(session)` — the flat form takes the `session_token` FIRST and sends it as `X-Portal-Session`; `deleteMe`/`logout` resolve to `undefined` (204). Portal booking timestamps are Unix ms (`start_ts`) with ISO twins (`start_ts_iso`), unlike `/bookings/*` |
 | `medal.scan` | `src/resources/scan.ts` | `create(input)` (exactly one of `url`/`orgnr`/`name`; 202 async job), `get(id)`, `companies(q)` (Norwegian registry typeahead), `waitForResult(id, opts?)` (polls until done/failed; returns the job either way, throws only on deadline) |
-| `medal.posts` | `src/resources/posts.ts` | `list(opts?)`, `create(input)`, `get(id)`, `update(id, input)`, `remove(id)`, `schedule(id, input)`, `publish(id)`, `channels()` |
+| `medal.posts` | `src/resources/posts.ts` | `list(opts?)`, `iter(opts?)`, `create(input, opts?)`, `get(id)`, `update(id, input, opts?)`, `remove(id, opts?)` / `delete(id, opts?)`, `schedule(id, input, opts?)`, `publish(id, opts?)`, `channels()` — `create`/`schedule`/`publish` are confirmable writes and all three are idempotency-keyed |
+| `medal.helpdesk.conversations` | `src/resources/helpdesk.ts` (`HelpdeskConversations`) | `list(opts?)` (filters: `status`, `assignee_user_id`, `assigned`, `requester`, `query`, `channels`, `chat_type`), `iter(opts?)`, `get(id)`, `update(id, input, opts?)` (status / assignee; confirmable write), `linkContact(id, { contact_id \| email }, opts?)` / `unlinkContact(id, opts?)` (confirmable writes; the link is stored per SENDER, so it reaches their other threads), `messages(id, opts?)` |
+| `medal.helpdesk.replies` | `src/resources/helpdesk.ts` (`HelpdeskReplies`) | `create(input, opts?)` — operator reply or internal `note`; 201 = accepted, not delivered; confirmable write |
+| `medal.webhooks` | `src/resources/webhooks.ts` | `list()`, `create(input, opts?)` (secret returned ONCE), `get(id)`, `update(id, input, opts?)`, `delete(id, opts?)` / `remove(id, opts?)`, `deliveries(id, opts?)`, `test(id, opts?)`; `event_types` is `SubscribableWebhookEventType[]` — verify deliveries with `verifyWebhookSignature`. OAuth callers need the workspace `admin` role on every one |
+| `medal.channels.connectLinks` | `src/resources/channels.ts` (`ChannelConnectLinks`) | `create(input, opts?)`, `list(opts?)`, `iter(opts?)`, `revoke(id, opts?)` / `delete(id, opts?)` — partner connect links; `channel_type` is the closed `ChannelType` set (`telegram_inbox`, `linkedin`) |
+| `medal.channels.connections` | `src/resources/channels.ts` (`ChannelConnections`) | `list(opts?)`, `iter(opts?)`, `disconnect(id, opts?)` / `delete(id, opts?)` |
+| `medal.capabilityConfirmations` | `src/resources/capability-confirmations.ts` | `create(input)` — mints the `X-Capability-Confirmation` token a confirmable write needs; the client's `autoConfirmCapabilities` option does this for you |
 | `medal.workspaces` | `src/resources/workspaces.ts` | `list()` |
 
-**Note on naming:** `contacts.remove(id)` is `remove`, not `delete` — `delete` is a reserved word and was avoided. Same for `deals.remove(id)`, `posts.remove(id)`.
+**Note on naming:** `contacts.remove(id)` is `remove`, not `delete` — `delete` is a reserved word and was avoided. Same for `deals.remove(id)`, `posts.remove(id)`. (`webhooks.delete(id)` is the one exception, kept for compatibility.)
+
+**Enums are closed.** `DealStatus` (`draft | negotiating | offer_sent | signed | completed | declined`), `ContactStatus` (`lead | subscriber | customer | churned`), `PostStatus`, `EmailSendStatus`, `HelpdeskChannel` and `PortalLocale` (`no | en`) name exactly what the API accepts — every other value is a `400`. Do not cast around them.
 
 ## Contacts
 
@@ -64,6 +74,9 @@ const medal = new Medal("medal_xxx");
 
 // List with filters (paginated)
 const { data: contacts, pagination } = await medal.contacts.list({ status: "lead" });
+
+// "The contact for this e-mail" — `email` is an exact match; `search` is fuzzy
+const { data: [match] } = await medal.contacts.list({ email: "alice@example.com" });
 
 // Create
 const { data: contact } = await medal.contacts.create({
@@ -240,7 +253,7 @@ For more than 100 recipients, chunk into multiple `batch()` calls. There is no b
 ```ts
 // Step 1 — send the code. ALWAYS { status: 'sent' }, whether or not the address is a
 // contact: enumeration-safe, so do not treat "sent" as "this customer exists".
-await medal.portal.login.start({ email, locale: 'nb' });
+await medal.portal.login.start({ email, locale: 'no' });   // locale is 'no' | 'en' — 'nb' is a 400
 
 // Step 2 — exchange the code. Wrong, burned and expired codes ALL answer
 // 401 PORTAL_CODE_INVALID; there is no way to tell them apart, by design.
@@ -314,9 +327,29 @@ const exp = await waitForExport(req.request_id);
 const { data: all } = await medal.gdpr.listExports();
 ```
 
-## Pagination — concrete loop
+## Pagination — use the iterator
 
-`PaginationOptions` is `{ limit?: number, cursor?: string }`. To page through everything:
+`PaginationOptions` is `{ limit?: number, cursor?: string }`. `contacts`, `deals`,
+`posts`, `helpdesk.conversations`, `channels.connectLinks` and
+`channels.connections` each have an `iter()` that walks the pages:
+
+```ts
+for await (const contact of medal.contacts.iter({ status: "lead", limit: 200 })) {
+  await sync(contact);
+}
+```
+
+Pages are fetched lazily (`break` and the next one is never requested) and the
+walk is driven off `pagination.has_more`, which is what makes it correct: several
+filters are applied **within** a page, so a page can be short — or empty — while
+more pages remain, and a loop that stops on a short page drops the rest. Use
+`paginate(fetchPage)` for a paginated call with no `iter()` yet.
+
+`bookings.list()` has no iterator on purpose: its page carries
+`pagination.truncated`, meaning matching bookings exist that no cursor reaches
+(narrow the `from_ts` / `to_ts` window), and an iterator would hide that.
+
+The raw loop, if you want the pages themselves:
 
 ```ts
 async function listAllContacts() {

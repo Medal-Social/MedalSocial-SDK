@@ -63,13 +63,27 @@ const KEYED_WRITES: {
   {
     name: "webhooks.create",
     call: (m, o) =>
-      m.webhooks.create({ name: "Hook", url: "https://x.test/hook", event_types: ["*"] }, o),
+      m.webhooks.create(
+        { name: "Hook", url: "https://x.test/hook", event_types: ["helpdesk.message_received"] },
+        o,
+      ),
   },
   {
     name: "channels.connectLinks.create",
     call: (m, o) => m.channels.connectLinks.create({ channel_type: "telegram_inbox" }, o),
   },
   { name: "gdpr.requestExport", call: (m, o) => m.gdpr.requestExport(o) },
+  // SDK-16: both used to sit in UNKEYED_WRITES below, on the argument that the
+  // status guard makes a repeat harmless. It does stop the second publish — by
+  // answering 400, so the retry of a publish that had already COMMITTED
+  // reported a success as a failure. The key turns that retry into a replay of
+  // the original 200 and its workflow_id, which is the outcome the caller can
+  // actually act on.
+  {
+    name: "posts.schedule",
+    call: (m, o) => m.posts.schedule("p_1", { scheduled_at: 1780000000000 }, o),
+  },
+  { name: "posts.publish", call: (m, o) => m.posts.publish("p_1", o) },
 ];
 
 /**
@@ -79,8 +93,6 @@ const KEYED_WRITES: {
  * this test is where that decision has to be re-argued.
  */
 const UNKEYED_WRITES: { name: string; call: (medal: Medal) => Promise<unknown> }[] = [
-  { name: "posts.schedule", call: (m) => m.posts.schedule("p_1", { scheduled_at: 1780000000000 }) },
-  { name: "posts.publish", call: (m) => m.posts.publish("p_1") },
   {
     name: "gdpr.recordConsent",
     call: (m) =>
@@ -90,10 +102,10 @@ const UNKEYED_WRITES: { name: string; call: (medal: Medal) => Promise<unknown> }
     name: "gdpr.cookieConsent",
     call: (m) =>
       m.gdpr.cookieConsent({
+        event: "preferences_saved",
+        consentId: "CID-1",
         domain: "x.test",
-        consentStatus: "granted",
-        consentTimestamp: "2026-08-28T10:00:00Z",
-        cookiePreferences: { necessary: { allowed: true } },
+        categories: { essential: true },
       }),
   },
   { name: "webhooks.test", call: (m) => m.webhooks.test("wh_1") },
@@ -225,7 +237,10 @@ describe("capability confirmation binding survives the conversion", () => {
       name: "webhooks.create",
       path: "/api/v1/webhooks",
       call: (m, o) =>
-        m.webhooks.create({ name: "Hook", url: "https://x.test/hook", event_types: ["*"] }, o),
+        m.webhooks.create(
+          { name: "Hook", url: "https://x.test/hook", event_types: ["helpdesk.message_received"] },
+          o,
+        ),
     },
     {
       name: "channels.connectLinks.create",

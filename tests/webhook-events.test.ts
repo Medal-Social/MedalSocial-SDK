@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
+import type { WebhookEventType } from "../src";
 import {
   DEFAULT_WEBHOOK_TOLERANCE_MS,
   verifyWebhookSignature,
   WebhookVerificationError,
 } from "../src";
+
+// Compile-time: `WebhookEventType` must name EXACTLY the twelve types the
+// server can deliver — a missing member fails this object literal (missing
+// key), an extra one fails it too (unknown key). This is what makes a
+// `switch (event.type)` exhaustiveness check trustworthy.
+const EVERY_EVENT_TYPE: Record<WebhookEventType, true> = {
+  "helpdesk.conversation_created": true,
+  "helpdesk.conversation_assigned": true,
+  "helpdesk.conversation_status_changed": true,
+  "helpdesk.message_received": true,
+  "helpdesk.message_sent": true,
+  "helpdesk.message_delivery_updated": true,
+  "helpdesk.message_deleted": true,
+  "helpdesk.conversation_contact_linked": true,
+  "helpdesk.conversation_contact_unlinked": true,
+  "helpdesk.channel_connected": true,
+  "helpdesk.channel_disconnected": true,
+  "test.ping": true,
+};
 
 // Underscores keep this out of the `whsec_[A-Za-z0-9]{32,}` shape that secret
 // scanners flag as a Stripe/webhook signing secret — it's a fixture, not a
@@ -112,9 +132,37 @@ describe("verifyWebhookSignature", () => {
       case "helpdesk.conversation_status_changed":
         expect(event.data.status).toBe("closed");
         expect(event.data.previousStatus).toBe("open");
+        expect(event.data.reason).toBeUndefined();
         break;
       default:
         expect.unreachable();
+    }
+  });
+
+  it("narrows a reopen-by-message status change with its reason", async () => {
+    const payload = JSON.stringify({
+      id: "del_2b",
+      type: "helpdesk.conversation_status_changed",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        conversation: { id: "conv_1", status: "open" },
+        status: "open",
+        previousStatus: "snoozed",
+        reason: "message_reopened",
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.conversation_status_changed");
+    if (event.type === "helpdesk.conversation_status_changed") {
+      expect(event.data.status).toBe("open");
+      expect(event.data.previousStatus).toBe("snoozed");
+      expect(event.data.reason).toBe("message_reopened");
+      expect(event.data.conversation.status).toBe("open");
     }
   });
 
@@ -313,6 +361,97 @@ describe("verifyWebhookSignature", () => {
     if (event.type === "helpdesk.channel_disconnected") {
       expect(event.data.reason).toBe("api_disconnect");
     }
+  });
+
+  it("verifies and narrows a helpdesk.message_deleted event whose body is empty", async () => {
+    const payload = JSON.stringify({
+      id: "del_md_1",
+      type: "helpdesk.message_deleted",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        conversation: { id: "conv_1", channel: "telegram", chatType: "private" },
+        message: { id: "msg_1", authorType: "visitor", messageType: "chat", body: "" },
+        deletedAt: 1730000001000,
+        deletedBy: "external",
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.message_deleted");
+    if (event.type === "helpdesk.message_deleted") {
+      expect(event.data.message.body).toBe("");
+      expect(event.data.deletedAt).toBe(1730000001000);
+      expect(event.data.deletedBy).toBe("external");
+      expect(event.data.conversation.chatType).toBe("private");
+    }
+  });
+
+  it("verifies and narrows a helpdesk.conversation_contact_linked event", async () => {
+    const payload = JSON.stringify({
+      id: "del_cl_1",
+      type: "helpdesk.conversation_contact_linked",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        conversation: { id: "conv_1", contactId: "c_2", contactLinkSource: "partner" },
+        contactId: "c_2",
+        previousContactId: "c_1",
+        contactEmail: "ida@example.com",
+        contactName: "Ida Nordmann",
+        linkSource: "partner",
+        linkedAt: 1730000002000,
+        externalContactRef: "tg:12345",
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.conversation_contact_linked");
+    if (event.type === "helpdesk.conversation_contact_linked") {
+      expect(event.data.contactId).toBe("c_2");
+      expect(event.data.previousContactId).toBe("c_1");
+      expect(event.data.contactEmail).toBe("ida@example.com");
+      expect(event.data.linkSource).toBe("partner");
+      expect(event.data.conversation.contactLinkSource).toBe("partner");
+    }
+  });
+
+  it("verifies and narrows a helpdesk.conversation_contact_unlinked event", async () => {
+    const payload = JSON.stringify({
+      id: "del_cu_1",
+      type: "helpdesk.conversation_contact_unlinked",
+      created_at: Date.now(),
+      workspace_id: "ws_1",
+      data: {
+        channel: "telegram",
+        channelConnectionId: "conn_1",
+        conversation: { id: "conv_1", contactId: null, contactLinkSource: null },
+        contactId: null,
+        previousContactId: "c_2",
+        linkSource: "operator",
+        unlinkedAt: 1730000003000,
+        externalContactRef: null,
+      },
+    });
+    const timestamp = String(Date.now());
+    const signature = await sign(payload, timestamp);
+    const event = await verifyWebhookSignature({ payload, timestamp, signature, secret: SECRET });
+    expect(event.type).toBe("helpdesk.conversation_contact_unlinked");
+    if (event.type === "helpdesk.conversation_contact_unlinked") {
+      expect(event.data.contactId).toBeNull();
+      expect(event.data.previousContactId).toBe("c_2");
+      expect(event.data.unlinkedAt).toBe(1730000003000);
+    }
+  });
+
+  it("names every deliverable event type exactly once", () => {
+    expect(Object.keys(EVERY_EVENT_TYPE)).toHaveLength(12);
   });
 
   it("exports the default tolerance constant", () => {

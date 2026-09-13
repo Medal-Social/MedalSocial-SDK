@@ -13,19 +13,35 @@
  * Node.js 18+, Deno, Bun, Cloudflare Workers, and browsers.
  */
 
+import type {
+  ContactLinkSource,
+  ConversationStatus,
+  HelpdeskChannel,
+  HelpdeskChatType,
+  MessageDeliveryStatus,
+} from "./types/helpdesk";
+
 /** Snapshot of a conversation included in every helpdesk webhook event. */
 export interface WebhookConversationSnapshot {
   id: string;
-  channel: string;
+  channel: HelpdeskChannel;
   channelConnectionId: string | null;
-  status: string;
+  status: ConversationStatus;
   subject: string | null;
   assigneeUserId: string | null;
   contactId: string | null;
+  /** How `contactId` was attached, or `null` when the thread carries no contact. */
+  contactLinkSource: ContactLinkSource | null;
+  /** Unix timestamp in milliseconds when the contact was attached, or `null`. */
+  contactLinkedAt: number | null;
   visitorName: string | null;
   visitorEmail: string | null;
   externalConversationId: string | null;
   channelAccountId: string | null;
+  /** DM / group / channel on personal-account channels (Telegram); `null` elsewhere. */
+  chatType: HelpdeskChatType | null;
+  /** The external group or channel title; `null` for DMs and business channels. */
+  chatTitle: string | null;
   messageCount: number;
   /** Unix timestamp in milliseconds. */
   lastMessageAt: number;
@@ -42,7 +58,8 @@ export interface WebhookMessageSnapshot {
   authorUserId: string | null;
   authorName: string | null;
   externalMessageId: string | null;
-  deliveryStatus: string | null;
+  /** Outbound delivery state — the same values as `ConversationMessage.delivery_status`. */
+  deliveryStatus: MessageDeliveryStatus | null;
   deliveryError: string | null;
   /** Unix timestamp in milliseconds. */
   createdAt: number;
@@ -51,7 +68,7 @@ export interface WebhookMessageSnapshot {
 /** Fields present in the `data` of every helpdesk event. */
 interface HelpdeskEventData {
   /** Channel type at the top level, for quick filtering. */
-  channel: string;
+  channel: HelpdeskChannel;
   channelConnectionId: string | null;
   conversation: WebhookConversationSnapshot;
 }
@@ -84,8 +101,14 @@ export interface ConversationAssignedEvent extends WebhookEventBase {
 export interface ConversationStatusChangedEvent extends WebhookEventBase {
   type: "helpdesk.conversation_status_changed";
   data: HelpdeskEventData & {
-    status: string;
-    previousStatus: string;
+    status: ConversationStatus;
+    previousStatus: ConversationStatus;
+    /**
+     * Present only when a new customer message reopened a snoozed or closed
+     * thread (`status` is then `open`). Absent when an operator or the API
+     * changed the status directly.
+     */
+    reason?: "message_reopened";
   };
 }
 
@@ -105,6 +128,76 @@ export interface MessageSentEvent extends WebhookEventBase {
 export interface MessageDeliveryUpdatedEvent extends WebhookEventBase {
   type: "helpdesk.message_delivery_updated";
   data: HelpdeskEventData & { message: WebhookMessageSnapshot };
+}
+
+/**
+ * A message was deleted UPSTREAM on the external platform (Telegram today).
+ *
+ * `message.body` is deliberately empty — the point of the event is that the
+ * content was erased. Mirror the deletion in your own store rather than
+ * treating it as a blank message; the message itself is kept by Medal as a
+ * tombstone so the thread still reads in order.
+ */
+export interface MessageDeletedEvent extends WebhookEventBase {
+  type: "helpdesk.message_deleted";
+  data: HelpdeskEventData & {
+    message: WebhookMessageSnapshot;
+    /** Unix timestamp in milliseconds when the customer deleted it. */
+    deletedAt: number;
+    /** Who deleted it — always the customer on the external platform. */
+    deletedBy: "external";
+  };
+}
+
+/**
+ * Fields shared by the two identity events. Beyond the usual `conversation`
+ * snapshot — whose `contactId`, `contactLinkSource` and `contactLinkedAt`
+ * already reflect the change — `data` names the contact that was attached or
+ * detached and who did it.
+ */
+export interface WebhookContactLinkData {
+  /** The contact now attached, or `null` after an unlink. */
+  contactId: string | null;
+  /** The contact that was attached before, or `null` when there was none. */
+  previousContactId: string | null;
+  /** Who made the change: a member in the inbox, or a partner over the REST API. */
+  linkSource: "operator" | "partner";
+  /** The channel's own sender reference (a Telegram user id, a phone…), or `null`. */
+  externalContactRef: string | null;
+}
+
+/**
+ * A conversation's sender was bound to a CRM contact — by an operator in the
+ * inbox, or by a partner through `PUT /api/v1/helpdesk/conversations/{id}/contact`.
+ * Carries the contact's e-mail and display name so a consumer does not have
+ * to fetch it. Webhook-only: not an automation trigger.
+ */
+export interface ConversationContactLinkedEvent extends WebhookEventBase {
+  type: "helpdesk.conversation_contact_linked";
+  data: HelpdeskEventData &
+    WebhookContactLinkData & {
+      contactId: string;
+      contactEmail: string;
+      contactName: string;
+      /** Unix timestamp in milliseconds. */
+      linkedAt: number;
+    };
+}
+
+/**
+ * A conversation's sender was detached from its CRM contact. `contactId` is
+ * `null` and `previousContactId` names the contact that was removed.
+ * Webhook-only: not an automation trigger.
+ */
+export interface ConversationContactUnlinkedEvent extends WebhookEventBase {
+  type: "helpdesk.conversation_contact_unlinked";
+  data: HelpdeskEventData &
+    WebhookContactLinkData & {
+      contactId: null;
+      previousContactId: string;
+      /** Unix timestamp in milliseconds. */
+      unlinkedAt: number;
+    };
 }
 
 /**
@@ -171,9 +264,25 @@ export type WebhookEvent =
   | MessageReceivedEvent
   | MessageSentEvent
   | MessageDeliveryUpdatedEvent
+  | MessageDeletedEvent
+  | ConversationContactLinkedEvent
+  | ConversationContactUnlinkedEvent
   | ChannelConnectedEvent
   | ChannelDisconnectedEvent
   | TestPingEvent;
+
+/**
+ * Every event type a delivery can carry — the `type` discriminator of
+ * {@link WebhookEvent}, including `test.ping`.
+ */
+export type WebhookEventType = WebhookEvent["type"];
+
+/**
+ * The event types an endpoint can subscribe to: every {@link WebhookEventType}
+ * except `test.ping`, which is only ever queued by `medal.webhooks.test(id)`.
+ * The API rejects any other string in `event_types` with a `400`.
+ */
+export type SubscribableWebhookEventType = Exclude<WebhookEventType, "test.ping">;
 
 /** Machine-readable reason a webhook verification failed. */
 export type WebhookVerificationErrorCode =

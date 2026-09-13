@@ -96,6 +96,11 @@ export class Webhooks {
     return this.client.delete(`/api/v1/webhooks/${encodeURIComponent(id)}`, resolved);
   }
 
+  /** `remove` reads better at some call sites; identical to {@link delete}. */
+  async remove(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookDeleteResult>> {
+    return this.delete(id, options);
+  }
+
   /** List recent deliveries for an endpoint (most recent first). */
   async deliveries(
     id: string,
@@ -114,7 +119,7 @@ export class Webhooks {
    * already tolerates receiving the same event twice — that is what this call
    * exists to prove.
    */
-  async test(id: string): Promise<ApiResponse<WebhookTestResult>> {
-    return this.client.post(`/api/v1/webhooks/${encodeURIComponent(id)}/test`);
+  async test(id: string, options?: RequestOptions): Promise<ApiResponse<WebhookTestResult>> {
+    return this.client.post(`/api/v1/webhooks/${encodeURIComponent(id)}/test`, undefined, options);
   }
 }

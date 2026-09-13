@@ -1,3 +1,4 @@
+import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
 import type { ApiResponse } from "../types/common";
 import type {
@@ -10,6 +11,7 @@ import type {
   GetTemplateOptions,
   SendEmailInput,
 } from "../types/emails";
+import { CapabilityConfirmations } from "./capability-confirmations";
 
 /** Manage email templates stored in the workspace. */
 class EmailTemplates {
@@ -32,8 +34,12 @@ class EmailTemplates {
 /** Send transactional emails and manage templates. */
 export class Emails {
   readonly templates: EmailTemplates;
+  private client: BaseClient;
+  private confirmer: CapabilityConfirmer;
 
-  constructor(private client: BaseClient) {
+  constructor(client: BaseClient, confirmer?: CapabilityConfirmer) {
+    this.client = client;
+    this.confirmer = confirmer ?? new CapabilityConfirmer(new CapabilityConfirmations(client));
     this.templates = new EmailTemplates(client);
   }
 
@@ -54,7 +60,12 @@ export class Emails {
     input: SendEmailInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<EmailSendResult>> {
-    return this.client.postOnce("/api/v1/emails", input, options);
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "email.campaign.send.execute", body: input },
+      undefined,
+      options,
+    );
+    return this.client.postOnce("/api/v1/emails", input, resolved);
   }
 
   /** Get the delivery status of a sent email. */
@@ -75,6 +86,18 @@ export class Emails {
     input: BatchSendInput,
     options?: RequestOptions,
   ): Promise<ApiResponse<BatchSendSummary>> {
-    return this.client.postOnce("/api/v1/emails/batch", input, options);
+    const resolved = await this.confirmer.prepare(
+      {
+        capabilityId: "email.campaign.send.execute",
+        body: input,
+        // One capability, two routes: the mint fails without an explicit
+        // api_path, and binding the single-send path here would produce a token
+        // the batch route refuses.
+        pathTemplate: "/api/v1/emails/batch",
+      },
+      undefined,
+      options,
+    );
+    return this.client.postOnce("/api/v1/emails/batch", input, resolved);
   }
 }

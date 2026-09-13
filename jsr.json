@@ -2,5 +2,40 @@
   "name": "@medalsocial/sdk",
   "version": "1.10.0",
   "description": "Official TypeScript SDK for the Medal Social API — posts, emails, contacts, deals, helpdesk, webhooks, GDPR, and workspaces.",
-  "exports": "./src/index.ts"
+  "exports": "./src/index.ts",
+  "publish": {
+    "exclude": [
+      ".github",
+      ".husky",
+      ".vscode",
+      ".changeset",
+      "openapi/reference",
+      "openapi/parity-exceptions.json",
+      ".claude",
+      "tests",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "scripts",
+      "skills",
+      "examples",
+      "docs",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "CLAUDE.md",
+      "CODEOWNERS",
+      "CONTRIBUTING.md",
+      "CODE_OF_CONDUCT.md",
+      "SECURITY.md",
+      "biome.json",
+      "knip.json",
+      "redocly.yaml",
+      "typedoc.json",
+      "tsup.config.ts",
+      "tsconfig.test.json",
+      "vitest.config.ts",
+      "vitest.integration.config.ts",
+      "commitlint.config.cjs",
+      ".secretlintrc.json"
+    ]
+  }
 }

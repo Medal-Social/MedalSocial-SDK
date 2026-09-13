@@ -1,0 +1,57 @@
+{
+  "_comment": [
+    "A request/response pair for POST /api/cookie-consent, replayed through the",
+    "endpoint's own request validator: `request.body` parses clean and",
+    "`response.body` is what the endpoint answers.",
+    "",
+    "`rejected.body` is the shape @medalsocial/sdk 1.10.0 was TYPED to send. Replayed",
+    "through the same validator it produces `rejected.error` — a 400 on every call. That",
+    "is the bug this fixture exists to pin: the SDK's types and the wire format had",
+    "drifted apart, and nothing in the test suite compared them.",
+    "",
+    "`request.body.timestamp` is fixed here for a byte-stable comparison. The endpoint",
+    "accepts a timestamp up to 5 minutes ahead and up to 7 days old, so this value is",
+    "only meaningful as bytes; the SDK does not validate the window."
+  ],
+  "endpoint": "POST /api/cookie-consent",
+  "request": {
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "event": "preferences_saved",
+      "consentId": "CID-00001234",
+      "domain": "example.com",
+      "categories": {
+        "essential": true,
+        "analytics": true,
+        "marketing": false,
+        "functional": true
+      },
+      "visitorId": "anon-abc123",
+      "consentText": "We use essential cookies to run this site and optional cookies only with your consent.",
+      "policyVersion": "2.1",
+      "timestamp": 1789000000000
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "logId": "kn7c8x2yq4m1v0j5r3t9wd6b"
+    }
+  },
+  "rejected": {
+    "body": {
+      "domain": "example.com",
+      "consentStatus": "granted",
+      "consentTimestamp": "2026-09-04T10:30:00Z",
+      "cookiePreferences": {
+        "necessary": { "allowed": true },
+        "analytics": { "allowed": true }
+      }
+    },
+    "status": 400,
+    "error": "Invalid event. Must be one of: preferences_saved, preferences_revoked, banner_displayed, preferences_expired"
+  }
+}

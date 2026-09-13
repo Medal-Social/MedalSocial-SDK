@@ -1,0 +1,52 @@
+{
+  "note": "Reviewed differences between this SDK's OpenAPI document and the Medal API's published one, checked by scripts/assert-openapi-sdk-coverage.mjs. Every entry needs a reason naming the evidence. An entry that stops matching anything FAILS the gate, so this file cannot decay into a blanket waiver.",
+  "no_client_method": [
+    {
+      "op": "GET /api/v1/portal/vipps/callback",
+      "reason": "A public browser navigation, not an API call: Vipps redirects the customer here with no API key and Medal answers a 302 back to the site's return_url. Documented so integrators can read the flow; there is nothing for an SDK method to do."
+    }
+  ],
+  "missing_from_sdk": [],
+  "enum_locations": [
+    {
+      "at": "GET /api/v1/bookings/attention @ responses.200.data[].kind",
+      "reason": "The API's published document is behind its implementation: ATTENTION_KINDS in apps/convex/bookings/attention.ts includes payment_partial_capture, which the feed really emits (attention.ts:412). The SDK encodes the implementation; the document needs the value added on the API side."
+    },
+    {
+      "at": "GET /api/v1/helpdesk/conversations @ responses.200.data[].channel",
+      "reason": "The API's published document is behind its implementation: the helpdesk channel literals in apps/convex/schema/helpdesk.ts include telegram, which is the whole point of the Telegram inbox connector. The SDK encodes the implementation."
+    },
+    {
+      "at": "GET /api/v1/helpdesk/conversations/{id} @ responses.200.data.channel",
+      "reason": "Same stale channel list as the collection route above — telegram is a real conversation channel in apps/convex/schema/helpdesk.ts."
+    },
+    {
+      "at": "POST /api/v1/contacts/import @ requestBody.contacts[].email_status",
+      "reason": "The API's document declares a field its own schema does not accept: importContactItemSchema (apps/convex/api/v1/types.ts) takes email, names, phone, company, job_title, label_ids and status only, so sending email_status is a 400. The SDK matches the schema."
+    },
+    {
+      "at": "GET /api/v1/posts @ parameters.platform",
+      "reason": "The list route accepts BOTH platform and platforms (apps/convex/api/v1/posts.ts merges parseQueryParamArray for each). The SDK sends the plural, array-friendly form and documents only that; the singular stays an undocumented alias."
+    },
+    {
+      "at": "POST /api/v1/contacts @ responses.201.data.status",
+      "reason": "The API's document describes a full contact in the create response; the handler answers { data: { id } } only (apps/convex/api/v1/contacts.ts:119). The SDK matches the handler."
+    },
+    {
+      "at": "POST /api/v1/contacts @ responses.201.data.email_status",
+      "reason": "Same stale create-response shape: the handler returns only the new contact's id."
+    },
+    {
+      "at": "PATCH /api/v1/contacts/{id} @ responses.200.data.status",
+      "reason": "The API's document describes a full contact in the update response; the handler answers { data: { success: true } } (apps/convex/api/v1/contacts.ts:183). The SDK matches the handler."
+    },
+    {
+      "at": "PATCH /api/v1/contacts/{id} @ responses.200.data.email_status",
+      "reason": "Same stale update-response shape: the handler returns only { success: true }."
+    },
+    {
+      "at": "GET /api/v1/gdpr/consent/{email} @ responses.200.data.consents[].consent_type",
+      "reason": "The API's document wraps the consent list in data.consents; the handler answers data as the ARRAY itself (apps/convex/api/v1/gdpr.ts:164-176). The SDK matches the handler."
+    }
+  ]
+}

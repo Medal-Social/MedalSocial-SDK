@@ -10,6 +10,14 @@ npm install @medalsocial/sdk
 pnpm add @medalsocial/sdk
 ```
 
+No runtime dependencies. The optional `@medalsocial/sdk/pilot` entry (zod tool
+schemas for agents) needs `zod` 4, declared as an **optional peer** — install it
+only if you import that entry:
+
+```bash
+pnpm add zod
+```
+
 ## Quick Start
 
 ```ts
@@ -96,8 +104,16 @@ await medal.posts.update(data.id, { content: 'Updated!' });
 await medal.posts.schedule(data.id, { scheduled_at: '2026-03-15T10:00:00Z' });
 await medal.posts.publish(data.id);
 
-// List posts
-const posts = await medal.posts.list({ status: 'draft', type: 'social', limit: 50 });
+// List posts — status is the closed PostStatus set; date filters take Unix ms or ISO 8601
+const posts = await medal.posts.list({
+  status: 'scheduled',
+  type: 'social',
+  platforms: ['linkedin', 'x'],
+  scheduled_from: '2026-07-01T00:00:00Z',
+  scheduled_to: Date.now() + 7 * 86_400_000,
+  query: 'launch',
+  limit: 50,
+});
 
 // Delete
 await medal.posts.remove(data.id);
@@ -159,7 +175,7 @@ const { data: updated } = await medal.contacts.update(created.id, { status: 'cus
 const { data: removed } = await medal.contacts.remove(created.id);
 console.log(updated.success, removed.success);
 
-// List with filters
+// List with filters — status is 'lead' | 'subscriber' | 'customer' | 'churned'
 const contacts = await medal.contacts.list({
   status: 'lead',
   email_status: 'subscribed',
@@ -167,6 +183,9 @@ const contacts = await medal.contacts.list({
   search: 'john',
   limit: 50,
 });
+
+// "The contact for this e-mail": exact match, not a fuzzy search
+const { data: [byEmail] } = await medal.contacts.list({ email: 'john@example.com' });
 
 // Activity timeline
 const activities = await medal.contacts.activities('contact_id', { limit: 20 });
@@ -196,22 +215,39 @@ const { data: created } = await medal.deals.create({
 });
 const { data: deal } = await medal.deals.get(created.id);
 
-const { data: updated } = await medal.deals.update(deal.id, { status: 'won' });
+// Move it along the pipeline: draft → negotiating → offer_sent → signed → completed | declined
+const { data: updated } = await medal.deals.update(deal.id, { status: 'signed' });
 const { data: unlinked } = await medal.deals.update(deal.id, { contact_id: null }); // unlink contact
 
-const deals = await medal.deals.list({ status: 'open', search: 'Acme' });
+const deals = await medal.deals.list({
+  status: 'negotiating',
+  search: 'Acme',
+  contact_id: 'c_123',
+  min_value: 25000,
+  close_date_from: '2026-07-01T00:00:00Z', // Unix ms or ISO 8601
+  close_date_to: Date.now() + 30 * 86_400_000,
+});
 const { data: removed } = await medal.deals.remove(deal.id);
 console.log(updated.success, unlinked.success, removed.success);
 ```
+
+A deal always starts at `draft`; `status` is only accepted on `update`, and only the six values above — anything else is a `400`. **Dates are asymmetric:** `start_date` / `end_date` are *sent* as ISO 8601 (or `YYYY-MM-DD`) strings but come *back* as Unix milliseconds (`number | null`), so `new Date(deal.end_date)` is the right call on the way out.
+
+**`value` is in MAJOR currency units** — `50000` is fifty thousand kroner, not
+five hundred — and decimals are accepted (`1999.5`). This is the opposite
+convention from bookings, where money is integer **øre** (`amount_ore`,
+`price_ore`), and a deal carries no minor-unit field at all: if you use both
+surfaces, convert explicitly (`value = amount_ore / 100`). `currency` is one of
+`USD` / `EUR` / `GBP` / `NOK`; anything else is a `400`.
 
 ### Bookings
 
 Money is always **integer øre** (`amount_ore`, `price_ore`) — never a float, never kroner. Timestamps come back as ISO 8601 strings; on the way in, either Unix milliseconds or an ISO string is accepted.
 
 ```ts
-// Catalogue + free slots
-const { data: services } = await medal.bookings.listServices();
-const { data: resources } = await medal.bookings.listResources();
+// Catalogue + free slots (services.list() / resources.list() are the same calls)
+const { data: services } = await medal.bookings.services.list();
+const { data: resources } = await medal.bookings.resources.list();
 const { data: slots } = await medal.bookings.availability({
   service_id: services[0].id,
   from_ts: Date.now(),
@@ -250,7 +286,34 @@ await medal.bookings.markNoShow(moved.booking_id);
 // Listing — check `truncated`: when true, matching bookings exist that no
 // cursor reaches, so narrow the from_ts/to_ts window
 const page = await medal.bookings.list({ status: 'confirmed', from_ts: Date.now(), limit: 50 });
+// "How many bookings did our website bring in?" — created_via filters the WHOLE column
+const fromSite = await medal.bookings.list({ created_via: 'web', from_ts: monthStart, to_ts: monthEnd });
 console.log(page.pagination.has_more, page.pagination.next_cursor, page.pagination.truncated);
+```
+
+#### The day, and what needs a human
+
+```ts
+// The salon's operating summary for ONE local date. date_key is the WORKSPACE's
+// calendar date (yyyymmdd), so a caller in another zone still reads the salon's
+// day; omit it for today.
+const { data: today } = await medal.bookings.today();
+today.remaining;                 // appointments still to come
+today.closed_for_today;          // past the last opening window of a day that DID open
+today.next_gap?.start_ts;        // next free stretch, as an instant
+today.revenue.total_ore;         // integer øre, split in revenue.by_provider
+today.truncated;                 // a source hit its cap, so the counts are floors
+
+// Open items a human has to act on. NOT a page: `truncated` is a read budget,
+// not a cursor, and `total` is exact only while it is false.
+const attention = await medal.bookings.attention();
+for (const item of attention.data) {
+  // No prose crosses the wire — render the sentence from `kind`
+  // (payment_failed | payment_released | payment_partial_capture |
+  //  waitlist_offer_expiring | event_consent_missing | booking_attachment |
+  //  no_show_today) and the ids/amounts on the item.
+  render(item.kind, item.booking_id, item.amount_ore, item.deadline_at);
+}
 ```
 
 **Customer actions go through `medal.bookings.manage`**, keyed by the manage token instead of the booking id. This is not the same route with a different lookup key: the workspace's cancel/reschedule windows are **enforced**, and the cancel is attributed to the customer. Use it to relay a customer's own click on the link in their confirmation email.
@@ -274,7 +337,7 @@ if (summary.can_reschedule) {
 
 #### Persons, relations and events
 
-`medal.bookings.persons` are the children, pets, or employees a contact books for — no login of their own. `medal.bookings.relations` links two contacts directionally (guardian, employer, partner, and so on). `medal.bookings.events` are arrangementer — scheduled group sessions bookings register against; registering a booking *to* an event ships in a later release, so this is a read/create surface today.
+`medal.bookings.persons` are the children, pets, or employees a contact books for — no login of their own. `medal.bookings.relations` links two contacts directionally (guardian, employer, partner, and so on). `medal.bookings.events` are arrangementer — scheduled group sessions bookings register against.
 
 ```ts
 // Persons a contact books for (active-only unless include_inactive)
@@ -288,11 +351,57 @@ const { data: person } = await medal.bookings.persons.create({
   relation_type: 'guardian',
 });
 
-// Events in a date range (yyyy-mm-dd, inclusive) — one month
+// Events in a date range (yyyy-mm-dd, inclusive) — one month, optionally one host
 const { data: events } = await medal.bookings.events.list({
   from: '2026-09-01',
   to: '2026-09-30',
+  host_id: resources[0].id,   // optional
 });
+
+// Register a child for an arrangement
+const { data: registration } = await medal.bookings.events.register(events[0].event_id, {
+  guardian: { name: 'Kari Hansen', email: 'kari@example.no', phone: '+4790000000' },
+  child: { name: 'Nora', birth_year: 2020 },
+  service_id: services[0].id,
+  consent_accepted: true,           // must be literally true — 400 otherwise
+  consent_version: '2026-09',       // optional — your own label for the wording shown
+  return_url: 'https://example.no/retur',   // only needed if the service requires payment
+});
+// registration.booking carries event_id / event_order; registration.manage_token is
+// SHOW-ONCE like CreatedBooking.manage_token (omitted entirely on an idempotent replay).
+// registration.contact_id / registration.person_id are the guardian's contact and the
+// child's ContactPerson, created or reused. registration.payment is null when the
+// service needs no payment, otherwise the same show-once redirect payment.start returns.
+// A payment failure does not undo the registration — check registration.payment_error
+// and retry with bookings.payment.start(registration.booking.id, ...) rather than
+// registering again.
+
+// An arrangement's roster, ordered by event_order (cancelled rows included)
+const { data: roster } = await medal.bookings.events.registrations(events[0].event_id);
+roster.registrations[0]?.participant_name;   // read from the live person, not a snapshot
+roster.truncated;                            // true past 300 rows — event_order is no longer trustworthy
+
+// Hosts — where an arrangement is held. A landing page resolves one by `slug`
+// instead of putting the host id in the URL.
+const { data: hosts } = await medal.bookings.events.hosts.list();
+// Find-or-create BY NAME: 201 when a row was inserted, 200 when an existing host
+// matched — and a matched host comes back UNCHANGED, so a corrected address sent
+// here is dropped.
+const { data: host } = await medal.bookings.events.hosts.create({
+  name: 'Sol barnehage',
+  address: 'Solveien 1',
+  note: 'inngang B, ring på',
+});
+// …which is why correcting one has its own route. `null` erases; `retired: true`
+// retires the host (events already point at it, so it is never deleted).
+await medal.bookings.events.hosts.update(host.id, { address: 'Solveien 2', note: null });
+
+// Remove an arrangement DAY — the one delete on this surface. OAuth callers need
+// the workspace `admin` role. A completed day is 422; a day with any
+// non-cancelled registration is 409 (cancel those first, which releases each
+// participant's place and payment hold).
+const { data: removed } = await medal.bookings.events.remove(events[0].event_id);
+removed.mode; // 'hard' = the row is gone; 'soft' = kept as a tombstone for cancelled registrations
 ```
 
 #### Payments
@@ -314,7 +423,35 @@ payment.captured_ore; // integer øre — a Vipps payment stays AUTHORIZED after
                       // so the aggregates, not `state`, say what actually moved
 ```
 
-**Never trust the return redirect.** The customer can close the tab, hit back, or edit the URL — the outcome reaches you through Medal. Poll `payment.get(...)` on your return page, or read the booking's `payment_status`.
+**Never trust the return redirect.** The customer can close the tab, hit back, or edit the URL — the outcome reaches you through Medal. Poll on your return page, or read the booking's `payment_status`.
+
+Prepay, end to end, in four calls:
+
+```ts
+const { data: slots } = await medal.bookings.availability({ service_id, from_ts, to_ts });
+const { data: created } = await medal.bookings.create({
+  items: [{ service_id, start_ts: slots[0].start_ts! }],
+  contact: { phone: '+4790000000', name: 'Ida' },
+});
+const { data: started } = await medal.bookings.payment.start(created.bookings[0].id, {
+  return_url: 'https://example.no/retur',
+  terms_accepted: true,
+});
+// …hand started.redirect_url to the Vipps Widget SDK, then on your return page:
+const payment = await medal.bookings.payment.waitForSettlement(created.bookings[0].id);
+if (payment.state !== 'authorized' && payment.state !== 'captured') {
+  return renderRetry(payment.failure_code);
+}
+```
+
+`waitForSettlement` resolves for **every** settled state (`authorized`,
+`captured`, `cancelled`, `refunded`, `failed`, `expired`) — branch on `state`,
+not on whether it threw. It throws only when the deadline passes with the
+customer still in the wallet (default ten minutes, the payment's own lifetime),
+and a `404` (no payment on the booking) propagates unchanged.
+`medal.bookings.manage.payment.waitForSettlement(manageToken)` is the
+customer-side twin and polls once a second, because that route has its own
+`apiBookingPoll` bucket.
 
 The customer must accept your terms **before** a payment is initiated: `terms_accepted: true` is required by the type *and* by the API, and a request without it leaves no payment (and no consent record) behind. A `return_url` your workspace's own sites do not vouch for answers **422**, not 400 — the URL parses, it is just not yours. Starting a second payment while one is live answers **409**, and `payment.get(...)` on a booking with no payment yet answers **404**, exactly as an unknown booking does.
 
@@ -327,7 +464,8 @@ The session token is a **bearer credential for one contact**. Your site's server
 ```ts
 // 1. Send the code. Always { status: 'sent' } — enumeration-safe, so "sent" does
 //    not confirm the address belongs to a contact.
-await medal.portal.login.start({ email: 'ida@example.com', locale: 'nb' });
+//    locale is 'no' | 'en' — the API refuses 'nb' with a 400.
+await medal.portal.login.start({ email: 'ida@example.com', locale: 'no' });
 
 // 2. Exchange the code the customer typed. Wrong, burned and expired codes all
 //    answer 401 PORTAL_CODE_INVALID.
@@ -356,7 +494,52 @@ await medal.portal.deleteMe(session.session_token);   // GDPR Art. 17 — 204
 
 `401 PORTAL_SESSION_REQUIRED` (header missing) and `401 PORTAL_SESSION_INVALID` (unknown, expired or revoked) both mean "sign in again" — clear the cookie and send the customer back to step 1. `403 FORBIDDEN` means the key lacks the portal scopes; `429 RATE_LIMITED` applies per address and per caller on `login.start`.
 
+Bind the token once instead of passing it to every method — the flat,
+session-first methods are unchanged, this is additive:
+
+```ts
+const me = medal.portal.session(session.session_token);
+const { data: profile } = await me.profile();
+const { data: bookings } = await me.bookings();
+await me.update({ phone: '+4790000000' });
+const { data: exported } = await me.export();
+await me.logout();       // …or me.delete() for GDPR Art. 17
+```
+
+It exists because the flat form takes the token **first**
+(`updateMe(session, patch)`), so a swapped pair type-checks whenever both are
+strings.
+
 None of the portal calls carries an `Idempotency-Key`: the two login routes cannot duplicate anything, and the session routes are either reads or terminal.
+
+#### Log in with Vipps
+
+Two server calls; the middle leg is the customer's browser.
+
+```ts
+// 1. Your server starts the flow and redirects the customer to the wallet.
+//    return_url must be an https URL under one of the workspace's own sites —
+//    400 INVALID_RETURN_URL otherwise. 503 VIPPS_NOT_CONFIGURED means this
+//    deployment has no Vipps login: fall back to the e-mail code.
+const { data: start } = await medal.portal.login.vipps.start({
+  return_url: 'https://salon.no/min-side',
+});
+redirect(start.authorize_url);        // never cache it — it carries a one-time state
+
+// 2. Vipps sends the customer to Medal's callback, which redirects back to your
+//    return_url with ?grant=… — or ?vipps=needs_email_login / ?vipps=failed,
+//    on which you fall back to medal.portal.login.start(...).
+
+// 3. Your server exchanges the grant. Single-use: a second exchange answers
+//    404 GRANT_NOT_FOUND, which is also the answer for an expired grant.
+const { data: session } = await medal.portal.login.vipps.exchange({ grant });
+// -> same HttpOnly cookie as the e-mail flow; session.expires_at_iso is the ISO twin
+```
+
+**Portal booking timestamps are Unix milliseconds** (`start_ts`, `end_ts`) with
+ISO twins beside them (`start_ts_iso`, `end_ts_iso`) — unlike
+`/api/v1/bookings/*`, where `start_ts` is an ISO string. The SDK types what each
+endpoint actually returns rather than normalising one into the other.
 
 ### GDPR
 
@@ -377,16 +560,22 @@ const { data: exports } = await medal.gdpr.listExports();
 const { data: status } = await medal.gdpr.getExport(exp.request_id);
 console.log(status.download_url); // available when status is 'completed'
 
-// Cookie consent (website integration)
+// Cookie consent (server-to-server, from your own backend).
+// `domain` must be one your workspace's registered sites vouch for, or the
+// call is refused with 403. Never call this from a browser — it uses your
+// workspace API key. Browser-side consent goes to /api/cookie-consent/public
+// with the site's public `pk_consent_*` key instead.
 await medal.gdpr.cookieConsent({
+  event: 'preferences_saved',
+  consentId: 'CID-00001234',
   domain: 'example.com',
-  consentStatus: 'granted',
-  consentTimestamp: new Date().toISOString(),
-  cookiePreferences: {
-    necessary: { allowed: true },
-    analytics: { allowed: true },
-    marketing: { allowed: false },
+  categories: {
+    essential: true,
+    analytics: true,
+    marketing: false,
+    functional: true,
   },
+  policyVersion: '2.1',
 });
 ```
 
@@ -415,9 +604,14 @@ const conversations = await medal.helpdesk.conversations.list({
   assignee_user_id: 'user_1',
   requester: 'jane@example.com',     // match visitor name/email
   query: 'refund',                   // free-text search
-  channels: ['widget', 'whatsapp'],  // channel filter
+  channels: ['widget', 'whatsapp'],  // channel filter (the closed HelpdeskChannel set)
   limit: 50,
 });
+
+// Triage: what has nobody picked up yet? `assigned: false` is the question
+// `assignee_user_id` cannot ask; `chat_type` narrows personal-account
+// channels (Telegram) to DMs, groups or broadcast channels.
+const unowned = await medal.helpdesk.conversations.list({ assigned: false, chat_type: 'group' });
 
 // Read one conversation + its messages
 const { data: conversation } = await medal.helpdesk.conversations.get('conv_id');
@@ -452,6 +646,32 @@ for (const message of messages) {
 
 Subscribe to `helpdesk.message_delivery_updated` for the same values pushed instead of polled.
 
+**Upstream deletions.** When the customer deletes a message on the external channel (Telegram today), the message is kept as a *tombstone* so the thread still reads in order: `externally_deleted_at` carries the Unix-ms timestamp of the deletion, `body` is empty and any attachment has been erased. Mirror the deletion in your own store rather than treating it as a blank message; the push-side signal is the `helpdesk.message_deleted` webhook event, whose payload deliberately carries an empty body too.
+
+#### Linking a thread to a CRM contact
+
+A partner usually knows which external user is which customer, and Medal cannot
+derive it — Telegram exposes no e-mail, hides phone numbers, and usernames are
+mutable. So the link is yours to assert:
+
+```ts
+// Exactly one of contact_id or email; an email resolves through the CRM's own
+// find-or-create, so you do not have to pre-create contacts.
+const { data: linked } = await medal.helpdesk.conversations.linkContact(conversationId, {
+  email: 'ida@example.no',
+});
+linked.conversations_updated;  // the link is stored on the SENDER, so it reaches
+                               // their older threads too
+linked.previous_contact_id;    // set when this replaced an existing link
+
+// Reversing a mistake is idempotent: a thread with no contact answers unlinked: false
+const { data: unlinked } = await medal.helpdesk.conversations.unlinkContact(conversationId);
+```
+
+A group thread — or a channel with no stable sender — answers
+`422 CONVERSATION_NOT_LINKABLE`. Both routes are confirmable writes: a
+capability-scoped credential needs an `X-Capability-Confirmation` (see below).
+
 ### Webhooks
 
 ```ts
@@ -461,6 +681,7 @@ const { data: endpoint } = await medal.webhooks.create(
   {
     name: 'Helpdesk bridge',
     url: 'https://example.com/medal/webhook', // must be https
+    // Typed as SubscribableWebhookEventType[] — a typo is a compile error, not a runtime 400
     event_types: ['helpdesk.message_received', 'helpdesk.conversation_status_changed'],
     channels: ['widget'],                     // optional channel filter
   },
@@ -527,18 +748,40 @@ When the person completes the hosted sign-in, the link flips to `consumed` and y
 
 Medal's confirmable write routes require **both** an `Idempotency-Key` and an `X-Capability-Confirmation` token whenever the calling credential holds the capability scope *directly* — which is the case for every correctly-scoped partner key and OAuth grant. (API keys carrying only legacy scopes are exempt.) Affected routes and their capability ids:
 
-| Capability id | Route |
-|---|---|
-| `channel.connect_link.create.execute` | `POST /api/v1/channels/connect-links` |
-| `channel.connect_link.revoke.execute` | `DELETE /api/v1/channels/connect-links/{id}` |
-| `channel.connection.disconnect.execute` | `DELETE /api/v1/channels/connections/{id}` |
-| `helpdesk.conversation.reply.execute` | `POST /api/v1/helpdesk/replies` |
-| `helpdesk.conversation.update.execute` | `PATCH /api/v1/helpdesk/conversations/{id}` |
-| `helpdesk.webhook.create.execute` | `POST /api/v1/webhooks` |
-| `helpdesk.webhook.update.execute` | `PATCH /api/v1/webhooks/{id}` |
-| `helpdesk.webhook.delete.execute` | `DELETE /api/v1/webhooks/{id}` |
+| Capability id | Route | SDK method |
+|---|---|---|
+| `channel.connect_link.create.execute` | `POST /api/v1/channels/connect-links` | `channels.connectLinks.create` |
+| `channel.connect_link.revoke.execute` | `DELETE /api/v1/channels/connect-links/{id}` | `channels.connectLinks.revoke` |
+| `channel.connection.disconnect.execute` | `DELETE /api/v1/channels/connections/{id}` | `channels.connections.disconnect` |
+| `compliance.gdpr.export.execute` | `POST /api/v1/gdpr/export` | `gdpr.requestExport` |
+| `content.post.draft.create` | `POST /api/v1/posts` | `posts.create` |
+| `content.post.publish.execute` | `POST /api/v1/posts/{id}/publish` | `posts.publish` |
+| `content.post.schedule.execute` | `POST /api/v1/posts/{id}/schedule` | `posts.schedule` |
+| `crm.contact.note.create.execute` | `POST /api/v1/contacts/{id}/notes` | `contacts.addNote` |
+| `deals.deal.create.execute` | `POST /api/v1/deals` | `deals.create` |
+| `deals.deal.update.execute` | `PATCH /api/v1/deals/{id}` | `deals.update` |
+| `email.campaign.send.execute` | `POST /api/v1/emails` **and** `POST /api/v1/emails/batch` | `emails.send`, `emails.batch` |
+| `helpdesk.conversation.link_contact.execute` | `PUT /api/v1/helpdesk/conversations/{id}/contact` | `helpdesk.conversations.linkContact` |
+| `helpdesk.conversation.reply.execute` | `POST /api/v1/helpdesk/replies` | `helpdesk.replies.create` |
+| `helpdesk.conversation.unlink_contact.execute` | `DELETE /api/v1/helpdesk/conversations/{id}/contact` | `helpdesk.conversations.unlinkContact` |
+| `helpdesk.conversation.update.execute` | `PATCH /api/v1/helpdesk/conversations/{id}` | `helpdesk.conversations.update` |
+| `helpdesk.webhook.create.execute` | `POST /api/v1/webhooks` | `webhooks.create` |
+| `helpdesk.webhook.update.execute` | `PATCH /api/v1/webhooks/{id}` | `webhooks.update` |
+| `helpdesk.webhook.delete.execute` | `DELETE /api/v1/webhooks/{id}` | `webhooks.delete` |
 
-These are exported as `CAPABILITY_IDS` (a typed union via `CapabilityId`) and `CAPABILITY_ROUTES`.
+`CAPABILITY_IDS` (a typed union via `CapabilityId`) and `CAPABILITY_ROUTES` cover
+those **and** the confirmable API capabilities this SDK has no method for yet —
+`ai.text.generate`, `channel.telegram_sync_config.update.execute`,
+`content.post.media.attach.execute`, `email.draft.create.execute`,
+`flows.enrollment.create.execute`, `image.generation.execute`,
+`media.generated_asset.save.execute` and the two `site.sanity.document.*` ids.
+They are valid input to `medal.capabilityConfirmations.create(...)`, so a route
+you call with `fetch` can still be confirmed through the SDK.
+
+Two ids map to **more than one route** (`email.campaign.send.execute` and
+`ai.text.generate`). The mint refuses those without an explicit `api_path`
+(`400 CAPABILITY_API_PATH_REQUIRED`) — the SDK sends it for you, and
+`CAPABILITY_ROUTES[id].alternate_path_templates` names the others.
 
 #### Explicit flow
 
@@ -626,6 +869,11 @@ await medal.webhooks.delete(endpointId, { autoConfirm: false });
 
 Auto-confirm never overrides what you supply: if a call already carries both `idempotencyKey` and `capabilityConfirmation`, nothing is minted. If it carries only `idempotencyKey`, that key is reused when binding the token.
 
+Auto-confirm reaches every resource that owns a confirmable route: `channels`,
+`helpdesk`, `webhooks`, `contacts`, `deals`, `emails`, `gdpr` and `posts`. (It
+used to be wired into only the first three, so a capability-scoped key calling
+`deals.update` got a `428` with no way to satisfy it.)
+
 ### Workspaces
 
 ```ts
@@ -633,11 +881,28 @@ const { data: workspaces } = await medal.workspaces.list();
 console.log(workspaces); // [{ id, name, slug }]
 ```
 
+## Naming
+
+`remove` and `delete` are aliases wherever both read naturally —
+`contacts.remove(id)` / `contacts.delete(id)`, `deals`, `posts`, `webhooks`,
+`bookings.events` — and the domain verbs keep a `delete` alias too
+(`channels.connectLinks.revoke` / `.delete`,
+`channels.connections.disconnect` / `.delete`). Pick whichever reads better at
+the call site; they are the same request.
+
+The bookings catalogue is available both ways for the same reason:
+`bookings.services.list()` ≡ `bookings.listServices()`, and
+`bookings.resources.list()` ≡ `bookings.listResources()`.
+
+Every write takes an optional trailing `options` (`RequestOptions`): an
+`idempotencyKey`, a `capabilityConfirmation`, `autoConfirm`, `retry: false`,
+extra `headers`, or a `signal`.
+
 ## Helpdesk bridge
 
 Build a two-way bridge: receive helpdesk events on a webhook, and reply through the API.
 
-Every delivery is signed. The `X-Medal-Signature` header carries `sha256=<base64(HMAC-SHA256("{timestamp}.{rawBody}", secret))>`, where `timestamp` is the `X-Medal-Timestamp` header (Unix ms). Use `verifyWebhookSignature` to authenticate the delivery and get a fully typed event back — it recomputes the HMAC with Web Crypto (works in Node.js 18+, Deno, Bun, Cloudflare Workers) and rejects stale timestamps (default tolerance 5 minutes).
+Every delivery is signed. The `X-Medal-Signature` header carries `sha256=<base64(HMAC-SHA256("{timestamp}.{rawBody}", secret))>`, where `timestamp` is the `X-Medal-Timestamp` header (Unix ms). Use `verifyWebhookSignature` to authenticate the delivery and get a fully typed event back — it recomputes the HMAC with Web Crypto, so it runs on Node.js, Deno, Bun and Cloudflare Workers alike and rejects stale timestamps (default tolerance 5 minutes).
 
 ```ts
 import { Medal, verifyWebhookSignature, WebhookVerificationError } from '@medalsocial/sdk';
@@ -705,41 +970,147 @@ Notes:
 
 ## Error Handling
 
-All API errors throw `MedalApiError` with structured error details:
+A call can fail three ways, and each has a type:
+
+| Class | `code` | When |
+|-------|--------|------|
+| `MedalApiError` | the API's `error.code` | The API answered with a 4xx/5xx |
+| `MedalTimeoutError` | `TIMEOUT` | The per-attempt deadline elapsed |
+| `MedalNetworkError` | `NETWORK` | The request never produced a response (DNS, TLS, reset, offline) |
+
+All three extend `MedalError`, so one clause covers every failure the SDK
+raises. Cancelling through your own `AbortSignal` is *not* one of them — that
+rejects with your abort reason, unchanged.
 
 ```ts
-import { Medal, MedalApiError } from '@medalsocial/sdk';
+import { Medal, MedalApiError, MedalError, MedalTimeoutError } from '@medalsocial/sdk';
 
 try {
   await medal.contacts.get('bad_id');
 } catch (err) {
   if (err instanceof MedalApiError) {
-    console.log(err.status);  // 404
-    console.log(err.code);    // 'NOT_FOUND'
-    console.log(err.message); // 'Contact not found'
-    console.log(err.details); // field-level validation errors (if any)
+    console.log(err.status);       // 404
+    console.log(err.code);         // 'NOT_FOUND' — a MedalErrorCode
+    console.log(err.message);      // 'Contact not found'
+    console.log(err.details);      // field-level validation errors (if any)
+    console.log(err.requestId);    // 'req_…' from X-Request-ID — quote this to support
+    console.log(err.retryAfterMs); // 42000 on a 429, else null
+  } else if (err instanceof MedalTimeoutError) {
+    console.log(err.timeoutMs);
+  } else if (err instanceof MedalError) {
+    console.log(err.code);         // 'NETWORK'
   }
 }
 ```
 
+Branch on `code`, never on `message`: the message is prose, the code is the
+contract. `MedalErrorCode` is exported as a union of the codes the API throws
+today (`IDEMPOTENCY_IN_PROGRESS`, `CAPABILITY_CONFIRMATION_REQUIRED`,
+`PORTAL_CODE_INVALID`, `INVALID_RETURN_URL`, …) widened with `string`, so a code
+Medal adds later still type-checks — treat an unknown one as a generic failure
+of its HTTP status. The full list also ships in the OpenAPI document as
+`x-medal-error-codes`.
+
 ## Retries
 
-The SDK automatically retries on `429` (rate limited) and `5xx` errors, up to 3 attempts with linear backoff. The `Retry-After` header is respected when present.
+`429` and `5xx` are retried up to 3 attempts, and so is a network failure on a
+request that is safe to repeat — a `GET`, or a write that carries an
+`Idempotency-Key` (every `create`, `send`, `publish`, `schedule` and booking
+action mints one). An unkeyed `POST` is sent exactly once: "the connection
+dropped" says nothing about whether the write committed.
+
+The wait between attempts is a server-specified `Retry-After` when there is one
+(both wire forms: delay-seconds and HTTP-date), otherwise an exponential backoff
+— 250 ms, then 500 ms — spread ±25% so a fleet knocked back by one 503 does not
+return in lock-step.
+
+Pass `{ retry: false }` on a call whose first attempt may have succeeded even
+though the response was lost (a one-time code, a logout, an erasure).
+
+### Cancelling
+
+Every method takes an optional `signal`, merged with the client's own timeout.
+It also interrupts a retry that is waiting out its backoff, so an abandoned call
+stops costing time immediately:
+
+```ts
+const controller = new AbortController();
+const page = medal.contacts.list({ status: 'lead' }, { signal: controller.signal });
+// …user navigated away
+controller.abort();
+```
 
 ## Rate Limits
 
-| Endpoint | Rate | Burst |
-|----------|------|-------|
-| Read (GET) | 300/min | 100 |
-| Write (POST/PATCH/DELETE) | 60/min | 30 |
-| Email send | 100/min | 50 |
-| Email batch | 10/min | 5 |
-| Contact import | 5/min | 3 |
-| GDPR export | 5/hour | 2 |
+Every bucket is keyed **per credential** (per API key, or per OAuth user), and
+they are separate buckets: a busy return page cannot starve the salon's own
+staff reads. A `429` carries `Retry-After`, which the SDK honours automatically
+and also exposes as `MedalApiError.retryAfterMs`.
+
+| Bucket | Routes | Rate | Burst |
+|--------|--------|------|-------|
+| `apiRead` | every `GET` not listed below | 300/min | 100 |
+| `apiWrite` | every `POST` / `PATCH` / `PUT` / `DELETE` not listed below | 60/min | 30 |
+| `apiEmailSend` | `POST /emails` | 100/min | 50 |
+| `apiEmailBatch` | `POST /emails/batch` | 10/min | 5 |
+| `apiImport` | `POST /contacts/import` | 5/min | 3 |
+| `apiGdprExport` | `POST /gdpr/export` | 5/hour | 2 |
+| `apiScanRequest` | `POST /scan` (front door) | 120/min | 60 |
+| `apiScanCreate` | `POST /scan` (charged only when a crawl really starts) | 15/min | 30 |
+| `apiScanRead` | `GET /scan/{id}`, `GET /scan/companies` | 1200/min | 300 |
+| `apiBookingPoll` | `GET /bookings/manage/{token}/payment` | 600/min | 200 |
+| `apiPortalLoginStart` | `POST /portal/login/start` | 60/min | 20 |
+| `apiPortalLoginVerify` | `POST /portal/login/verify` | 60/min | 20 |
+| `apiPortalVippsStart` | `POST /portal/vipps/start` | 60/min | 20 |
+| `apiPortalVippsExchange` | `POST /portal/vipps/exchange` | 60/min | 20 |
+| `apiPortalVippsCallback` | `GET /portal/vipps/callback` (browser, keyed per client IP) | 300/min | 100 |
+| `apiPortalExport` | `POST /portal/me/export` | 60/hour | 10 |
+| `apiConnectLinkMint` | `POST /channels/connect-links` | 10/hour | 5 |
+| `apiCookieConsent` | `POST /api/cookie-consent` | 600/min | 1200 |
+| `oauthIntrospect` | OAuth token introspection | 600/min | 200 |
+
+The customer-facing buckets (`apiBookingPoll`, `apiPortal*`, `apiScan*`) are
+keyed per API key too — and one site key serves every visitor — so they bound
+the **site's aggregate** volume, not one visitor's. `apiBookingPoll` is why
+`bookings.manage.payment.waitForSettlement(...)` polls once a second by default
+while the booking-id twin waits 2.5 s on the shared `apiRead` bucket.
+
+### Scopes and role floors
+
+A scope says what a credential may do; an OAuth credential additionally inherits
+the **workspace role of the user who granted it**, and some routes refuse below a
+floor. A workspace API key is an admin-minted credential and is never held to the
+role floor.
+
+| Surface | Scope | OAuth role floor |
+|---------|-------|------------------|
+| Posts, contacts, deals, e-mails, bookings, helpdesk reads/replies | the route's own `*.read` / `*.manage` scope | member |
+| `webhooks.*` (read and write) | `helpdesk.webhook.manage` | **admin** |
+| `channels.connectLinks.*`, `channels.connections.disconnect` | `channel.connect.manage` | **admin** |
+| `bookings.events.remove` | `write:bookings` | **admin** |
+| `gdpr.requestExport`, `gdpr.listExports`, `gdpr.getExport` | `compliance.gdpr.export` | **owner** |
+
+A credential below the floor answers `403 FORBIDDEN`.
 
 ## Pagination
 
-List endpoints use cursor-based pagination:
+Most list endpoints have an `iter()` twin that walks the pages for you:
+
+```ts
+for await (const contact of medal.contacts.iter({ status: 'lead' })) {
+  await sync(contact);
+}
+```
+
+`iter()` exists on `contacts`, `deals`, `posts`, `helpdesk.conversations`,
+`channels.connectLinks` and `channels.connections`. Pages are fetched lazily —
+`break` and the next one is never requested — and the loop is driven off
+`pagination.has_more`, which matters because several filters are applied
+**within** a page: a page can hold fewer rows than `limit`, or none at all,
+while more pages remain. A hand-rolled loop that stops on a short page silently
+drops the rest.
+
+`list()` is unchanged if you want the raw page:
 
 ```ts
 let cursor: string | undefined;
@@ -749,6 +1120,13 @@ do {
   cursor = page.pagination.next_cursor ?? undefined;
 } while (cursor);
 ```
+
+`bookings.list()` deliberately has no `iter()`: its page also carries
+`pagination.truncated`, which says matching bookings exist that **no cursor
+reaches** (narrow `from_ts` / `to_ts`), and an iterator would hide that.
+
+Use `paginate(fetchPage)` — exported from the package — to get the same walk over
+any paginated call the SDK does not wrap yet.
 
 ## OpenAPI 3.1
 
@@ -773,7 +1151,9 @@ pnpm openapi:check
 
 ## Runtime Support
 
-Node.js 18+ and modern browsers. Uses native `fetch` — no polyfills required.
+Node.js 22+ (see `engines.node`; the unit suite runs on 22 and 24 in CI) and modern browsers. Uses native `fetch` — no polyfills required. The client itself only needs `fetch`, `AbortController`, `WritableStream` and Web Crypto, but Node 20 reached end-of-life in April 2026 and the SDK's own toolchain (pnpm 11, `changesets`, `secretlint`, `lint-staged`) needs 22.13+, so 22 is the floor the SDK certifies.
+
+The individual helpers only need Web Crypto and `fetch`, so they also run on Deno, Bun and Cloudflare Workers.
 
 ## License
 

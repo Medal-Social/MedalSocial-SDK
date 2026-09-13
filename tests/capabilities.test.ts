@@ -39,9 +39,13 @@ function confirmationPayload(overrides: Record<string, unknown> = {}) {
 }
 
 describe("capability id registry", () => {
-  it("exports every confirmable capability backing an SDK write route", () => {
-    expect([...CAPABILITY_IDS].sort()).toEqual(
-      [
+  // The full list — and the fact that it mirrors the SERVER registry rather
+  // than only the SDK's own write methods — is asserted in
+  // tests/capability-coverage.test.ts (SDK-4). This suite keeps the
+  // helpdesk-bridge ids it has always covered.
+  it("exports the helpdesk-bridge confirmable capabilities", () => {
+    expect([...CAPABILITY_IDS]).toEqual(
+      expect.arrayContaining([
         "channel.connect_link.create.execute",
         "channel.connect_link.revoke.execute",
         "channel.connection.disconnect.execute",
@@ -50,7 +54,7 @@ describe("capability id registry", () => {
         "helpdesk.webhook.create.execute",
         "helpdesk.webhook.delete.execute",
         "helpdesk.webhook.update.execute",
-      ].sort(),
+      ]),
     );
   });
 

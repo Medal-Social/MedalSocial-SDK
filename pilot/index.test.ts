@@ -76,4 +76,17 @@ describe("createMedalTools", () => {
       value: 50000,
     });
   });
+
+  it("createContact only offers the statuses the API accepts", () => {
+    // The tool schema is what an agent reads to pick a value, so it must
+    // match the API's own `lead | subscriber | customer | churned` — the old
+    // `prospect` / `archived` were a guaranteed 400.
+    const { parameters } = createMedalTools(mockClient).createContact;
+    for (const status of ["lead", "subscriber", "customer", "churned"]) {
+      expect(parameters.safeParse({ email: "a@b.com", status }).success).toBe(true);
+    }
+    for (const stale of ["prospect", "archived"]) {
+      expect(parameters.safeParse({ email: "a@b.com", status: stale }).success).toBe(false);
+    }
+  });
 });

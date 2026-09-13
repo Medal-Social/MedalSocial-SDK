@@ -1,11 +1,15 @@
 import { CapabilityConfirmer } from "../capability-confirmer";
 import type { BaseClient, RequestOptions } from "../client";
+import { paginate, resolveIdempotencyKey } from "../client";
 import type { ApiResponse, PaginatedResponse, PaginationOptions } from "../types/common";
 import type {
   Conversation,
+  ConversationContactLinkResult,
+  ConversationContactUnlinkResult,
   ConversationMessage,
   ConversationUpdateResult,
   CreateReplyInput,
+  LinkConversationContactInput,
   ListConversationsOptions,
   ReplyCreateResult,
   UpdateConversationInput,
@@ -29,7 +33,25 @@ class HelpdeskConversations {
     if (options?.requester) params.requester = options.requester;
     if (options?.query) params.query = options.query;
     if (options?.channels) params.channels = options.channels.join(",");
+    if (options?.chat_type) params.chat_type = options.chat_type;
+    if (options?.assigned !== undefined) params.assigned = String(options.assigned);
     return this.client.get("/api/v1/helpdesk/conversations", params);
+  }
+
+  /**
+   * Every conversation the filters match, page after page.
+   *
+   * ```ts
+   * for await (const thread of medal.helpdesk.conversations.iter({ status: "open" })) …
+   * ```
+   *
+   * This is the iterator the channel filters make necessary: they are applied
+   * WITHIN a page, so a page can hold fewer rows than `limit` — or none — while
+   * `has_more` is still true, and a hand-rolled loop that stops on an empty page
+   * silently drops the rest of the inbox.
+   */
+  iter(options?: ListConversationsOptions): AsyncGenerator<Conversation, void, undefined> {
+    return paginate((cursor) => this.list({ ...options, ...(cursor ? { cursor } : {}) }));
   }
 
   /** Get a conversation by ID. */
@@ -51,6 +73,56 @@ class HelpdeskConversations {
     return this.client.patch(
       `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}`,
       input,
+      resolved,
+    );
+  }
+
+  /**
+   * Bind this thread's sender to a CRM contact — the partner-driven half of
+   * contact linking. Pass exactly one of `contact_id` or `email`; an `email`
+   * resolves through the CRM's own find-or-create.
+   *
+   * The link is stored on the SENDER, not on the conversation, so every later
+   * thread from the same external contact inherits it and
+   * `conversations_updated` counts the threads it reached. Group threads and
+   * channels without a stable sender answer `422 CONVERSATION_NOT_LINKABLE`.
+   *
+   * Automatically idempotent: linking twice reaches the same state, but the
+   * confirmation this route requires for capability-scoped tokens is bound to
+   * an idempotency key, so the key the confirmer chose is the key that goes out.
+   */
+  async linkContact(
+    id: string,
+    input: LinkConversationContactInput,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ConversationContactLinkResult>> {
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "helpdesk.conversation.link_contact.execute", body: input },
+      { id },
+      { ...options, idempotencyKey: resolveIdempotencyKey(options?.idempotencyKey) },
+    );
+    return this.client.put(
+      `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}/contact`,
+      input,
+      resolved,
+    );
+  }
+
+  /**
+   * Detach the sender from their CRM contact, reversing a mistaken link.
+   * Idempotent: a thread that carries no contact answers `unlinked: false`.
+   */
+  async unlinkContact(
+    id: string,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<ConversationContactUnlinkResult>> {
+    const resolved = await this.confirmer.prepare(
+      { capabilityId: "helpdesk.conversation.unlink_contact.execute", body: undefined },
+      { id },
+      { ...options, idempotencyKey: resolveIdempotencyKey(options?.idempotencyKey) },
+    );
+    return this.client.delete(
+      `/api/v1/helpdesk/conversations/${encodeURIComponent(id)}/contact`,
       resolved,
     );
   }

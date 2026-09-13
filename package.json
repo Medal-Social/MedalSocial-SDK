@@ -39,7 +39,7 @@
   },
   "sideEffects": false,
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -61,8 +61,9 @@
     "openapi:bundle": "node -e \"require('node:fs').mkdirSync('dist/openapi',{recursive:true})\" && redocly bundle openapi/medal-social.openapi.yaml --output dist/openapi/medal-social.openapi.json",
     "openapi:coverage": "node scripts/assert-openapi-sdk-coverage.mjs",
     "openapi:check": "pnpm openapi:lint && pnpm openapi:types && pnpm openapi:bundle && pnpm openapi:coverage",
-    "prepublishOnly": "pnpm test && pnpm openapi:lint && pnpm build && pnpm openapi:coverage && pnpm verify:paths",
-    "version": "changeset version && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('./package.json','utf8'));const j=JSON.parse(fs.readFileSync('./jsr.json','utf8'));j.version=p.version;fs.writeFileSync('./jsr.json',JSON.stringify(j,null,2)+'\\n')\"",
+    "prepublishOnly": "pnpm run version:check && pnpm test && pnpm openapi:lint && pnpm build && pnpm openapi:coverage && pnpm verify:paths",
+    "version": "changeset version && node scripts/sync-version.mjs",
+    "version:check": "node scripts/sync-version.mjs --check",
     "release": "pnpm build && pnpm verify:paths && changeset publish",
     "jsr:publish": "node scripts/jsr-publish.mjs",
     "changeset": "changeset",
@@ -82,6 +83,8 @@
   "files": [
     "dist",
     "openapi",
+    "!openapi/reference",
+    "!openapi/parity-exceptions.json",
     "skills",
     "!skills/_artifacts",
     "!skills/**/_artifacts",
@@ -103,30 +106,36 @@
     "social-media",
     "tanstack-intent"
   ],
-  "dependencies": {
+  "peerDependencies": {
     "zod": "^4.4.3"
   },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.10",
-    "@changesets/changelog-github": "^1.0.0",
-    "@changesets/cli": "^3.0.1",
+    "@biomejs/biome": "^2.5.12",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.2",
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
-    "@redocly/cli": "^2.47.0",
-    "@secretlint/secretlint-rule-preset-recommend": "^13.0.4",
+    "@redocly/cli": "^2.51.2",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.5",
     "@tanstack/intent": "0.3.6",
-    "@types/node": "^26.3.0",
+    "@types/node": "^26.5.0",
     "@vitest/coverage-v8": "^4.1.11",
     "husky": "^9.1.7",
     "jsr": "^0.14.3",
-    "knip": "^6.32.2",
-    "lint-staged": "^17.3.0",
+    "knip": "^6.35.1",
+    "lint-staged": "^17.5.0",
     "only-allow": "^1.2.2",
     "openapi-typescript": "^7.13.0",
-    "secretlint": "^13.0.4",
+    "secretlint": "^13.0.5",
     "tsup": "^8.5.1",
     "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zod": "^4.4.3"
   }
 }

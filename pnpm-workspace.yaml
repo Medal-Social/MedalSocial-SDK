@@ -7,6 +7,7 @@ packages:
 # used to pin now resolves to the patched version on its own — see the PR.
 overrides:
   esbuild@^0.27.0: 0.28.2
+  js-yaml: 4.3.2   # GHSA-2883-xcg3-v3hh, via @commitlint/cli and openapi-typescript
 
 # Neither package needs its lifecycle scripts to install correctly, and running
 # them would execute third-party code at install time.

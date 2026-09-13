@@ -10,13 +10,7 @@ export default defineConfig({
       // lcov is what the Codecov upload step consumes; text/html are for humans.
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/types/**/*.ts",
-        "src/devices/**/*.ts",
-        "examples/**",
-        "dist/**",
-        "vitest.config.*",
-      ],
+      exclude: ["src/types/**/*.ts", "examples/**", "dist/**", "vitest.config.*"],
       thresholds: {
         lines: 100,
         functions: 100,

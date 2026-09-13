@@ -1,714 +1,313 @@
 #!/usr/bin/env node
-// biome-ignore-all lint/suspicious/noTemplateCurlyInString: the coverage table intentionally lists literal `${...}` snippets expected in SDK source.
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const specPath = resolve("dist/openapi/medal-social.openapi.json");
-if (!existsSync(specPath)) {
-  console.error(
-    "[openapi-coverage] Missing bundled OpenAPI JSON. Run `pnpm openapi:bundle` first.",
-  );
-  process.exit(1);
-}
-
-const spec = JSON.parse(readFileSync(specPath, "utf8"));
-
-const expected = [
-  ["get", "/api/v1/posts", "listPosts", "src/resources/posts.ts", "get", "/api/v1/posts"],
-  ["post", "/api/v1/posts", "createPost", "src/resources/posts.ts", "postOnce", "/api/v1/posts"],
-  [
-    "get",
-    "/api/v1/posts/{id}",
-    "getPost",
-    "src/resources/posts.ts",
-    "get",
-    "/api/v1/posts/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/posts/{id}",
-    "updatePost",
-    "src/resources/posts.ts",
-    "patch",
-    "/api/v1/posts/${encodeURIComponent(id)}",
-  ],
-  [
-    "delete",
-    "/api/v1/posts/{id}",
-    "deletePost",
-    "src/resources/posts.ts",
-    "delete",
-    "/api/v1/posts/${encodeURIComponent(id)}",
-  ],
-  [
-    "post",
-    "/api/v1/posts/{id}/schedule",
-    "schedulePost",
-    "src/resources/posts.ts",
-    "post",
-    "/api/v1/posts/${encodeURIComponent(id)}/schedule",
-  ],
-  [
-    "post",
-    "/api/v1/posts/{id}/publish",
-    "publishPost",
-    "src/resources/posts.ts",
-    "post",
-    "/api/v1/posts/${encodeURIComponent(id)}/publish",
-  ],
-  [
-    "get",
-    "/api/v1/posts/channels",
-    "listPostChannels",
-    "src/resources/posts.ts",
-    "get",
-    "/api/v1/posts/channels",
-  ],
-  ["post", "/api/v1/emails", "sendEmail", "src/resources/emails.ts", "postOnce", "/api/v1/emails"],
-  [
-    "get",
-    "/api/v1/emails/{id}",
-    "getEmailSend",
-    "src/resources/emails.ts",
-    "get",
-    "/api/v1/emails/${encodeURIComponent(id)}",
-  ],
-  [
-    "post",
-    "/api/v1/emails/batch",
-    "batchSendEmails",
-    "src/resources/emails.ts",
-    "postOnce",
-    "/api/v1/emails/batch",
-  ],
-  [
-    "get",
-    "/api/v1/emails/templates",
-    "listEmailTemplates",
-    "src/resources/emails.ts",
-    "get",
-    "/api/v1/emails/templates",
-  ],
-  [
-    "get",
-    "/api/v1/emails/templates/{slug}",
-    "getEmailTemplate",
-    "src/resources/emails.ts",
-    "get",
-    "/api/v1/emails/templates/${encodeURIComponent(slug)}",
-  ],
-  [
-    "get",
-    "/api/v1/contacts",
-    "listContacts",
-    "src/resources/contacts.ts",
-    "get",
-    "/api/v1/contacts",
-  ],
-  [
-    "post",
-    "/api/v1/contacts",
-    "createContact",
-    "src/resources/contacts.ts",
-    "postOnce",
-    "/api/v1/contacts",
-  ],
-  [
-    "get",
-    "/api/v1/contacts/{id}",
-    "getContact",
-    "src/resources/contacts.ts",
-    "get",
-    "/api/v1/contacts/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/contacts/{id}",
-    "updateContact",
-    "src/resources/contacts.ts",
-    "patch",
-    "/api/v1/contacts/${encodeURIComponent(id)}",
-  ],
-  [
-    "delete",
-    "/api/v1/contacts/{id}",
-    "deleteContact",
-    "src/resources/contacts.ts",
-    "delete",
-    "/api/v1/contacts/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/contacts/{id}/activities",
-    "listContactActivities",
-    "src/resources/contacts.ts",
-    "get",
-    "/api/v1/contacts/${encodeURIComponent(id)}/activities",
-  ],
-  [
-    "post",
-    "/api/v1/contacts/{id}/notes",
-    "addContactNote",
-    "src/resources/contacts.ts",
-    "postOnce",
-    "/api/v1/contacts/${encodeURIComponent(id)}/notes",
-  ],
-  [
-    "post",
-    "/api/v1/contacts/import",
-    "importContacts",
-    "src/resources/contacts.ts",
-    "postOnce",
-    "/api/v1/contacts/import",
-  ],
-  ["get", "/api/v1/deals", "listDeals", "src/resources/deals.ts", "get", "/api/v1/deals"],
-  ["post", "/api/v1/deals", "createDeal", "src/resources/deals.ts", "postOnce", "/api/v1/deals"],
-  [
-    "get",
-    "/api/v1/deals/{id}",
-    "getDeal",
-    "src/resources/deals.ts",
-    "get",
-    "/api/v1/deals/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/deals/{id}",
-    "updateDeal",
-    "src/resources/deals.ts",
-    "patch",
-    "/api/v1/deals/${encodeURIComponent(id)}",
-  ],
-  [
-    "delete",
-    "/api/v1/deals/{id}",
-    "deleteDeal",
-    "src/resources/deals.ts",
-    "delete",
-    "/api/v1/deals/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/bookings",
-    "listBookings",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings",
-  ],
-  [
-    "post",
-    "/api/v1/bookings",
-    "createBooking",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/services",
-    "listBookingServices",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/services",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/resources",
-    "listBookingResources",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/resources",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/availability",
-    "listBookingAvailability",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/availability",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/schedule",
-    "listBookingSchedule",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/schedule",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/persons",
-    "listContactPersons",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/persons",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/persons",
-    "createContactPerson",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/persons",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/relations",
-    "listContactRelations",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/relations",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/relations",
-    "createContactRelation",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/relations",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/events",
-    "listBookingEvents",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/events",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/events",
-    "createBookingEvent",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/events",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/events/{id}",
-    "getBookingEvent",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/events/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/{id}",
-    "getBooking",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/bookings/{id}",
-    "updateBooking",
-    "src/resources/bookings.ts",
-    "patch",
-    "/api/v1/bookings/${encodeURIComponent(id)}",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/{id}/cancel",
-    "cancelBooking",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/${encodeURIComponent(id)}/cancel",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/{id}/reschedule",
-    "rescheduleBooking",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/${encodeURIComponent(id)}/reschedule",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/{id}/no-show",
-    "markBookingNoShow",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/${encodeURIComponent(id)}/no-show",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/manage/{token}",
-    "getManagedBooking",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/manage/${encodeURIComponent(token)}",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/manage/{token}/cancel",
-    "cancelManagedBooking",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/manage/${encodeURIComponent(token)}/cancel",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/manage/{token}/reschedule",
-    "rescheduleManagedBooking",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/manage/${encodeURIComponent(token)}/reschedule",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/{id}/payment",
-    "startBookingPayment",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/${encodeURIComponent(id)}/payment",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/{id}/payment",
-    "getBookingPayment",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/${encodeURIComponent(id)}/payment",
-  ],
-  [
-    "post",
-    "/api/v1/bookings/manage/{token}/payment",
-    "startManageBookingPayment",
-    "src/resources/bookings.ts",
-    "postOnce",
-    "/api/v1/bookings/manage/${encodeURIComponent(token)}/payment",
-  ],
-  [
-    "get",
-    "/api/v1/bookings/manage/{token}/payment",
-    "getManageBookingPayment",
-    "src/resources/bookings.ts",
-    "get",
-    "/api/v1/bookings/manage/${encodeURIComponent(token)}/payment",
-  ],
-  [
-    "post",
-    "/api/v1/portal/login/start",
-    "startPortalLogin",
-    "src/resources/portal.ts",
-    "post",
-    "/api/v1/portal/login/start",
-  ],
-  [
-    "post",
-    "/api/v1/portal/login/verify",
-    "verifyPortalLogin",
-    "src/resources/portal.ts",
-    "post",
-    "/api/v1/portal/login/verify",
-  ],
-  [
-    "post",
-    "/api/v1/portal/logout",
-    "logoutPortal",
-    "src/resources/portal.ts",
-    "post",
-    "/api/v1/portal/logout",
-  ],
-  [
-    "get",
-    "/api/v1/portal/me",
-    "getPortalProfile",
-    "src/resources/portal.ts",
-    "get",
-    "/api/v1/portal/me",
-  ],
-  [
-    "patch",
-    "/api/v1/portal/me",
-    "updatePortalProfile",
-    "src/resources/portal.ts",
-    "patch",
-    "/api/v1/portal/me",
-  ],
-  [
-    "get",
-    "/api/v1/portal/me/bookings",
-    "listPortalBookings",
-    "src/resources/portal.ts",
-    "get",
-    "/api/v1/portal/me/bookings",
-  ],
-  [
-    "post",
-    "/api/v1/portal/me/export",
-    "exportPortalData",
-    "src/resources/portal.ts",
-    "post",
-    "/api/v1/portal/me/export",
-  ],
-  [
-    "post",
-    "/api/v1/portal/me/delete",
-    "deletePortalAccount",
-    "src/resources/portal.ts",
-    "post",
-    "/api/v1/portal/me/delete",
-  ],
-  [
-    "post",
-    "/api/v1/gdpr/export",
-    "requestGdprExport",
-    "src/resources/gdpr.ts",
-    "postOnce",
-    "/api/v1/gdpr/export",
-  ],
-  [
-    "get",
-    "/api/v1/gdpr/exports",
-    "listGdprExports",
-    "src/resources/gdpr.ts",
-    "get",
-    "/api/v1/gdpr/exports",
-  ],
-  [
-    "get",
-    "/api/v1/gdpr/exports/{id}",
-    "getGdprExport",
-    "src/resources/gdpr.ts",
-    "get",
-    "/api/v1/gdpr/exports/${encodeURIComponent(id)}",
-  ],
-  [
-    "post",
-    "/api/v1/gdpr/consent",
-    "recordGdprConsent",
-    "src/resources/gdpr.ts",
-    "post",
-    "/api/v1/gdpr/consent",
-  ],
-  [
-    "get",
-    "/api/v1/gdpr/consent/{email}",
-    "getGdprConsent",
-    "src/resources/gdpr.ts",
-    "get",
-    "/api/v1/gdpr/consent/${encodeURIComponent(email)}",
-  ],
-  [
-    "post",
-    "/api/cookie-consent",
-    "recordCookieConsent",
-    "src/resources/gdpr.ts",
-    "post",
-    "/api/cookie-consent",
-  ],
-  [
-    "get",
-    "/api/v1/me/workspaces",
-    "listWorkspaces",
-    "src/resources/workspaces.ts",
-    "get",
-    "/api/v1/me/workspaces",
-  ],
-  [
-    "get",
-    "/api/v1/helpdesk/conversations",
-    "listHelpdeskConversations",
-    "src/resources/helpdesk.ts",
-    "get",
-    "/api/v1/helpdesk/conversations",
-  ],
-  [
-    "get",
-    "/api/v1/helpdesk/conversations/{id}",
-    "getHelpdeskConversation",
-    "src/resources/helpdesk.ts",
-    "get",
-    "/api/v1/helpdesk/conversations/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/helpdesk/conversations/{id}",
-    "updateHelpdeskConversation",
-    "src/resources/helpdesk.ts",
-    "patch",
-    "/api/v1/helpdesk/conversations/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/helpdesk/conversations/{id}/messages",
-    "listHelpdeskConversationMessages",
-    "src/resources/helpdesk.ts",
-    "get",
-    "/api/v1/helpdesk/conversations/${encodeURIComponent(id)}/messages",
-  ],
-  [
-    "post",
-    "/api/v1/helpdesk/replies",
-    "createHelpdeskReply",
-    "src/resources/helpdesk.ts",
-    "postOnce",
-    "/api/v1/helpdesk/replies",
-  ],
-  [
-    "get",
-    "/api/v1/webhooks",
-    "listWebhooks",
-    "src/resources/webhooks.ts",
-    "get",
-    "/api/v1/webhooks",
-  ],
-  [
-    "post",
-    "/api/v1/webhooks",
-    "createWebhook",
-    "src/resources/webhooks.ts",
-    "postOnce",
-    "/api/v1/webhooks",
-  ],
-  [
-    "get",
-    "/api/v1/webhooks/{id}",
-    "getWebhook",
-    "src/resources/webhooks.ts",
-    "get",
-    "/api/v1/webhooks/${encodeURIComponent(id)}",
-  ],
-  [
-    "patch",
-    "/api/v1/webhooks/{id}",
-    "updateWebhook",
-    "src/resources/webhooks.ts",
-    "patch",
-    "/api/v1/webhooks/${encodeURIComponent(id)}",
-  ],
-  [
-    "delete",
-    "/api/v1/webhooks/{id}",
-    "deleteWebhook",
-    "src/resources/webhooks.ts",
-    "delete",
-    "/api/v1/webhooks/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/webhooks/{id}/deliveries",
-    "listWebhookDeliveries",
-    "src/resources/webhooks.ts",
-    "get",
-    "/api/v1/webhooks/${encodeURIComponent(id)}/deliveries",
-  ],
-  [
-    "post",
-    "/api/v1/webhooks/{id}/test",
-    "testWebhook",
-    "src/resources/webhooks.ts",
-    "post",
-    "/api/v1/webhooks/${encodeURIComponent(id)}/test",
-  ],
-  [
-    "post",
-    "/api/v1/capability-confirmations",
-    "issueCapabilityConfirmation",
-    "src/resources/capability-confirmations.ts",
-    "post",
-    "/api/v1/capability-confirmations",
-  ],
-  [
-    "post",
-    "/api/v1/channels/connect-links",
-    "createChannelConnectLink",
-    "src/resources/channels.ts",
-    "postOnce",
-    "/api/v1/channels/connect-links",
-  ],
-  [
-    "get",
-    "/api/v1/channels/connect-links",
-    "listChannelConnectLinks",
-    "src/resources/channels.ts",
-    "get",
-    "/api/v1/channels/connect-links",
-  ],
-  [
-    "delete",
-    "/api/v1/channels/connect-links/{id}",
-    "revokeChannelConnectLink",
-    "src/resources/channels.ts",
-    "delete",
-    "/api/v1/channels/connect-links/${encodeURIComponent(id)}",
-  ],
-  [
-    "get",
-    "/api/v1/channels/connections",
-    "listChannelConnections",
-    "src/resources/channels.ts",
-    "get",
-    "/api/v1/channels/connections",
-  ],
-  [
-    "delete",
-    "/api/v1/channels/connections/{id}",
-    "disconnectChannelConnection",
-    "src/resources/channels.ts",
-    "delete",
-    "/api/v1/channels/connections/${encodeURIComponent(id)}",
-  ],
-  ["post", "/api/v1/scan", "createScan", "src/resources/scan.ts", "postOnce", "/api/v1/scan"],
-  [
-    "get",
-    "/api/v1/scan/companies",
-    "searchScanCompanies",
-    "src/resources/scan.ts",
-    "get",
-    "/api/v1/scan/companies",
-  ],
-  [
-    "get",
-    "/api/v1/scan/{id}",
-    "getScan",
-    "src/resources/scan.ts",
-    "get",
-    "/api/v1/scan/${encodeURIComponent(id)}",
-  ],
-];
-
-const errors = [];
-const sourceCache = new Map();
-const openApiMethods = new Set([
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-]);
+/**
+ * Two gates over the SDK's OpenAPI contract.
+ *
+ * 1. SELF-COVERAGE — every operation the SDK's own document declares is
+ *    reachable from `src/resources/**`, with an operationId and a tag.
+ * 2. API PARITY — every `/api/v1/**` operation (and every closed request enum)
+ *    the MEDAL API's published document declares exists in the SDK's document
+ *    too.
+ *
+ * The first check used to be the whole script, driven by a hand-written table
+ * of 89 tuples: it compared the SDK to itself, so a route or an enum value
+ * missing from BOTH the SDK's code and the SDK's document was invisible — which
+ * is how the wrong deal statuses, the wrong contact statuses, the refused
+ * portal locale and eight missing bookings/portal routes all shipped green
+ * (audit SDK-1/2/3/6/7). The table is gone; the operation list is derived from
+ * the document, and the second check is what makes the gate able to see a gap
+ * at all.
+ *
+ * The reference is a SNAPSHOT of the API's surface, committed at
+ * `openapi/reference/medal-api-v1-surface.json`, so the parity check runs on
+ * every CI job in this repo with no access to the private monorepo. Refresh it
+ * from a monorepo checkout (the SDK is a submodule there, so the file is
+ * already on disk):
+ *
+ *   node scripts/assert-openapi-sdk-coverage.mjs \
+ *     --reference-source ../../apps/web/src/lib/openapi-spec.ts \
+ *     --write-reference openapi/reference/medal-api-v1-surface.json
+ *   pnpm exec biome format --write openapi/reference/medal-api-v1-surface.json
+ *
+ * The second line is not optional: the snapshot is a committed file, so
+ * `pnpm lint` formats it like any other JSON, and this script writes plain
+ * `JSON.stringify(…, 2)` with no formatter of its own.
+ *
+ * and run the check straight against the live document — the strongest form,
+ * because it also catches a stale snapshot — with:
+ *
+ *   node scripts/assert-openapi-sdk-coverage.mjs \
+ *     --reference ../../apps/web/src/lib/openapi-spec.ts
+ *
+ * Known, reviewed differences live in `openapi/parity-exceptions.json`, each
+ * with a reason. An exception that no longer matches anything is an ERROR, so
+ * the file cannot quietly rot into a blanket waiver.
+ */
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 /**
- * @param {string} sourcePath
- * @returns {string | null}
+ * @typedef {{ operationId: string | null, tags: string[], facts: Record<string, string[]> }} OperationSurface
  */
-function readSourceFile(sourcePath) {
-  if (sourceCache.has(sourcePath)) {
-    return sourceCache.get(sourcePath);
-  }
 
-  const resolvedSourcePath = resolve(sourcePath);
-  if (!existsSync(resolvedSourcePath)) {
-    errors.push(`${sourcePath} does not exist for SDK coverage checks`);
-    sourceCache.set(sourcePath, null);
+const HTTP_METHODS = new Set(["get", "put", "post", "delete", "patch"]);
+/** @type {Record<string, string[]>} Which `BaseClient` method may serve an OpenAPI method. */
+const CLIENT_METHODS = {
+  get: ["get"],
+  post: ["post", "postOnce"],
+  put: ["put"],
+  patch: ["patch"],
+  delete: ["delete"],
+};
+const RESOURCE_DIR = "src/resources";
+const DEFAULT_SPEC = "dist/openapi/medal-social.openapi.json";
+const DEFAULT_REFERENCE = "openapi/reference/medal-api-v1-surface.json";
+const DEFAULT_EXCEPTIONS = "openapi/parity-exceptions.json";
+/**
+ * A floor on both documents, so an empty, truncated or wrong-shaped input
+ * cannot pass by having nothing to check. Both sides carry ~100 operations; a
+ * legitimate shrink past this is a deliberate act and a one-line edit here.
+ */
+const MIN_OPERATIONS = 50;
+
+/** @type {string[]} */
+const errors = [];
+/** @type {string[]} */
+const warnings = [];
+
+/** @param {string[]} argv */
+function parseArgs(argv) {
+  /** @type {Record<string, string>} */
+  const args = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+    const key = arg.slice(2);
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith("--")) {
+      errors.push(`--${key} needs a value`);
+      continue;
+    }
+    args[key] = value;
+    i += 1;
+  }
+  return args;
+}
+
+/**
+ * Read a JSON file, or fail the run.
+ * @param {string} path
+ * @param {string} what
+ * @returns {any}
+ */
+function readJson(path, what) {
+  if (!existsSync(path)) {
+    errors.push(`Missing ${what}: ${path}`);
     return null;
   }
-
   try {
-    const source = readFileSync(resolvedSourcePath, "utf8");
-    sourceCache.set(sourcePath, source);
-    return source;
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    errors.push(`Failed to read ${sourcePath}: ${message}`);
-    sourceCache.set(sourcePath, null);
+    errors.push(`${path} is not valid JSON: ${error instanceof Error ? error.message : error}`);
     return null;
   }
+}
+
+/**
+ * Load an OpenAPI document from JSON, or from a TypeScript module that exports
+ * it (the monorepo keeps its published document as `export const openapiSpec`).
+ *
+ * The module's imports are stripped and stubbed: the only thing they contribute
+ * is the server URL, which the surface comparison never reads.
+ *
+ * @param {string} path
+ * @param {string} what
+ * @returns {Promise<any>}
+ */
+async function loadDocument(path, what) {
+  if (/\.json$/i.test(path)) return readJson(path, what);
+  if (!existsSync(path)) {
+    errors.push(`Missing ${what}: ${path}`);
+    return null;
+  }
+  const ts = await import("typescript");
+  const source = readFileSync(path, "utf8");
+  const compiled = ts.default.transpileModule(source, {
+    compilerOptions: {
+      module: ts.default.ModuleKind.ESNext,
+      target: ts.default.ScriptTarget.ESNext,
+    },
+  }).outputText;
+  /** @type {string[]} */
+  const stubs = [];
+  const stripped = compiled.replace(
+    /^\s*import\s+([^;]*?)\s+from\s+['"][^'"]+['"];?\s*$/gm,
+    (/** @type {string} */ _match, /** @type {string} */ clause) => {
+      for (const binding of clause.replace(/[{}]/g, " ").split(",")) {
+        const name = binding
+          .trim()
+          .split(/\s+as\s+/)
+          .pop()
+          ?.trim();
+        if (name) stubs.push(name);
+      }
+      return "";
+    },
+  );
+  const prelude = stubs
+    .map((name) => `const ${name} = new Proxy({}, { get: () => "https://io.medalsocial.com" });`)
+    .join("\n");
+  const url = `data:text/javascript;base64,${Buffer.from(`${prelude}\n${stripped}`, "utf8").toString("base64")}`;
+  const module = await import(url);
+  const document = module.openapiSpec ?? module.default;
+  if (!document?.paths) {
+    errors.push(`${path} does not export an OpenAPI document (expected \`openapiSpec\`)`);
+    return null;
+  }
+  return document;
+}
+
+/**
+ * Resolve local `$ref`s, guarding against cycles.
+ * @param {any} document
+ * @returns {(node: any) => any}
+ */
+function makeResolver(document) {
+  /** @type {Set<string>} */
+  const active = new Set();
+  /** @param {any} node @returns {any} */
+  return function resolveNode(node) {
+    if (!node || typeof node !== "object") return node;
+    if (typeof node.$ref !== "string") return node;
+    if (active.has(node.$ref)) return {};
+    active.add(node.$ref);
+    const segments = node.$ref.replace(/^#\//, "").split("/");
+    let current = document;
+    for (const segment of segments) {
+      current = current?.[segment.replace(/~1/g, "/").replace(/~0/g, "~")];
+    }
+    const resolved = resolveNode(current);
+    active.delete(node.$ref);
+    return resolved;
+  };
+}
+
+/**
+ * Record every string enum under a schema, plus the primitive type at each
+ * location, keyed by a dotted property path (`requestBody.status`,
+ * `responses.200.data[].kind`). The type entries are what tell an enum that is
+ * merely ABSENT from one that is modelled as a different primitive.
+ *
+ * @param {any} schema
+ * @param {(node: any) => any} resolveNode
+ * @param {string} prefix
+ * @param {Record<string, string[]>} out
+ * @param {number} [depth]
+ */
+function collectSchemaFacts(schema, resolveNode, prefix, out, depth = 0) {
+  if (depth > 8) return;
+  const node = resolveNode(schema);
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node.enum)) {
+    const values = node.enum
+      .filter((/** @type {unknown} */ value) => typeof value === "string")
+      .sort();
+    if (values.length > 0) out[prefix] = values;
+  } else if (typeof node.const === "string") {
+    // `const: vipps` is a one-value enum in OpenAPI 3.1 — comparing it as a
+    // plain string would report every single-value field as un-narrowed.
+    out[prefix] = [node.const];
+  } else if (node.type !== undefined) {
+    const types = Array.isArray(node.type) ? node.type : [node.type];
+    out[`${prefix}#type`] = types.includes("string") ? ["string"] : [String(types[0])];
+  }
+  for (const key of ["oneOf", "anyOf", "allOf"]) {
+    for (const branch of node[key] ?? []) {
+      collectSchemaFacts(branch, resolveNode, prefix, out, depth + 1);
+    }
+  }
+  for (const [name, child] of Object.entries(node.properties ?? {})) {
+    collectSchemaFacts(child, resolveNode, prefix ? `${prefix}.${name}` : name, out, depth + 1);
+  }
+  if (node.items) collectSchemaFacts(node.items, resolveNode, `${prefix}[]`, out, depth + 1);
+}
+
+/**
+ * The facts one operation carries: request parameters, request body, 2xx bodies.
+ * @param {any} operation
+ * @param {(node: any) => any} resolveNode
+ */
+function operationFacts(operation, resolveNode) {
+  /** @type {Record<string, string[]>} */
+  const facts = {};
+  for (const parameter of operation.parameters ?? []) {
+    const resolved = resolveNode(parameter);
+    if (!resolved?.name || !resolved.schema) continue;
+    collectSchemaFacts(resolved.schema, resolveNode, `parameters.${resolved.name}`, facts);
+  }
+  const body = resolveNode(operation.requestBody);
+  const bodySchema = body?.content?.["application/json"]?.schema;
+  if (bodySchema) collectSchemaFacts(bodySchema, resolveNode, "requestBody", facts);
+  for (const [status, response] of Object.entries(operation.responses ?? {})) {
+    if (!/^2\d\d$/.test(status)) continue;
+    const schema = resolveNode(response)?.content?.["application/json"]?.schema;
+    if (schema) collectSchemaFacts(schema, resolveNode, `responses.${status}`, facts);
+  }
+  return facts;
+}
+
+/**
+ * `{ "GET /api/v1/contacts": { operationId, tags, facts } }` for one document.
+ * @param {any} document
+ * @param {(path: string) => boolean} [keepPath]
+ * @returns {Map<string, OperationSurface>}
+ */
+function documentSurface(document, keepPath = () => true) {
+  const resolveNode = makeResolver(document);
+  /** @type {Map<string, OperationSurface>} */
+  const surface = new Map();
+  for (const [path, item] of Object.entries(document.paths ?? {})) {
+    if (!item || typeof item !== "object" || !keepPath(path)) continue;
+    const shared = item.parameters ?? [];
+    for (const [method, operation] of Object.entries(item)) {
+      if (!HTTP_METHODS.has(method)) continue;
+      const merged = { ...operation, parameters: [...shared, ...(operation.parameters ?? [])] };
+      surface.set(`${method.toUpperCase()} ${path}`, {
+        operationId: operation.operationId ?? null,
+        tags: Array.isArray(operation.tags) ? operation.tags : [],
+        facts: operationFacts(merged, resolveNode),
+      });
+    }
+  }
+  return surface;
+}
+
+/**
+ * The template literal a resource method would use for an OpenAPI path.
+ * @param {string} path
+ */
+function clientPathNeedle(path) {
+  return path.replace(
+    /\{([^}]+)\}/g,
+    (/** @type {string} */ _match, /** @type {string} */ name) => `\${encodeURIComponent(${name})}`,
+  );
+}
+
+/** @type {Map<string, string>} */
+const sourceCache = new Map();
+function resourceSources() {
+  if (sourceCache.size > 0) return sourceCache;
+  const dir = resolve(RESOURCE_DIR);
+  if (!existsSync(dir)) {
+    errors.push(`${RESOURCE_DIR} does not exist`);
+    return sourceCache;
+  }
+  // The listing is read rather than hard-coded so a new resource file needs no
+  // edit here.
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith(".ts")) continue;
+    sourceCache.set(`${RESOURCE_DIR}/${name}`, readFileSync(resolve(dir, name), "utf8"));
+  }
+  return sourceCache;
 }
 
 /** @param {string} value */
@@ -717,78 +316,216 @@ function escapeRegExp(value) {
 }
 
 /**
- * @param {string} source
- * @param {string} clientMethod
- * @param {string} pathArgument
+ * Does any resource file call the client for this method + path?
+ * @param {string} method
+ * @param {string} path
  */
-function hasClientCall(source, clientMethod, pathArgument) {
-  const escapedPath = escapeRegExp(pathArgument);
-  const callPattern = new RegExp(`this\\.client\\.${clientMethod}\\(\\s*(["'\`])${escapedPath}\\1`);
-  return callPattern.test(source);
-}
-
-if (spec.openapi !== "3.1.0") {
-  errors.push(`Expected openapi 3.1.0, got ${spec.openapi ?? "<missing>"}`);
-}
-
-if (spec.jsonSchemaDialect !== "https://json-schema.org/draft/2020-12/schema") {
-  errors.push("Expected JSON Schema 2020-12 dialect declaration.");
-}
-
-const expectedOperationKeys = new Map();
-for (const [method, path, operationId] of expected) {
-  const key = `${method.toUpperCase()} ${path}`;
-  if (expectedOperationKeys.has(key)) {
-    errors.push(`${key} is duplicated in expected OpenAPI coverage entries`);
+function hasClientCall(method, path) {
+  const needle = escapeRegExp(clientPathNeedle(path));
+  const verbs = CLIENT_METHODS[method.toLowerCase()] ?? [];
+  const pattern = new RegExp(
+    `this\\.client\\.(?:${verbs.join("|")})(?:<[^>]*>)?\\(\\s*(["'\`])${needle}\\1`,
+  );
+  for (const source of resourceSources().values()) {
+    if (pattern.test(source)) return true;
   }
-  expectedOperationKeys.set(key, operationId);
+  return false;
 }
 
-for (const [path, pathItem] of Object.entries(spec.paths ?? {})) {
-  if (!pathItem || typeof pathItem !== "object") {
-    continue;
-  }
+// ── run ───────────────────────────────────────────────────────
+const args = parseArgs(process.argv.slice(2));
+const EXCEPTIONS_FILE = args.exceptions ?? DEFAULT_EXCEPTIONS;
 
-  for (const [method, operation] of Object.entries(pathItem)) {
-    if (!openApiMethods.has(method)) {
-      continue;
+// ── exceptions ────────────────────────────────────────────────
+const exceptions = existsSync(EXCEPTIONS_FILE)
+  ? (readJson(EXCEPTIONS_FILE, "parity exceptions") ?? {})
+  : {};
+/** @type {Map<string, { reason: string, used: boolean }>} */
+const exceptionIndex = new Map();
+for (const group of ["no_client_method", "missing_from_sdk", "enum_locations"]) {
+  for (const entry of exceptions[group] ?? []) {
+    const key = `${group}:${entry.op ?? entry.at}`;
+    if (!entry.reason || entry.reason.trim().length < 20) {
+      errors.push(`${EXCEPTIONS_FILE}: ${key} needs a reason of its own (20+ characters)`);
     }
+    exceptionIndex.set(key, { reason: entry.reason ?? "", used: false });
+  }
+}
+/** @param {string} group @param {string} key */
+function excused(group, key) {
+  const entry = exceptionIndex.get(`${group}:${key}`);
+  if (!entry) return false;
+  entry.used = true;
+  return true;
+}
 
-    const key = `${method.toUpperCase()} ${path}`;
-    if (!expectedOperationKeys.has(key)) {
-      const operationId = operation?.operationId ?? "<missing operationId>";
-      errors.push(`OpenAPI operation ${key} (${operationId}) is not covered by the SDK matrix`);
-    }
+const specPath = args.spec ?? DEFAULT_SPEC;
+const spec = await loadDocument(specPath, "bundled OpenAPI document (run `pnpm openapi:bundle`)");
+
+if (spec) {
+  if (spec.openapi !== "3.1.0") {
+    errors.push(`Expected openapi 3.1.0, got ${spec.openapi ?? "<missing>"}`);
+  }
+  if (spec.jsonSchemaDialect !== "https://json-schema.org/draft/2020-12/schema") {
+    errors.push("Expected JSON Schema 2020-12 dialect declaration.");
   }
 }
 
-for (const [method, path, operationId, sourcePath, clientMethod, sourceNeedle] of expected) {
-  const operation = spec.paths?.[path]?.[method];
-  if (!operation) {
-    errors.push(`Missing OpenAPI operation ${method.toUpperCase()} ${path}`);
-    continue;
+const sdkSurface = spec ? documentSurface(spec) : new Map();
+if (spec && sdkSurface.size < MIN_OPERATIONS) {
+  errors.push(
+    `${specPath} declares only ${sdkSurface.size} operations (floor ${MIN_OPERATIONS}) — a truncated document would make every check below vacuous`,
+  );
+}
+
+// 1. Self-coverage.
+for (const [key, operation] of sdkSurface) {
+  const [method, path] = key.split(" ");
+  if (!operation.operationId) errors.push(`${key} is missing an operationId`);
+  if (operation.tags.length === 0) errors.push(`${key} is missing tags`);
+  if (hasClientCall(method, path)) continue;
+  if (excused("no_client_method", key)) continue;
+  errors.push(
+    `${key} (${operation.operationId ?? "?"}) has no this.client.* call in ${RESOURCE_DIR}/ — add the method, or record it in ${EXCEPTIONS_FILE}`,
+  );
+}
+
+// 2. Reference parity, or snapshot regeneration.
+if (args["write-reference"]) {
+  const sourcePath = args["reference-source"];
+  if (!sourcePath) {
+    errors.push("--write-reference needs --reference-source <api openapi document>");
+  } else {
+    const source = await loadDocument(sourcePath, "reference API document");
+    if (source) {
+      const surface = documentSurface(source, (path) => path.startsWith("/api/v1/"));
+      /** @type {Record<string, { operationId: string | null, facts: Record<string, string[]> }>} */
+      const operations = {};
+      for (const [key, operation] of [...surface].sort(([a], [b]) => (a < b ? -1 : 1))) {
+        operations[key] = { operationId: operation.operationId, facts: operation.facts };
+      }
+      const snapshot = {
+        note: "Generated surface snapshot of the Medal API's published OpenAPI document — paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
+        generated_at: new Date().toISOString().slice(0, 10),
+        source: sourcePath,
+        operation_count: Object.keys(operations).length,
+        operations,
+      };
+      const out = args["write-reference"];
+      mkdirSync(dirname(out), { recursive: true });
+      writeFileSync(out, `${JSON.stringify(snapshot, null, 2)}\n`);
+      console.log(
+        `[openapi-coverage] wrote ${Object.keys(operations).length} operations to ${out}`,
+      );
+    }
   }
-  if (operation.operationId !== operationId) {
+} else {
+  const referencePath = args.reference ?? DEFAULT_REFERENCE;
+  /** @type {Record<string, { operationId?: string | null, facts?: Record<string, string[]> }> | null} */
+  let referenceOperations = null;
+  if (/\.json$/i.test(referencePath) && !args.reference) {
+    const snapshot = readJson(referencePath, "API surface snapshot");
+    referenceOperations = snapshot?.operations ?? null;
+    if (snapshot && !snapshot.operations) {
+      errors.push(`${referencePath} has no \`operations\` — regenerate it with --write-reference`);
+    }
+  } else {
+    const document = await loadDocument(referencePath, "reference API document");
+    if (document) {
+      if (!document.paths || typeof document.paths !== "object") {
+        errors.push(
+          `${referencePath} is not an OpenAPI document (no \`paths\`) — pass the API's document, or drop --reference to use the committed snapshot`,
+        );
+      }
+      referenceOperations = {};
+      for (const [key, operation] of documentSurface(document, (path) =>
+        path.startsWith("/api/v1/"),
+      )) {
+        referenceOperations[key] = { operationId: operation.operationId, facts: operation.facts };
+      }
+    }
+  }
+
+  if (referenceOperations && Object.keys(referenceOperations).length < MIN_OPERATIONS) {
     errors.push(
-      `${method.toUpperCase()} ${path} has operationId ${
-        operation.operationId ?? "<missing>"
-      }; expected ${operationId}`,
+      `${referencePath} carries only ${Object.keys(referenceOperations).length} /api/v1 operations (floor ${MIN_OPERATIONS}) — refusing to call that parity`,
     );
   }
-  if (!Array.isArray(operation.tags) || operation.tags.length === 0) {
-    errors.push(`${operationId} is missing tags`);
+
+  if (referenceOperations) {
+    for (const [key, reference] of Object.entries(referenceOperations)) {
+      const sdkOperation = sdkSurface.get(key);
+      if (!sdkOperation) {
+        if (excused("missing_from_sdk", key)) continue;
+        errors.push(
+          `${key} (${reference.operationId ?? "?"}) exists in the Medal API but not in the SDK document`,
+        );
+        continue;
+      }
+      if (
+        reference.operationId &&
+        sdkOperation.operationId &&
+        reference.operationId !== sdkOperation.operationId
+      ) {
+        // Advisory only: the ids are the API's own names for the operations and
+        // the SDK's are part of its published generated types, so renaming
+        // either is a deliberate, breaking act — not something a gate should
+        // force.
+        warnings.push(
+          `${key} operationId differs — API "${reference.operationId}", SDK "${sdkOperation.operationId}"`,
+        );
+      }
+      for (const [location, values] of Object.entries(reference.facts ?? {})) {
+        if (location.endsWith("#type")) continue;
+        const at = `${key} @ ${location}`;
+        const mine = sdkOperation.facts[location];
+        const myType = sdkOperation.facts[`${location}#type`]?.[0];
+        const isRequest = location.startsWith("parameters.") || location.startsWith("requestBody");
+        if (mine) {
+          if (mine.join("|") === values.join("|")) continue;
+          if (excused("enum_locations", at)) continue;
+          errors.push(`${at} enum drift — API [${values.join(", ")}], SDK [${mine.join(", ")}]`);
+          continue;
+        }
+        if (excused("enum_locations", at)) continue;
+        if (myType && myType !== "string") {
+          // Modelled as a different primitive (a boolean query flag against the
+          // API's "true"/"1" string enum, say): compatible on the wire, so this
+          // is a note rather than drift.
+          warnings.push(`${at} is a ${myType} in the SDK where the API declares a string enum`);
+          continue;
+        }
+        if (!myType) {
+          if (isRequest) {
+            errors.push(`${at} exists in the Medal API but not in the SDK document`);
+          } else {
+            warnings.push(`${at} exists in the Medal API but not in the SDK document`);
+          }
+          continue;
+        }
+        if (isRequest) {
+          errors.push(
+            `${at} is an open string in the SDK where the API accepts only [${values.join(", ")}]`,
+          );
+        } else {
+          warnings.push(
+            `${at} is an open string in the SDK where the API answers only [${values.join(", ")}]`,
+          );
+        }
+      }
+    }
   }
 
-  const source = readSourceFile(sourcePath);
-  if (source === null) {
-    continue;
+  for (const [key, entry] of exceptionIndex) {
+    if (!entry.used) {
+      errors.push(`${EXCEPTIONS_FILE}: ${key} no longer matches anything — remove it`);
+    }
   }
+}
 
-  if (!hasClientCall(source, clientMethod, sourceNeedle)) {
-    errors.push(
-      `${sourcePath} is missing this.client.${clientMethod}(${sourceNeedle}) for ${operationId}`,
-    );
-  }
+if (warnings.length > 0) {
+  console.warn(`[openapi-coverage] ${warnings.length} advisory difference(s):`);
+  for (const warning of warnings) console.warn(`  ~ ${warning}`);
 }
 
 if (errors.length > 0) {
@@ -797,4 +534,6 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`[openapi-coverage] OK — ${expected.length} SDK operations covered by OpenAPI 3.1.`);
+console.log(
+  `[openapi-coverage] OK — ${sdkSurface.size} SDK operations, all reachable from ${RESOURCE_DIR}/ and in parity with the Medal API surface.`,
+);

@@ -1,5 +1,14 @@
 import type { PaginationOptions } from "./common";
 
+/**
+ * The channel types a hosted connect link can attach.
+ *
+ * Closed on purpose: the server resolves `channel_type` through its connect
+ * ADAPTER registry, which holds exactly these two, so anything else is refused
+ * rather than stored. A new adapter is a new SDK release.
+ */
+export type ChannelType = "telegram_inbox" | "linkedin";
+
 /** Lifecycle status of a hosted connect link. */
 export type ConnectLinkStatus = "pending" | "consumed" | "expired" | "revoked";
 
@@ -8,8 +17,8 @@ export type ChannelConnectionState = "connecting" | "active" | "disconnected" | 
 
 /** Input for minting a hosted connect link. */
 export interface CreateConnectLinkInput {
-  /** Channel type to connect (e.g. `telegram_inbox`). */
-  channel_type: string;
+  /** Channel type to connect. */
+  channel_type: ChannelType;
   /** Display label shown on the hosted connect page (max 100 characters). */
   label?: string;
   /** URL the hosted page redirects to after a successful connect — must be https. */
@@ -27,7 +36,7 @@ export interface ConnectLinkCreateResult {
    * be retrieved again.
    */
   url?: string;
-  channel_type: string;
+  channel_type: ChannelType;
   label: string | null;
   status: ConnectLinkStatus;
   /** Unix timestamp in milliseconds when the link expires. */
@@ -37,7 +46,7 @@ export interface ConnectLinkCreateResult {
 /** A hosted connect link (list view — tokens are never returned). */
 export interface ConnectLink {
   id: string;
-  channel_type: string;
+  channel_type: ChannelType;
   label: string | null;
   status: ConnectLinkStatus;
   /** Stable ref of the connection created by consuming this link, or `null`. */
@@ -50,7 +59,7 @@ export interface ConnectLink {
 
 /** Filters and cursor pagination for listing connect links. */
 export interface ListConnectLinksOptions extends PaginationOptions {
-  channel_type?: string;
+  channel_type?: ChannelType;
   status?: ConnectLinkStatus;
 }
 
@@ -63,7 +72,7 @@ export interface ConnectLinkRevokeResult {
 /** A channel connection attached to the workspace (generic, channel-agnostic shape). */
 export interface ChannelConnection {
   id: string;
-  channel_type: string;
+  channel_type: ChannelType;
   label: string | null;
   state: ChannelConnectionState;
   /** Privacy-preserving identity handle (e.g. a masked phone number). */

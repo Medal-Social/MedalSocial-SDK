@@ -1,4 +1,31 @@
-import type { PaginationOptions } from "./common";
+import type { PaginationOptions, TimestampInput } from "./common";
+
+/**
+ * Lifecycle status of a post — the only values the post row can hold.
+ *
+ * `partial` means some variants published and some failed; `unpublished`
+ * means every published variant was taken down again.
+ */
+export type PostStatus =
+  | "draft"
+  | "review"
+  | "approved"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "failed"
+  | "partial"
+  | "unpublished";
+
+/** Publishing state of a single per-channel variant. */
+export type PostVariantStatus =
+  | "pending"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "failed"
+  | "unpublishing"
+  | "unpublished";
 
 /** A post in the workspace (list view). */
 export interface Post {
@@ -6,7 +33,7 @@ export interface Post {
   type: PostType;
   title: string | null;
   content: string;
-  status: string;
+  status: PostStatus;
   channel_ids: string[];
   variant_count: number;
   published_count: number;
@@ -25,7 +52,7 @@ export interface PostVariant {
   id: string;
   channel_id: string;
   content: string;
-  status: string;
+  status: PostVariantStatus;
   platform: string | null;
   channel_display_name: string | null;
   scheduled_at: string | null;
@@ -72,8 +99,20 @@ export interface SchedulePostInput {
 
 /** Options for listing posts with pagination and filters. */
 export interface ListPostsOptions extends PaginationOptions {
-  status?: string;
+  status?: PostStatus;
   type?: PostType;
+  /** Inclusive lower bound on `scheduled_at`. */
+  scheduled_from?: TimestampInput;
+  /** Inclusive upper bound on `scheduled_at`. */
+  scheduled_to?: TimestampInput;
+  /** Inclusive lower bound on `published_at`. */
+  published_from?: TimestampInput;
+  /** Inclusive upper bound on `published_at`. */
+  published_to?: TimestampInput;
+  /** Only posts targeting at least one of these platforms (serialised as CSV, e.g. `linkedin,x`). */
+  platforms?: string[];
+  /** Free-text search across title and content. */
+  query?: string;
 }
 
 /** Result returned after scheduling a post. */

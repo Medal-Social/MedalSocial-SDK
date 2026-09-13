@@ -415,6 +415,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/bookings/today": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The salon's operating summary for one local date
+     * @description Counts, the opening window, the next free gap and the day's takings split by provider. `date_key` is the WORKSPACE's calendar date, so a caller in another zone still reads the salon's day; omit it for today. `truncated` means a source hit its read cap and the counts are floors.
+     */
+    get: operations["getBookingsToday"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/attention": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Open items that need a human
+     * @description Derived on every call from facts recorded elsewhere: a failed payment, a released hold, a waitlist offer about to expire, an arrangement missing consent. NOT a page — `truncated` is a read budget rather than a cursor, and `total` is exact only while it is false. Items carry no prose: render the sentence from `kind`.
+     */
+    get: operations["getBookingAttention"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/bookings/persons": {
     parameters: {
       query?: never;
@@ -428,7 +468,10 @@ export interface paths {
      */
     get: operations["listContactPersons"];
     put?: never;
-    /** Add a person under a contact */
+    /**
+     * Add a person under a contact
+     * @description Find-or-create: `201` when a person row was inserted, `200` when an existing person under the same contact answered the name match.
+     */
     post: operations["createContactPerson"];
     delete?: never;
     options?: never;
@@ -475,6 +518,52 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/bookings/events/hosts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List arrangement hosts
+     * @description Every host, name-sorted, so a public landing page can resolve one by `slug` instead of putting the host id in a URL.
+     */
+    get: operations["listBookingEventHosts"];
+    put?: never;
+    /**
+     * Find or create an arrangement host by name
+     * @description `201` when a host row was inserted, `200` when an existing host answered the name match. A matched host is returned UNCHANGED, so a corrected `address` sent here is dropped — use `updateBookingEventHost` to fix one.
+     */
+    post: operations["createBookingEventHost"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/events/hosts/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Correct an arrangement host
+     * @description The only write that changes an EXISTING host: the create is find-or-create by name and returns a match untouched. `address: null` and `note: null` erase; an omitted key leaves the stored value alone. `slug` is not patchable — it is a stable public URL segment. Retiring a host is `retired: true`, not a delete, because events already point at it.
+     */
+    patch: operations["updateBookingEventHost"];
+    trace?: never;
+  };
   "/api/v1/bookings/events/{id}": {
     parameters: {
       query?: never;
@@ -488,6 +577,36 @@ export interface paths {
     get: operations["getBookingEvent"];
     put?: never;
     post?: never;
+    /**
+     * Remove an arrangement day
+     * @description The one delete on the bookings surface — a booking is never deleted, it is cancelled, which keeps the row and its money trail. OAuth callers need the workspace `admin` role (`403` otherwise); a workspace API key is an admin-minted credential and is not held to the floor. A `completed` day is `422`; a day with any non-cancelled registration is `409` — cancel those first. `mode` says whether the row itself went (`hard`) or was kept as a tombstone for cancelled registrations (`soft`).
+     */
+    delete: operations["deleteBookingEvent"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/bookings/events/{id}/registrations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    /**
+     * An arrangement's roster
+     * @description Every booking registered to the arrangement, ordered by `event_order`. Names come from the live contact and person, not the booking's snapshot. Cancelled registrations are returned, not filtered — the event's `registered_count` answers the capacity question separately. Capped at 300 rows; `truncated: true` means the ordering can no longer be trusted.
+     */
+    get: operations["listBookingEventRegistrations"];
+    put?: never;
+    /**
+     * Register a child for an arrangement
+     * @description Registers a guardian's child for the arrangement. Lands as a Booking with `event_id` set; when the arrangement's service requires payment, `payment` carries the same show-once redirect `startBookingPayment` does. A payment failure does not undo the registration — the booking is still created and `payment_error` explains what to retry. 404 on an unknown or another workspace's arrangement, 409 once the arrangement is full or closed, 422 on a `return_url` this workspace's own sites do not vouch for.
+     */
+    post: operations["registerBookingEvent"];
     delete?: never;
     options?: never;
     head?: never;
@@ -736,6 +855,66 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/portal/vipps/start": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Begin a "Log in with Vipps" flow
+     * @description Returns the URL to send the customer to. `return_url` must be an `https` URL under one of the workspace's own sites, or the call is refused with `400 INVALID_RETURN_URL` — the allow-list is the salon's site origins. `authorize_url` carries a one-time `state`, so it is never cached or reused. `503 VIPPS_NOT_CONFIGURED` when this deployment has no Vipps login configured.
+     */
+    post: operations["startPortalVipps"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/vipps/callback": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Vipps redirects the customer's browser here
+     * @description A PUBLIC browser navigation, not an API call: it takes no API key and no SDK method wraps it. Medal validates the one-time `state`, then redirects back to the `return_url` the flow started with, carrying either `?grant=…` (exchange it) or `?vipps=needs_email_login` / `?vipps=failed` (fall back to the e-mail code login). An unknown or expired `state` answers `400` in plain text, because there is no trusted return URL to send the browser to.
+     */
+    get: operations["portalVippsCallback"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/vipps/exchange": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Exchange a Vipps login grant for a portal session
+     * @description Call this from your SERVER with the `grant` the callback appended to your return URL, and keep `session_token` in an HttpOnly cookie. The grant is single-use: a second exchange answers `404 GRANT_NOT_FOUND`, which is also the answer for an expired grant or one minted under another workspace.
+     */
+    post: operations["exchangePortalVipps"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/portal/logout": {
     parameters: {
       query?: never;
@@ -953,7 +1132,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Record cookie consent */
+    /**
+     * Record cookie consent
+     * @description Server-to-server ingestion of a cookie consent event, authenticated with a workspace API key — never call it from a browser. Rate limited to 600/min per API key.
+     */
     post: operations["recordCookieConsent"];
     delete?: never;
     options?: never;
@@ -1016,6 +1198,32 @@ export interface paths {
      * @description Set `status` and/or `assignee_user_id` (`null` unassigns). At least one field is required. Capability-scoped tokens must send `Idempotency-Key` and `X-Capability-Confirmation` headers on this route; API keys with legacy scopes may omit them.
      */
     patch: operations["updateHelpdeskConversation"];
+    trace?: never;
+  };
+  "/api/v1/helpdesk/conversations/{id}/contact": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Link a conversation's sender to a CRM contact
+     * @description The partner-driven half of contact linking: the partner knows which external user is which customer, and Medal cannot derive it. Exactly one of `contact_id` or `email`; an `email` resolves through the CRM's own find-or-create. The link is stored on the SENDER, so every later thread from the same external contact inherits it and `conversations_updated` counts the threads it reached. Group threads and channels without a stable sender answer `422 CONVERSATION_NOT_LINKABLE`.
+     */
+    put: operations["linkHelpdeskConversationContact"];
+    post?: never;
+    /**
+     * Unlink a conversation's sender from its CRM contact
+     * @description Reverses a mistaken link. Idempotent: a thread that carries no contact answers `unlinked: false` rather than an error.
+     */
+    delete: operations["unlinkHelpdeskConversationContact"];
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/helpdesk/conversations/{id}/messages": {
@@ -1316,6 +1524,7 @@ export interface components {
   schemas: {
     ApiError: {
       error: {
+        /** @description Machine-readable failure code. Branch on this, never on `message`, which is prose and may change. The codes the API throws today are listed in `x-medal-error-codes` below and exported from the SDK as `MedalErrorCode`; the property stays an open string because a new code is an additive server change, so handle an unknown one as a generic failure of its HTTP status. */
         code: string;
         message: string;
         details?: unknown;
@@ -1336,7 +1545,7 @@ export interface components {
       type: components["schemas"]["PostType"];
       title: string | null;
       content: string;
-      status: string;
+      status: components["schemas"]["PostStatus"];
       channel_ids: string[];
       variant_count: number;
       published_count: number;
@@ -1352,11 +1561,34 @@ export interface components {
     };
     /** @enum {string} */
     PostType: "social" | "newsletter" | "blog";
+    /**
+     * @description Lifecycle status of a post. `partial` = some variants published and some failed; `unpublished` = every published variant was taken down.
+     * @enum {string}
+     */
+    PostStatus:
+      | "draft"
+      | "review"
+      | "approved"
+      | "scheduled"
+      | "publishing"
+      | "published"
+      | "failed"
+      | "partial"
+      | "unpublished";
+    /** @enum {string} */
+    PostVariantStatus:
+      | "pending"
+      | "scheduled"
+      | "publishing"
+      | "published"
+      | "failed"
+      | "unpublishing"
+      | "unpublished";
     PostVariant: {
       id: string;
       channel_id: string;
       content: string;
-      status: string;
+      status: components["schemas"]["PostVariantStatus"];
       platform: string | null;
       channel_display_name: string | null;
       /** Format: date-time */
@@ -1426,9 +1658,25 @@ export interface components {
       contact_id: string | null;
       status: string;
     };
+    /**
+     * @description Delivery lifecycle of a sent email. `queued` is what a fresh send reports; `opened` / `clicked` come from the tracker; `bounced`, `complained`, `failed` and `cancelled` are terminal.
+     * @enum {string}
+     */
+    EmailSendStatus:
+      | "pending"
+      | "queued"
+      | "sending"
+      | "sent"
+      | "delivered"
+      | "opened"
+      | "clicked"
+      | "bounced"
+      | "complained"
+      | "failed"
+      | "cancelled";
     EmailSend: {
       id: string;
-      status: string;
+      status: components["schemas"]["EmailSendStatus"];
       /** Format: email */
       recipient_email: string;
       recipient_name: string | null;
@@ -1526,9 +1774,7 @@ export interface components {
       phone: string | null;
       company: string | null;
       job_title: string | null;
-      address: {
-        [key: string]: string;
-      } | null;
+      address: components["schemas"]["ContactAddress"] | null;
       status: components["schemas"]["ContactStatus"];
       email_status: components["schemas"]["EmailStatus"];
       label_ids: string[];
@@ -1556,9 +1802,17 @@ export interface components {
       id: string;
     };
     /** @enum {string} */
-    ContactStatus: "lead" | "prospect" | "customer" | "churned" | "archived";
+    ContactStatus: "lead" | "subscriber" | "customer" | "churned";
     /** @enum {string} */
     EmailStatus: "subscribed" | "unsubscribed" | "bounced" | "complained";
+    /** @description A contact's postal address. Keys are camelCase (`postalCode`) — the one object in /api/v1 that is not snake_case — and closed: any other key is a 400 VALIDATION_ERROR. */
+    ContactAddress: {
+      street?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      country?: string;
+    };
     CreateContactInput: {
       /** Format: email */
       email: string;
@@ -1567,9 +1821,7 @@ export interface components {
       phone?: string;
       company?: string;
       job_title?: string;
-      address?: {
-        [key: string]: string;
-      };
+      address?: components["schemas"]["ContactAddress"];
       status?: components["schemas"]["ContactStatus"];
       email_status?: components["schemas"]["EmailStatus"];
       label_ids?: string[];
@@ -1614,7 +1866,7 @@ export interface components {
       company?: string;
       job_title?: string;
       label_ids?: string[];
-      status?: string;
+      status?: components["schemas"]["ContactStatus"];
     };
     ImportContactsResult: {
       added: number;
@@ -1639,8 +1891,9 @@ export interface components {
       id: string;
       title: string;
       description: string | null;
+      /** @description MAJOR currency units — 50000 is fifty thousand kroner, not 500. Decimals are accepted. Bookings money is integer øre by contrast (`amount_ore`, `price_ore`), and a deal carries no minor-unit field. */
       value: number | null;
-      currency: string | null;
+      currency: components["schemas"]["DealCurrency"] | null;
       status: components["schemas"]["DealStatus"];
       brand_name: string | null;
       /** Format: uri */
@@ -1649,10 +1902,10 @@ export interface components {
       contact_name: string | null;
       /** Format: email */
       contact_email: string | null;
-      /** Format: date */
-      start_date: string | null;
-      /** Format: date */
-      end_date: string | null;
+      /** @description Unix timestamp in milliseconds. Sent as a date string, returned as ms. */
+      start_date: number | null;
+      /** @description Unix timestamp in milliseconds. Sent as a date string, returned as ms. */
+      end_date: number | null;
       notes: string | null;
       /** Format: date-time */
       created_at: string | null;
@@ -1671,20 +1924,13 @@ export interface components {
       success: true;
     };
     /** @enum {string} */
-    DealStatus:
-      | "draft"
-      | "open"
-      | "won"
-      | "lost"
-      | "negotiating"
-      | "proposal_sent"
-      | "on_hold"
-      | "churned";
+    DealStatus: "draft" | "negotiating" | "offer_sent" | "signed" | "completed" | "declined";
     CreateDealInput: {
       title: string;
       description?: string;
+      /** @description MAJOR currency units — 50000 is fifty thousand kroner, not 500. */
       value?: number;
-      currency?: string;
+      currency?: components["schemas"]["DealCurrency"];
       brand_name?: string;
       /** Format: uri */
       brand_website?: string;
@@ -1701,8 +1947,9 @@ export interface components {
     UpdateDealInput: {
       title?: string;
       description?: string;
+      /** @description MAJOR currency units — 50000 is fifty thousand kroner, not 500. */
       value?: number;
-      currency?: string;
+      currency?: components["schemas"]["DealCurrency"];
       status?: components["schemas"]["DealStatus"];
       brand_name?: string;
       /** Format: uri */
@@ -1717,6 +1964,8 @@ export interface components {
       end_date?: string;
       notes?: string;
     };
+    /** @description A timestamp on the way in to a list filter — Unix milliseconds, or an ISO 8601 date-time string. Anything else is a 400 VALIDATION_ERROR. */
+    TimestampInput: number | string;
     /** @description A timestamp on the way in — Unix milliseconds, or an ISO 8601 date-time string. Responses always render timestamps as ISO 8601. */
     BookingTimestampInput: number | string;
     /** @enum {string} */
@@ -2064,24 +2313,43 @@ export interface components {
     ConsentResult: {
       id: string;
     };
+    /**
+     * @description What happened to the visitor's preferences. The endpoint records events, not a current state.
+     * @enum {string}
+     */
+    CookieConsentEvent:
+      | "preferences_saved"
+      | "preferences_revoked"
+      | "banner_displayed"
+      | "preferences_expired";
+    /** @description The visitor's decision per category. An allowlist — an unknown category is rejected rather than silently dropped. */
+    CookieConsentCategories: {
+      /** @description Cookies the site cannot run without. Optional — the endpoint defaults it to true when omitted. */
+      essential?: boolean;
+      analytics?: boolean;
+      marketing?: boolean;
+      functional?: boolean;
+    };
+    /** @description A cookie consent event from an external site. The domain must be vouched for by one of the workspace's registered sites — its host, the apex of a `www.` registration, or a subdomain of either — otherwise the request is refused with 403. */
     CookieConsentInput: {
+      event: components["schemas"]["CookieConsentEvent"];
+      /** @description Caller's identifier for this consent record. */
+      consentId: string;
+      /** @description Hostname the consent was given on. */
       domain: string;
-      consentStatus: string;
-      /** Format: date-time */
-      consentTimestamp: string;
+      categories: components["schemas"]["CookieConsentCategories"];
+      visitorId?: string;
+      /** @description Optional. Only ever stored anonymized; omit it and the API reads its trusted edge headers instead. */
       ipAddress?: string;
       userAgent?: string;
-      cookiePreferences: {
-        [key: string]: components["schemas"]["CookieCategoryConsent"];
-      };
-    };
-    CookieCategoryConsent: {
-      allowed: boolean;
-      cookieRecords?: {
-        cookie: string;
-        duration: string;
-        description: string;
-      }[];
+      /** @description The exact legal text shown to the visitor. */
+      consentText?: string;
+      policyVersion?: string;
+      /**
+       * Format: int64
+       * @description Milliseconds since the epoch. Defaults to receipt time; accepted up to 5 minutes ahead and up to 7 days old.
+       */
+      timestamp?: number;
     };
     CookieConsentResult: {
       success: boolean;
@@ -2096,6 +2364,32 @@ export interface components {
     };
     /** @enum {string} */
     HelpdeskConversationStatus: "open" | "snoozed" | "closed";
+    /**
+     * @description Channel a conversation lives on. The same set is accepted by the `channels` filters on conversation listing and webhook endpoints.
+     * @enum {string}
+     */
+    HelpdeskChannel:
+      | "widget"
+      | "instagram"
+      | "messenger"
+      | "whatsapp"
+      | "twitter"
+      | "email"
+      | "linkedin_dm"
+      | "digipost"
+      | "finn"
+      | "trustpilot"
+      | "telegram";
+    /**
+     * @description Kind of chat on a personal-account channel (Telegram today): a direct message, a group, or a broadcast channel.
+     * @enum {string}
+     */
+    HelpdeskChatType: "private" | "group" | "channel";
+    /**
+     * @description How a conversation's CRM contact was attached: `identity` (the widget visitor's e-mail), `operator` (a member linked it in the inbox) or `partner` (posted through the REST API).
+     * @enum {string}
+     */
+    HelpdeskContactLinkSource: "identity" | "operator" | "partner";
     /** @enum {string} */
     HelpdeskMessageAuthorType: "visitor" | "operator" | "ai" | "system";
     /**
@@ -2105,17 +2399,24 @@ export interface components {
     HelpdeskMessageType: "chat" | "email" | "note";
     HelpdeskConversation: {
       id: string;
-      /** @description Channel type, e.g. `widget`, `instagram`, `messenger`, `whatsapp`, `email`. */
-      channel: string;
+      channel: components["schemas"]["HelpdeskChannel"];
       channel_connection_id: string | null;
       status: components["schemas"]["HelpdeskConversationStatus"];
       subject: string | null;
       assignee_user_id: string | null;
       contact_id: string | null;
+      /** @description How `contact_id` was attached, or `null` when the thread carries no contact. */
+      contact_link_source: components["schemas"]["HelpdeskContactLinkSource"] | null;
+      /** @description Unix timestamp in milliseconds when the contact was attached, or `null`. */
+      contact_linked_at: number | null;
       visitor_name: string | null;
       visitor_email: string | null;
       external_conversation_id: string | null;
       channel_account_id: string | null;
+      /** @description DM / group / channel on personal-account channels; `null` elsewhere. */
+      chat_type: components["schemas"]["HelpdeskChatType"] | null;
+      /** @description The external group or channel title; `null` for DMs and business channels. */
+      chat_title: string | null;
       message_count: number;
       unread_for_operator: number;
       /** @description Unix timestamp in milliseconds. */
@@ -2139,6 +2440,8 @@ export interface components {
       delivery_status: components["schemas"]["HelpdeskMessageDeliveryStatus"] | null;
       /** @description Last send error for a `failed` outbound message, otherwise `null`. */
       delivery_error: string | null;
+      /** @description Unix timestamp in milliseconds when the customer deleted the message on the external channel (Telegram today), otherwise `null`. The message is kept as a tombstone so the thread still reads in order, but its `body` is empty and any attachment has been erased — mirror the deletion in your own store. Also delivered as the `helpdesk.message_deleted` webhook event. */
+      externally_deleted_at: number | null;
       /** @description Unix timestamp in milliseconds. */
       created_at: number;
     };
@@ -2172,6 +2475,22 @@ export interface components {
       /** @constant */
       status: "created";
     };
+    /**
+     * @description The event types an endpoint can subscribe to — every delivery type except `test.ping`, which is only ever queued by the test route. Any other string in `event_types` is a 400.
+     * @enum {string}
+     */
+    WebhookSubscribableEventType:
+      | "helpdesk.conversation_created"
+      | "helpdesk.conversation_assigned"
+      | "helpdesk.conversation_status_changed"
+      | "helpdesk.message_received"
+      | "helpdesk.message_sent"
+      | "helpdesk.message_delivery_updated"
+      | "helpdesk.message_deleted"
+      | "helpdesk.conversation_contact_linked"
+      | "helpdesk.conversation_contact_unlinked"
+      | "helpdesk.channel_connected"
+      | "helpdesk.channel_disconnected";
     WebhookEndpoint: {
       id: string;
       name: string;
@@ -2182,9 +2501,9 @@ export interface components {
       url: string;
       enabled: boolean;
       /** @description Subscribed event types. Empty array = all events. */
-      event_types: string[];
+      event_types: components["schemas"]["WebhookSubscribableEventType"][];
       /** @description Channel-type filter (e.g. `['widget', 'whatsapp']`), or `null` for all channels. */
-      channels: string[] | null;
+      channels: components["schemas"]["HelpdeskChannel"][] | null;
       /** @description Channel-connection filter, or `null` for all connections. */
       channel_connection_ids: string[] | null;
       /** @description Last 4 characters of the signing secret, for identification. */
@@ -2211,10 +2530,10 @@ export interface components {
        * @description Destination URL — must be https.
        */
       url: string;
-      /** @description Event types to subscribe to (e.g. `helpdesk.message_received`). Empty = all. */
-      event_types: string[];
-      /** @description Restrict to these channel types (e.g. `['widget', 'whatsapp']`). */
-      channels?: string[];
+      /** @description Event types to subscribe to (e.g. `helpdesk.message_received`). Empty = all; an unknown type is a 400. */
+      event_types: components["schemas"]["WebhookSubscribableEventType"][];
+      /** @description Restrict to these channel types (e.g. `['widget', 'whatsapp']`); an unknown channel is a 400. */
+      channels?: components["schemas"]["HelpdeskChannel"][];
       /** @description Restrict to these channel connection IDs. */
       channel_connection_ids?: string[];
     };
@@ -2223,9 +2542,9 @@ export interface components {
       name?: string;
       /** Format: uri */
       url?: string;
-      event_types?: string[];
+      event_types?: components["schemas"]["WebhookSubscribableEventType"][];
       /** @description New channel-type filter, or `null` to clear the filter. */
-      channels?: string[] | null;
+      channels?: components["schemas"]["HelpdeskChannel"][] | null;
       /** @description New channel-connection filter, or `null` to clear the filter. */
       channel_connection_ids?: string[] | null;
       enabled?: boolean;
@@ -2269,8 +2588,7 @@ export interface components {
     /** @enum {string} */
     ChannelConnectionState: "connecting" | "active" | "disconnected" | "disabled";
     CreateConnectLinkInput: {
-      /** @description Channel type to connect (e.g. `telegram_inbox`). */
-      channel_type: string;
+      channel_type: components["schemas"]["ChannelType"];
       /** @description Display label shown on the hosted connect page. */
       label?: string;
       /**
@@ -2286,7 +2604,7 @@ export interface components {
        * @description Single-use hosted connect URL containing the one-time link token — present ONLY in the live create response. An idempotent replay of the create request omits it; the token can never be retrieved again.
        */
       url?: string;
-      channel_type: string;
+      channel_type: components["schemas"]["ChannelType"];
       label: string | null;
       status: components["schemas"]["ConnectLinkStatus"];
       /** @description Unix timestamp in milliseconds. */
@@ -2294,7 +2612,7 @@ export interface components {
     };
     ConnectLink: {
       id: string;
-      channel_type: string;
+      channel_type: components["schemas"]["ChannelType"];
       label: string | null;
       status: components["schemas"]["ConnectLinkStatus"];
       /** @description Stable ref of the connection created by consuming this link, or `null`. */
@@ -2311,7 +2629,7 @@ export interface components {
     };
     ChannelConnection: {
       id: string;
-      channel_type: string;
+      channel_type: components["schemas"]["ChannelType"];
       label: string | null;
       state: components["schemas"]["ChannelConnectionState"];
       /** @description Privacy-preserving identity handle (e.g. a masked phone number). */
@@ -2517,14 +2835,18 @@ export interface components {
     Envelope_ManageSummary: {
       data: components["schemas"]["ManageSummary"];
     };
+    /**
+     * @description Locale of the one-time-code e-mail. Exactly these two are accepted — `nb`, `nn` and every other spelling of Norwegian are a 400.
+     * @enum {string}
+     */
+    PortalLocale: "no" | "en";
     PortalLoginStartInput: {
       /**
        * Format: email
        * @description The address the code is sent to.
        */
       email: string;
-      /** @description Locale for the e-mail (e.g. `nb`, `en`); the workspace default when omitted. */
-      locale?: string;
+      locale?: components["schemas"]["PortalLocale"];
     };
     /** @description Always `sent`, whether or not the address is a known contact — the route is enumeration-safe by design. */
     PortalLoginStartResult: {
@@ -2595,10 +2917,14 @@ export interface components {
     PortalBooking: {
       booking_id: string;
       status: components["schemas"]["BookingStatus"];
-      /** @description Unix timestamp in milliseconds. */
+      /** @description Unix timestamp in MILLISECONDS — unlike `/api/v1/bookings/*`, where `start_ts` is an ISO 8601 string. Both forms are answered here: this and `start_ts_iso`. */
       start_ts: number;
       /** @description Unix timestamp in milliseconds. */
       end_ts: number;
+      /** Format: date-time */
+      start_ts_iso: string;
+      /** Format: date-time */
+      end_ts_iso: string;
       service_id: string | null;
       service_name: string | null;
       resource_id: string | null;
@@ -2606,6 +2932,8 @@ export interface components {
       booked_for_name: string | null;
       /** @description Integer øre, or `null` when the service has no price. */
       amount_ore: number | null;
+      payment_mode: components["schemas"]["BookingPaymentMode"];
+      payment_status: components["schemas"]["BookingPaymentStatus"];
       notes: string | null;
       /** @description Present only while the booking is upcoming and manageable; opens the site's manage page. */
       manage_token: string | null;
@@ -2622,6 +2950,16 @@ export interface components {
       granted_at: number | null;
       /** @description Unix timestamp in milliseconds, or `null`. */
       revoked_at: number | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 twin of `granted_at`.
+       */
+      granted_at_iso: string | null;
+      /**
+       * Format: date-time
+       * @description ISO 8601 twin of `revoked_at`.
+       */
+      revoked_at_iso: string | null;
       source: string;
     };
     /** @description A relation the exporting contact is a party to; only the counterpart's display name is exposed. */
@@ -2934,12 +3272,82 @@ export interface components {
       service_ids: string[];
       resource_ids: string[];
     };
+    /** @description The guardian registering a child for an arrangement. Phone is the CRM dedupe key. */
+    RegisterBookingEventGuardianInput: {
+      name: string;
+      email?: string;
+      phone?: string;
+    };
+    /** @description The child being registered. Birth year, not a birthdate. */
+    RegisterBookingEventChildInput: {
+      name: string;
+      birth_year: number;
+    };
+    /** @description Body for `registerBookingEvent`. */
+    RegisterBookingEventInput: {
+      guardian: components["schemas"]["RegisterBookingEventGuardianInput"];
+      child: components["schemas"]["RegisterBookingEventChildInput"];
+      service_id: string;
+      note?: string;
+      /**
+       * @description Must be literally `true`. The guardian has to actively consent before the registration is recorded, so omitting it or sending `false` is a 400.
+       * @constant
+       */
+      consent_accepted: true;
+      /** @description Your own version label for the consent wording shown; defaults server-side to `event-consent-v1`. */
+      consent_version?: string;
+      /** @description The exact wording shown, stored on the consent record. */
+      consent_text?: string;
+      /** @description Where the wallet returns the guardian, when the registration starts a payment. Must be a URL one of this workspace's own sites vouches for; anything else answers 422. */
+      return_url?: string;
+    };
+    /** @description A payment could not be started for a registration that otherwise succeeded. The booking is still created. */
+    BookingEventRegistrationPaymentError: {
+      code: string;
+      message: string;
+    };
+    /** @description Result of `registerBookingEvent`. `payment` is `null` when the service needs no payment. */
+    BookingEventRegistrationResult: {
+      booking: components["schemas"]["Booking"];
+      /** @description Show-once secret for the guardian's manage link. Only its hash is stored, and an idempotent replay omits this field entirely. */
+      manage_token?: string;
+      /** @description The guardian's contact, created or reused. */
+      contact_id: string;
+      /** @description The child's ContactPerson, created or reused. */
+      person_id: string;
+      payment: components["schemas"]["BookingPaymentStart"] | null;
+      payment_error?: components["schemas"]["BookingEventRegistrationPaymentError"];
+    };
+    /** @description One row of an arrangement's roster (SP10a). A projection — names come from the live contact and person, not the booking's snapshot. */
+    BookingEventRegistration: {
+      booking_id: string | null;
+      event_order: number | null;
+      contact_id: string | null;
+      contact_name: string | null;
+      person_id: string | null;
+      participant_name: string | null;
+      participant_birth_year: number | null;
+      service_id: string | null;
+      resource_id: string | null;
+      /** Format: date-time */
+      start_ts: string | null;
+      status: components["schemas"]["BookingStatus"] | null;
+      amount_ore: number | null;
+      payment_status: components["schemas"]["BookingPaymentStatus"];
+    };
+    /** @description Result of `listBookingEventRegistrations` — an arrangement's roster, ordered by `event_order`. Capped at 300 rows; `truncated: true` means the ordering can no longer be trusted. */
+    ListBookingEventRegistrationsResult: {
+      registrations: components["schemas"]["BookingEventRegistration"][];
+      truncated: boolean;
+    };
     ApiResponse_ContactPersonArray: components["schemas"]["Envelope_ContactPersonArray"];
     ApiResponse_ContactPerson: components["schemas"]["Envelope_ContactPerson"];
     ApiResponse_ContactRelations: components["schemas"]["Envelope_ContactRelations"];
     ApiResponse_CreateContactRelationResult: components["schemas"]["Envelope_CreateContactRelationResult"];
     ApiResponse_BookingEventArray: components["schemas"]["Envelope_BookingEventArray"];
     ApiResponse_BookingEvent: components["schemas"]["Envelope_BookingEvent"];
+    ApiResponse_BookingEventRegistrationResult: components["schemas"]["Envelope_BookingEventRegistrationResult"];
+    ApiResponse_ListBookingEventRegistrationsResult: components["schemas"]["Envelope_ListBookingEventRegistrationsResult"];
     Envelope_ContactPersonArray: {
       data: components["schemas"]["ContactPerson"][];
     };
@@ -2958,6 +3366,205 @@ export interface components {
     Envelope_BookingEvent: {
       data: components["schemas"]["BookingEvent"];
     };
+    Envelope_BookingEventRegistrationResult: {
+      data: components["schemas"]["BookingEventRegistrationResult"];
+    };
+    Envelope_ListBookingEventRegistrationsResult: {
+      data: components["schemas"]["ListBookingEventRegistrationsResult"];
+    };
+    /**
+     * @description Where the money on one local day came from.
+     * @enum {string}
+     */
+    BookingRevenueProvider: "in_house" | "vipps";
+    BookingRevenueByProvider: {
+      provider: components["schemas"]["BookingRevenueProvider"];
+      /** @description Integer øre. */
+      amount_ore: number;
+      count: number;
+    };
+    /** @description The next stretch a resource is free. */
+    BookingNextGap: {
+      resource_id: string;
+      /** @description Minutes since midnight in the workspace time zone. */
+      start_minute: number;
+      end_minute: number;
+      /** Format: date-time */
+      start_ts: string;
+    };
+    /** @description The salon's operating summary for one local date. */
+    BookingsToday: {
+      /** @description `yyyymmdd` in the workspace time zone. */
+      date_key: number;
+      /** @description IANA zone the minute fields are counted in. */
+      time_zone: string;
+      opens_minute: number | null;
+      closes_minute: number | null;
+      /** @description Past the last opening window of a day that DID open. A day nobody works at all is `opens_minute: null` with `on_duty_count: 0`. */
+      closed_for_today: boolean;
+      /** @description Set only alongside `closed_for_today`. */
+      next_open: {
+        /** Format: date-time */
+        start_ts: string;
+      } | null;
+      on_duty_count: number;
+      total: number;
+      completed: number;
+      remaining: number;
+      no_show: number;
+      cancelled: number;
+      next_gap: components["schemas"]["BookingNextGap"] | null;
+      revenue: {
+        /** @description Integer øre. */
+        total_ore: number;
+        by_provider: components["schemas"]["BookingRevenueByProvider"][];
+      };
+      /** @description A source hit its read cap, so the counts are floors. */
+      truncated: boolean;
+    };
+    /**
+     * @description What kind of open item needs a human.
+     * @enum {string}
+     */
+    BookingAttentionKind:
+      | "payment_failed"
+      | "payment_released"
+      | "payment_partial_capture"
+      | "waitlist_offer_expiring"
+      | "event_consent_missing"
+      | "booking_attachment"
+      | "no_show_today";
+    /** @description One «Trenger deg» item. No prose crosses the wire — render the sentence from `kind`. Absent optional fields answer `null`, so one shape destructures for every kind. */
+    BookingAttentionItem: {
+      id: string;
+      kind: components["schemas"]["BookingAttentionKind"];
+      /** Format: date-time */
+      occurred_at: string | null;
+      booking_id: string | null;
+      event_id: string | null;
+      contact_id: string | null;
+      resource_id: string | null;
+      /** @description Integer øre. */
+      amount_ore: number | null;
+      count: number | null;
+      /** Format: date-time */
+      deadline_at: string | null;
+    };
+    /** @description The attention feed and its own envelope. `truncated` is a read budget, not a cursor; `total` is exact only while it is false. */
+    BookingAttentionFeed: {
+      data: components["schemas"]["BookingAttentionItem"][];
+      truncated: boolean;
+      total: number;
+    };
+    /** @description A place an arrangement is held. */
+    BookingEventHost: {
+      id: string;
+      name: string;
+      /** @description Stable public URL segment; never changes after creation. */
+      slug: string;
+      address: string | null;
+      /** @description The half-sentence an address cannot carry («inngang B»). */
+      note: string | null;
+      retired: boolean;
+    };
+    CreateBookingEventHostInput: {
+      name: string;
+      address?: string;
+      note?: string;
+    };
+    /** @description At least one field. `null` erases `address`/`note`; an omitted key leaves the stored value alone. */
+    UpdateBookingEventHostInput: {
+      name?: string;
+      address?: string | null;
+      note?: string | null;
+      retired?: boolean;
+    };
+    BookingEventRemoveResult: {
+      success: boolean;
+      /**
+       * @description `hard` when the row itself was removed, `soft` when cancelled registrations still point at it and it was kept as a tombstone.
+       * @enum {string}
+       */
+      mode: "hard" | "soft";
+    };
+    PortalVippsStartInput: {
+      /** @description An `https` URL under one of the workspace's own sites. */
+      return_url: string;
+    };
+    PortalVippsStart: {
+      /** @description Send the customer here unchanged; it carries a one-time state. */
+      authorize_url: string;
+    };
+    PortalVippsExchangeInput: {
+      /** @description The single-use grant the callback appended to your return URL. */
+      grant: string;
+    };
+    /** @description A portal session minted from a Vipps login. */
+    PortalVippsSession: {
+      session_token: string;
+      /** @description Unix timestamp in milliseconds. */
+      expires_at: number;
+      /** Format: date-time */
+      expires_at_iso: string;
+    };
+    /** @description Exactly one of `contact_id` or `email`. */
+    LinkConversationContactInput: {
+      contact_id?: string;
+      /** Format: email */
+      email?: string;
+    } & (unknown | unknown);
+    ConversationContactLinkResult: {
+      conversation_id: string;
+      contact_id: string;
+      previous_contact_id: string | null;
+      /** @enum {string} */
+      contact_link_source: "partner";
+      /** @description Unix timestamp in milliseconds. */
+      contact_linked_at: number;
+      /** @description How many of this sender's threads now carry the contact — the link is per sender, not per conversation. */
+      conversations_updated: number;
+    };
+    ConversationContactUnlinkResult: {
+      conversation_id: string;
+      /** @description `false` when the thread carried no contact to begin with. */
+      unlinked: boolean;
+      previous_contact_id: string | null;
+      conversations_updated: number;
+    };
+    ApiResponse_BookingsToday: {
+      data: components["schemas"]["BookingsToday"];
+    };
+    ApiResponse_BookingEventHostArray: {
+      data: components["schemas"]["BookingEventHost"][];
+    };
+    ApiResponse_BookingEventHost: {
+      data: components["schemas"]["BookingEventHost"];
+    };
+    ApiResponse_BookingEventRemoveResult: {
+      data: components["schemas"]["BookingEventRemoveResult"];
+    };
+    ApiResponse_PortalVippsStart: {
+      data: components["schemas"]["PortalVippsStart"];
+    };
+    ApiResponse_PortalVippsSession: {
+      data: components["schemas"]["PortalVippsSession"];
+    };
+    ApiResponse_ConversationContactLinkResult: {
+      data: components["schemas"]["ConversationContactLinkResult"];
+    };
+    ApiResponse_ConversationContactUnlinkResult: {
+      data: components["schemas"]["ConversationContactUnlinkResult"];
+    };
+    /**
+     * @description ISO-4217 codes a deal may carry. Closed: the API validates `currency` against exactly this list, so anything else is a 400.
+     * @enum {string}
+     */
+    DealCurrency: "USD" | "EUR" | "GBP" | "NOK";
+    /**
+     * @description Channel types a hosted connect link can attach. Closed: the server resolves this through its connect adapter registry, which holds exactly these two.
+     * @enum {string}
+     */
+    ChannelType: "telegram_inbox" | "linkedin";
   };
   responses: {
     /** @description API error. */
@@ -2991,8 +3598,20 @@ export interface operations {
       query?: {
         limit?: components["parameters"]["Limit"];
         cursor?: components["parameters"]["Cursor"];
-        status?: string;
+        status?: components["schemas"]["PostStatus"];
         type?: components["schemas"]["PostType"];
+        /** @description Inclusive lower bound on `scheduled_at`. */
+        scheduled_from?: components["schemas"]["TimestampInput"];
+        /** @description Inclusive upper bound on `scheduled_at`. */
+        scheduled_to?: components["schemas"]["TimestampInput"];
+        /** @description Inclusive lower bound on `published_at`. */
+        published_from?: components["schemas"]["TimestampInput"];
+        /** @description Inclusive upper bound on `published_at`. */
+        published_to?: components["schemas"]["TimestampInput"];
+        /** @description Comma-separated target platforms (e.g. `linkedin,x`). */
+        platforms?: string;
+        /** @description Free-text search across title and content. */
+        query?: string;
       };
       header?: never;
       path?: never;
@@ -3310,7 +3929,10 @@ export interface operations {
         email_status?: components["schemas"]["EmailStatus"];
         /** @description Comma-separated label IDs. */
         label_ids?: string;
+        /** @description Free-text search across name, email and company. */
         search?: string;
+        /** @description Exact-match on the contact's email address. */
+        email?: string;
       };
       header?: never;
       path?: never;
@@ -3515,6 +4137,18 @@ export interface operations {
         cursor?: components["parameters"]["Cursor"];
         status?: components["schemas"]["DealStatus"];
         search?: string;
+        /** @description Inclusive lower bound on the deal's close (`end_date`). */
+        close_date_from?: components["schemas"]["TimestampInput"];
+        /** @description Inclusive upper bound on the deal's close (`end_date`). */
+        close_date_to?: components["schemas"]["TimestampInput"];
+        /** @description Only deals worth at least this much. */
+        min_value?: number;
+        /** @description Case-insensitive contains match against the brand / company name. */
+        company_name?: string;
+        /** @description Only deals linked to this contact. */
+        contact_id?: string;
+        /** @description Case-insensitive stage label match (e.g. `offer sent`). */
+        stage?: string;
       };
       header?: never;
       path?: never;
@@ -3643,6 +4277,8 @@ export interface operations {
         to_ts?: components["schemas"]["BookingTimestampInput"];
         status?: components["schemas"]["BookingStatus"];
         resource_id?: string;
+        /** @description Only bookings with this provenance. Every value the column holds is filterable here, unlike the create body's allowlist; any other value is a 400. */
+        created_via?: components["schemas"]["BookingCreatedVia"];
       };
       header?: never;
       path?: never;
@@ -3790,6 +4426,51 @@ export interface operations {
       default: components["responses"]["ApiError"];
     };
   };
+  getBookingsToday: {
+    parameters: {
+      query?: {
+        /** @description `yyyymmdd` in the workspace time zone. Defaults to the salon's today. A non-integer is `400 VALIDATION_ERROR`. */
+        date_key?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The day's operating summary. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingsToday"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getBookingAttention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The attention feed. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BookingAttentionFeed"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
   listContactPersons: {
     parameters: {
       query: {
@@ -3827,6 +4508,15 @@ export interface operations {
       };
     };
     responses: {
+      /** @description An existing person matched. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ContactPerson"];
+        };
+      };
       /** @description Created person. */
       201: {
         headers: {
@@ -3895,6 +4585,8 @@ export interface operations {
         /** @description End of the window, `yyyy-mm-dd`, inclusive. */
         to: string;
         status?: components["schemas"]["BookingEventStatus"];
+        /** @description Restrict to arrangementer at one host. */
+        host_id?: string;
       };
       header?: never;
       path?: never;
@@ -3939,6 +4631,88 @@ export interface operations {
       default: components["responses"]["ApiError"];
     };
   };
+  listBookingEventHosts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The workspace's arrangement hosts. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventHostArray"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createBookingEventHost: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateBookingEventHostInput"];
+      };
+    };
+    responses: {
+      /** @description An existing host matched the name. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventHost"];
+        };
+      };
+      /** @description The created host. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventHost"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updateBookingEventHost: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateBookingEventHostInput"];
+      };
+    };
+    responses: {
+      /** @description The host as it is after the change. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventHost"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
   getBookingEvent: {
     parameters: {
       query?: never;
@@ -3957,6 +4731,79 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_BookingEvent"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  deleteBookingEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The arrangement day is gone from every read. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventRemoveResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listBookingEventRegistrations: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The arrangement's roster. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ListBookingEventRegistrationsResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  registerBookingEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegisterBookingEventInput"];
+      };
+    };
+    responses: {
+      /** @description The created registration. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_BookingEventRegistrationResult"];
         };
       };
       default: components["responses"]["ApiError"];
@@ -4321,6 +5168,88 @@ export interface operations {
       default: components["responses"]["ApiError"];
     };
   };
+  startPortalVipps: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalVippsStartInput"];
+      };
+    };
+    responses: {
+      /** @description Where to send the customer. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalVippsStart"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  portalVippsCallback: {
+    parameters: {
+      query: {
+        /** @description The one-time state Medal minted in `startPortalVipps`. */
+        state: string;
+        /** @description Vipps' authorization code. */
+        code?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Redirect back to the flow's `return_url`. */
+      302: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The state is unknown or expired, so there is no trusted return URL. */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/plain": string;
+        };
+      };
+    };
+  };
+  exchangePortalVipps: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalVippsExchangeInput"];
+      };
+    };
+    responses: {
+      /** @description A portal session for the signed-in contact. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalVippsSession"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
   logoutPortal: {
     parameters: {
       query?: never;
@@ -4638,6 +5567,10 @@ export interface operations {
         query?: string;
         /** @description Comma-separated channel types (e.g. `widget,whatsapp`). */
         channels?: string;
+        /** @description Only conversations of this chat kind on personal-account channels; conversations without a chat type never match. */
+        chat_type?: components["schemas"]["HelpdeskChatType"];
+        /** @description `false` = only conversations nobody owns yet, `true` = only owned ones. Only the exact strings `true` / `false` are accepted. */
+        assigned?: boolean;
       };
       header?: never;
       path?: never;
@@ -4702,6 +5635,56 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_HelpdeskConversationUpdateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  linkHelpdeskConversationContact: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LinkConversationContactInput"];
+      };
+    };
+    responses: {
+      /** @description The sender is linked to the contact. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ConversationContactLinkResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  unlinkHelpdeskConversationContact: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The sender carries no contact. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_ConversationContactUnlinkResult"];
         };
       };
       default: components["responses"]["ApiError"];
@@ -4965,7 +5948,7 @@ export interface operations {
         /** @description Page size (default 50, capped at 100). */
         limit?: number;
         cursor?: components["parameters"]["Cursor"];
-        channel_type?: string;
+        channel_type?: components["schemas"]["ChannelType"];
         status?: components["schemas"]["ConnectLinkStatus"];
       };
       header?: never;

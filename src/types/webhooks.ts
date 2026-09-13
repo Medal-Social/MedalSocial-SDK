@@ -1,3 +1,6 @@
+import type { SubscribableWebhookEventType, WebhookEventType } from "../webhook-events";
+import type { HelpdeskChannel } from "./helpdesk";
+
 /** A webhook endpoint registered in the workspace. */
 export interface WebhookEndpoint {
   id: string;
@@ -6,9 +9,9 @@ export interface WebhookEndpoint {
   url: string;
   enabled: boolean;
   /** Subscribed event types. Empty array = all events. */
-  event_types: string[];
+  event_types: SubscribableWebhookEventType[];
   /** Channel-type filter (e.g. ['widget', 'whatsapp']), or `null` for all channels. */
-  channels: string[] | null;
+  channels: HelpdeskChannel[] | null;
   /** Channel-connection filter, or `null` for all connections. */
   channel_connection_ids: string[] | null;
   /** Last 4 characters of the signing secret, for identification. */
@@ -35,10 +38,13 @@ export interface CreateWebhookInput {
   name: string;
   /** Destination URL — must be https. */
   url: string;
-  /** Event types to subscribe to (e.g. 'helpdesk.message_received'). Empty = all. */
-  event_types: string[];
-  /** Restrict to these channel types (e.g. ['widget', 'whatsapp']). */
-  channels?: string[];
+  /**
+   * Event types to subscribe to (e.g. `helpdesk.message_received`). Empty =
+   * all. Anything outside {@link SubscribableWebhookEventType} is a `400`.
+   */
+  event_types: SubscribableWebhookEventType[];
+  /** Restrict to these channel types (e.g. `['widget', 'whatsapp']`). An unknown channel is a `400`. */
+  channels?: HelpdeskChannel[];
   /** Restrict to these channel connection IDs. */
   channel_connection_ids?: string[];
 }
@@ -52,8 +58,8 @@ export interface CreateWebhookInput {
 export interface UpdateWebhookInput {
   name?: string;
   url?: string;
-  event_types?: string[];
-  channels?: string[] | null;
+  event_types?: SubscribableWebhookEventType[];
+  channels?: HelpdeskChannel[] | null;
   channel_connection_ids?: string[] | null;
   enabled?: boolean;
 }
@@ -83,7 +89,8 @@ export interface WebhookDeleteResult {
  */
 export interface WebhookDelivery {
   id: string;
-  event_type: string;
+  /** The event type delivered — including `test.ping` for test deliveries. */
+  event_type: WebhookEventType;
   /**
    * Primary subject id of the announced event (a message id for message
    * events, a connection id for channel lifecycle events, …), or `null`.

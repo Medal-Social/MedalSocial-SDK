@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BaseClient, createMedalClient, Medal, MedalApiError } from "../src";
+import { BaseClient, createMedalClient, Medal, MedalApiError, MedalTimeoutError } from "../src";
 import type { components } from "../src/openapi.generated";
 
 // Compile-time guard: the OPENAPI-DERIVED type must carry the same
@@ -166,7 +166,7 @@ describe("retries", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
-  it("retries on 500 with linear backoff", async () => {
+  it("retries on 500 with exponential, jittered backoff", async () => {
     const spy = vi.spyOn(globalThis, "fetch");
     spy.mockResolvedValueOnce(new Response("", { status: 500 }));
     spy.mockResolvedValueOnce(mockJson({ data: { id: "d1" } }));
@@ -538,11 +538,11 @@ describe("deals", () => {
   it("lists deals with filters", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);
-      expect(parsed.searchParams.get("status")).toBe("open");
+      expect(parsed.searchParams.get("status")).toBe("negotiating");
       return mockJson({ data: [], pagination: { has_more: false, next_cursor: null } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
-    await medal.deals.list({ status: "open" });
+    await medal.deals.list({ status: "negotiating" });
   });
 
   it("lists deals with search", async () => {
@@ -593,7 +593,7 @@ describe("deals", () => {
       return mockJson({ data: { success: true } });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
-    const { data } = await medal.deals.update("d1", { status: "won" });
+    const { data } = await medal.deals.update("d1", { status: "signed" });
     expect(data.success).toBe(true);
   });
 
@@ -1385,22 +1385,22 @@ describe("gdpr", () => {
     expect(data).toHaveLength(1);
   });
 
-  it("sends cookie consent to legacy endpoint", async () => {
+  // The full wire-shape contract lives in tests/gdpr-cookie-consent.test.ts,
+  // against a fixture replayed through the endpoint's own validator.
+  it("sends cookie consent to the API-key endpoint", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
       expect(url).toContain("/api/cookie-consent");
       const body = JSON.parse(init?.body as string);
       expect(body.domain).toBe("example.com");
+      expect(body.event).toBe("preferences_saved");
       return mockJson({ success: true, logId: "log_1" });
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const result = await medal.gdpr.cookieConsent({
+      event: "preferences_saved",
+      consentId: "CID-00001234",
       domain: "example.com",
-      consentStatus: "granted",
-      consentTimestamp: "2025-06-04T10:30:00Z",
-      cookiePreferences: {
-        necessary: { allowed: true },
-        analytics: { allowed: true },
-      },
+      categories: { essential: true, analytics: true },
     });
     expect(result.success).toBe(true);
   });
@@ -1646,7 +1646,9 @@ describe("timeout and Retry-After handling", () => {
     );
 
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 50 });
-    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
+    // A stalled body is the deadline's failure, not the wallet's: it surfaces
+    // as the typed MedalTimeoutError rather than a raw AbortError (SDK-13).
+    await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalTimeoutError);
   }, 2000);
 
   it("does not let a stalled error body block the retry", async () => {
@@ -1685,6 +1687,6 @@ describe("timeout and Retry-After handling", () => {
         }),
     );
     const medal = new Medal("medal_test", { baseUrl: BASE, timeout: 10 });
-    await expect(medal.contacts.list()).rejects.toThrow(/abort/i);
+    await expect(medal.contacts.list()).rejects.toBeInstanceOf(MedalTimeoutError);
   });
 });

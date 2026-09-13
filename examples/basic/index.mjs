@@ -110,8 +110,8 @@ async function main() {
   });
   console.log("Deal created:", deal.id);
 
-  // Update deal status
-  const { data: updated } = await medal.deals.update(deal.id, { status: "won" });
+  // Move the deal along its pipeline (draft -> negotiating -> offer_sent -> signed -> completed | declined)
+  const { data: updated } = await medal.deals.update(deal.id, { status: "negotiating" });
   console.log("Deal updated:", updated.success);
 
   // === GDPR ===

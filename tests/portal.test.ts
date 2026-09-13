@@ -42,11 +42,11 @@ describe("portal", () => {
       // Deliberately unkeyed and never session-bound.
       expect(headers.get("idempotency-key")).toBeNull();
       expect(headers.get("x-portal-session")).toBeNull();
-      expect(JSON.parse(init?.body as string)).toEqual({ email: "ida@example.com", locale: "nb" });
+      expect(JSON.parse(init?.body as string)).toEqual({ email: "ida@example.com", locale: "no" });
       return mockJson({ data: { status: "sent" } }, 202);
     });
     const medal = new Medal("medal_test", { baseUrl: BASE });
-    const { data } = await medal.portal.login.start({ email: "ida@example.com", locale: "nb" });
+    const { data } = await medal.portal.login.start({ email: "ida@example.com", locale: "no" });
     expect(data.status).toBe("sent");
   });
 

@@ -139,7 +139,7 @@ describe("bookings generic model (SP11)", () => {
     vi.restoreAllMocks();
   });
 
-  it("events.list sends from/to and events.get addresses by id", async () => {
+  it("events.list sends from/to/status/host_id and events.get addresses by id", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
       if (url.includes("/api/v1/bookings/events?from=2026-10-01&to=2026-10-31")) {
@@ -166,6 +166,21 @@ describe("bookings generic model (SP11)", () => {
       ).data,
     ).toEqual([]);
     expect((await medal.bookings.events.get("e1")).data.event_id).toBe("e1");
+    vi.restoreAllMocks();
+
+    const urls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      urls.push(String(input));
+      return mockJson({ data: [] });
+    });
+    await medal.bookings.events.list({
+      from: "2026-10-01",
+      to: "2026-10-31",
+      host_id: "host_1",
+    });
+    expect(urls).toEqual([
+      `${BASE}/api/v1/bookings/events?from=2026-10-01&to=2026-10-31&host_id=host_1`,
+    ]);
     vi.restoreAllMocks();
   });
 

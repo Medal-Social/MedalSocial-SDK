@@ -44,23 +44,91 @@ export interface ConsentResult {
 /** @deprecated Use `ConsentRecord[]` for `gdpr.getConsent()` responses. */
 export type ContactConsents = ConsentRecord[];
 
-/** Input for recording cookie consent from an external site. */
-export interface CookieConsentInput {
-  domain: string;
-  consentStatus: "granted" | "denied" | "partial" | string;
-  consentTimestamp: string;
-  ipAddress?: string;
-  userAgent?: string;
-  cookiePreferences: {
-    necessary?: CookieCategoryConsent;
-    analytics?: CookieCategoryConsent;
-    marketing?: CookieCategoryConsent;
-    functional?: CookieCategoryConsent;
-    [key: string]: CookieCategoryConsent | undefined;
-  };
+/**
+ * What happened to a visitor's cookie preferences.
+ *
+ * The endpoint records EVENTS, not a current state: `preferences_saved` when
+ * the visitor chose, `preferences_revoked` when they withdrew,
+ * `banner_displayed` when the banner was shown, `preferences_expired` when a
+ * stored decision aged out.
+ */
+export type CookieConsentEvent =
+  | "preferences_saved"
+  | "preferences_revoked"
+  | "banner_displayed"
+  | "preferences_expired";
+
+/**
+ * The visitor's decision per category. Only these four keys are accepted —
+ * the API rejects an unknown category rather than dropping it silently.
+ *
+ * `essential` is the cookies the site cannot run without and defaults to
+ * `true`; the other three are `undefined` when the event does not state them
+ * (a `banner_displayed` event, for instance, states no decision at all).
+ */
+export interface CookieConsentCategories {
+  essential?: boolean;
+  analytics?: boolean;
+  marketing?: boolean;
+  functional?: boolean;
 }
 
-/** Consent decision and optional cookie records for a single cookie category. */
+/**
+ * Input for recording a cookie consent event from an external site.
+ *
+ * Every string is bounded server-side; a value over its cap is a `400`, not a
+ * truncation. `consentId` ≤ 128, `domain` ≤ 253, `visitorId` ≤ 128,
+ * `ipAddress` ≤ 64, `userAgent` ≤ 512, `consentText` ≤ 2000,
+ * `policyVersion` ≤ 64.
+ *
+ * The `domain` must be one your workspace's registered sites vouch for — its
+ * host, the apex when the site was registered with a leading `www.`, or a
+ * subdomain of either — otherwise the call is refused with `403`.
+ */
+export interface CookieConsentInput {
+  /** What happened. */
+  event: CookieConsentEvent;
+  /** Your identifier for this consent record, unique per decision. */
+  consentId: string;
+  /** Hostname the consent was given on, e.g. `"example.com"`. */
+  domain: string;
+  /** Per-category decisions. */
+  categories: CookieConsentCategories;
+  /** Anonymous visitor identifier, if you keep one. */
+  visitorId?: string;
+  /**
+   * Visitor IP. Optional — omit it and the API reads its trusted edge
+   * headers. Either way only an anonymized value is ever stored (IPv4
+   * truncated to /24, IPv6 to /48).
+   */
+  ipAddress?: string;
+  /** Visitor user agent. Falls back to the request's own header. */
+  userAgent?: string;
+  /** The exact legal text the visitor was shown. */
+  consentText?: string;
+  /** Your cookie policy version, e.g. `"2.1"`. */
+  policyVersion?: string;
+  /**
+   * When the visitor decided, in milliseconds since the epoch. Defaults to
+   * the time the API receives it. Accepted up to 5 minutes ahead (clock skew)
+   * and up to 7 days old.
+   */
+  timestamp?: number;
+}
+
+/** Result of recording a cookie consent event. */
+export interface CookieConsentResult {
+  success: boolean;
+  /** Id of the audit log entry the event was written to. */
+  logId?: string;
+}
+
+/**
+ * @deprecated The API never accepted this shape. `cookieConsent()` was typed
+ * against a `cookiePreferences` map of these objects, which the endpoint
+ * rejects with `400`; it takes a flat `categories` object of booleans
+ * (`CookieConsentCategories`). Kept only so the type name still resolves.
+ */
 export interface CookieCategoryConsent {
   allowed: boolean;
   cookieRecords?: {
