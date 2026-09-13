@@ -3,4 +3,4 @@
 // OpenAPI `info.version` and jsr.json together; tests/version-sync.test.ts
 // fails when any of them drifts from package.json.
 /** The published version of this SDK, as sent in the `User-Agent` header. */
-export const SDK_VERSION = "1.10.0";
+export const SDK_VERSION = "1.11.0";
