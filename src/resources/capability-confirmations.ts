@@ -1,4 +1,4 @@
-import type { BaseClient } from "../client";
+import type { BaseClient, RequestOptions } from "../client";
 import type {
   CapabilityConfirmation,
   IssueCapabilityConfirmationInput,
@@ -51,10 +51,15 @@ export class CapabilityConfirmations {
    * produce a second write. Keying this call would instead park a credential
    * designed to expire in 15 minutes inside a replay cache that answers for 24
    * hours — a worse trade than the duplicate token it would avoid.
+   *
+   * `options.signal` cancels the mint like any other call. It is the only
+   * option taken: the write's `idempotencyKey`, `capabilityConfirmation` and
+   * headers describe the write, not this request.
    */
   async create(
     input: IssueCapabilityConfirmationInput,
+    options?: Pick<RequestOptions, "signal">,
   ): Promise<ApiResponse<CapabilityConfirmation>> {
-    return this.client.post("/api/v1/capability-confirmations", input);
+    return this.client.post("/api/v1/capability-confirmations", input, { signal: options?.signal });
   }
 }

@@ -157,6 +157,73 @@ describe("capabilityConfirmations.create", () => {
   });
 });
 
+describe("cancelling a capability confirmation", () => {
+  beforeEach(() => vi.restoreAllMocks());
+
+  type Seen = { path: string; signal?: AbortSignal };
+
+  /**
+   * A fetch that never answers on its own and settles only when its signal
+   * aborts — a stalled mint, as the client sees one.
+   */
+  function stallUntilAborted(seen: Seen[]) {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      const signal = init?.signal ?? undefined;
+      seen.push({ path: new URL(url as string).pathname, signal });
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    });
+  }
+
+  it("lets a caller's signal cancel an explicit mint", async () => {
+    const seen: Seen[] = [];
+    stallUntilAborted(seen);
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const controller = new AbortController();
+    const reason = new Error("the operator closed the dialog");
+
+    const pending = medal.capabilityConfirmations.create(
+      {
+        capability_id: "channel.connect_link.create.execute",
+        preview_summary: "Mint",
+        user_approved: true,
+      },
+      { signal: controller.signal },
+    );
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    controller.abort(reason);
+
+    // Asserted before awaiting: without the forwarded signal the stalled mint
+    // never settles, so the rejection below would hang rather than fail.
+    expect(seen[0].signal?.aborted).toBe(true);
+    await expect(pending).rejects.toBe(reason);
+  });
+
+  it("aborting an auto-confirmed write cancels its mint and skips the write", async () => {
+    const seen: Seen[] = [];
+    stallUntilAborted(seen);
+    const medal = new Medal("medal_test", {
+      baseUrl: BASE,
+      autoConfirmCapabilities: { previewSummary: () => "approved" },
+    });
+    const controller = new AbortController();
+    const reason = new Error("the user navigated away");
+
+    const pending = medal.channels.connectLinks.create(
+      { channel_type: "telegram_inbox" },
+      { signal: controller.signal },
+    );
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    controller.abort(reason);
+
+    expect(seen[0].path).toBe("/api/v1/capability-confirmations");
+    expect(seen[0].signal?.aborted).toBe(true);
+    await expect(pending).rejects.toBe(reason);
+    expect(seen).toHaveLength(1);
+  });
+});
+
 describe("auto-confirm", () => {
   beforeEach(() => vi.restoreAllMocks());
 
