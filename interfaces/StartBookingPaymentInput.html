@@ -15,7 +15,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">StartBookingPaymentInput</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#return_url">return_url</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#terms_accepted">terms_accepted</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">true</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#terms_text">terms_text</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#terms_version">terms_version</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L379">src/types/bookings.ts:379</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L379">src/types/bookings.ts:379</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -39,7 +39,7 @@ vouches for — anything else is refused with 422, not 400: the URL is
 well-formed, it is just not yours.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L385">src/types/bookings.ts:385</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L385">src/types/bookings.ts:385</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terms_accepted"><span>terms_<wbr/>accepted</span><a href="#terms_accepted" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">terms_accepted</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">true</span></div>
@@ -49,21 +49,21 @@ no acceptance step makes the integration non-compliant, so the API refuses
 a body that omits it or sends <code>false</code> with a 400.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L392">src/types/bookings.ts:392</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L392">src/types/bookings.ts:392</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terms_text"><code class="tsd-tag">Optional</code><span>terms_<wbr/>text</span><a href="#terms_text" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">terms_text</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>The exact text they accepted, stored with the consent record.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L396">src/types/bookings.ts:396</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L396">src/types/bookings.ts:396</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terms_version"><code class="tsd-tag">Optional</code><span>terms_<wbr/>version</span><a href="#terms_version" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">terms_version</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Your own version label for the terms they accepted.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L394">src/types/bookings.ts:394</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L394">src/types/bookings.ts:394</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

@@ -10,11 +10,16 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="" aria-current="page">DealStatus</a></li></ul>
 <h1>Type Alias DealStatus</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">DealStatus</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;draft&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;open&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;won&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;lost&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;negotiating&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;proposal_sent&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;on_hold&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;churned&quot;</span></div>
-<div class="tsd-comment tsd-typography"><p>Lifecycle stage of a sponsorship deal.</p>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">DealStatus</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;draft&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;negotiating&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;offer_sent&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;signed&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;completed&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;declined&quot;</span></div>
+<div class="tsd-comment tsd-typography"><p>Lifecycle stage of a sponsorship deal — the only six values a deal can hold.</p>
+<pre><code><span class="hl-5">draft</span><span class="hl-1"> → </span><span class="hl-5">negotiating</span><span class="hl-1"> → </span><span class="hl-5">offer_sent</span><span class="hl-1"> → </span><span class="hl-5">signed</span><span class="hl-1"> → </span><span class="hl-5">completed</span><br/><span class="hl-1">                                         ↘ </span><span class="hl-5">declined</span>
+</code><button>Copy</button></pre>
+
+<p>A deal created through the API always starts at <code>draft</code>; <code>status</code> is only
+accepted on <code>update</code>. Any other value is a <code>400 VALIDATION_ERROR</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/deals.ts#L39">src/types/deals.ts:39</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/deals.ts#L73">src/types/deals.ts:73</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

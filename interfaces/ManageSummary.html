@@ -18,7 +18,7 @@ windows, so honour them rather than re-deriving from the window hours.</p>
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">ManageSummary</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#amount_ore">amount_ore</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booked_for_name">booked_for_name</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booking_id">booking_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#can_cancel">can_cancel</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#can_reschedule">can_reschedule</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#cancel_reason">cancel_reason</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#cancel_window_hours">cancel_window_hours</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#cancelled_by">cancelled_by</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingCancelledBy.html" class="tsd-signature-type tsd-kind-type-alias">BookingCancelledBy</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#contact_id">contact_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#end_ts">end_ts</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#party_sequence_id">party_sequence_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#payment_mode">payment_mode</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingPaymentMode.html" class="tsd-signature-type tsd-kind-type-alias">BookingPaymentMode</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#payment_status">payment_status</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingPaymentStatus.html" class="tsd-signature-type tsd-kind-type-alias">BookingPaymentStatus</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#reschedule_window_hours">reschedule_window_hours</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#rescheduled_from_id">rescheduled_from_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_id">resource_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_name">resource_name</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_id">service_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_name">service_name</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#start_ts">start_ts</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#status">status</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingStatus.html" class="tsd-signature-type tsd-kind-type-alias">BookingStatus</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#time_zone">time_zone</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L260">src/types/bookings.ts:260</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L260">src/types/bookings.ts:260</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -58,57 +58,57 @@ windows, so honour them rather than re-deriving from the window hours.</p>
 <div class="tsd-comment tsd-typography"><p>Price in integer øre.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L276">src/types/bookings.ts:276</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L276">src/types/bookings.ts:276</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="booked_for_name"><span>booked_<wbr/>for_<wbr/>name</span><a href="#booked_for_name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">booked_for_name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L273">src/types/bookings.ts:273</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L273">src/types/bookings.ts:273</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="booking_id"><span>booking_<wbr/>id</span><a href="#booking_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">booking_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L261">src/types/bookings.ts:261</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L261">src/types/bookings.ts:261</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="can_cancel"><span>can_<wbr/>cancel</span><a href="#can_cancel" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">can_cancel</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L288">src/types/bookings.ts:288</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L288">src/types/bookings.ts:288</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="can_reschedule"><span>can_<wbr/>reschedule</span><a href="#can_reschedule" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">can_reschedule</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L289">src/types/bookings.ts:289</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L289">src/types/bookings.ts:289</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="cancel_reason"><span>cancel_<wbr/>reason</span><a href="#cancel_reason" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">cancel_reason</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L265">src/types/bookings.ts:265</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L265">src/types/bookings.ts:265</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="cancel_window_hours"><span>cancel_<wbr/>window_<wbr/>hours</span><a href="#cancel_window_hours" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">cancel_window_hours</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L286">src/types/bookings.ts:286</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L286">src/types/bookings.ts:286</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="cancelled_by"><span>cancelled_<wbr/>by</span><a href="#cancelled_by" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">cancelled_by</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingCancelledBy.html" class="tsd-signature-type tsd-kind-type-alias">BookingCancelledBy</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L264">src/types/bookings.ts:264</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L264">src/types/bookings.ts:264</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="contact_id"><span>contact_<wbr/>id</span><a href="#contact_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">contact_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L262">src/types/bookings.ts:262</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L262">src/types/bookings.ts:262</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="end_ts"><span>end_<wbr/>ts</span><a href="#end_ts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">end_ts</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L268">src/types/bookings.ts:268</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L268">src/types/bookings.ts:268</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="party_sequence_id"><span>party_<wbr/>sequence_<wbr/>id</span><a href="#party_sequence_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">party_sequence_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L274">src/types/bookings.ts:274</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L274">src/types/bookings.ts:274</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="payment_mode"><span>payment_<wbr/>mode</span><a href="#payment_mode" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">payment_mode</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingPaymentMode.html" class="tsd-signature-type tsd-kind-type-alias">BookingPaymentMode</a></div>
@@ -117,59 +117,59 @@ for a booking that owes nothing and one that has not paid yet, so this is
 what a manage page checks before offering «Betal nå».</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L283">src/types/bookings.ts:283</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L283">src/types/bookings.ts:283</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="payment_status"><span>payment_<wbr/>status</span><a href="#payment_status" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">payment_status</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingPaymentStatus.html" class="tsd-signature-type tsd-kind-type-alias">BookingPaymentStatus</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L277">src/types/bookings.ts:277</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L277">src/types/bookings.ts:277</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="reschedule_window_hours"><span>reschedule_<wbr/>window_<wbr/>hours</span><a href="#reschedule_window_hours" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">reschedule_window_hours</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L287">src/types/bookings.ts:287</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L287">src/types/bookings.ts:287</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="rescheduled_from_id"><span>rescheduled_<wbr/>from_<wbr/>id</span><a href="#rescheduled_from_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">rescheduled_from_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L266">src/types/bookings.ts:266</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L266">src/types/bookings.ts:266</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resource_id"><span>resource_<wbr/>id</span><a href="#resource_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">resource_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L271">src/types/bookings.ts:271</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L271">src/types/bookings.ts:271</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resource_name"><span>resource_<wbr/>name</span><a href="#resource_name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">resource_name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L272">src/types/bookings.ts:272</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L272">src/types/bookings.ts:272</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="service_id"><span>service_<wbr/>id</span><a href="#service_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">service_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L269">src/types/bookings.ts:269</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L269">src/types/bookings.ts:269</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="service_name"><span>service_<wbr/>name</span><a href="#service_name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">service_name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L270">src/types/bookings.ts:270</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L270">src/types/bookings.ts:270</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="start_ts"><span>start_<wbr/>ts</span><a href="#start_ts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">start_ts</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L267">src/types/bookings.ts:267</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L267">src/types/bookings.ts:267</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="status"><span>status</span><a href="#status" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">status</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingStatus.html" class="tsd-signature-type tsd-kind-type-alias">BookingStatus</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L263">src/types/bookings.ts:263</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L263">src/types/bookings.ts:263</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="time_zone"><span>time_<wbr/>zone</span><a href="#time_zone" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">time_zone</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div>
 <div class="tsd-comment tsd-typography"><p>IANA zone the booking's local times should be rendered in.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/bookings.ts#L285">src/types/bookings.ts:285</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/bookings.ts#L285">src/types/bookings.ts:285</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

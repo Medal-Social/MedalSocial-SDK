@@ -13,14 +13,14 @@
 <section class="tsd-panel tsd-comment">
 <div class="tsd-comment tsd-typography"><p>API error thrown by the client</p>
 </div></section>
-<section class="tsd-panel tsd-hierarchy" data-refl="14657">
-<h4>Hierarchy</h4>
+<section class="tsd-panel tsd-hierarchy" data-refl="17124">
+<h4>Hierarchy (<a href="../hierarchy.html#MedalApiError">View Summary</a>)</h4>
 <ul class="tsd-hierarchy">
-<li class="tsd-hierarchy-item"><span class="tsd-signature-type">Error</span>
+<li class="tsd-hierarchy-item"><a href="MedalError.html" class="tsd-signature-type tsd-kind-class">MedalError</a>
 <ul class="tsd-hierarchy">
 <li class="tsd-hierarchy-item"><span class="tsd-hierarchy-target">MedalApiError</span></li></ul></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/common.ts#L16">src/types/common.ts:16</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L133">src/types/common.ts:133</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -33,10 +33,12 @@
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-index-list"><a href="#cause" class="tsd-index-link tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>cause?</span></a>
-<a href="#code" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>code</span></a>
+<a href="#code" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>code</span></a>
 <a href="#details" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>details?</span></a>
 <a href="#message" class="tsd-index-link tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>message</span></a>
 <a href="#name" class="tsd-index-link tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a>
+<a href="#requestid" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>request<wbr/>Id</span></a>
+<a href="#retryafterms" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry<wbr/>After<wbr/>Ms</span></a>
 <a href="#stack" class="tsd-index-link tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack?</span></a>
 <a href="#status" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>status</span></a>
 <a href="#stacktracelimit" class="tsd-index-link tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack<wbr/>Trace<wbr/>Limit</span></a>
@@ -54,61 +56,83 @@
 <h3 class="tsd-anchor-link" id="constructor"><span>constructor</span><a href="#constructor" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
 <li class="">
-<div class="tsd-signature tsd-anchor-link" id="constructormedalapierror"><span class="tsd-signature-keyword">new</span> <span class="tsd-kind-constructor-signature">MedalApiError</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">status</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">code</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">message</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">details</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a href="" class="tsd-signature-type tsd-kind-class">MedalApiError</a><a href="#constructormedalapierror" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
+<div class="tsd-signature tsd-anchor-link" id="constructormedalapierror"><span class="tsd-signature-keyword">new</span> <span class="tsd-kind-constructor-signature">MedalApiError</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">status</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">code</span><span class="tsd-signature-symbol">:</span> <a href="../types/MedalErrorCode.html" class="tsd-signature-type tsd-kind-type-alias">MedalErrorCode</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{}</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">message</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">details</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">unknown</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">meta</span><span class="tsd-signature-symbol">?:</span> <a href="../interfaces/MedalApiErrorMeta.html" class="tsd-signature-type tsd-kind-interface">MedalApiErrorMeta</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a href="" class="tsd-signature-type tsd-kind-class">MedalApiError</a><a href="#constructormedalapierror" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li><span><span class="tsd-kind-parameter">status</span>: <span class="tsd-signature-type">number</span></span></li>
-<li><span><span class="tsd-kind-parameter">code</span>: <span class="tsd-signature-type">string</span></span></li>
+<li><span><span class="tsd-kind-parameter">code</span>: <a href="../types/MedalErrorCode.html" class="tsd-signature-type tsd-kind-type-alias">MedalErrorCode</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{}</span></span></li>
 <li><span><span class="tsd-kind-parameter">message</span>: <span class="tsd-signature-type">string</span></span></li>
-<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">details</span>: <span class="tsd-signature-type">unknown</span></span></li></ul></div>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">details</span>: <span class="tsd-signature-type">unknown</span></span></li>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">meta</span>: <a href="../interfaces/MedalApiErrorMeta.html" class="tsd-signature-type tsd-kind-interface">MedalApiErrorMeta</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="" class="tsd-signature-type tsd-kind-class">MedalApiError</a></h4><aside class="tsd-sources">
-<p>Overrides Error.constructor</p>
+<p>Overrides <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#constructor">constructor</a></p>
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/common.ts#L21">src/types/common.ts:21</a></li></ul></aside></div></li></ul></section></section></details>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L141">src/types/common.ts:141</a></li></ul></aside></div></li></ul></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="properties-1">Properties<a href="#properties-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="cause"><code class="tsd-tag">Optional</code><span>cause</span><a href="#cause" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">cause</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">unknown</span></div><aside class="tsd-sources">
-<p>Inherited from Error.cause</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#cause">cause</a></p>
 <ul>
 <li>Defined in node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib/lib.es2022.error.d.ts:24</li></ul></aside></section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="code"><code class="tsd-tag">Readonly</code><span>code</span><a href="#code" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">code</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-kind-property">code</span><span class="tsd-signature-symbol">:</span> <a href="../types/MedalErrorCode.html" class="tsd-signature-type tsd-kind-type-alias">MedalErrorCode</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">&amp;</span> <span class="tsd-signature-symbol">{}</span></div>
+<div class="tsd-comment tsd-typography"><p>Machine-readable failure code — the API's <code>error.code</code>, or <code>TIMEOUT</code> /
+<code>NETWORK</code> for the two failures that never reach the API.</p>
+<p>Typed as the <a href="../types/MedalErrorCode.html" class="tsd-kind-type-alias">MedalErrorCode</a> union widened with <code>string</code>, so
+comparing against a known code autocompletes while a code the server adds
+later still arrives intact rather than being a type error.</p>
+</div><aside class="tsd-sources">
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#code">code</a></p>
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/common.ts#L18">src/types/common.ts:18</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L106">src/types/common.ts:106</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="details"><code class="tsd-tag">Optional</code> <code class="tsd-tag">Readonly</code><span>details</span><a href="#details" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">details</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">unknown</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/common.ts#L19">src/types/common.ts:19</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L135">src/types/common.ts:135</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="message"><span>message</span><a href="#message" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">message</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
-<p>Inherited from Error.message</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#message">message</a></p>
 <ul>
 <li>Defined in node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib/lib.es5.d.ts:1075</li></ul></aside></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="name"><span>name</span><a href="#name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
-<p>Inherited from Error.name</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#name">name</a></p>
 <ul>
 <li>Defined in node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib/lib.es5.d.ts:1074</li></ul></aside></section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="requestid"><code class="tsd-tag">Readonly</code><span>request<wbr/>Id</span><a href="#requestid" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">requestId</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div>
+<div class="tsd-comment tsd-typography"><p>See <a href="../interfaces/MedalApiErrorMeta.html#requestid" class="tsd-kind-property">MedalApiErrorMeta.requestId</a>.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L137">src/types/common.ts:137</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="retryafterms"><code class="tsd-tag">Readonly</code><span>retry<wbr/>After<wbr/>Ms</span><a href="#retryafterms" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">retryAfterMs</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span></div>
+<div class="tsd-comment tsd-typography"><p>See <a href="../interfaces/MedalApiErrorMeta.html#retryafterms" class="tsd-kind-property">MedalApiErrorMeta.retryAfterMs</a>.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L139">src/types/common.ts:139</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="stack"><code class="tsd-tag">Optional</code><span>stack</span><a href="#stack" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">stack</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
-<p>Inherited from Error.stack</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#stack">stack</a></p>
 <ul>
 <li>Defined in node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib/lib.es5.d.ts:1076</li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="status"><code class="tsd-tag">Readonly</code><span>status</span><a href="#status" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">status</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/types/common.ts#L17">src/types/common.ts:17</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/types/common.ts#L134">src/types/common.ts:134</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="stacktracelimit"><code class="tsd-tag">Static</code><span>stack<wbr/>Trace<wbr/>Limit</span><a href="#stacktracelimit" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">stackTraceLimit</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
@@ -120,9 +144,9 @@ will affect any stack trace captured <em>after</em> the value has been changed.<
 <p>If set to a non-number value, or set to a negative number, stack traces will
 not capture any frames.</p>
 </div><aside class="tsd-sources">
-<p>Inherited from Error.stackTraceLimit</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#stacktracelimit">stackTraceLimit</a></p>
 <ul>
-<li>Defined in node_modules/.pnpm/@types+node@26.3.0/node_modules/@types/node/globals.d.ts:67</li></ul></aside></section></section></details>
+<li>Defined in node_modules/.pnpm/@types+node@26.5.0/node_modules/@types/node/globals.d.ts:67</li></ul></aside></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -155,9 +179,9 @@ details of error generation from the user. For instance:</p>
 <li><span><span class="tsd-kind-parameter">targetObject</span>: <span class="tsd-signature-type">object</span></span></li>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">constructorOpt</span>: <span class="tsd-signature-type">Function</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
-<p>Inherited from Error.captureStackTrace</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#capturestacktrace">captureStackTrace</a></p>
 <ul>
-<li>Defined in node_modules/.pnpm/@types+node@26.3.0/node_modules/@types/node/globals.d.ts:51</li></ul></aside></div></li></ul></section>
+<li>Defined in node_modules/.pnpm/@types+node@26.5.0/node_modules/@types/node/globals.d.ts:51</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
 <h3 class="tsd-anchor-link" id="iserror"><code class="tsd-tag">Static</code><span>is<wbr/>Error</span><a href="#iserror" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures tsd-is-inherited tsd-is-external">
@@ -171,7 +195,7 @@ details of error generation from the user. For instance:</p>
 <ul class="tsd-parameter-list">
 <li><span><span class="tsd-kind-parameter">error</span>: <span class="tsd-signature-type">unknown</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-kind-parameter">error</span> <span class="tsd-signature-keyword">is</span> <span class="tsd-signature-type">Error</span></h4><aside class="tsd-sources">
-<p>Inherited from Error.isError</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#iserror">isError</a></p>
 <ul>
 <li>Defined in node_modules/.pnpm/typescript@6.0.3/node_modules/typescript/lib/lib.esnext.error.d.ts:21</li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member tsd-is-inherited tsd-is-external">
@@ -190,9 +214,9 @@ details of error generation from the user. For instance:</p>
 <div class="tsd-tag-see">
 <h4 class="tsd-anchor-link" id="see">See<a href="#see" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><p><a href="https://v8.dev/docs/stack-trace-api#customizing-stack-traces">https://v8.dev/docs/stack-trace-api#customizing-stack-traces</a></p>
 </div></div><aside class="tsd-sources">
-<p>Inherited from Error.prepareStackTrace</p>
+<p>Inherited from <a href="MedalError.html">MedalError</a>.<a href="MedalError.html#preparestacktrace">prepareStackTrace</a></p>
 <ul>
-<li>Defined in node_modules/.pnpm/@types+node@26.3.0/node_modules/@types/node/globals.d.ts:55</li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in node_modules/.pnpm/@types+node@26.5.0/node_modules/@types/node/globals.d.ts:55</li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -210,7 +234,7 @@ details of error generation from the user. For instance:</p>
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Constructors"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Constructors</summary>
 <div><a href="#constructor"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Constructor"><use href="../assets/icons.svg#icon-512"></use></svg><span>constructor</span></a></div></details>
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#cause" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>cause</span></a><a href="#code"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>code</span></a><a href="#details"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>details</span></a><a href="#message" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>message</span></a><a href="#name" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a><a href="#stack" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack</span></a><a href="#status"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>status</span></a><a href="#stacktracelimit" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack<wbr/>Trace<wbr/>Limit</span></a></div></details>
+<div><a href="#cause" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>cause</span></a><a href="#code" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>code</span></a><a href="#details"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>details</span></a><a href="#message" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>message</span></a><a href="#name" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>name</span></a><a href="#requestid"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>request<wbr/>Id</span></a><a href="#retryafterms"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry<wbr/>After<wbr/>Ms</span></a><a href="#stack" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack</span></a><a href="#status"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>status</span></a><a href="#stacktracelimit" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>stack<wbr/>Trace<wbr/>Limit</span></a></div></details>
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Methods</summary>
 <div><a href="#capturestacktrace" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>capture<wbr/>Stack<wbr/>Trace</span></a><a href="#iserror" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>is<wbr/>Error</span></a><a href="#preparestacktrace" class="tsd-is-inherited tsd-is-external"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Method"><use href="../assets/icons.svg#icon-2048"></use></svg><span>prepare<wbr/>Stack<wbr/>Trace</span></a></div></details></div></details></div>
 <div class="site-menu">

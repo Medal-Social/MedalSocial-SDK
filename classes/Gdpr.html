@@ -14,7 +14,7 @@
 <div class="tsd-comment tsd-typography"><p>Manage GDPR compliance — data exports, consent records, and cookie consent.</p>
 </div></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L12">src/resources/gdpr.ts:12</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L15">src/resources/gdpr.ts:15</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -40,15 +40,16 @@
 <h3 class="tsd-anchor-link" id="constructor"><span>constructor</span><a href="#constructor" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
 <li class="">
-<div class="tsd-signature tsd-anchor-link" id="constructorgdpr"><span class="tsd-signature-keyword">new</span> <span class="tsd-kind-constructor-signature">Gdpr</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">client</span><span class="tsd-signature-symbol">:</span> <a href="BaseClient.html" class="tsd-signature-type tsd-kind-class">BaseClient</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a href="" class="tsd-signature-type tsd-kind-class">Gdpr</a><a href="#constructorgdpr" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
+<div class="tsd-signature tsd-anchor-link" id="constructorgdpr"><span class="tsd-signature-keyword">new</span> <span class="tsd-kind-constructor-signature">Gdpr</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">client</span><span class="tsd-signature-symbol">:</span> <a href="BaseClient.html" class="tsd-signature-type tsd-kind-class">BaseClient</a><span class="tsd-signature-symbol">,</span> <span class="tsd-kind-parameter">confirmer</span><span class="tsd-signature-symbol">?:</span> <a href="CapabilityConfirmer.html" class="tsd-signature-type tsd-kind-class">CapabilityConfirmer</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <a href="" class="tsd-signature-type tsd-kind-class">Gdpr</a><a href="#constructorgdpr" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
-<li><span><span class="tsd-kind-parameter">client</span>: <a href="BaseClient.html" class="tsd-signature-type tsd-kind-class">BaseClient</a></span></li></ul></div>
+<li><span><span class="tsd-kind-parameter">client</span>: <a href="BaseClient.html" class="tsd-signature-type tsd-kind-class">BaseClient</a></span></li>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">confirmer</span>: <a href="CapabilityConfirmer.html" class="tsd-signature-type tsd-kind-class">CapabilityConfirmer</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="" class="tsd-signature-type tsd-kind-class">Gdpr</a></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L13">src/resources/gdpr.ts:13</a></li></ul></aside></div></li></ul></section></section></details>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L19">src/resources/gdpr.ts:19</a></li></ul></aside></div></li></ul></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -56,22 +57,39 @@
 <h3 class="tsd-anchor-link" id="cookieconsent"><span>cookie<wbr/>Consent</span><a href="#cookieconsent" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
 <li class="">
-<div class="tsd-signature tsd-anchor-link" id="cookieconsent-1"><span class="tsd-kind-call-signature">cookieConsent</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">input</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/CookieConsentInput.html" class="tsd-signature-type tsd-kind-interface">CookieConsentInput</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">logId</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">success</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span><a href="#cookieconsent-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
+<div class="tsd-signature tsd-anchor-link" id="cookieconsent-1"><span class="tsd-kind-call-signature">cookieConsent</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">input</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/CookieConsentInput.html" class="tsd-signature-type tsd-kind-interface">CookieConsentInput</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <a href="../interfaces/RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CookieConsentResult.html" class="tsd-signature-type tsd-kind-interface">CookieConsentResult</a><span class="tsd-signature-symbol">&gt;</span><a href="#cookieconsent-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
-<div class="tsd-comment tsd-typography"><p>Record cookie consent from an external site (legacy endpoint).</p>
-<p>Deliberately unkeyed: this legacy route predates the versioned API and
-does not run the <code>Idempotency-Key</code> machinery, so a key here would be a
-header that changes nothing while implying a guarantee the endpoint cannot
-make. Treat a failed call as &quot;unknown&quot; and re-send only if a missing
-consent log matters more to you than a duplicate one.</p>
+<div class="tsd-comment tsd-typography"><p>Record a cookie consent event from an external site, server-to-server.</p>
+<p>The event is appended to the workspace's hash-chained audit trail — the
+evidence a regulator would be shown — so <code>domain</code> must be one your
+workspace's registered sites vouch for, or the call is refused with
+<code>403</code>. Every string field is bounded; over-length values are <code>400</code>, never
+truncated. Metered at 600/min per API key, answering <code>429</code> with
+<code>Retry-After</code> beyond that.</p>
+<p>This route takes a <strong>workspace API key</strong>, so call it only from your own
+backend. Consent collected in the visitor's browser should go to
+<code>POST /api/cookie-consent/public</code> with the site's public
+<code>pk_consent_*</code> key instead — a workspace key must never reach a page.</p>
+<p>Deliberately unkeyed: this route predates the versioned API and does not
+run the <code>Idempotency-Key</code> machinery, so a key here would be a header that
+changes nothing while implying a guarantee the endpoint cannot make.
+Treat a failed call as &quot;unknown&quot; and re-send only if a missing consent log
+matters more to you than a duplicate one.</p>
 </div>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
-<li><span><span class="tsd-kind-parameter">input</span>: <a href="../interfaces/CookieConsentInput.html" class="tsd-signature-type tsd-kind-interface">CookieConsentInput</a></span></li></ul></div>
-<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">logId</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">success</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">boolean</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
+<li><span><span class="tsd-kind-parameter">input</span>: <a href="../interfaces/CookieConsentInput.html" class="tsd-signature-type tsd-kind-interface">CookieConsentInput</a></span></li>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a></span></li></ul></div>
+<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CookieConsentResult.html" class="tsd-signature-type tsd-kind-interface">CookieConsentResult</a><span class="tsd-signature-symbol">&gt;</span></h4>
+<div class="tsd-comment tsd-typography">
+<div class="tsd-tag-example">
+<h4 class="tsd-anchor-link" id="example">Example<a href="#example" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><pre><code class="ts"><span class="hl-4">await</span><span class="hl-1"> </span><span class="hl-5">medal</span><span class="hl-1">.</span><span class="hl-5">gdpr</span><span class="hl-1">.</span><span class="hl-0">cookieConsent</span><span class="hl-1">({</span><br/><span class="hl-1">  </span><span class="hl-5">event:</span><span class="hl-1"> </span><span class="hl-2">&#39;preferences_saved&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-5">consentId:</span><span class="hl-1"> </span><span class="hl-2">&#39;CID-00001234&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-5">domain:</span><span class="hl-1"> </span><span class="hl-2">&#39;example.com&#39;</span><span class="hl-1">,</span><br/><span class="hl-1">  </span><span class="hl-5">categories:</span><span class="hl-1"> { </span><span class="hl-5">essential:</span><span class="hl-1"> </span><span class="hl-6">true</span><span class="hl-1">, </span><span class="hl-5">analytics:</span><span class="hl-1"> </span><span class="hl-6">true</span><span class="hl-1">, </span><span class="hl-5">marketing:</span><span class="hl-1"> </span><span class="hl-6">false</span><span class="hl-1"> },</span><br/><span class="hl-1">});</span>
+</code><button type="button">Copy</button></pre>
+
+</div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L65">src/resources/gdpr.ts:65</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L104">src/resources/gdpr.ts:104</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getconsent"><span>get<wbr/>Consent</span><a href="#getconsent" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -86,7 +104,7 @@ consent log matters more to you than a duplicate one.</p>
 <li><span><span class="tsd-kind-parameter">email</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ConsentRecord.html" class="tsd-signature-type tsd-kind-interface">ConsentRecord</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L52">src/resources/gdpr.ts:52</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L69">src/resources/gdpr.ts:69</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getexport"><span>get<wbr/>Export</span><a href="#getexport" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -101,7 +119,7 @@ consent log matters more to you than a duplicate one.</p>
 <li><span><span class="tsd-kind-parameter">id</span>: <span class="tsd-signature-type">string</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/GdprExport.html" class="tsd-signature-type tsd-kind-interface">GdprExport</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L36">src/resources/gdpr.ts:36</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L50">src/resources/gdpr.ts:50</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="listexports"><span>list<wbr/>Exports</span><a href="#listexports" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -112,12 +130,12 @@ consent log matters more to you than a duplicate one.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/GdprExport.html" class="tsd-signature-type tsd-kind-interface">GdprExport</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L31">src/resources/gdpr.ts:31</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L45">src/resources/gdpr.ts:45</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="recordconsent"><span>record<wbr/>Consent</span><a href="#recordconsent" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
 <li class="">
-<div class="tsd-signature tsd-anchor-link" id="recordconsent-1"><span class="tsd-kind-call-signature">recordConsent</span><span class="tsd-signature-symbol">(</span><span class="tsd-kind-parameter">input</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/RecordConsentInput.html" class="tsd-signature-type tsd-kind-interface">RecordConsentInput</a><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ConsentResult.html" class="tsd-signature-type tsd-kind-interface">ConsentResult</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span><a href="#recordconsent-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
+<div class="tsd-signature tsd-anchor-link" id="recordconsent-1"><span class="tsd-kind-call-signature">recordConsent</span><span class="tsd-signature-symbol">(</span><br/>    <span class="tsd-kind-parameter">input</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/RecordConsentInput.html" class="tsd-signature-type tsd-kind-interface">RecordConsentInput</a><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-kind-parameter">options</span><span class="tsd-signature-symbol">?:</span> <a href="../interfaces/RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ConsentResult.html" class="tsd-signature-type tsd-kind-interface">ConsentResult</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span><a href="#recordconsent-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></div>
 <div class="tsd-description">
 <div class="tsd-comment tsd-typography"><p>Record a GDPR consent decision for a contact by email.</p>
 <p>Deliberately unkeyed: a decision is stored once per
@@ -127,10 +145,11 @@ the same body reaches the same state and returns the same record id.</p>
 <div class="tsd-parameters">
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
-<li><span><span class="tsd-kind-parameter">input</span>: <a href="../interfaces/RecordConsentInput.html" class="tsd-signature-type tsd-kind-interface">RecordConsentInput</a></span></li></ul></div>
+<li><span><span class="tsd-kind-parameter">input</span>: <a href="../interfaces/RecordConsentInput.html" class="tsd-signature-type tsd-kind-interface">RecordConsentInput</a></span></li>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ConsentResult.html" class="tsd-signature-type tsd-kind-interface">ConsentResult</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L47">src/resources/gdpr.ts:47</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L61">src/resources/gdpr.ts:61</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="requestexport"><span>request<wbr/>Export</span><a href="#requestexport" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -150,7 +169,7 @@ your OWN retries too.</p>
 <li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/ApiResponse.html" class="tsd-signature-type tsd-kind-interface">ApiResponse</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">request_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">status</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/9d722132966621f863f37b26ff46aa8f35b790c9/src/resources/gdpr.ts#L24">src/resources/gdpr.ts:24</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/efd89a2ddb2174d0dd98796a5aef107e50a3696a/src/resources/gdpr.ts#L33">src/resources/gdpr.ts:33</a></li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
