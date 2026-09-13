@@ -1,6 +1,6 @@
 [plugin]
 name = "medalsocial-sdk"
-version = "1.10.0"
+version = "1.11.0"
 description = "Medal Social API client for Pilot crew"
 
 [permissions]
