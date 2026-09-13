@@ -1,5 +1,160 @@
 # @medalsocial/sdk
 
+## 1.11.0
+
+### Minor Changes
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Correct the status enums the API never accepted, type deal dates as the Unix milliseconds the API returns, add the three missing webhook events, expose every list filter the API accepts, close the remaining string-typed enums, support Node 22+, and derive the version metadata from `package.json`.
+  
+  **Corrections — the previous values could never succeed against the API (a `400 VALIDATION_ERROR` in every case), so these are fixes rather than breaks, even where TypeScript now rejects code that used to compile:**
+  
+  - `DealStatus` is `draft | negotiating | offer_sent | signed | completed | declined`. Six of the eight values the SDK, the OpenAPI document and the basic example advertised (`open`, `won`, `lost`, `proposal_sent`, `on_hold`, `churned`) were refused by `deals.update`, and `deals.list({ status: 'won' })` silently returned an empty page.
+  - `ContactStatus` is `lead | subscriber | customer | churned`. `prospect` and `archived` were refused by create, update, import and the list filter; `subscriber` could not be typed at all. The Pilot `createContact` tool schema moves to the same set.
+  - `PortalLoginStartInput.locale` is `PortalLocale` (`no | en`). The README and JSDoc told integrators to send `nb`, which the API refuses.
+  - `Deal.start_date` / `Deal.end_date` are `number | null` — Unix milliseconds — which is what the wire has always carried. They are still *sent* as ISO 8601 / `YYYY-MM-DD` strings on create and update.
+  - `CreateWebhookInput.event_types` / `UpdateWebhookInput.event_types` are `SubscribableWebhookEventType[]` and the `channels` filters are `HelpdeskChannel[]`; the API rejects any other string, so a typo is now a compile error instead of a runtime `400`.
+  
+  **Additive:**
+  
+  - `WebhookEvent` gains `MessageDeletedEvent` (`helpdesk.message_deleted`), `ConversationContactLinkedEvent` and `ConversationContactUnlinkedEvent` — the three server events the union was missing — plus `WebhookEventType` (`WebhookEvent['type']`) and `SubscribableWebhookEventType` for exhaustiveness checks. `WebhookConversationSnapshot` carries the `contactLinkSource`, `contactLinkedAt`, `chatType` and `chatTitle` fields the server includes, and its `status` (like the top-level `channel` and the message snapshot's `deliveryStatus`) is now the closed union the REST types already use. `ConversationStatusChangedEvent.data` types the optional `reason: "message_reopened"` the server sets when a customer message reopens a thread.
+  - `ConversationMessage.externally_deleted_at` (`number | null`): the Unix-ms timestamp of an upstream deletion — the message is kept as a tombstone with an empty `body` — which the API has been returning alongside the `helpdesk.message_deleted` event.
+  - List filters the API already accepted: `deals.list` takes `close_date_from` / `close_date_to` / `min_value` / `company_name` / `contact_id` / `stage`; `contacts.list` takes `email` (exact match); `posts.list` takes `scheduled_from` / `scheduled_to` / `published_from` / `published_to` / `platforms` / `query`; `bookings.list` takes `created_via`; `helpdesk.conversations.list` takes `chat_type` and `assigned` (including `assigned: false`, the triage question `assignee_user_id` cannot ask). `TimestampInput` (`number | string`) is the shared type for the date filters.
+  - Closed unions where the API has closed enums: `PostStatus`, `PostVariantStatus`, `EmailSendStatus`, `HelpdeskChannel`, `HelpdeskChatType`, `ContactLinkSource`; `ContactAddress` replaces `Record<string, string>` (the keys are camelCase, `postalCode` included, and the API rejects any other key); `ImportContactInput.status` is `ContactStatus`. `Conversation` carries the `contact_link_source`, `contact_linked_at`, `chat_type` and `chat_title` fields the API returns.
+  - `engines.node` is `>=22` (was `>=24`, which refused Node 22 LTS — active until October 2027 — at install time under `engine-strict`). Nothing in the client needs a runtime newer than Node 20 (only `fetch`, `AbortController`, `WritableStream` and Web Crypto), but Node 20 reached end-of-life on 2026-04-30 and the SDK's own toolchain (pnpm 11, `changesets`, `secretlint`, `lint-staged`) needs 22.13+, so 22 is the floor the SDK certifies; CI now runs the unit suite on Node 22 and 24.
+  - The `User-Agent` header reports the real package version (it was pinned to `1.0.0` since 1.0.0) and links to this repository; `src/version.ts`, `jsr.json` and the OpenAPI document's `info.version` (stuck at `1.1.7`) are now written from `package.json` by `scripts/sync-version.mjs` during `pnpm run version`, and a test fails on drift.
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Cover the confirmable write registry, add the missing bookings/portal routes, and make the OpenAPI gate able to see drift (audit SDK-B)
+  
+  **Action required if you import `@medalsocial/sdk/pilot`:** `zod` moved from a
+  runtime dependency to an **optional peer** dependency, so it is no longer
+  installed for you. Add it to your own dependencies (`pnpm add zod`). Nothing else
+  in the package touches zod, so every other consumer now installs one fewer
+  package.
+  
+  New:
+  
+  - `bookings.today()` and `bookings.attention()` — the salon's operating summary
+    for one local date, and the open items that need a human.
+  - `bookings.events.hosts.{list,create,update}` and
+    `bookings.events.remove(id)` / `.delete(id)` (OAuth callers need the workspace
+    `admin` role).
+  - `portal.login.vipps.{start,exchange}` — "Log in with Vipps".
+  - `helpdesk.conversations.{linkContact,unlinkContact}` — bind a thread's sender
+    to a CRM contact, or reverse it.
+  - `iter()` on `contacts`, `deals`, `posts`, `helpdesk.conversations`,
+    `channels.connectLinks` and `channels.connections`, plus the exported
+    `paginate(fetchPage)` — auto-paging driven off `has_more`, so a short filtered
+    page no longer ends the walk early.
+  - `bookings.payment.waitForSettlement(id)` and its manage-token twin — the
+    return-page poll, with the settled states and the ten-minute payment lifetime
+    already known.
+  - `portal.session(token)` — a bound scope (`profile()`, `update()`, `bookings()`,
+    `export()`, `delete()`, `logout()`) so the token is supplied once instead of
+    positionally on six methods.
+  - `MedalTimeoutError` (code `TIMEOUT`) and `MedalNetworkError` (code `NETWORK`),
+    both extending a new `MedalError` base, so one `catch` clause covers every
+    failure the SDK raises. `MedalApiError` now carries `requestId` (from
+    `X-Request-ID`) and `retryAfterMs`. `MedalErrorCode` is exported.
+  - `RequestOptions.signal` — your own cancellation, merged with the client's
+    timeout; it also wakes a retry out of its backoff.
+  - `bookings.services.list()` / `bookings.resources.list()` namespaces, and
+    `remove`/`delete` aliases across contacts, deals, posts, webhooks,
+    bookings.events, connect links and connections. Every write now takes an
+    optional trailing `RequestOptions`.
+  
+  Fixed:
+  
+  - `autoConfirmCapabilities` silently did nothing outside channels, helpdesk and
+    webhooks. `CAPABILITY_IDS` / `CAPABILITY_ROUTES` now mirror all 27 confirmable
+    API capabilities, the confirmer is wired into `contacts`, `deals`, `emails`,
+    `gdpr` and `posts`, and the two ids with several routes send the explicit
+    `api_path` the mint requires.
+  - `posts.publish` and `posts.schedule` go out with an `Idempotency-Key`. Without
+    one, the retry of a publish that had already committed met the status guard and
+    answered `400` — a success reported as a failure.
+  - Retries: exponential backoff spread ±25% (a fleet knocked back by one 503 no
+    longer returns in lock-step), `Retry-After` parsed in both wire forms
+    (delay-seconds **and** HTTP-date), and a network failure retried on requests
+    that are safe to repeat (a `GET`, or a write carrying an idempotency key).
+  - Portal bookings now carry the fields the endpoint really answers:
+    `start_ts_iso`, `end_ts_iso`, `payment_mode`, `payment_status`, and the ISO
+    twins on exported consents.
+  
+  Type corrections — these reject values the API already refused with a `400`, so
+  they are corrections rather than breaks, but they can fail a build that was
+  sending the refused value:
+  
+  - `CreateDealInput.currency` / `UpdateDealInput.currency` / `Deal.currency` are
+    now `DealCurrency` (`USD` | `EUR` | `GBP` | `NOK`), the list the API validates
+    against. The pilot tool schema is narrowed to match.
+  - `channel_type` on connect links and connections is now `ChannelType`
+    (`telegram_inbox` | `linkedin`) — the server resolves it through its connect
+    adapter registry and refuses anything else.
+  - `Deal.value` is documented as MAJOR currency units (50000 is fifty thousand
+    kroner), the opposite convention from bookings' integer øre.
+  
+  Internal:
+  
+  - `scripts/assert-openapi-sdk-coverage.mjs` no longer compares the SDK to a
+    hand-written table of itself — the reason six bookings routes, two portal
+    routes and several wrong enums shipped green. It derives the operation list
+    from the document and diffs it against a committed snapshot of the Medal API's
+    published surface; 11 tests drive its failure paths.
+  - `src/devices/**` is gone. It was never exported from any entry point, so no
+    consumer could reach it, and it shipped to JSR with neither tests nor coverage.
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Add `medal.bookings.events.register(id, input)`: a guardian registering a child for an arrangement. It lands as a `Booking` with `event_id`/`event_order` set, and starts a Vipps payment when the arrangement's service requires one — `payment` carries the same show-once redirect `bookings.payment.start` does, and is `null` when nothing is owed. A payment failure does not undo the registration: the booking is still created and `payment_error` says what to retry, so poll or retry the payment on the returned booking rather than registering again. `consent_accepted: true` is required, mirroring `StartBookingPaymentInput.terms_accepted`; `consent_version`/`consent_text` carry your own copy of the wording. The result also carries `contact_id`/`person_id` — the guardian's contact and the child's `ContactPerson`, created or reused.
+  
+  Add `medal.bookings.events.registrations(id)`: an arrangement's roster, ordered by `event_order`. Cancelled registrations are returned, not filtered — the event's `registered_count` answers the capacity question separately. Capped at 300 rows; `truncated: true` means the ordering can no longer be trusted.
+  
+  Also adds an optional `host_id` filter to `medal.bookings.events.list(...)`.
+  
+  Requires a Medal Social API deployment that supports arrangement registrations; older API deployments 404 on the new endpoints.
+
+### Patch Changes
+
+- [#152](https://github.com/Medal-Social/MedalSocial-SDK/pull/152) [`5064db0`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5064db0f498155508db66f35f7a7bbf2c5f1acb0) Thanks [@adaadev](https://github.com/adaadev)! - Cancel the capability-confirmation mint when the caller aborts.
+  
+  An auto-confirmed write makes two requests: it mints the `X-Capability-Confirmation` token, then sends the write. The caller's `signal` reached only the write, so aborting while the mint was in flight left the call pending until the mint answered or hit the client `timeout`. The signal now cancels the mint too, and the call rejects at once with the caller's abort reason.
+  
+  `medal.capabilityConfirmations.create()` accepts `{ signal }` as an optional second argument for the explicit flow. Only the signal is accepted: the write's `idempotencyKey`, `capabilityConfirmation` and headers describe the write, not the mint.
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Close the last advisory and take the safe dev-tooling upgrades.
+  
+  `js-yaml` reaches the tree only through `@commitlint/cli` and
+  `openapi-typescript`, so it moves by override to 4.3.2 (GHSA-2883-xcg3-v3hh).
+  Nine devDependencies take their current minor/patch. No runtime dependency
+  changes.
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Fix the Pilot plugin manifest's API host, correct the documented Node version,
+  and stop publishing the whole repository to JSR.
+  
+  - `plugin.toml` granted network access to `api.medalsocial.com`, but the client
+    calls `https://io.medalsocial.com` — so a Pilot plugin loading this manifest
+    had permission for a host the SDK never contacts, and none for the host it
+    does. Its `version` was also frozen at `1.0.0`.
+  - The README's Runtime Support section advertised Node.js 18+ while
+    `engines.node` is `>=24`.
+  - `jsr.json` declared no `publish` scope, so `jsr publish` shipped 108 files —
+    including all eight CI workflows, `.changeset/`, `CLAUDE.md`, the lockfile,
+    the test suite and `.vscode`. Now 50.
+
+- [#148](https://github.com/Medal-Social/MedalSocial-SDK/pull/148) [`efd89a2`](https://github.com/Medal-Social/MedalSocial-SDK/commit/efd89a2ddb2174d0dd98796a5aef107e50a3696a) Thanks [@adaadev](https://github.com/adaadev)! - Fix `gdpr.cookieConsent()` sending a body the API rejects.
+  
+  Through 1.10.0 the method was typed with a `consentStatus` / `consentTimestamp` / `cookiePreferences` body. `POST /api/cookie-consent` has never accepted that shape — called exactly as typed, it answered `400 Invalid event`. The unit test only asserted that `domain` survived serialisation, a field both shapes share, so the drift never showed.
+  
+  `CookieConsentInput` is now the endpoint's real contract: `event` (`preferences_saved` | `preferences_revoked` | `banner_displayed` | `preferences_expired`), `consentId`, `domain`, a flat `categories` object of booleans (`essential`, `analytics`, `marketing`, `functional`), plus optional `visitorId`, `ipAddress`, `userAgent`, `consentText`, `policyVersion` and a numeric `timestamp`. The return type is the new `CookieConsentResult`. `CookieConsentEvent`, `CookieConsentCategories` and `CookieConsentResult` are exported; `CookieCategoryConsent` is kept but deprecated — it only ever described the shape that did not work.
+  
+  Also fixed: `MedalApiError` now carries the message from routes that answer `{ success: false, error: "why" }` rather than the `/api/v1/` `{ error: { code, message } }` envelope. Those previously surfaced as `HTTP 403: Error`, so a caller could not tell an unowned domain from a bad key.
+  
+  The Pilot `recordCookieConsent` tool schema and the README example move to the same shape, and a new test compares the serialised request against a fixture replayed through the endpoint's own validator, so the two cannot drift apart again silently.
+  
+  Typed as a patch because the old shape could not succeed against the API; any call written to it was already failing.
+
+- [#152](https://github.com/Medal-Social/MedalSocial-SDK/pull/152) [`5064db0`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5064db0f498155508db66f35f7a7bbf2c5f1acb0) Thanks [@adaadev](https://github.com/adaadev)! - Keep the Pilot plugin manifest's version in step with the package.
+  
+  [#142](https://github.com/Medal-Social/MedalSocial-SDK/issues/142) corrected `plugin.toml`'s `version`, frozen at `1.0.0` until then, by editing it by hand, so the very next release left it behind again: the 1.11.0 version bump moved `package.json`, `jsr.json`, `src/version.ts` and the OpenAPI document, but not the manifest. `scripts/sync-version.mjs` now writes the `[plugin]` table's `version` as well, and `pnpm run version:check` fails when it drifts.
+
 ## 1.10.0
 
 ### Minor Changes
