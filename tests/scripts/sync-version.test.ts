@@ -19,6 +19,17 @@ const YAML_HEAD = [
   "",
 ].join("\n");
 
+const TOML_HEAD = [
+  "[plugin]",
+  'name = "medalsocial-sdk"',
+  'version = "1.10.0"',
+  'description = "Medal Social API client for Pilot crew"',
+  "",
+  "[[tools]]",
+  'name = "send_email"',
+  "",
+].join("\n");
+
 function versionTs(version: string): string {
   return `export const SDK_VERSION = "${version}";\n`;
 }
@@ -33,6 +44,7 @@ function scaffold(dir: string, pkgVersion = "1.11.0") {
   );
   writeFileSync(join(dir, "src", "version.ts"), versionTs("1.0.0"));
   writeFileSync(join(dir, "openapi", "medal-social.openapi.yaml"), YAML_HEAD);
+  writeFileSync(join(dir, "plugin.toml"), TOML_HEAD);
 }
 
 async function runScript(...args: string[]) {
@@ -62,7 +74,7 @@ describe("scripts/sync-version.mjs", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("writes package.json's version into jsr.json, src/version.ts and the OpenAPI info block", async () => {
+  it("writes package.json's version into jsr.json, src/version.ts, the OpenAPI info block and plugin.toml", async () => {
     const code = await runScript("--root", dir);
 
     expect(code).toBeNull();
@@ -79,6 +91,10 @@ describe("scripts/sync-version.mjs", () => {
     // Only the info block's version line moved.
     expect(yaml).toBe(YAML_HEAD.replace("version: 1.1.7", "version: 1.11.0"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("1.1.7 -> 1.11.0"));
+    // Only the [plugin] table's version line moved.
+    expect(readFileSync(join(dir, "plugin.toml"), "utf8")).toBe(
+      TOML_HEAD.replace('version = "1.10.0"', 'version = "1.11.0"'),
+    );
   });
 
   it("is idempotent: a second run touches nothing and says so", async () => {
@@ -101,8 +117,22 @@ describe("scripts/sync-version.mjs", () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("jsr.json says 1.10.0"));
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("version.ts says 1.0.0"));
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("openapi.yaml says 1.1.7"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("plugin.toml says 1.10.0"));
     // Check mode never writes.
     expect(readFileSync(join(dir, "src", "version.ts"), "utf8")).toBe(versionTs("1.0.0"));
+    expect(readFileSync(join(dir, "plugin.toml"), "utf8")).toBe(TOML_HEAD);
+  });
+
+  it("--check fails on plugin.toml alone when everything else is in step", async () => {
+    await runScript("--root", dir);
+    writeFileSync(join(dir, "plugin.toml"), TOML_HEAD);
+    errorSpy.mockClear();
+
+    const code = await runScript("--check", "--root", dir);
+
+    expect(code).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("plugin.toml says 1.10.0"));
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("jsr.json says"));
   });
 
   it("--check passes once everything is in step", async () => {
@@ -159,6 +189,23 @@ describe("scripts/sync-version.mjs", () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("could not find a version"));
   });
 
+  it("only reads `version` from the [plugin] table, not from a later table", async () => {
+    // The [plugin] table ends at the next `[` header; a `version` key under a
+    // later table must not be mistaken for the manifest's own.
+    writeFileSync(
+      join(dir, "plugin.toml"),
+      ["[plugin]", 'name = "medalsocial-sdk"', "", "[[tools]]", 'version = "9.9.9"', ""].join("\n"),
+    );
+
+    const code = await runScript("--root", dir);
+
+    expect(code).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("could not find a version"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("plugin.toml"));
+    // Nothing was written before the failure was detected.
+    expect(readFileSync(join(dir, "jsr.json"), "utf8")).toContain('"version": "1.10.0"');
+  });
+
   it("keeps CRLF line endings when rewriting the OpenAPI version", async () => {
     writeFileSync(
       join(dir, "openapi", "medal-social.openapi.yaml"),
@@ -171,6 +218,17 @@ describe("scripts/sync-version.mjs", () => {
     const yaml = readFileSync(join(dir, "openapi", "medal-social.openapi.yaml"), "utf8");
     expect(yaml).toBe(
       YAML_HEAD.replace("version: 1.1.7", "version: 1.11.0").replaceAll("\n", "\r\n"),
+    );
+  });
+
+  it("keeps CRLF line endings when rewriting the plugin manifest version", async () => {
+    writeFileSync(join(dir, "plugin.toml"), TOML_HEAD.replaceAll("\n", "\r\n"));
+
+    const code = await runScript("--root", dir);
+
+    expect(code).toBeNull();
+    expect(readFileSync(join(dir, "plugin.toml"), "utf8")).toBe(
+      TOML_HEAD.replace('version = "1.10.0"', 'version = "1.11.0"').replaceAll("\n", "\r\n"),
     );
   });
 

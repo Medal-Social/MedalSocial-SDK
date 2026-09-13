@@ -86,14 +86,20 @@ export class CapabilityConfirmer {
       );
     }
 
-    const { data } = await this.confirmations.create({
-      capability_id: request.capabilityId,
-      ...(apiPath ? { api_path: apiPath } : {}),
-      ...(pathParams ? { path_params: pathParams } : {}),
-      idempotency_key: idempotencyKey,
-      preview_summary: previewSummary,
-      user_approved: true,
-    });
+    // The mint is part of the caller's operation, so their signal cancels it
+    // too — otherwise an abort waits out this request before the write sees it.
+    // Nothing else of the write's options applies here (see `create`).
+    const { data } = await this.confirmations.create(
+      {
+        capability_id: request.capabilityId,
+        ...(apiPath ? { api_path: apiPath } : {}),
+        ...(pathParams ? { path_params: pathParams } : {}),
+        idempotency_key: idempotencyKey,
+        preview_summary: previewSummary,
+        user_approved: true,
+      },
+      { signal: options?.signal },
+    );
 
     return {
       ...options,

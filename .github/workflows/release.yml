@@ -65,14 +65,23 @@ jobs:
       # GitHub release exist. It runs on its own so a JSR-side failure cannot
       # take the npm release with it.
       #
+      # Skipped while changesets are pending (`has-changesets` is "true"). That
+      # run only opens or updates the version PR, and the action leaves its
+      # version bump UNCOMMITTED in this checkout: jsr.json already names the
+      # unreleased version, so `pnpm jsr:publish` finds it missing from JSR and
+      # tries to publish it — before the version PR is merged and before npm.
+      # On 2026-09-13 (run 34762727405) only deno's refusal to publish a dirty
+      # tree stopped 1.11.0 going out that way.
+      #
       # Deliberately not gated on `steps.changesets.outputs.published`: on a
       # re-run npm already has the version, so Changesets publishes nothing and
       # that output is "false" — which would skip the very step the re-run
-      # exists to retry. `pnpm jsr:publish` asks the registry itself and exits
-      # 0 in ~1s when the version is already there, so it is the gate. On a run
-      # that only opens the version PR it is a no-op.
+      # exists to retry. `has-changesets` is "false" on that re-run, and
+      # `pnpm jsr:publish` asks the registry itself and exits 0 in ~1s when the
+      # version is already there.
       #
       # It still does not run when an earlier step fails: a failed npm publish
       # should not reach JSR.
       - name: Publish to JSR
+        if: steps.changesets.outputs.has-changesets != 'true'
         run: pnpm jsr:publish
