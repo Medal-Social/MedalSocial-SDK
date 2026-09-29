@@ -51,13 +51,40 @@ export interface PortalSession {
   session_token: string;
   /** Unix timestamp in milliseconds. */
   expires_at: number;
+  /** ISO 8601 twin of `expires_at`. */
+  expires_at_iso: string;
   contact: PortalContactSummary;
 }
 
-/** A family member the contact books on behalf of. */
+/**
+ * A family member as the contact WRITES it through `PATCH /me` `family`.
+ * Entries match on `name` + `birth_year`; to edit one child without changing
+ * its id, use `portal.persons.update(...)` instead.
+ */
 export interface PortalFamilyMember {
   name: string;
   birth_year: number;
+  /**
+   * Accepted so a client can send back what `GET /me` returned, and IGNORED —
+   * entries still match on name and birth year.
+   */
+  person_id?: string;
+  /** Accepted and ignored, like `person_id`. */
+  birth_month?: number | null;
+}
+
+/**
+ * A family member as the portal READS it back (`GET /me`, the export): the
+ * written pair plus the person's stable id and birth month, so a client can
+ * edit a child by id through `portal.persons.update(...)`.
+ */
+export interface PortalFamilyEntry {
+  /** The stable id of the underlying {@link PortalPerson}. */
+  person_id: string;
+  name: string;
+  birth_year: number;
+  /** 1–12, or `null` when unknown. */
+  birth_month: number | null;
 }
 
 /** A person the contact books for — a child, a pet — with no login of its own. */
@@ -65,9 +92,17 @@ export interface PortalPerson {
   person_id: string;
   name: string;
   birth_year: number | null;
+  /** 1–12, or `null`. Makes the age exact across the birthday. */
+  birth_month: number | null;
   relation_type: RelationType;
   relation_label: string | null;
+  /** The customer-visible note; the salon's internal note is never exposed. */
   notes: string | null;
+  /**
+   * The resource (barber, chair) this person usually sees. A preference only —
+   * availability does not honour it.
+   */
+  preferred_resource_id: string | null;
   /** `false` for a person the customer removed or that was promoted to its own contact; `me` returns active persons only, the export returns all. */
   active: boolean;
 }
@@ -85,7 +120,7 @@ export interface PortalProfile {
   first_name: string | null;
   last_name: string | null;
   phone: string | null;
-  family: PortalFamilyMember[];
+  family: PortalFamilyEntry[];
   persons: PortalPerson[];
   labels: PortalLabels;
   marketing_consent: boolean;
@@ -103,6 +138,37 @@ export interface PortalProfilePatch {
   family?: PortalFamilyMember[];
   /** Records a marketing_email consent change with source 'portal'. */
   marketing_consent?: boolean;
+}
+
+/**
+ * Input for `portal.persons.create(...)` — a child owned by the signed-in
+ * contact, created with relation `guardian`. STRICT on the server: any other
+ * key is a `400 VALIDATION_ERROR` naming it.
+ */
+export interface PortalPersonCreateInput {
+  /** Trimmed, 1–60 characters. */
+  name: string;
+  /** An integer within the last 18 years — the portal's persons are children. */
+  birth_year: number;
+  /** 1–12; not later than the current month when `birth_year` is this year. */
+  birth_month?: number;
+  /** The customer-visible note, at most 2000 characters. */
+  notes?: string;
+  /** A live resource of this workspace, or `404 NOT_FOUND`. */
+  preferred_resource_id?: string;
+}
+
+/**
+ * Input for `portal.persons.update(...)`. Partial and STRICT; `null` clears
+ * `birth_month`, `notes` and `preferred_resource_id`. An empty patch changes
+ * nothing. The `person_id` never changes.
+ */
+export interface PortalPersonPatch {
+  name?: string;
+  birth_year?: number;
+  birth_month?: number | null;
+  notes?: string | null;
+  preferred_resource_id?: string | null;
 }
 
 /** Lifecycle state of a booking as seen from the portal. */
@@ -131,6 +197,16 @@ export interface PortalBooking {
   resource_id: string | null;
   resource_name: string | null;
   booked_for_name: string | null;
+  /**
+   * The `person_id` of the contact's {@link PortalPerson} this visit is for;
+   * `null` when it is for the contact themselves. Stable across a rename —
+   * join on this, not on `booked_for_name`.
+   */
+  booked_for_person_id: string | null;
+  /** The birth year recorded on the booking when it was made. */
+  booked_for_birth_year: number | null;
+  /** The birth month (1–12) recorded beside the year when the person had one; `null` otherwise. */
+  booked_for_birth_month: number | null;
   /** Integer øre, or `null` when the service has no price. */
   amount_ore: number | null;
   /** What the booking required when it was made. */
@@ -179,7 +255,7 @@ export interface PortalExport {
   /** Unix timestamp in milliseconds. */
   exported_at: number;
   contact: PortalProfile;
-  family: PortalFamilyMember[];
+  family: PortalFamilyEntry[];
   consents: PortalConsentRecord[];
   bookings: PortalBooking[];
   relations: PortalExportRelation[];
@@ -196,6 +272,14 @@ export interface PortalVippsStartInput {
    * a pattern you supply.
    */
   return_url: string;
+  /**
+   * An opaque value (32–128 characters) your server mints per login attempt
+   * and keeps in the customer's browser (an HttpOnly cookie), then sends again
+   * with {@link PortalVippsLinkVerifyInput.browser_binding}. It ties a
+   * `confirm_email` link to the browser that started the login, so a link
+   * copied into another browser cannot be confirmed there.
+   */
+  browser_binding?: string;
 }
 
 /** What `portal.login.vipps.start(...)` hands back. */
@@ -229,4 +313,55 @@ export interface PortalVippsSession {
   expires_at: number;
   /** ISO 8601 twin of `expires_at`. */
   expires_at_iso: string;
+}
+
+/**
+ * What the Vipps callback appended to your `return_url` — the `vipps` query
+ * parameter. Absent entirely on success, when `grant` is set instead.
+ *
+ * - `confirm_email` — Vipps verified the customer and they match one existing
+ *   contact that could not be linked on its own. Medal e-mailed a six-digit
+ *   code to that contact's address; ask for it and call
+ *   `portal.login.vipps.verifyLink({ link, code })`. `link` and (usually) `to`
+ *   come with it — see {@link PortalVippsCallbackParams}.
+ * - `cancelled` — the customer declined at Vipps.
+ * - `needs_email_login` — no contact could be decided safely, or Vipps returned
+ *   no verified e-mail: offer the e-mail code login.
+ * - `failed` — the exchange with Vipps failed after a valid start: retry.
+ */
+export type PortalVippsCallbackOutcome =
+  | "confirm_email"
+  | "cancelled"
+  | "needs_email_login"
+  | "failed";
+
+/**
+ * The query parameters the Vipps callback appends to your `return_url`.
+ * Exactly one of `grant` or `vipps` is set.
+ */
+export interface PortalVippsCallbackParams {
+  /** Success: exchange it with `portal.login.vipps.exchange({ grant })` within 60 seconds. */
+  grant?: string;
+  vipps?: PortalVippsCallbackOutcome;
+  /** With `vipps=confirm_email`: the pending link to confirm (single use, 15 minutes). */
+  link?: string;
+  /**
+   * With `vipps=confirm_email`: the address the code went to, masked
+   * (`k•••@g•••.com`). May be absent — show a generic "we sent you a code"
+   * then. Display only; never send it back.
+   */
+  to?: string;
+}
+
+/** Input for confirming a pending Vipps link with the e-mailed code. */
+export interface PortalVippsLinkVerifyInput {
+  /** The `link` the callback put on your return URL with `?vipps=confirm_email`. */
+  link: string;
+  /** The six-digit code the customer received at the masked address. */
+  code: string;
+  /**
+   * The same value you sent as {@link PortalVippsStartInput.browser_binding}
+   * when this login started, read back from the customer's browser.
+   */
+  browser_binding?: string;
 }

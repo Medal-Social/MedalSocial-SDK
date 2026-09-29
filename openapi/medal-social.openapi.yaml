@@ -1524,10 +1524,15 @@ paths:
         A PUBLIC browser navigation, not an API call: it takes no API key and
         no SDK method wraps it. Medal validates the one-time `state`, then
         redirects back to the `return_url` the flow started with, carrying
-        either `?grant=…` (exchange it) or `?vipps=needs_email_login` /
-        `?vipps=failed` (fall back to the e-mail code login). An unknown or
-        expired `state` answers `400` in plain text, because there is no
-        trusted return URL to send the browser to.
+        exactly one of `?grant=…` (exchange it),
+        `?vipps=confirm_email&link=…&to=…` (the login matched one existing
+        contact that could not be linked on its own; a six-digit code went to
+        that contact's address, `to` is it masked and may be absent — confirm
+        with `verifyPortalVippsLink`), `?vipps=cancelled`,
+        `?vipps=needs_email_login` or `?vipps=failed` (fall back to the e-mail
+        code login). The SDK types these as `PortalVippsCallbackParams`. An
+        unknown or expired `state` answers `400` in plain text, because there
+        is no trusted return URL to send the browser to.
       parameters:
         - name: state
           in: query
@@ -1574,6 +1579,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_PortalVippsSession"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/vipps/link/verify:
+    post:
+      tags: [Portal]
+      operationId: verifyPortalVippsLink
+      summary: Confirm a pending Vipps link with the e-mailed code
+      description: >-
+        Only after a callback that landed on `?vipps=confirm_email`. Send the
+        `link` from that redirect and the six-digit code the customer received
+        at the masked address. On the right code the Vipps identity is linked
+        to that customer and a portal session is returned — the same shape as
+        `verifyPortalLogin`, `contact` included. The code shares its five
+        attempts with `verifyPortalLogin`. An unknown, malformed, used,
+        expired (15 minutes) or foreign link and a wrong or burned code are
+        one answer: `401 PORTAL_CODE_INVALID`. `409 VIPPS_IDENTITY_CONFLICT`
+        (right code only): the Vipps account was linked to another customer in
+        the meantime — send the customer to the e-mail code login. Not
+        idempotency-keyed; sent exactly once. Errors: `400 VALIDATION_ERROR`,
+        `401 PORTAL_CODE_INVALID`, `403 FORBIDDEN`,
+        `409 VIPPS_IDENTITY_CONFLICT`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalVippsLinkVerifyInput"
+      responses:
+        "200":
+          description: The new session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalSession"
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/portal/logout:
@@ -1637,6 +1676,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse_PortalProfile"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me/persons:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: createPortalPerson
+      summary: Add a person (a child) to the signed-in contact
+      description: >-
+        Creates a person with relation `guardian` owned by the signed-in
+        contact. STRICT body. Name 1–60 characters, a birth year within the
+        last 18 years, at most ten children and twenty active persons in all
+        (`400 VALIDATION_ERROR`). A same-name-and-year person that is already
+        active is `409 CONFLICT`; one removed earlier is brought back under
+        its old `person_id`. `preferred_resource_id` must be a live resource
+        of this workspace (`404 NOT_FOUND`). Not idempotency-keyed. Errors:
+        `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `404 NOT_FOUND`,
+        `409 CONFLICT`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalPersonCreateInput"
+      responses:
+        "201":
+          description: The person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalPerson"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/me/persons/{person_id}:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: person_id
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Portal]
+      operationId: patchPortalPerson
+      summary: Edit one of the signed-in contact's persons in place
+      description: >-
+        Partial and STRICT. The `person_id` never changes — a rename or a new
+        birth year edits the same person, unlike `family` on
+        `updatePortalProfile`, which matches on name and birth year. `null`
+        clears `birth_month`, `notes` and `preferred_resource_id`. Only the
+        contact's own active `guardian` persons are reachable; anything else
+        is the same `404 NOT_FOUND`. Renaming onto another of the contact's
+        persons is `409 CONFLICT`. Errors: `400 VALIDATION_ERROR`,
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalPersonPatch"
+      responses:
+        "200":
+          description: The updated person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalPerson"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Portal]
+      operationId: deletePortalPerson
+      summary: Remove one of the signed-in contact's persons
+      description: >-
+        Deactivates the person: it leaves `persons` and `family`, booking
+        history keeps naming it, the export lists it with `active: false`, and
+        adding the same name and birth year again brings it back. Same
+        `404 NOT_FOUND` rule as the PATCH. Errors:
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN`, `404 NOT_FOUND`, `429 RATE_LIMITED`.
+      responses:
+        "204":
+          description: The person was removed.
         default:
           $ref: "#/components/responses/ApiError"
   /api/v1/portal/me/bookings:
@@ -2507,6 +2632,7 @@ components:
         - UNAUTHORIZED
         - UPSTREAM_UNAVAILABLE
         - VALIDATION_ERROR
+        - VIPPS_IDENTITY_CONFLICT
         - VIPPS_NOT_CONFIGURED
     Pagination:
       type: object
@@ -3461,6 +3587,7 @@ components:
         - end_ts
         - booked_for_name
         - booked_for_birth_year
+        - booked_for_birth_month
         - booked_for_person_id
         - event_id
         - event_order
@@ -3496,6 +3623,13 @@ components:
           type: [string, "null"]
         booked_for_birth_year:
           description: A birth year, not a birthdate — the age bracket is all that is stored.
+          type: [integer, "null"]
+        booked_for_birth_month:
+          description: >-
+            Birth MONTH (1–12), frozen from the registered person when the
+            booking names one that has it, so the age is exact across the
+            birthday. Never a day. Null for year-only bookings. Not accepted on
+            create — it comes from `booked_for_person_id`.
           type: [integer, "null"]
         booked_for_person_id:
           description: The ContactPerson this booking was made for, if any.
@@ -3563,6 +3697,8 @@ components:
         - bookable_online
         - payment
         - max_per_booking
+        - age_min_years
+        - age_max_years
         - color
         - sort_order
         - active
@@ -3604,6 +3740,21 @@ components:
             - type: "null"
         max_per_booking:
           type: [integer, "null"]
+        age_min_years:
+          description: >-
+            Youngest age, in whole years, the service is meant for; null when
+            there is no lower bound. Descriptive only — booking requests are
+            NOT checked against it.
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 120
+        age_max_years:
+          description: >-
+            Oldest age, in whole years, the service is meant for; null when
+            there is no upper bound. Both null means all ages. Descriptive only.
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 120
         color:
           type: [string, "null"]
         sort_order:
@@ -4910,6 +5061,8 @@ components:
       $ref: "#/components/schemas/Envelope_PortalSession"
     ApiResponse_PortalProfile:
       $ref: "#/components/schemas/Envelope_PortalProfile"
+    ApiResponse_PortalPerson:
+      $ref: "#/components/schemas/Envelope_PortalPerson"
     ApiResponse_PortalBookings:
       $ref: "#/components/schemas/Envelope_PortalBookings"
     ApiResponse_PortalExport:
@@ -5307,16 +5460,24 @@ components:
         contact — keep it in an HttpOnly cookie on the site's server and never
         hand it to the browser.
       type: object
-      required: [session_token, expires_at, contact]
+      required: [session_token, expires_at, expires_at_iso, contact]
       properties:
         session_token:
           type: string
         expires_at:
           type: integer
           description: Unix timestamp in milliseconds.
+        expires_at_iso:
+          type: string
+          format: date-time
+          description: ISO 8601 twin of `expires_at`.
         contact:
           $ref: "#/components/schemas/PortalContactSummary"
     PortalFamilyMember:
+      description: >-
+        A family member as the contact writes it through `family`. Entries
+        match on `name` + `birth_year`; `person_id` and `birth_month` are
+        accepted so a client can echo what it read, and ignored.
       type: object
       required: [name, birth_year]
       properties:
@@ -5324,13 +5485,44 @@ components:
           type: string
         birth_year:
           type: integer
+        person_id:
+          type: string
+          description: Accepted and IGNORED — use `patchPortalPerson` to edit by id.
+        birth_month:
+          type: [integer, "null"]
+          description: Accepted and ignored, like `person_id`.
+    PortalFamilyEntry:
+      description: >-
+        A family member as the portal reads it back: the written pair plus the
+        person's stable id and birth month, so a client can edit a child by id
+        through `patchPortalPerson`.
+      type: object
+      required: [person_id, name, birth_year, birth_month]
+      properties:
+        person_id:
+          type: string
+        name:
+          type: string
+        birth_year:
+          type: integer
+        birth_month:
+          type: [integer, "null"]
+          description: 1–12, or null when unknown.
     PortalPerson:
       description: >-
         A person the contact books for — a child, a pet — with no login of
         its own.
       type: object
       required:
-        [person_id, name, birth_year, relation_type, relation_label, notes, active]
+        - person_id
+        - name
+        - birth_year
+        - birth_month
+        - relation_type
+        - relation_label
+        - notes
+        - preferred_resource_id
+        - active
       properties:
         person_id:
           type: string
@@ -5338,11 +5530,20 @@ components:
           type: string
         birth_year:
           type: [integer, "null"]
+        birth_month:
+          type: [integer, "null"]
+          description: 1–12, or null. Makes the age exact across the birthday.
         relation_type:
           $ref: "#/components/schemas/RelationType"
         relation_label:
           type: [string, "null"]
         notes:
+          description: The customer-visible note; the salon's internal note is never exposed.
+          type: [string, "null"]
+        preferred_resource_id:
+          description: >-
+            The resource (barber, chair) this person usually sees. A preference
+            only — availability does not honour it.
           type: [string, "null"]
         active:
           type: boolean
@@ -5386,7 +5587,7 @@ components:
         family:
           type: array
           items:
-            $ref: "#/components/schemas/PortalFamilyMember"
+            $ref: "#/components/schemas/PortalFamilyEntry"
         persons:
           type: array
           items:
@@ -5417,6 +5618,58 @@ components:
         marketing_consent:
           type: boolean
           description: Records a `marketing_email` consent change with source `portal`.
+    PortalPersonCreateInput:
+      description: >-
+        STRICT — any other key is a `400 VALIDATION_ERROR` naming it. The
+        person is created with relation `guardian`.
+      type: object
+      additionalProperties: false
+      required: [name, birth_year]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        birth_year:
+          type: integer
+          description: Within the last 18 years — the portal's persons are children.
+        birth_month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: Not later than the current month when `birth_year` is this year.
+        notes:
+          type: string
+          maxLength: 2000
+          description: Visible to the customer.
+        preferred_resource_id:
+          type: string
+          maxLength: 64
+          description: A live resource (barber, chair) of this workspace.
+    PortalPersonPatch:
+      description: >-
+        Partial and STRICT; every field optional, an empty body changes
+        nothing. `null` clears `birth_month`, `notes` and
+        `preferred_resource_id`.
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        birth_year:
+          type: integer
+        birth_month:
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 12
+        notes:
+          type: [string, "null"]
+          maxLength: 2000
+        preferred_resource_id:
+          type: [string, "null"]
+          maxLength: 64
     PortalBooking:
       type: object
       required:
@@ -5431,6 +5684,9 @@ components:
         - resource_id
         - resource_name
         - booked_for_name
+        - booked_for_person_id
+        - booked_for_birth_year
+        - booked_for_birth_month
         - amount_ore
         - payment_mode
         - payment_status
@@ -5467,6 +5723,19 @@ components:
           type: [string, "null"]
         booked_for_name:
           type: [string, "null"]
+        booked_for_person_id:
+          description: >-
+            The `person_id` of the contact's person this visit is for; null
+            when it is for the contact themselves. Stable across a rename.
+          type: [string, "null"]
+        booked_for_birth_year:
+          description: The birth year recorded on the booking when it was made.
+          type: [integer, "null"]
+        booked_for_birth_month:
+          description: >-
+            The birth month (1–12) recorded beside the year when the person had
+            one; null otherwise.
+          type: [integer, "null"]
         amount_ore:
           type: [integer, "null"]
           description: Integer øre, or `null` when the service has no price.
@@ -5564,7 +5833,7 @@ components:
         family:
           type: array
           items:
-            $ref: "#/components/schemas/PortalFamilyMember"
+            $ref: "#/components/schemas/PortalFamilyEntry"
         consents:
           type: array
           items:
@@ -5589,6 +5858,12 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PortalSession"
+    Envelope_PortalPerson:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalPerson"
     Envelope_PortalProfile:
       type: object
       required: [data]
@@ -6673,6 +6948,32 @@ components:
           maxLength: 2048
           description: >-
             An `https` URL under one of the workspace's own sites.
+        browser_binding:
+          type: string
+          minLength: 32
+          maxLength: 128
+          description: >-
+            An opaque per-attempt value the site's server keeps in the
+            customer's browser and sends again on `verifyPortalVippsLink`, so a
+            `confirm_email` link can only be confirmed in the browser that
+            started the login.
+    PortalVippsLinkVerifyInput:
+      type: object
+      required: [link, code]
+      properties:
+        link:
+          type: string
+          maxLength: 128
+          description: The `link` the callback put on the return URL with `?vipps=confirm_email`.
+        code:
+          type: string
+          pattern: "^\\d{6}$"
+          description: Exactly six digits.
+        browser_binding:
+          type: string
+          minLength: 32
+          maxLength: 128
+          description: The value sent as `browser_binding` when this login started.
     PortalVippsStart:
       type: object
       required: [authorize_url]

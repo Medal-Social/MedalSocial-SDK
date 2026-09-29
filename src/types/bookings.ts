@@ -68,6 +68,13 @@ export interface Booking {
   booked_for_name: string | null;
   /** Birth year (not a birthdate) of whoever the appointment is for. */
   booked_for_birth_year: number | null;
+  /**
+   * Birth MONTH (1–12), frozen from the registered person when the booking
+   * names one that has it, so the age is exact across the birthday. Never a
+   * day. `null` for year-only bookings. Not accepted on create — it comes from
+   * `booked_for_person_id`.
+   */
+  booked_for_birth_month: number | null;
   /** The {@link ContactPerson} this booking was made for, if any. */
   booked_for_person_id: string | null;
   /** The {@link BookingEvent} this booking is a registration for, if any. */
@@ -121,6 +128,17 @@ export interface BookingService {
    */
   payment: BookingPaymentMode | null;
   max_per_booking: number | null;
+  /**
+   * Youngest age, in whole years (0–120), the service is meant for; `null`
+   * when there is no lower bound. Descriptive only — booking requests are NOT
+   * checked against it.
+   */
+  age_min_years: number | null;
+  /**
+   * Oldest age, in whole years (0–120), the service is meant for; `null` when
+   * there is no upper bound. Both `null` means all ages. Descriptive only.
+   */
+  age_max_years: number | null;
   color: string | null;
   sort_order: number | null;
   active: boolean;

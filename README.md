@@ -506,6 +506,31 @@ const { data: exported } = await me.export();
 await me.logout();       // …or me.delete() for GDPR Art. 17
 ```
 
+#### The children a customer books for, by id
+
+`updateMe({ family })` replaces a whole list and matches on name + birth year,
+so fixing a typo in a child's name there retires the person and mints a new
+`person_id`. `medal.portal.persons.*` edits one person by id instead — a rename
+or a corrected birth year keeps the id, so bookings made for them stay attached:
+
+```ts
+const token = session.session_token;
+const { data: emma } = await medal.portal.persons.create(token, {
+  name: 'Emma',
+  birth_year: 2019,
+  birth_month: 5,                  // optional, 1–12 — makes the age exact across the birthday
+  notes: 'Redd for saksen',        // optional, customer-visible
+  preferred_resource_id: 'jd7…',   // optional — a live resource, or 404
+}); // 201; a same-name-and-year person already active is 409 CONFLICT
+await medal.portal.persons.update(token, emma.person_id, { name: 'Emma K.', birth_month: null });
+await medal.portal.persons.remove(token, emma.person_id); // 204 — deactivated, history keeps it
+// bound form: me.createPerson(input), me.updatePerson(id, patch), me.removePerson(id)
+```
+
+`me.family[i]` and `me.persons[i]` carry `person_id` and `birth_month`; portal
+bookings carry `booked_for_person_id`, `booked_for_birth_year` and
+`booked_for_birth_month` — join on the id, not on `booked_for_name`.
+
 It exists because the flat form takes the token **first**
 (`updateMe(session, patch)`), so a swapped pair type-checks whenever both are
 strings.
@@ -527,14 +552,28 @@ const { data: start } = await medal.portal.login.vipps.start({
 redirect(start.authorize_url);        // never cache it — it carries a one-time state
 
 // 2. Vipps sends the customer to Medal's callback, which redirects back to your
-//    return_url with ?grant=… — or ?vipps=needs_email_login / ?vipps=failed,
-//    on which you fall back to medal.portal.login.start(...).
+//    return_url with ?grant=…, ?vipps=confirm_email&link=…&to=…, or
+//    ?vipps=cancelled / needs_email_login / failed — on the last three, fall
+//    back to medal.portal.login.start(...). The query is typed as
+//    PortalVippsCallbackParams.
 
-// 3. Your server exchanges the grant. Single-use: a second exchange answers
-//    404 GRANT_NOT_FOUND, which is also the answer for an expired grant.
+// 3a. Your server exchanges the grant. Single-use: a second exchange answers
+//     404 GRANT_NOT_FOUND, which is also the answer for an expired grant.
 const { data: session } = await medal.portal.login.vipps.exchange({ grant });
 // -> same HttpOnly cookie as the e-mail flow; session.expires_at_iso is the ISO twin
+
+// 3b. ?vipps=confirm_email: the customer matched one existing contact that could
+//     not be linked on its own, and Medal e-mailed that contact a six-digit code.
+//     Show "we sent a code to {to}" (to is masked, and may be absent), then:
+const { data: linked } = await medal.portal.login.vipps.verifyLink({ link, code });
+// 401 PORTAL_CODE_INVALID for a wrong/expired code or link (one answer, by design);
+// 409 VIPPS_IDENTITY_CONFLICT: the Vipps account is linked to another customer —
+// send them to the e-mail code login. Sent exactly once.
 ```
+
+Pass the same optional `browser_binding` (an opaque 32–128 character value your
+server keeps in an HttpOnly cookie) to `vipps.start` and `vipps.verifyLink` to
+tie a `confirm_email` link to the browser that started the login.
 
 **Portal booking timestamps are Unix milliseconds** (`start_ts`, `end_ts`) with
 ISO twins beside them (`start_ts_iso`, `end_ts_iso`) — unlike
@@ -1064,6 +1103,8 @@ and also exposes as `MedalApiError.retryAfterMs`.
 | `apiPortalVippsStart` | `POST /portal/vipps/start` | 60/min | 20 |
 | `apiPortalVippsExchange` | `POST /portal/vipps/exchange` | 60/min | 20 |
 | `apiPortalVippsCallback` | `GET /portal/vipps/callback` (browser, keyed per client IP) | 300/min | 100 |
+| `apiPortalVippsLinkVerify` | `POST /portal/vipps/link/verify` | 60/min | 20 |
+| `apiPortalPersonsWrite` | `POST /portal/me/persons`, `PATCH`/`DELETE /portal/me/persons/{person_id}` | 120/min | 40 |
 | `apiPortalExport` | `POST /portal/me/export` | 60/hour | 10 |
 | `apiConnectLinkMint` | `POST /channels/connect-links` | 10/hour | 5 |
 | `apiCookieConsent` | `POST /api/cookie-consent` | 600/min | 1200 |

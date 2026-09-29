@@ -1,8 +1,8 @@
 {
   "note": "Generated surface snapshot of the Medal API's published OpenAPI document — paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
-  "generated_at": "2026-09-11",
+  "generated_at": "2026-09-29",
   "source": "C:/Users/ali-ws/Downloads/medal-monorepo/.claude/worktrees/exciting-jennings-4b7075/apps/web/src/lib/openapi-spec.ts",
-  "operation_count": 99,
+  "operation_count": 103,
   "operations": {
     "DELETE /api/v1/bookings/events/{id}": {
       "operationId": "deleteBookingEvent",
@@ -62,6 +62,13 @@
         "responses.200.data.unlinked#type": ["boolean"],
         "responses.200.data.previous_contact_id#type": ["string"],
         "responses.200.data.conversations_updated#type": ["integer"]
+      }
+    },
+    "DELETE /api/v1/portal/me/persons/{person_id}": {
+      "operationId": "deletePortalPerson",
+      "facts": {
+        "parameters.X-Portal-Session#type": ["string"],
+        "parameters.person_id#type": ["string"]
       }
     },
     "DELETE /api/v1/posts/{id}": {
@@ -126,7 +133,8 @@
         "responses.200.pagination#type": ["object"],
         "responses.200.pagination.has_more#type": ["boolean"],
         "responses.200.pagination.next_cursor#type": ["string"],
-        "responses.200.pagination.truncated#type": ["boolean"]
+        "responses.200.pagination.truncated#type": ["boolean"],
+        "responses.200.data[].booked_for_birth_month#type": ["integer"]
       }
     },
     "GET /api/v1/bookings/attention": {
@@ -481,7 +489,9 @@
         "responses.200.data[].sort_order#type": ["integer"],
         "responses.200.data[].active#type": ["boolean"],
         "responses.200.data[].created_at#type": ["string"],
-        "responses.200.data[].updated_at#type": ["string"]
+        "responses.200.data[].updated_at#type": ["string"],
+        "responses.200.data[].age_min_years#type": ["integer"],
+        "responses.200.data[].age_max_years#type": ["integer"]
       }
     },
     "GET /api/v1/bookings/today": {
@@ -547,7 +557,8 @@
         "responses.200.data.internal_notes#type": ["string"],
         "responses.200.data.created_via": ["api", "dashboard", "walk_in", "web"],
         "responses.200.data.created_at#type": ["string"],
-        "responses.200.data.updated_at#type": ["string"]
+        "responses.200.data.updated_at#type": ["string"],
+        "responses.200.data.booked_for_birth_month#type": ["integer"]
       }
     },
     "GET /api/v1/bookings/{id}/payment": {
@@ -1113,7 +1124,11 @@
         "responses.200.data.labels.persons#type": ["string"],
         "responses.200.data.marketing_consent#type": ["boolean"],
         "responses.200.data.created_at#type": ["number"],
-        "responses.200.data.created_at_iso#type": ["string"]
+        "responses.200.data.created_at_iso#type": ["string"],
+        "responses.200.data.family[].person_id#type": ["string"],
+        "responses.200.data.family[].birth_month#type": ["number"],
+        "responses.200.data.persons[].birth_month#type": ["number"],
+        "responses.200.data.persons[].preferred_resource_id#type": ["string"]
       }
     },
     "GET /api/v1/portal/me/bookings": {
@@ -1176,7 +1191,13 @@
         "responses.200.data.past[].payment_status": ["captured", "none", "refunded", "reserved"],
         "responses.200.data.past[].notes#type": ["string"],
         "responses.200.data.past[].manage_token#type": ["string"],
-        "responses.200.data.past[].can_manage#type": ["boolean"]
+        "responses.200.data.past[].can_manage#type": ["boolean"],
+        "responses.200.data.upcoming[].booked_for_person_id#type": ["string"],
+        "responses.200.data.upcoming[].booked_for_birth_year#type": ["number"],
+        "responses.200.data.upcoming[].booked_for_birth_month#type": ["number"],
+        "responses.200.data.past[].booked_for_person_id#type": ["string"],
+        "responses.200.data.past[].booked_for_birth_year#type": ["number"],
+        "responses.200.data.past[].booked_for_birth_month#type": ["number"]
       }
     },
     "GET /api/v1/portal/vipps/callback": {
@@ -1399,7 +1420,8 @@
         "responses.200.data.internal_notes#type": ["string"],
         "responses.200.data.created_via": ["api", "dashboard", "walk_in", "web"],
         "responses.200.data.created_at#type": ["string"],
-        "responses.200.data.updated_at#type": ["string"]
+        "responses.200.data.updated_at#type": ["string"],
+        "responses.200.data.booked_for_birth_month#type": ["integer"]
       }
     },
     "PATCH /api/v1/contacts/{id}": {
@@ -1533,7 +1555,44 @@
         "responses.200.data.labels.persons#type": ["string"],
         "responses.200.data.marketing_consent#type": ["boolean"],
         "responses.200.data.created_at#type": ["number"],
-        "responses.200.data.created_at_iso#type": ["string"]
+        "responses.200.data.created_at_iso#type": ["string"],
+        "requestBody.family[].person_id#type": ["string"],
+        "requestBody.family[].birth_month#type": ["number"],
+        "responses.200.data.family[].person_id#type": ["string"],
+        "responses.200.data.family[].birth_month#type": ["number"],
+        "responses.200.data.persons[].birth_month#type": ["number"],
+        "responses.200.data.persons[].preferred_resource_id#type": ["string"]
+      }
+    },
+    "PATCH /api/v1/portal/me/persons/{person_id}": {
+      "operationId": "patchPortalPerson",
+      "facts": {
+        "parameters.X-Portal-Session#type": ["string"],
+        "parameters.person_id#type": ["string"],
+        "requestBody#type": ["object"],
+        "requestBody.name#type": ["string"],
+        "requestBody.birth_year#type": ["integer"],
+        "requestBody.birth_month#type": ["integer"],
+        "requestBody.notes#type": ["string"],
+        "requestBody.preferred_resource_id#type": ["string"],
+        "responses.200#type": ["object"],
+        "responses.200.data#type": ["object"],
+        "responses.200.data.person_id#type": ["string"],
+        "responses.200.data.name#type": ["string"],
+        "responses.200.data.birth_year#type": ["number"],
+        "responses.200.data.birth_month#type": ["number"],
+        "responses.200.data.relation_type": [
+          "caregiver",
+          "custom",
+          "employer",
+          "guardian",
+          "owner",
+          "partner"
+        ],
+        "responses.200.data.relation_label#type": ["string"],
+        "responses.200.data.notes#type": ["string"],
+        "responses.200.data.preferred_resource_id#type": ["string"],
+        "responses.200.data.active#type": ["boolean"]
       }
     },
     "PATCH /api/v1/posts/{id}": {
@@ -1766,7 +1825,8 @@
         ],
         "responses.201.data.payment_error#type": ["object"],
         "responses.201.data.payment_error.code#type": ["string"],
-        "responses.201.data.payment_error.message#type": ["string"]
+        "responses.201.data.payment_error.message#type": ["string"],
+        "responses.201.data.booking.booked_for_birth_month#type": ["integer"]
       }
     },
     "POST /api/v1/bookings/manage/{token}/cancel": {
@@ -2359,7 +2419,46 @@
         "responses.200.data.relations[].since#type": ["number"],
         "responses.200.data.relations[].note#type": ["string"],
         "responses.200.data.relations[].counterpart_name#type": ["string"],
-        "responses.200.data.truncated#type": ["boolean"]
+        "responses.200.data.truncated#type": ["boolean"],
+        "responses.200.data.contact.family[].person_id#type": ["string"],
+        "responses.200.data.contact.family[].birth_month#type": ["number"],
+        "responses.200.data.contact.persons[].birth_month#type": ["number"],
+        "responses.200.data.contact.persons[].preferred_resource_id#type": ["string"],
+        "responses.200.data.family[].person_id#type": ["string"],
+        "responses.200.data.family[].birth_month#type": ["number"],
+        "responses.200.data.bookings[].booked_for_person_id#type": ["string"],
+        "responses.200.data.bookings[].booked_for_birth_year#type": ["number"],
+        "responses.200.data.bookings[].booked_for_birth_month#type": ["number"]
+      }
+    },
+    "POST /api/v1/portal/me/persons": {
+      "operationId": "createPortalPerson",
+      "facts": {
+        "parameters.X-Portal-Session#type": ["string"],
+        "requestBody#type": ["object"],
+        "requestBody.name#type": ["string"],
+        "requestBody.birth_year#type": ["integer"],
+        "requestBody.birth_month#type": ["integer"],
+        "requestBody.notes#type": ["string"],
+        "requestBody.preferred_resource_id#type": ["string"],
+        "responses.201#type": ["object"],
+        "responses.201.data#type": ["object"],
+        "responses.201.data.person_id#type": ["string"],
+        "responses.201.data.name#type": ["string"],
+        "responses.201.data.birth_year#type": ["number"],
+        "responses.201.data.birth_month#type": ["number"],
+        "responses.201.data.relation_type": [
+          "caregiver",
+          "custom",
+          "employer",
+          "guardian",
+          "owner",
+          "partner"
+        ],
+        "responses.201.data.relation_label#type": ["string"],
+        "responses.201.data.notes#type": ["string"],
+        "responses.201.data.preferred_resource_id#type": ["string"],
+        "responses.201.data.active#type": ["boolean"]
       }
     },
     "POST /api/v1/portal/vipps/exchange": {
@@ -2367,6 +2466,22 @@
       "facts": {
         "requestBody#type": ["object"],
         "requestBody.grant#type": ["string"],
+        "responses.200#type": ["object"],
+        "responses.200.data#type": ["object"],
+        "responses.200.data.session_token#type": ["string"],
+        "responses.200.data.expires_at#type": ["number"],
+        "responses.200.data.expires_at_iso#type": ["string"],
+        "responses.200.data.contact#type": ["object"],
+        "responses.200.data.contact.contact_id#type": ["string"],
+        "responses.200.data.contact.first_name#type": ["string"]
+      }
+    },
+    "POST /api/v1/portal/vipps/link/verify": {
+      "operationId": "verifyPortalVippsLink",
+      "facts": {
+        "requestBody#type": ["object"],
+        "requestBody.link#type": ["string"],
+        "requestBody.code#type": ["string"],
         "responses.200#type": ["object"],
         "responses.200.data#type": ["object"],
         "responses.200.data.session_token#type": ["string"],

@@ -5,11 +5,15 @@ import type {
   PortalExport,
   PortalLoginStartInput,
   PortalLoginStartResult,
+  PortalPerson,
+  PortalPersonCreateInput,
+  PortalPersonPatch,
   PortalProfile,
   PortalProfilePatch,
   PortalSession,
   PortalVerifyInput,
   PortalVippsExchangeInput,
+  PortalVippsLinkVerifyInput,
   PortalVippsSession,
   PortalVippsStart,
   PortalVippsStartInput,
@@ -76,9 +80,13 @@ class PortalLogin {
  * 1. {@link start} with the page you want them back on, and redirect them to
  *    `authorize_url`.
  * 2. Vipps sends them to Medal's callback, which redirects to your `return_url`
- *    with either `?grant=…` or `?vipps=needs_email_login` / `?vipps=failed` —
- *    fall back to {@link PortalLogin.start} on those two.
- * 3. {@link exchange} the grant, server-side, for a session token.
+ *    with `?grant=…`, `?vipps=confirm_email&link=…&to=…`, or
+ *    `?vipps=cancelled` / `?vipps=needs_email_login` / `?vipps=failed` — fall
+ *    back to {@link PortalLogin.start} on the last three. The parameters are
+ *    typed as `PortalVippsCallbackParams`.
+ * 3. {@link exchange} the grant, server-side, for a session token — or, after
+ *    `confirm_email`, ask the customer for the e-mailed code and
+ *    {@link verifyLink} it.
  *
  * `503 VIPPS_NOT_CONFIGURED` means this deployment has no Vipps login
  * configured: the e-mail code flow is the way in.
@@ -108,6 +116,99 @@ class PortalVippsLogin {
    */
   async exchange(input: PortalVippsExchangeInput): Promise<ApiResponse<PortalVippsSession>> {
     return this.client.post("/api/v1/portal/vipps/exchange", input, ONCE);
+  }
+
+  /**
+   * Confirm a pending Vipps link with the code the customer received, after a
+   * callback that landed on `?vipps=confirm_email`. Send the `link` from that
+   * redirect and the six-digit code; on the right code the Vipps identity is
+   * linked to that customer and a session is returned — the same shape as
+   * {@link PortalLogin.verify}, `contact` included.
+   *
+   * An unknown, used, expired (15 minutes) or foreign link and a wrong or
+   * burned code are all `401 PORTAL_CODE_INVALID`; the code shares its five
+   * attempts with the e-mail login. `409 VIPPS_IDENTITY_CONFLICT` (right code
+   * only) means the Vipps account was linked to another customer in the
+   * meantime: send the customer to the e-mail code login.
+   *
+   * Sent exactly once: the right code consumes the link, so an automatic retry
+   * would report a completed login as `PORTAL_CODE_INVALID`.
+   */
+  async verifyLink(input: PortalVippsLinkVerifyInput): Promise<ApiResponse<PortalSession>> {
+    return this.client.post("/api/v1/portal/vipps/link/verify", input, ONCE);
+  }
+}
+
+/**
+ * The signed-in contact's own persons — the children they book for — edited
+ * by id. Unlike `updateMe({ family })`, which replaces a whole list and
+ * matches on name + birth year (so a renamed child gets a NEW `person_id`),
+ * these keep the id through a rename or a corrected birth year, so bookings
+ * made for the person stay attached.
+ *
+ * Only the contact's own active `guardian` persons are reachable; every other
+ * id — another customer's, a pet, a removed person, a malformed id — is the
+ * same `404 NOT_FOUND`.
+ */
+class PortalPersons {
+  constructor(private client: BaseClient) {}
+
+  /**
+   * Add a child (relation `guardian`) to the signed-in contact. Answers the
+   * person, the same object as an entry of `persons` on `me`.
+   *
+   * A same-name-and-year person that is already active is `409 CONFLICT`; one
+   * removed earlier is brought back under its old `person_id`. At most 10
+   * children and 20 active persons (`400 VALIDATION_ERROR`). A
+   * `preferred_resource_id` that is not a live resource is `404 NOT_FOUND`.
+   *
+   * Sent exactly once: a retry after a committed-but-lost response would meet
+   * the person it just created and answer `409 CONFLICT`.
+   */
+  async create(
+    session: string,
+    input: PortalPersonCreateInput,
+  ): Promise<ApiResponse<PortalPerson>> {
+    return this.client.post("/api/v1/portal/me/persons", input, {
+      ...withSession(session),
+      ...ONCE,
+    });
+  }
+
+  /**
+   * Edit one person in place; the `person_id` never changes. Partial — `null`
+   * clears `birth_month`, `notes` or `preferred_resource_id`. Renaming onto
+   * another of the contact's persons is `409 CONFLICT`.
+   *
+   * Retried like any other call: re-applying the same patch reaches the same
+   * state and records nothing extra.
+   */
+  async update(
+    session: string,
+    person_id: string,
+    patch: PortalPersonPatch,
+  ): Promise<ApiResponse<PortalPerson>> {
+    return this.client.patch(
+      `/api/v1/portal/me/persons/${encodeURIComponent(person_id)}`,
+      patch,
+      withSession(session),
+    );
+  }
+
+  /**
+   * Remove a person. Resolves to `undefined` (the route answers 204). The
+   * person is deactivated, not deleted: booking history keeps naming it, the
+   * export lists it with `active: false`, and creating the same name and birth
+   * year again brings it back under the same id.
+   *
+   * Sent exactly once: a removed person is unreachable, so a retry would
+   * report the completed removal as `404 NOT_FOUND`.
+   */
+  async remove(session: string, person_id: string): Promise<void> {
+    await this.client.delete(`/api/v1/portal/me/persons/${encodeURIComponent(person_id)}`, {
+      ...withSession(session),
+      ...ONCE,
+    });
   }
 }
 
@@ -154,6 +255,24 @@ export class PortalSessionScope {
     return this.portal.deleteMe(this.token);
   }
 
+  /** Add a child. See {@link PortalPersons.create}. */
+  async createPerson(input: PortalPersonCreateInput): Promise<ApiResponse<PortalPerson>> {
+    return this.portal.persons.create(this.token, input);
+  }
+
+  /** Edit one person in place. See {@link PortalPersons.update}. */
+  async updatePerson(
+    personId: string,
+    patch: PortalPersonPatch,
+  ): Promise<ApiResponse<PortalPerson>> {
+    return this.portal.persons.update(this.token, personId, patch);
+  }
+
+  /** Remove one person. See {@link PortalPersons.remove}. */
+  async removePerson(personId: string): Promise<void> {
+    return this.portal.persons.remove(this.token, personId);
+  }
+
   /** Revoke the session. See {@link Portal.logout}. */
   async logout(): Promise<void> {
     return this.portal.logout(this.token);
@@ -174,9 +293,12 @@ export class PortalSessionScope {
 export class Portal {
   /** E-mail one-time-code login: `start` sends the code, `verify` exchanges it. */
   readonly login: PortalLogin;
+  /** The contact's own persons (children), edited by id: `create`, `update`, `remove`. */
+  readonly persons: PortalPersons;
 
   constructor(private client: BaseClient) {
     this.login = new PortalLogin(client);
+    this.persons = new PortalPersons(client);
   }
 
   /**
