@@ -43,6 +43,7 @@
  * the file cannot quietly rot into a blanket waiver.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { dirname, resolve } from "node:path";
 
 /**
@@ -129,14 +130,10 @@ async function loadDocument(path, what) {
     errors.push(`Missing ${what}: ${path}`);
     return null;
   }
-  const ts = await import("typescript");
-  const source = readFileSync(path, "utf8");
-  const compiled = ts.default.transpileModule(source, {
-    compilerOptions: {
-      module: ts.default.ModuleKind.ESNext,
-      target: ts.default.ScriptTarget.ESNext,
-    },
-  }).outputText;
+  // Node's own type stripper, not the TypeScript compiler API: TypeScript 7
+  // (the native port) no longer ships `transpileModule`, and the document is
+  // plain erasable syntax.
+  const compiled = stripTypeScriptTypes(readFileSync(path, "utf8"));
   /** @type {string[]} */
   const stubs = [];
   const stripped = compiled.replace(

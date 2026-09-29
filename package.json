@@ -44,8 +44,8 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky",
-    "build": "pnpm openapi:types && tsup && pnpm openapi:bundle",
-    "dev": "tsup src/index.ts --watch",
+    "build": "pnpm openapi:types && tsdown && pnpm openapi:bundle",
+    "dev": "tsdown --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -132,9 +132,9 @@
     "only-allow": "^1.2.2",
     "openapi-typescript": "^7.13.0",
     "secretlint": "^13.0.6",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.23.0",
     "typedoc": "^0.28.20",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2",
     "zod": "^4.6.5"
   }
