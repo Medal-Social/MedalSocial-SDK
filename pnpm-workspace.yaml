@@ -2,11 +2,9 @@ packages:
   - "."
   - "examples/*"
 
-# Only one override survives: tsup pins esbuild to `^0.27.0`, and every 0.27.x
-# from 0.27.3 up is affected by GHSA-g7r4-m6w7-qqqr. Everything else this file
-# used to pin now resolves to the patched version on its own — see the PR.
+# Only one override survives. Everything else this file used to pin now
+# resolves to the patched version on its own.
 overrides:
-  esbuild@^0.27.0: 0.28.2
   js-yaml: 4.3.2   # GHSA-2883-xcg3-v3hh, via @commitlint/cli and openapi-typescript
 
 # Neither package needs its lifecycle scripts to install correctly, and running

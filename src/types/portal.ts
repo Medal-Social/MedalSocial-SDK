@@ -51,10 +51,23 @@ export interface PortalSession {
   session_token: string;
   /** Unix timestamp in milliseconds. */
   expires_at: number;
-  /** ISO 8601 twin of `expires_at`. */
-  expires_at_iso: string;
+  /**
+   * ISO 8601 twin of `expires_at`. The API always sends it; it is optional in
+   * the type only so session objects built or mocked against the 1.11 shape
+   * keep compiling after a minor upgrade.
+   */
+  expires_at_iso?: string;
   contact: PortalContactSummary;
 }
+
+/**
+ * What `login.verify` and `login.vipps.verifyLink` return: a
+ * {@link PortalSession} whose `expires_at_iso` the API always fills in.
+ * `PortalSession` keeps the field optional so session objects built or mocked
+ * against the 1.11 shape still compile; responses you read are this narrower
+ * type, so no guard is needed on the ISO expiry.
+ */
+export type PortalSessionResponse = PortalSession & { expires_at_iso: string };
 
 /**
  * A family member as the contact WRITES it through `PATCH /me` `family`.

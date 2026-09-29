@@ -12,7 +12,10 @@ function resolvePath(
   template: string,
   pathParams?: Record<string, CapabilityPathParamValue>,
 ): string {
-  return template.replace(/\{([^}/]+)\}/g, (_match, name: string) => {
+  // `{` is excluded from the name so a run of `{{{…` cannot make every brace
+  // rescan to the end of the string (CodeQL js/polynomial-redos): matching is
+  // linear, and every well-formed `{name}` template resolves exactly as before.
+  return template.replace(/\{([^{}/]+)\}/g, (_match, name: string) => {
     const value = pathParams?.[name];
     return value === undefined ? `{${name}}` : encodeURIComponent(String(value));
   });

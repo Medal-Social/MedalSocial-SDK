@@ -416,6 +416,7 @@ export type {
   PortalProfile,
   PortalProfilePatch,
   PortalSession,
+  PortalSessionResponse,
   PortalVerifyInput,
   PortalVippsCallbackOutcome,
   PortalVippsCallbackParams,
