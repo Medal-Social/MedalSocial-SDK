@@ -10,7 +10,6 @@ import type {
   PortalPersonPatch,
   PortalProfile,
   PortalProfilePatch,
-  PortalSession,
   PortalSessionResponse,
   PortalVerifyInput,
   PortalVippsExchangeInput,
