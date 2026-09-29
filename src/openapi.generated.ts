@@ -884,7 +884,7 @@ export interface paths {
     };
     /**
      * Vipps redirects the customer's browser here
-     * @description A PUBLIC browser navigation, not an API call: it takes no API key and no SDK method wraps it. Medal validates the one-time `state`, then redirects back to the `return_url` the flow started with, carrying either `?grant=…` (exchange it) or `?vipps=needs_email_login` / `?vipps=failed` (fall back to the e-mail code login). An unknown or expired `state` answers `400` in plain text, because there is no trusted return URL to send the browser to.
+     * @description A PUBLIC browser navigation, not an API call: it takes no API key and no SDK method wraps it. Medal validates the one-time `state`, then redirects back to the `return_url` the flow started with, carrying exactly one of `?grant=…` (exchange it), `?vipps=confirm_email&link=…[&to=…]` (the login matched one existing contact that could not be linked on its own; a six-digit code went to that contact's address — `to` is it masked, present only when the contact was found by the verified e-mail — confirm with `verifyPortalVippsLink` and the same `browser_binding`), `?vipps=cancelled`, `?vipps=needs_email_login` or `?vipps=failed` (fall back to the e-mail code login). The SDK types these as `PortalVippsCallbackParams`. An unknown or expired `state` answers `400` in plain text, because there is no trusted return URL to send the browser to.
      */
     get: operations["portalVippsCallback"];
     put?: never;
@@ -909,6 +909,26 @@ export interface paths {
      * @description Call this from your SERVER with the `grant` the callback appended to your return URL, and keep `session_token` in an HttpOnly cookie. The grant is single-use: a second exchange answers `404 GRANT_NOT_FOUND`, which is also the answer for an expired grant or one minted under another workspace.
      */
     post: operations["exchangePortalVipps"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/vipps/link/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Confirm a pending Vipps link with the e-mailed code
+     * @description Only after a callback that landed on `?vipps=confirm_email`. Send the `link` from that redirect and the six-digit code the customer received at the masked address. On the right code the Vipps identity is linked to that customer and a portal session is returned — the same shape as `verifyPortalLogin`, `contact` included. The code shares its five attempts with `verifyPortalLogin`. An unknown, malformed, used, expired (15 minutes) or foreign link and a wrong or burned code are one answer: `401 PORTAL_CODE_INVALID`. `409 VIPPS_IDENTITY_CONFLICT` (right code only): the Vipps account was linked to another customer in the meantime — send the customer to the e-mail code login. Not idempotency-keyed; sent exactly once. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_CODE_INVALID`, `403 FORBIDDEN`, `409 VIPPS_IDENTITY_CONFLICT`, `429 RATE_LIMITED`.
+     */
+    post: operations["verifyPortalVippsLink"];
     delete?: never;
     options?: never;
     head?: never;
@@ -963,6 +983,58 @@ export interface paths {
      * @description Only the supplied fields change. `phone: null` clears the number, `family` replaces the whole list, and `marketing_consent` records a `marketing_email` consent decision with source `portal`. Answers the profile as it is after the change. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `write:portal`), `429 RATE_LIMITED`.
      */
     patch: operations["updatePortalProfile"];
+    trace?: never;
+  };
+  "/api/v1/portal/me/persons": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a person (a child) to the signed-in contact
+     * @description Creates a person with relation `guardian` owned by the signed-in contact. STRICT body. Name 1–60 characters, a birth year within the last 18 years, at most ten children and twenty active persons in all (`400 VALIDATION_ERROR`). A same-name-and-year person that is already active is `409 CONFLICT`; one removed earlier is brought back under its old `person_id`. `preferred_resource_id` must be a live resource of this workspace (`404 NOT_FOUND`). Not idempotency-keyed. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `429 RATE_LIMITED`.
+     */
+    post: operations["createPortalPerson"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/me/persons/{person_id}": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        person_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove one of the signed-in contact's persons
+     * @description Deactivates the person: it leaves `persons` and `family`, booking history keeps naming it, the export lists it with `active: false`, and adding the same name and birth year again brings it back. Same `404 NOT_FOUND` rule as the PATCH. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `404 NOT_FOUND`, `429 RATE_LIMITED`.
+     */
+    delete: operations["deletePortalPerson"];
+    options?: never;
+    head?: never;
+    /**
+     * Edit one of the signed-in contact's persons in place
+     * @description Partial and STRICT. The `person_id` never changes — a rename or a new birth year edits the same person, unlike `family` on `updatePortalProfile`, which matches on name and birth year. `null` clears `birth_month`, `notes` and `preferred_resource_id`. Only the contact's own active `guardian` persons are reachable; anything else is the same `404 NOT_FOUND`. Renaming onto another of the contact's persons is `409 CONFLICT`. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `404 NOT_FOUND`, `409 CONFLICT`, `429 RATE_LIMITED`.
+     */
+    patch: operations["patchPortalPerson"];
     trace?: never;
   };
   "/api/v1/portal/me/bookings": {
@@ -2010,6 +2082,8 @@ export interface components {
       booked_for_name: string | null;
       /** @description A birth year, not a birthdate — the age bracket is all that is stored. */
       booked_for_birth_year: number | null;
+      /** @description Birth MONTH (1–12), frozen from the registered person when the booking names one that has it, so the age is exact across the birthday. Never a day. Null for year-only bookings. Not accepted on create — it comes from `booked_for_person_id`. */
+      booked_for_birth_month: number | null;
       /** @description The ContactPerson this booking was made for, if any. */
       booked_for_person_id: string | null;
       /** @description The BookingEvent this booking is a registration for, if any. */
@@ -2055,6 +2129,10 @@ export interface components {
       /** @description Per-service payment requirement. `null` means no override — the workspace rule decides. */
       payment: components["schemas"]["BookingPaymentMode"] | null;
       max_per_booking: number | null;
+      /** @description Youngest age, in whole years, the service is meant for; null when there is no lower bound. Descriptive only — booking requests are NOT checked against it. */
+      age_min_years: number | null;
+      /** @description Oldest age, in whole years, the service is meant for; null when there is no upper bound. Both null means all ages. Descriptive only. */
+      age_max_years: number | null;
       color: string | null;
       sort_order: number | null;
       active: boolean;
@@ -2679,6 +2757,7 @@ export interface components {
     ApiResponse_PortalLoginStartResult: components["schemas"]["Envelope_PortalLoginStartResult"];
     ApiResponse_PortalSession: components["schemas"]["Envelope_PortalSession"];
     ApiResponse_PortalProfile: components["schemas"]["Envelope_PortalProfile"];
+    ApiResponse_PortalPerson: components["schemas"]["Envelope_PortalPerson"];
     ApiResponse_PortalBookings: components["schemas"]["Envelope_PortalBookings"];
     ApiResponse_PortalExport: components["schemas"]["Envelope_PortalExport"];
     ApiResponse_GdprExportRequest: components["schemas"]["Envelope_GdprExportRequest"];
@@ -2868,20 +2947,43 @@ export interface components {
       session_token: string;
       /** @description Unix timestamp in milliseconds. */
       expires_at: number;
+      /**
+       * Format: date-time
+       * @description ISO 8601 twin of `expires_at`.
+       */
+      expires_at_iso: string;
       contact: components["schemas"]["PortalContactSummary"];
     };
+    /** @description A family member as the contact writes it through `family`. Entries match on `name` + `birth_year`; `person_id` and `birth_month` are accepted so a client can echo what it read, and ignored. */
     PortalFamilyMember: {
       name: string;
       birth_year: number;
+      /** @description Accepted and IGNORED — use `patchPortalPerson` to edit by id. */
+      person_id?: string;
+      /** @description Accepted and ignored, like `person_id`. */
+      birth_month?: number | null;
+    };
+    /** @description A family member as the portal reads it back: the written pair plus the person's stable id and birth month, so a client can edit a child by id through `patchPortalPerson`. */
+    PortalFamilyEntry: {
+      person_id: string;
+      name: string;
+      birth_year: number;
+      /** @description 1–12, or null when unknown. */
+      birth_month: number | null;
     };
     /** @description A person the contact books for — a child, a pet — with no login of its own. */
     PortalPerson: {
       person_id: string;
       name: string;
       birth_year: number | null;
+      /** @description 1–12, or null. Makes the age exact across the birthday. */
+      birth_month: number | null;
       relation_type: components["schemas"]["RelationType"];
       relation_label: string | null;
+      /** @description The customer-visible note; the salon's internal note is never exposed. */
       notes: string | null;
+      /** @description The resource (barber, chair) this person usually sees. A preference only — availability does not honour it. */
+      preferred_resource_id: string | null;
       /** @description False for a person the customer removed or that was promoted to its own contact; `me` returns active persons only, the export returns all. */
       active: boolean;
     };
@@ -2896,7 +2998,7 @@ export interface components {
       first_name: string | null;
       last_name: string | null;
       phone: string | null;
-      family: components["schemas"]["PortalFamilyMember"][];
+      family: components["schemas"]["PortalFamilyEntry"][];
       persons: components["schemas"]["PortalPerson"][];
       labels: components["schemas"]["PortalLabels"];
       marketing_consent: boolean;
@@ -2914,6 +3016,26 @@ export interface components {
       /** @description Records a `marketing_email` consent change with source `portal`. */
       marketing_consent?: boolean;
     };
+    /** @description STRICT — any other key is a `400 VALIDATION_ERROR` naming it. The person is created with relation `guardian`. */
+    PortalPersonCreateInput: {
+      name: string;
+      /** @description Within the last 18 years — the portal's persons are children. */
+      birth_year: number;
+      /** @description Not later than the current month when `birth_year` is this year. */
+      birth_month?: number;
+      /** @description Visible to the customer. */
+      notes?: string;
+      /** @description A live resource (barber, chair) of this workspace. */
+      preferred_resource_id?: string;
+    };
+    /** @description Partial and STRICT; every field optional, an empty body changes nothing. `null` clears `birth_month`, `notes` and `preferred_resource_id`. */
+    PortalPersonPatch: {
+      name?: string;
+      birth_year?: number;
+      birth_month?: number | null;
+      notes?: string | null;
+      preferred_resource_id?: string | null;
+    };
     PortalBooking: {
       booking_id: string;
       status: components["schemas"]["BookingStatus"];
@@ -2930,6 +3052,12 @@ export interface components {
       resource_id: string | null;
       resource_name: string | null;
       booked_for_name: string | null;
+      /** @description The `person_id` of the contact's person this visit is for; null when it is for the contact themselves. Stable across a rename. */
+      booked_for_person_id: string | null;
+      /** @description The birth year recorded on the booking when it was made. */
+      booked_for_birth_year: number | null;
+      /** @description The birth month (1–12) recorded beside the year when the person had one; null otherwise. */
+      booked_for_birth_month: number | null;
       /** @description Integer øre, or `null` when the service has no price. */
       amount_ore: number | null;
       payment_mode: components["schemas"]["BookingPaymentMode"];
@@ -2978,7 +3106,7 @@ export interface components {
       /** @description Unix timestamp in milliseconds. */
       exported_at: number;
       contact: components["schemas"]["PortalProfile"];
-      family: components["schemas"]["PortalFamilyMember"][];
+      family: components["schemas"]["PortalFamilyEntry"][];
       consents: components["schemas"]["PortalConsentRecord"][];
       bookings: components["schemas"]["PortalBooking"][];
       relations: components["schemas"]["PortalExportRelation"][];
@@ -2988,6 +3116,9 @@ export interface components {
     };
     Envelope_PortalSession: {
       data: components["schemas"]["PortalSession"];
+    };
+    Envelope_PortalPerson: {
+      data: components["schemas"]["PortalPerson"];
     };
     Envelope_PortalProfile: {
       data: components["schemas"]["PortalProfile"];
@@ -3175,6 +3306,10 @@ export interface components {
       contact_id: string;
       name: string;
       birth_year: number | null;
+      /** @description Birth MONTH (1–12) beside `birth_year` — never a full date. */
+      birth_month: number | null;
+      /** @description The staff resource (chair) this person prefers, when set. */
+      preferred_resource_id: string | null;
       relation_type: components["schemas"]["RelationType"];
       relation_label: string | null;
       notes: string | null;
@@ -3490,6 +3625,17 @@ export interface components {
     PortalVippsStartInput: {
       /** @description An `https` URL under one of the workspace's own sites. */
       return_url: string;
+      /** @description An opaque per-attempt value the site's server keeps in the customer's browser and sends again on `verifyPortalVippsLink`, so a `confirm_email` link can only be confirmed in the browser that started the login. */
+      browser_binding?: string;
+      locale?: components["schemas"]["PortalLocale"];
+    };
+    PortalVippsLinkVerifyInput: {
+      /** @description The `link` the callback put on the return URL with `?vipps=confirm_email`. */
+      link: string;
+      /** @description Exactly six digits. */
+      code: string;
+      /** @description The value sent as `browser_binding` when this login started. Required when start carried one; missing or different is the same `401 PORTAL_CODE_INVALID` as a wrong code. */
+      browser_binding?: string;
     };
     PortalVippsStart: {
       /** @description Send the customer here unchanged; it carries a one-time state. */
@@ -5250,6 +5396,31 @@ export interface operations {
       default: components["responses"]["ApiError"];
     };
   };
+  verifyPortalVippsLink: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalVippsLinkVerifyInput"];
+      };
+    };
+    responses: {
+      /** @description The new session. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalSession"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
   logoutPortal: {
     parameters: {
       query?: never;
@@ -5319,6 +5490,88 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_PortalProfile"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createPortalPerson: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalPersonCreateInput"];
+      };
+    };
+    responses: {
+      /** @description The person. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalPerson"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  deletePortalPerson: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        person_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The person was removed. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  patchPortalPerson: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        person_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalPersonPatch"];
+      };
+    };
+    responses: {
+      /** @description The updated person. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalPerson"];
         };
       };
       default: components["responses"]["ApiError"];
