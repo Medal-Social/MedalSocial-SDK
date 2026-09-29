@@ -6957,6 +6957,8 @@ components:
             customer's browser and sends again on `verifyPortalVippsLink`, so a
             `confirm_email` link can only be confirmed in the browser that
             started the login.
+        locale:
+          $ref: "#/components/schemas/PortalLocale"
     PortalVippsLinkVerifyInput:
       type: object
       required: [link, code]
@@ -6971,7 +6973,7 @@ components:
           description: Exactly six digits.
         browser_binding:
           type: string
-          minLength: 32
+          minLength: 1
           maxLength: 128
           description: The value sent as `browser_binding` when this login started.
     PortalVippsStart:

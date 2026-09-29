@@ -3623,6 +3623,7 @@ export interface components {
       return_url: string;
       /** @description An opaque per-attempt value the site's server keeps in the customer's browser and sends again on `verifyPortalVippsLink`, so a `confirm_email` link can only be confirmed in the browser that started the login. */
       browser_binding?: string;
+      locale?: components["schemas"]["PortalLocale"];
     };
     PortalVippsLinkVerifyInput: {
       /** @description The `link` the callback put on the return URL with `?vipps=confirm_email`. */

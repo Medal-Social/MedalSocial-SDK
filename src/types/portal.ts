@@ -280,6 +280,11 @@ export interface PortalVippsStartInput {
    * copied into another browser cannot be confirmed there.
    */
   browser_binding?: string;
+  /**
+   * Language of the code e-mail Medal sends when the login lands on
+   * `confirm_email`; the workspace default when omitted.
+   */
+  locale?: PortalLocale;
 }
 
 /** What `portal.login.vipps.start(...)` hands back. */
