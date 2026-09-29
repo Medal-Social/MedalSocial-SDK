@@ -273,8 +273,9 @@ export interface PortalVippsStartInput {
    */
   return_url: string;
   /**
-   * An opaque value (32–128 characters) your server mints per login attempt
-   * and keeps in the customer's browser (an HttpOnly cookie), then sends again
+   * Optional, recommended: an opaque value (32–128 characters) your server
+   * mints per login attempt and also sets as an HttpOnly SameSite=Lax cookie
+   * (Medal stores only its SHA-256), then sends again
    * with {@link PortalVippsLinkVerifyInput.browser_binding}. It ties a
    * `confirm_email` link to the browser that started the login, so a link
    * copied into another browser cannot be confirmed there.
@@ -282,7 +283,7 @@ export interface PortalVippsStartInput {
   browser_binding?: string;
   /**
    * Language of the code e-mail Medal sends when the login lands on
-   * `confirm_email`; the workspace default when omitted.
+   * `confirm_email`. Defaults to `no`.
    */
   locale?: PortalLocale;
 }
@@ -352,8 +353,11 @@ export interface PortalVippsCallbackParams {
   link?: string;
   /**
    * With `vipps=confirm_email`: the address the code went to, masked
-   * (`k•••@g•••.com`). May be absent — show a generic "we sent you a code"
-   * then. Display only; never send it back.
+   * (`k•••@g•••.com`). Present only when the contact was found by the
+   * Vipps-verified e-mail; absent when it was found by phone — show a generic
+   * "we sent you a code" then. Render it as text only, never send it back, and
+   * strip `grant` / `link` / `to` from the address bar and keep them out of
+   * analytics and logs.
    */
   to?: string;
 }
@@ -366,7 +370,9 @@ export interface PortalVippsLinkVerifyInput {
   code: string;
   /**
    * The same value you sent as {@link PortalVippsStartInput.browser_binding}
-   * when this login started, read back from the customer's browser.
+   * when this login started, read back from the customer's cookie. REQUIRED
+   * when start carried one — missing or different is the same
+   * `401 PORTAL_CODE_INVALID` as a wrong code.
    */
   browser_binding?: string;
 }

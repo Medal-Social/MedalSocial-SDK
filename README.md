@@ -564,16 +564,21 @@ const { data: session } = await medal.portal.login.vipps.exchange({ grant });
 
 // 3b. ?vipps=confirm_email: the customer matched one existing contact that could
 //     not be linked on its own, and Medal e-mailed that contact a six-digit code.
-//     Show "we sent a code to {to}" (to is masked, and may be absent), then:
-const { data: linked } = await medal.portal.login.vipps.verifyLink({ link, code });
+//     Show "we sent a code to {to}" (to is masked, and absent when the contact was
+//     found by phone), then — with the same browser_binding you gave start():
+const { data: linked } = await medal.portal.login.vipps.verifyLink({ link, code, browser_binding });
 // 401 PORTAL_CODE_INVALID for a wrong/expired code or link (one answer, by design);
 // 409 VIPPS_IDENTITY_CONFLICT: the Vipps account is linked to another customer —
 // send them to the e-mail code login. Sent exactly once.
 ```
 
-Pass the same optional `browser_binding` (an opaque 32–128 character value your
-server keeps in an HttpOnly cookie) to `vipps.start` and `vipps.verifyLink` to
-tie a `confirm_email` link to the browser that started the login.
+Pass the same `browser_binding` (an opaque 32–128 character value your server
+also sets as an HttpOnly SameSite=Lax cookie) to `vipps.start` and
+`vipps.verifyLink` to tie a `confirm_email` link to the browser that started
+the login — optional, recommended, and required on `verifyLink` once `start`
+carried one. `vipps.start` also takes `locale` (`'no' | 'en'`) for that code
+e-mail. Strip `grant`, `link` and `to` from the address bar straight away and
+keep them out of analytics and logs.
 
 **Portal booking timestamps are Unix milliseconds** (`start_ts`, `end_ts`) with
 ISO twins beside them (`start_ts_iso`, `end_ts_iso`) — unlike

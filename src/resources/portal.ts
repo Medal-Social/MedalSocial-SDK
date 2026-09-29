@@ -125,11 +125,14 @@ class PortalVippsLogin {
    * linked to that customer and a session is returned — the same shape as
    * {@link PortalLogin.verify}, `contact` included.
    *
-   * An unknown, used, expired (15 minutes) or foreign link and a wrong or
-   * burned code are all `401 PORTAL_CODE_INVALID`; the code shares its five
-   * attempts with the e-mail login. `409 VIPPS_IDENTITY_CONFLICT` (right code
-   * only) means the Vipps account was linked to another customer in the
-   * meantime: send the customer to the e-mail code login.
+   * Pass the same `browser_binding` you gave {@link start} — it is required
+   * when start carried one. An unknown, used, expired (15 minutes) or foreign
+   * link, a missing or wrong `browser_binding`, and a wrong or burned code are
+   * all `401 PORTAL_CODE_INVALID`; the code shares its five attempts with the
+   * e-mail login, and the link has its own budget (`429 RATE_LIMITED`).
+   * `409 VIPPS_IDENTITY_CONFLICT` (right code only) means the Vipps account
+   * or this customer was linked elsewhere meanwhile, or the salon removed the
+   * link: send the customer to the e-mail code login.
    *
    * Sent exactly once: the right code consumes the link, so an automatic retry
    * would report a completed login as `PORTAL_CODE_INVALID`.

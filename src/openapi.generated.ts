@@ -884,7 +884,7 @@ export interface paths {
     };
     /**
      * Vipps redirects the customer's browser here
-     * @description A PUBLIC browser navigation, not an API call: it takes no API key and no SDK method wraps it. Medal validates the one-time `state`, then redirects back to the `return_url` the flow started with, carrying exactly one of `?grant=…` (exchange it), `?vipps=confirm_email&link=…&to=…` (the login matched one existing contact that could not be linked on its own; a six-digit code went to that contact's address, `to` is it masked and may be absent — confirm with `verifyPortalVippsLink`), `?vipps=cancelled`, `?vipps=needs_email_login` or `?vipps=failed` (fall back to the e-mail code login). The SDK types these as `PortalVippsCallbackParams`. An unknown or expired `state` answers `400` in plain text, because there is no trusted return URL to send the browser to.
+     * @description A PUBLIC browser navigation, not an API call: it takes no API key and no SDK method wraps it. Medal validates the one-time `state`, then redirects back to the `return_url` the flow started with, carrying exactly one of `?grant=…` (exchange it), `?vipps=confirm_email&link=…[&to=…]` (the login matched one existing contact that could not be linked on its own; a six-digit code went to that contact's address — `to` is it masked, present only when the contact was found by the verified e-mail — confirm with `verifyPortalVippsLink` and the same `browser_binding`), `?vipps=cancelled`, `?vipps=needs_email_login` or `?vipps=failed` (fall back to the e-mail code login). The SDK types these as `PortalVippsCallbackParams`. An unknown or expired `state` answers `400` in plain text, because there is no trusted return URL to send the browser to.
      */
     get: operations["portalVippsCallback"];
     put?: never;
@@ -3306,6 +3306,10 @@ export interface components {
       contact_id: string;
       name: string;
       birth_year: number | null;
+      /** @description Birth MONTH (1–12) beside `birth_year` — never a full date. */
+      birth_month: number | null;
+      /** @description The staff resource (chair) this person prefers, when set. */
+      preferred_resource_id: string | null;
       relation_type: components["schemas"]["RelationType"];
       relation_label: string | null;
       notes: string | null;
@@ -3630,7 +3634,7 @@ export interface components {
       link: string;
       /** @description Exactly six digits. */
       code: string;
-      /** @description The value sent as `browser_binding` when this login started. */
+      /** @description The value sent as `browser_binding` when this login started. Required when start carried one; missing or different is the same `401 PORTAL_CODE_INVALID` as a wrong code. */
       browser_binding?: string;
     };
     PortalVippsStart: {

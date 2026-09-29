@@ -381,7 +381,9 @@
         "responses.200.data[].active#type": ["boolean"],
         "responses.200.data[].promoted_to_contact_id#type": ["string"],
         "responses.200.data[].created_at#type": ["string"],
-        "responses.200.data[].updated_at#type": ["string"]
+        "responses.200.data[].updated_at#type": ["string"],
+        "responses.200.data[].birth_month#type": ["integer"],
+        "responses.200.data[].preferred_resource_id#type": ["string"]
       }
     },
     "GET /api/v1/bookings/relations": {
@@ -1934,7 +1936,11 @@
         "responses.201.data.active#type": ["boolean"],
         "responses.201.data.promoted_to_contact_id#type": ["string"],
         "responses.201.data.created_at#type": ["string"],
-        "responses.201.data.updated_at#type": ["string"]
+        "responses.201.data.updated_at#type": ["string"],
+        "responses.200.data.birth_month#type": ["integer"],
+        "responses.200.data.preferred_resource_id#type": ["string"],
+        "responses.201.data.birth_month#type": ["integer"],
+        "responses.201.data.preferred_resource_id#type": ["string"]
       }
     },
     "POST /api/v1/bookings/relations": {
@@ -2481,6 +2487,7 @@
       "facts": {
         "requestBody#type": ["object"],
         "requestBody.link#type": ["string"],
+        "requestBody.browser_binding#type": ["string"],
         "requestBody.code#type": ["string"],
         "responses.200#type": ["object"],
         "responses.200.data#type": ["object"],
@@ -2497,6 +2504,8 @@
       "facts": {
         "requestBody#type": ["object"],
         "requestBody.return_url#type": ["string"],
+        "requestBody.browser_binding#type": ["string"],
+        "requestBody.locale": ["en", "no"],
         "responses.200#type": ["object"],
         "responses.200.data#type": ["object"],
         "responses.200.data.authorize_url#type": ["string"]

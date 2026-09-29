@@ -1525,10 +1525,11 @@ paths:
         no SDK method wraps it. Medal validates the one-time `state`, then
         redirects back to the `return_url` the flow started with, carrying
         exactly one of `?grant=…` (exchange it),
-        `?vipps=confirm_email&link=…&to=…` (the login matched one existing
+        `?vipps=confirm_email&link=…[&to=…]` (the login matched one existing
         contact that could not be linked on its own; a six-digit code went to
-        that contact's address, `to` is it masked and may be absent — confirm
-        with `verifyPortalVippsLink`), `?vipps=cancelled`,
+        that contact's address — `to` is it masked, present only when the
+        contact was found by the verified e-mail — confirm with
+        `verifyPortalVippsLink` and the same `browser_binding`), `?vipps=cancelled`,
         `?vipps=needs_email_login` or `?vipps=failed` (fall back to the e-mail
         code login). The SDK types these as `PortalVippsCallbackParams`. An
         unknown or expired `state` answers `400` in plain text, because there
@@ -6247,6 +6248,8 @@ components:
         - contact_id
         - name
         - birth_year
+        - birth_month
+        - preferred_resource_id
         - relation_type
         - relation_label
         - notes
@@ -6263,6 +6266,14 @@ components:
           type: string
         birth_year:
           type: [integer, "null"]
+        birth_month:
+          description: Birth MONTH (1–12) beside `birth_year` — never a full date.
+          type: [integer, "null"]
+          minimum: 1
+          maximum: 12
+        preferred_resource_id:
+          description: The staff resource (chair) this person prefers, when set.
+          type: [string, "null"]
         relation_type:
           $ref: "#/components/schemas/RelationType"
         relation_label:
@@ -6973,9 +6984,11 @@ components:
           description: Exactly six digits.
         browser_binding:
           type: string
-          minLength: 1
           maxLength: 128
-          description: The value sent as `browser_binding` when this login started.
+          description: >-
+            The value sent as `browser_binding` when this login started.
+            Required when start carried one; missing or different is the same
+            `401 PORTAL_CODE_INVALID` as a wrong code.
     PortalVippsStart:
       type: object
       required: [authorize_url]

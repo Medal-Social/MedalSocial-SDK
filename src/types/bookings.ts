@@ -487,6 +487,10 @@ export interface ContactPerson {
   contact_id: string;
   name: string;
   birth_year: number | null;
+  /** Birth MONTH (1–12) beside `birth_year`, so an age is right at the appointment date — never a full date. */
+  birth_month: number | null;
+  /** The staff resource (chair) this person prefers, when set. A preference, not a booking rule. */
+  preferred_resource_id: string | null;
   relation_type: RelationType;
   relation_label: string | null;
   notes: string | null;
