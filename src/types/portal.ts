@@ -61,6 +61,15 @@ export interface PortalSession {
 }
 
 /**
+ * What `login.verify` and `login.vipps.verifyLink` return: a
+ * {@link PortalSession} whose `expires_at_iso` the API always fills in.
+ * `PortalSession` keeps the field optional so session objects built or mocked
+ * against the 1.11 shape still compile; responses you read are this narrower
+ * type, so no guard is needed on the ISO expiry.
+ */
+export type PortalSessionResponse = PortalSession & { expires_at_iso: string };
+
+/**
  * A family member as the contact WRITES it through `PATCH /me` `family`.
  * Entries match on `name` + `birth_year`; to edit one child without changing
  * its id, use `portal.persons.update(...)` instead.
