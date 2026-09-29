@@ -33,6 +33,9 @@ export interface PaginatedResponse<T> {
  * - `PORTAL_CODE_INVALID` / `PORTAL_SESSION_INVALID` — sign the customer in
  *   again; the two are not distinguished on purpose.
  * - `INVALID_RETURN_URL` — the URL is not under one of the workspace's sites.
+ * - `VIPPS_IDENTITY_CONFLICT` (409) — confirming a pending Vipps link found
+ *   the Vipps account already linked to another customer: fall back to the
+ *   e-mail code login.
  * - `CONVERSATION_NOT_LINKABLE` — a group thread, or a channel with no stable
  *   sender.
  */
@@ -75,6 +78,7 @@ export type MedalErrorCode =
   | "UNAUTHORIZED"
   | "UPSTREAM_UNAVAILABLE"
   | "VALIDATION_ERROR"
+  | "VIPPS_IDENTITY_CONFLICT"
   | "VIPPS_NOT_CONFIGURED"
   /** The SDK's own code for a response that carried no structured error. */
   | "UNKNOWN_ERROR"
