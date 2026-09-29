@@ -10,7 +10,7 @@ import type {
   PortalPersonPatch,
   PortalProfile,
   PortalProfilePatch,
-  PortalSession,
+  PortalSessionResponse,
   PortalVerifyInput,
   PortalVippsExchangeInput,
   PortalVippsLinkVerifyInput,
@@ -68,7 +68,7 @@ class PortalLogin {
    * answer `401 PORTAL_CODE_INVALID`; the three are not distinguished, so the
    * response is not an oracle for which codes exist.
    */
-  async verify(input: PortalVerifyInput): Promise<ApiResponse<PortalSession>> {
+  async verify(input: PortalVerifyInput): Promise<ApiResponse<PortalSessionResponse>> {
     return this.client.post("/api/v1/portal/login/verify", input, ONCE);
   }
 }
@@ -137,7 +137,7 @@ class PortalVippsLogin {
    * Sent exactly once: the right code consumes the link, so an automatic retry
    * would report a completed login as `PORTAL_CODE_INVALID`.
    */
-  async verifyLink(input: PortalVippsLinkVerifyInput): Promise<ApiResponse<PortalSession>> {
+  async verifyLink(input: PortalVippsLinkVerifyInput): Promise<ApiResponse<PortalSessionResponse>> {
     return this.client.post("/api/v1/portal/vipps/link/verify", input, ONCE);
   }
 }

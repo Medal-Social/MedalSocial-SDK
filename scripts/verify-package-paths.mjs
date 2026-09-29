@@ -2,11 +2,11 @@
 // Verifies that every path declared in package.json (`main`, `module`,
 // `types`, and `exports`) points at a file that actually exists on disk.
 //
-// Wired into `prepublishOnly` (after `tsup` build) so a publish FAILS if
+// Wired into `prepublishOnly` (after the tsdown build) so a publish FAILS if
 // the package.json claims an entry point that the build doesn't produce.
 //
 // History: v1.1.4 shipped to npm with main/module/types/exports pointing at
-// `dist/index.*` while tsup actually emits `dist/src/index.*`. Consumers
+// `dist/index.*` while the build actually emits `dist/src/index.*`. Consumers
 // had to apply postinstall patches to make the package resolvable. This
 // script prevents that class of bug from recurring.
 
@@ -77,7 +77,7 @@ if (errors.length > 0) {
   );
   for (const err of errors) console.error(err);
   console.error(
-    "\nDid you forget to run `pnpm build`? Or did the tsup output paths drift from package.json?\n",
+    "\nDid you forget to run `pnpm build`? Or did the tsdown output paths drift from package.json?\n",
   );
   process.exit(1);
 }

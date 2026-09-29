@@ -129,14 +129,19 @@ async function loadDocument(path, what) {
     errors.push(`Missing ${what}: ${path}`);
     return null;
   }
-  const ts = await import("typescript");
-  const source = readFileSync(path, "utf8");
-  const compiled = ts.default.transpileModule(source, {
-    compilerOptions: {
-      module: ts.default.ModuleKind.ESNext,
-      target: ts.default.ScriptTarget.ESNext,
-    },
-  }).outputText;
+  // Node's own type stripper, not the TypeScript compiler API: TypeScript 7
+  // (the native port) no longer ships `transpileModule`, and the document is
+  // plain erasable syntax. Looked up here rather than imported at the top: it
+  // only exists from Node 22.13, and a static import would take the default
+  // JSON path down with it on older Node 22 releases that `engines` admits.
+  const { stripTypeScriptTypes } = await import("node:module");
+  if (typeof stripTypeScriptTypes !== "function") {
+    errors.push(
+      `Reading a TypeScript ${what} needs Node >=22.13 (module.stripTypeScriptTypes); this is ${process.version}. Upgrade Node or pass the JSON document instead: ${path}`,
+    );
+    return null;
+  }
+  const compiled = stripTypeScriptTypes(readFileSync(path, "utf8"));
   /** @type {string[]} */
   const stubs = [];
   const stripped = compiled.replace(

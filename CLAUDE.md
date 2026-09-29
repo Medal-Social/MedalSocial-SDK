@@ -179,13 +179,32 @@ tell an attestation failure from a healthy release after the fact.
 |-----|---------------|
 | `test` | Vitest via `pnpm test:coverage` + Codecov upload. Coverage thresholds are **100%** on statements/branches/functions/lines — a new uncovered branch fails CI |
 | `lint` | Biome |
-| `build` | `pnpm typecheck`, then OpenAPI lint, `tsup` build, OpenAPI coverage, entry-point verification, then a JSR dry run (`jsr publish --dry-run`: slow types and the publish scope) |
+| `build` | `pnpm typecheck`, then OpenAPI lint, `tsdown` build, OpenAPI coverage, entry-point verification, then a JSR dry run (`jsr publish --dry-run`: slow types and the publish scope) |
 | `security` | secretlint over tracked files + knip |
 
 `pnpm typecheck` runs `tsc --noEmit` twice: once on `tsconfig.json` (`src` only,
 the shipped surface) and once on `tsconfig.test.json`, which widens it to
 `tests`, `pilot` and `scripts`. Vitest never typechecks, so without the second
 pass test files are unchecked.
+
+### TypeScript 7 toolchain
+
+`tsc` is TypeScript 7 (the native port) and `tsdown` builds `dist/`, with
+declarations emitted by tsgo. Three pieces hold that together — each says in
+its own comment when it can go:
+
+- **`.pnpmfile.cjs`** — typedoc and openapi-typescript still need the legacy
+  JS compiler API, which TS 7 does not ship. Their `typescript` peer is
+  rewritten to a real dependency on `@typescript/typescript6`. Neither
+  `overrides` nor `packageExtensions` can change what a peer resolves to.
+- **`tsdown.config.ts` `tidyDeclarations`** — without it `pilot/index.d.ts`
+  implicitly exports its private zod schemas, and declaration files carry
+  dangling `sourceMappingURL`s. `tsconfig.build.json` adds the `./pilot` entry
+  to the declaration build without widening the `src`-only typecheck.
+- **`tests/setup-timers.ts`** — the suite runs on virtual time
+  (`vi.setTimerTickMode("nextTimerAsync")`), so retry/`Retry-After`/poll waits
+  are still taken and measured but cost no wall time. A test that needs real
+  timers calls `vi.useRealTimers()` first.
 
 `prod`'s ruleset requires the `lint`, `test` and `build` contexts.
 
