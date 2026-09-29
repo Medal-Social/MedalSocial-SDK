@@ -1,0 +1,6 @@
+{
+  // Declaration build for tsdown. tsconfig.json stays `src`-only for the
+  // typecheck gate; this adds the one other published entry, ./pilot.
+  "extends": "./tsconfig.json",
+  "include": ["src", "pilot/index.ts"]
+}

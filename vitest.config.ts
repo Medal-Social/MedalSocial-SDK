@@ -5,6 +5,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.{test,spec}.ts", "pilot/**/*.{test,spec}.ts"],
     exclude: ["tests/integration.test.ts"],
+    setupFiles: ["tests/setup-timers.ts"],
     coverage: {
       provider: "v8",
       // lcov is what the Codecov upload step consumes; text/html are for humans.
