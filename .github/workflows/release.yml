@@ -82,6 +82,8 @@ jobs:
       #
       # It still does not run when an earlier step fails: a failed npm publish
       # should not reach JSR.
+      #
+      # Only @medalsocial/sdk is published to JSR, hence the filter.
       - name: Publish to JSR
         if: steps.changesets.outputs.has-changesets != 'true'
-        run: pnpm jsr:publish
+        run: pnpm --filter @medalsocial/sdk run jsr:publish

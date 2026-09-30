@@ -3,3 +3,10 @@
 
 # CI and release pipeline
 .github/ @alioftech @adaadev
+
+# Published packages
+/packages/sdk/ @alioftech @adaadev
+
+# Release bookkeeping and workspace config
+/.changeset/ @alioftech @adaadev
+/pnpm-workspace.yaml @alioftech @adaadev

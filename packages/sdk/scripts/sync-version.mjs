@@ -6,6 +6,12 @@
 //   - openapi/*.yaml `info.version`  (the published contract's own version)
 //   - plugin.toml `[plugin] version` (the Pilot plugin manifest)
 //
+// The first three live in this package (packages/sdk); plugin.toml is a
+// repo-level manifest and stays at the workspace root. `--root <dir>` points
+// at the package directory and `--plugin-root <dir>` at the directory that
+// holds plugin.toml — by default the workspace root two levels above the
+// package. The tests pass both to run against a throwaway fixture.
+//
 // Wired into `pnpm run version` right after `changeset version` bumps
 // package.json, so a release carries the new number everywhere. Run with
 // `--check` to VERIFY instead of write: it exits 1 naming every file that
@@ -27,6 +33,11 @@ const root =
   rootFlag !== -1 && args[rootFlag + 1]
     ? resolve(args[rootFlag + 1])
     : resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const pluginRootFlag = args.indexOf("--plugin-root");
+const pluginRoot =
+  pluginRootFlag !== -1 && args[pluginRootFlag + 1]
+    ? resolve(args[pluginRootFlag + 1])
+    : resolve(root, "..", "..");
 
 const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const version = pkg.version;
@@ -102,7 +113,7 @@ const targets = [];
 // `[` header, so a `version` key under a later table (a `[[tools]]` entry, say)
 // is never mistaken for it.
 {
-  const file = resolve(root, "plugin.toml");
+  const file = resolve(pluginRoot, "plugin.toml");
   const raw = readFileSync(file, "utf8");
   const lines = raw.split("\n");
   const tableAt = lines.findIndex((line) => /^\[plugin\]\s*$/.test(line));
@@ -129,7 +140,7 @@ if (checkOnly) {
     for (const t of drifted) {
       console.error(`  - ${t.file} says ${t.current ?? "<missing>"}`);
     }
-    console.error("Run `node scripts/sync-version.mjs` to bring them in step.");
+    console.error("Run `node packages/sdk/scripts/sync-version.mjs` to bring them in step.");
     process.exit(1);
   }
   console.log(`[sync-version] OK — every copy of the version reads ${version}.`);

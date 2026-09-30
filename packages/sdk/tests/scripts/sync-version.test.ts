@@ -6,7 +6,9 @@ import { expectProcessExit, mockProcessExit } from "./test-support";
 
 // `scripts/sync-version.mjs` runs top-level and calls `process.exit(1)` on
 // failure, so each scenario is a fresh module evaluation against a throwaway
-// root directory passed through `--root`.
+// root directory passed through `--root`. plugin.toml normally sits at the
+// workspace root, two levels above the package; `--plugin-root` points the
+// script at the same throwaway directory.
 const SCRIPT_PATH = "../../scripts/sync-version.mjs";
 
 const YAML_HEAD = [
@@ -75,7 +77,7 @@ describe("scripts/sync-version.mjs", () => {
   });
 
   it("writes package.json's version into jsr.json, src/version.ts, the OpenAPI info block and plugin.toml", async () => {
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBeNull();
     expect(exitSpy).not.toHaveBeenCalled();
@@ -98,11 +100,11 @@ describe("scripts/sync-version.mjs", () => {
   });
 
   it("is idempotent: a second run touches nothing and says so", async () => {
-    await runScript("--root", dir);
+    await runScript("--root", dir, "--plugin-root", dir);
     const before = readFileSync(join(dir, "src", "version.ts"), "utf8");
     logSpy.mockClear();
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBeNull();
     expect(readFileSync(join(dir, "src", "version.ts"), "utf8")).toBe(before);
@@ -110,7 +112,7 @@ describe("scripts/sync-version.mjs", () => {
   });
 
   it("--check fails and names every drifted file", async () => {
-    const code = await runScript("--check", "--root", dir);
+    const code = await runScript("--check", "--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("FAIL"));
@@ -124,11 +126,11 @@ describe("scripts/sync-version.mjs", () => {
   });
 
   it("--check fails on plugin.toml alone when everything else is in step", async () => {
-    await runScript("--root", dir);
+    await runScript("--root", dir, "--plugin-root", dir);
     writeFileSync(join(dir, "plugin.toml"), TOML_HEAD);
     errorSpy.mockClear();
 
-    const code = await runScript("--check", "--root", dir);
+    const code = await runScript("--check", "--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("plugin.toml says 1.10.0"));
@@ -136,10 +138,10 @@ describe("scripts/sync-version.mjs", () => {
   });
 
   it("--check passes once everything is in step", async () => {
-    await runScript("--root", dir);
+    await runScript("--root", dir, "--plugin-root", dir);
     errorSpy.mockClear();
 
-    const code = await runScript("--check", "--root", dir);
+    const code = await runScript("--check", "--root", dir, "--plugin-root", dir);
 
     expect(code).toBeNull();
     expect(errorSpy).not.toHaveBeenCalled();
@@ -149,7 +151,7 @@ describe("scripts/sync-version.mjs", () => {
   it("refuses a package.json without a semver version", async () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ version: "next" }));
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("no usable version"));
@@ -158,7 +160,7 @@ describe("scripts/sync-version.mjs", () => {
   it("fails rather than guess when a target has no version to replace", async () => {
     writeFileSync(join(dir, "openapi", "medal-social.openapi.yaml"), "openapi: 3.1.0\npaths: {}\n");
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("could not find a version"));
@@ -183,7 +185,7 @@ describe("scripts/sync-version.mjs", () => {
       ].join("\n"),
     );
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("could not find a version"));
@@ -197,7 +199,7 @@ describe("scripts/sync-version.mjs", () => {
       ["[plugin]", 'name = "medalsocial-sdk"', "", "[[tools]]", 'version = "9.9.9"', ""].join("\n"),
     );
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBe(1);
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("could not find a version"));
@@ -212,7 +214,7 @@ describe("scripts/sync-version.mjs", () => {
       YAML_HEAD.replaceAll("\n", "\r\n"),
     );
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBeNull();
     const yaml = readFileSync(join(dir, "openapi", "medal-social.openapi.yaml"), "utf8");
@@ -224,7 +226,7 @@ describe("scripts/sync-version.mjs", () => {
   it("keeps CRLF line endings when rewriting the plugin manifest version", async () => {
     writeFileSync(join(dir, "plugin.toml"), TOML_HEAD.replaceAll("\n", "\r\n"));
 
-    const code = await runScript("--root", dir);
+    const code = await runScript("--root", dir, "--plugin-root", dir);
 
     expect(code).toBeNull();
     expect(readFileSync(join(dir, "plugin.toml"), "utf8")).toBe(
@@ -232,7 +234,18 @@ describe("scripts/sync-version.mjs", () => {
     );
   });
 
-  it("defaults to the repository root, which is in step", async () => {
+  it("reads plugin.toml from the workspace root two levels above --root by default", async () => {
+    const pkgDir = join(dir, "packages", "sdk");
+    scaffold(pkgDir, "1.11.0");
+    rmSync(join(pkgDir, "plugin.toml"));
+    // dir/plugin.toml (from beforeEach) is the workspace-root manifest.
+    const code = await runScript("--root", pkgDir);
+
+    expect(code).toBeNull();
+    expect(readFileSync(join(dir, "plugin.toml"), "utf8")).toContain('version = "1.11.0"');
+  });
+
+  it("defaults to this package and the workspace root, which are in step", async () => {
     const code = await runScript("--check");
 
     expect(code).toBeNull();

@@ -47,7 +47,9 @@ describe("version is derived from package.json everywhere", () => {
   });
 
   it("the Pilot plugin manifest's [plugin] version matches", () => {
-    const toml = readFileSync(resolve(root, "plugin.toml"), "utf8");
+    // plugin.toml is the repo-level Pilot manifest: it stays at the workspace
+    // root, two levels above this package.
+    const toml = readFileSync(resolve(root, "..", "..", "plugin.toml"), "utf8");
     // The [plugin] table ends at the next `[` header — the same walk as
     // scripts/sync-version.mjs, so a `version` under a later table never counts.
     const lines = toml.split("\n");

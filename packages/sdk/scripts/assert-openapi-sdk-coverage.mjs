@@ -21,10 +21,10 @@
  * `openapi/reference/medal-api-v1-surface.json`, so the parity check runs on
  * every CI job in this repo with no access to the private monorepo. Refresh it
  * from a monorepo checkout (the SDK is a submodule there, so the file is
- * already on disk):
+ * already on disk). Run these from packages/sdk:
  *
  *   node scripts/assert-openapi-sdk-coverage.mjs \
- *     --reference-source ../../apps/web/src/lib/openapi-spec.ts \
+ *     --reference-source ../../../../apps/web/src/lib/openapi-spec.ts \
  *     --write-reference openapi/reference/medal-api-v1-surface.json
  *   pnpm exec biome format --write openapi/reference/medal-api-v1-surface.json
  *
@@ -36,7 +36,7 @@
  * because it also catches a stale snapshot — with:
  *
  *   node scripts/assert-openapi-sdk-coverage.mjs \
- *     --reference ../../apps/web/src/lib/openapi-spec.ts
+ *     --reference ../../../../apps/web/src/lib/openapi-spec.ts
  *
  * Known, reviewed differences live in `openapi/parity-exceptions.json`, each
  * with a reason. An exception that no longer matches anything is an ERROR, so
@@ -44,6 +44,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * @typedef {{ operationId: string | null, tags: string[], facts: Record<string, string[]> }} OperationSurface
@@ -58,10 +59,15 @@ const CLIENT_METHODS = {
   patch: ["patch"],
   delete: ["delete"],
 };
+// Defaults resolve against the package directory (packages/sdk), not the
+// working directory, so the gate reads the same files whether it is run from
+// the package (`pnpm --filter @medalsocial/sdk openapi:coverage`) or from the
+// workspace root. Paths passed as flags stay relative to the working directory.
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RESOURCE_DIR = "src/resources";
-const DEFAULT_SPEC = "dist/openapi/medal-social.openapi.json";
-const DEFAULT_REFERENCE = "openapi/reference/medal-api-v1-surface.json";
-const DEFAULT_EXCEPTIONS = "openapi/parity-exceptions.json";
+const DEFAULT_SPEC = resolve(PACKAGE_ROOT, "dist/openapi/medal-social.openapi.json");
+const DEFAULT_REFERENCE = resolve(PACKAGE_ROOT, "openapi/reference/medal-api-v1-surface.json");
+const DEFAULT_EXCEPTIONS = resolve(PACKAGE_ROOT, "openapi/parity-exceptions.json");
 /**
  * A floor on both documents, so an empty, truncated or wrong-shaped input
  * cannot pass by having nothing to check. Both sides carry ~100 operations; a
@@ -301,7 +307,7 @@ function clientPathNeedle(path) {
 const sourceCache = new Map();
 function resourceSources() {
   if (sourceCache.size > 0) return sourceCache;
-  const dir = resolve(RESOURCE_DIR);
+  const dir = resolve(PACKAGE_ROOT, RESOURCE_DIR);
   if (!existsSync(dir)) {
     errors.push(`${RESOURCE_DIR} does not exist`);
     return sourceCache;
