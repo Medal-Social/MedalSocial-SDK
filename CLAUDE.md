@@ -14,9 +14,12 @@ and is never published.
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
 
-- **Root = shared tooling.** Biome, knip, commitlint, secretlint, Husky,
+- **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
+  repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
   lint-staged, Changesets, `.pnpmfile.cjs`, CI and the Pilot plugin manifest
-  (`plugin.toml`) live at the root. `pnpm build` / `test` / `test:coverage` /
+  (`plugin.toml`) live at the root. Root tooling never reaches into a package
+  directory; the secretlint scripts' unit tests run with the SDK's script suite
+  (`packages/sdk/tests/scripts`). `pnpm build` / `test` / `test:coverage` /
   `typecheck` fan out with `pnpm -r --filter './packages/*'`; `pnpm lint` is one
   Biome run over the whole repository; `pnpm quality` is lint + typecheck + test.
 - **Package = everything that ships.** Source, tests, `scripts/`, `skills/`,
@@ -272,14 +275,14 @@ openapi/
   reference/                 # snapshot of the Medal API's own published surface (parity gate)
   parity-exceptions.json     # reviewed API-vs-SDK differences, each with a reason
 skills/                  # TanStack Intent skills, shipped in the npm tarball
-scripts/                 # release + verification scripts (each has a test under tests/scripts/);
-                         # secretlint-repo/-staged scan the whole repository from the root
+scripts/                 # release + verification scripts (each has a test under tests/scripts/)
 tests/
   *.test.ts              # Unit tests (vitest, 100% coverage thresholds on src/)
   integration.test.ts    # Live API tests — skipped without credentials
 ```
 
-At the repository root: `plugin.toml` (Pilot plugin manifest), `examples/`,
+At the repository root: `scripts/secretlint-{repo,staged}.mjs` (repo-wide
+secret scans, tested from `packages/sdk/tests/scripts`), `plugin.toml` (Pilot plugin manifest), `examples/`,
 `.changeset/`, `.github/`, `.husky/` and the shared tool configs.
 
 There is no `src/devices/`: the module was never exported from any entry point,

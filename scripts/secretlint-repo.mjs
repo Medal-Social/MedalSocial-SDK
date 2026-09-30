@@ -1,11 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-// Repo-level check: it scans every tracked file in the WORKSPACE, not just
-// this package. The script lives in packages/sdk/scripts, so both git and
-// secretlint run from the workspace root three levels up — that is where
-// `git ls-files` lists every path and where .secretlintrc.json sits.
-const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+// Repo-level check: it scans every tracked file in the repository, whatever
+// the working directory. git and secretlint run from the repository root (this
+// script's parent directory), where `git ls-files` lists every path and where
+// .secretlintrc.json sits.
+const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
   cwd: repoRoot,

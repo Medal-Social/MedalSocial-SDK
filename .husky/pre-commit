@@ -1,2 +1,2 @@
 pnpm exec lint-staged
-node packages/sdk/scripts/secretlint-staged.mjs
+node scripts/secretlint-staged.mjs

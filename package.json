@@ -25,8 +25,8 @@
     "changeset": "changeset",
     "knip:report": "knip --reporter json --no-exit-code",
     "knip:check": "knip",
-    "secret:scan": "node packages/sdk/scripts/secretlint-repo.mjs",
-    "secret:scan:staged": "node packages/sdk/scripts/secretlint-staged.mjs"
+    "secret:scan": "node scripts/secretlint-repo.mjs",
+    "secret:scan:staged": "node scripts/secretlint-staged.mjs"
   },
   "lint-staged": {
     "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,md,yml,yaml}": [
