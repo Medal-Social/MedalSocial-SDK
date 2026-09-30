@@ -9,7 +9,7 @@
       ]
     },
     "packages/sdk": {
-      "ignore": ["vitest.integration.config.ts"]
+      "ignore": ["src/index.ts", "vitest.integration.config.ts"]
     },
     "examples/*": {}
   },
