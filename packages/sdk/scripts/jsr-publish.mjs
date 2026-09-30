@@ -20,7 +20,8 @@ import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = fileURLToPath(new URL("..", import.meta.url));
+// The package directory (packages/sdk) — where jsr.json sits and `jsr publish` runs.
+const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const dryRun = process.argv.includes("--dry-run");
 
 /**
@@ -78,7 +79,7 @@ const versionState = async (name, version) => {
 const runJsrPublish = () =>
   new Promise((resolve) => {
     const child = spawn("pnpm", ["exec", "jsr", "publish"], {
-      cwd: repoRoot,
+      cwd: packageRoot,
       stdio: "inherit",
     });
     child.on("error", (error) => {

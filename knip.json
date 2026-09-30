@@ -1,11 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreDependencies": [
-    "@commitlint/cli",
-    "@secretlint/secretlint-rule-preset-recommend",
-    "lint-staged"
-  ],
-  "ignore": ["src/index.ts", "vitest.integration.config.ts"],
+  "workspaces": {
+    ".": {
+      "ignoreDependencies": [
+        "@commitlint/cli",
+        "@secretlint/secretlint-rule-preset-recommend",
+        "lint-staged"
+      ]
+    },
+    "packages/sdk": {
+      "ignore": ["vitest.integration.config.ts"]
+    },
+    "examples/*": {}
+  },
   "ignoreExportsUsedInFile": true,
   "husky": false
 }

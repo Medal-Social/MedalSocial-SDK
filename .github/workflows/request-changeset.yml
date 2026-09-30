@@ -30,17 +30,26 @@ jobs:
           CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD)
 
           HAS_CHANGESET=$(echo "$CHANGED" | grep -c '^\.changeset/.*\.md$' || true)
-          HAS_SRC=$(echo "$CHANGED" | grep -cE '^src/' || true)
+          # Published source lives in packages/<dir>/src. Name each package
+          # whose source changed, read from its own package.json.
+          PACKAGES=$(echo "$CHANGED" | sed -nE 's#^packages/([^/]+)/src/.*#\1#p' | sort -u \
+            | while read -r dir; do
+                if [[ -f "packages/$dir/package.json" ]]; then node -p "require('./packages/$dir/package.json').name"; fi
+              done \
+            | paste -sd, - | sed 's/,/, /g')
 
-          if [[ "$HAS_CHANGESET" -eq 0 && "$HAS_SRC" -gt 0 ]]; then
+          if [[ "$HAS_CHANGESET" -eq 0 && -n "$PACKAGES" ]]; then
             echo "needed=true" >> "$GITHUB_OUTPUT"
           else
             echo "needed=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "packages=$PACKAGES" >> "$GITHUB_OUTPUT"
 
       - name: Remind contributor to add a changeset
         if: steps.check.outputs.needed == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          PACKAGES: ${{ steps.check.outputs.packages }}
         with:
           script: |
             await github.rest.issues.createComment({
@@ -48,11 +57,11 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body: [
-                'This PR changes `src/` but has no changeset.',
+                `This PR changes the source of ${process.env.PACKAGES} but has no changeset.`,
                 '',
                 'Please add a `.changeset/<descriptive-name>.md` file with:',
                 '- The correct bump type (`patch`, `minor`, or `major`)',
-                '- Package in scope: `@medalsocial/sdk`',
+                `- Package(s) in scope: ${process.env.PACKAGES}`,
                 '- A concise, user-facing summary (not implementation details)',
                 '',
                 'Follow the format of existing files in `.changeset/`. See https://github.com/changesets/changesets for details.',

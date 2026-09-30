@@ -29,6 +29,9 @@ jobs:
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          # lcov paths are package-relative (src/…); Codecov's path fixing maps
+          # them onto packages/sdk/src.
+          files: ./packages/sdk/coverage/lcov.info
           fail_ci_if_error: false
 
   # The same unit suite on the OTHER Node line `engines.node` admits, so the
@@ -83,17 +86,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Every package: typecheck, build and entry-point verification fan out
+      # over packages/*. The OpenAPI steps and the version sync are SDK-only.
       - run: pnpm typecheck
 
-      - run: pnpm run version:check
+      - run: pnpm --filter @medalsocial/sdk run version:check
 
-      - run: pnpm openapi:lint
+      - run: pnpm --filter @medalsocial/sdk run openapi:lint
 
       - run: pnpm build
 
-      - run: pnpm openapi:coverage
+      - run: pnpm --filter @medalsocial/sdk run openapi:coverage
 
-      - run: pnpm verify:paths
+      - run: pnpm -r --filter './packages/*' run verify:paths
 
       # JSR validates the package on rules npm, tsc, tsdown and verify:paths never
       # see: it rejects "slow types" (a public-API symbol with no explicit type)
@@ -104,7 +109,10 @@ jobs:
       # This runs the real CLI in dry-run mode so the PR fails instead. It must
       # be `jsr publish --dry-run` itself - `pnpm jsr:publish --dry-run` only
       # reports what it would do and never runs the checks.
+      #
+      # JSR carries @medalsocial/sdk only, so the check runs in its directory.
       - name: JSR package check (slow types, publish scope)
+        working-directory: packages/sdk
         run: pnpm exec jsr publish --dry-run --allow-dirty
 
   security:

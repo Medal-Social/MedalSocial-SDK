@@ -1,5 +1,11 @@
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectProcessExit, mockProcessExit } from "./test-support";
+
+// The script runs git and secretlint from the workspace root (it scans the
+// whole repository, not just this package).
+// The script derives it from its own URL, so it carries a trailing slash.
+const REPO_ROOT = `${resolve(__dirname, "../../../..")}/`;
 
 // Mirrors secretlint-repo.test.ts, but this script scopes to staged files via
 // `git diff --cached` (newline-separated) instead of `git ls-files -z`.
@@ -32,7 +38,7 @@ describe("scripts/secretlint-staged.mjs", () => {
     expect(execFileSync).toHaveBeenCalledWith(
       "git",
       ["diff", "--cached", "--name-only", "--diff-filter=ACMR"],
-      { encoding: "utf8" },
+      { cwd: REPO_ROOT, encoding: "utf8" },
     );
     expect(exitCode).toBe(0);
     expect(exitSpy).toHaveBeenCalledWith(0);
@@ -49,7 +55,7 @@ describe("scripts/secretlint-staged.mjs", () => {
       2,
       "pnpm",
       ["exec", "secretlint", "a.ts", "b.ts"],
-      { stdio: "inherit" },
+      { cwd: REPO_ROOT, stdio: "inherit" },
     );
     expect(exitSpy).not.toHaveBeenCalled();
   });

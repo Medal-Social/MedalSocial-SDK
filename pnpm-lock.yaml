@@ -28,27 +28,12 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^21.2.3
         version: 21.2.3
-      '@redocly/cli':
-        specifier: ^2.55.0
-        version: 2.55.0
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: ^13.0.6
         version: 13.0.6
-      '@tanstack/intent':
-        specifier: 0.4.0
-        version: 0.4.0
-      '@types/node':
-        specifier: ^26.6.3
-        version: 26.6.3
-      '@vitest/coverage-v8':
-        specifier: ^5.0.2
-        version: 5.0.2(vitest@5.0.2)
       husky:
         specifier: ^9.1.7
         version: 9.1.7
-      jsr:
-        specifier: ^0.14.3
-        version: 0.14.3
       knip:
         specifier: ^6.38.0
         version: 6.38.0
@@ -58,12 +43,39 @@ importers:
       only-allow:
         specifier: ^1.2.2
         version: 1.2.2
-      openapi-typescript:
-        specifier: ^7.13.0
-        version: 7.13.0
       secretlint:
         specifier: ^13.0.6
         version: 13.0.6(supports-color@10.2.2)
+
+  examples/basic:
+    dependencies:
+      '@medalsocial/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+
+  packages/sdk:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.5.14
+        version: 2.5.14
+      '@redocly/cli':
+        specifier: ^2.55.0
+        version: 2.55.0
+      '@tanstack/intent':
+        specifier: 0.4.0
+        version: 0.4.0
+      '@types/node':
+        specifier: ^26.6.3
+        version: 26.6.3
+      '@vitest/coverage-v8':
+        specifier: ^5.0.2
+        version: 5.0.2(vitest@5.0.2)
+      jsr:
+        specifier: ^0.14.3
+        version: 0.14.3
+      openapi-typescript:
+        specifier: ^7.13.0
+        version: 7.13.0
       tsdown:
         specifier: ^0.23.0
         version: 0.23.0(oxc-resolver@11.24.2)(typescript@7.0.2)
@@ -79,12 +91,6 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
-
-  examples/basic:
-    dependencies:
-      '@medalsocial/sdk':
-        specifier: workspace:*
-        version: link:../..
 
 packages:
 
