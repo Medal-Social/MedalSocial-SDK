@@ -324,11 +324,11 @@ describe('Confirmation', () => {
   it('offers «Endre eller avbestill» only when there is somewhere to send them', () => {
     pinToday(THURSDAY_15);
     const { unmount } = renderConfirmation({
-      lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_live_1' })],
+      lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_test_1' })],
     });
     expect(screen.getByRole('link', { name: 'Endre eller avbestill' })).toHaveAttribute(
       'href',
-      '/bestill/administrer/mt_live_1'
+      '/bestill/administrer/mt_test_1'
     );
     unmount();
 
@@ -392,19 +392,19 @@ describe('Confirmation', () => {
    */
   it('writes a link the calendar can follow, and leaves the one on screen relative', () => {
     pinToday(THURSDAY_15);
-    renderConfirmation({ lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_live_1' })] });
+    renderConfirmation({ lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_test_1' })] });
 
     expect(screen.getByRole('link', { name: 'Endre eller avbestill' })).toHaveAttribute(
       'href',
-      '/bestill/administrer/mt_live_1'
+      '/bestill/administrer/mt_test_1'
     );
 
     const written = calendarText().match(/Endre eller avbestill: (\S+)/)?.[1] ?? '';
-    expect(written).toBe(`${SITE}/bestill/administrer/mt_live_1`);
+    expect(written).toBe(`${SITE}/bestill/administrer/mt_test_1`);
     // The single-argument `URL` constructor is what a calendar application has:
     // no page, no base, nothing to resolve a bare path against. It throws on
     // the relative form, which is the bug stated as an assertion.
-    expect(new URL(written).pathname).toBe('/bestill/administrer/mt_live_1');
+    expect(new URL(written).pathname).toBe('/bestill/administrer/mt_test_1');
   });
 
   it('does not lend one child’s manage link to a sibling the response had none for', () => {
@@ -429,7 +429,7 @@ describe('Confirmation', () => {
   it('offers one link to Min side, root-relative, for a single child and for a family', () => {
     pinToday(THURSDAY_15);
     const { unmount } = renderConfirmation({
-      lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_live_1' })],
+      lines: [line(JONAS, { manageHref: '/bestill/administrer/mt_test_1' })],
     });
     expect(screen.getByRole('link', { name: 'Se alle timene dine på Min side' })).toHaveAttribute(
       'href',

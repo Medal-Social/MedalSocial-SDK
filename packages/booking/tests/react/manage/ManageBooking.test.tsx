@@ -120,7 +120,7 @@ let mutationResponse: unknown;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
-  mutationResponse = jsonOk({ ok: true, manageToken: 'mt_live_new' });
+  mutationResponse = jsonOk({ ok: true, manageToken: 'mt_test_new' });
   fetchMock = vi.fn(async (input: unknown) => {
     if (String(input).startsWith('/api/booking/availability')) {
       return jsonOk({ slots: AVAILABILITY });
@@ -298,7 +298,7 @@ describe('ManagePage', () => {
     render(
       <ManagePage
         booking={bookingStartingIn(72 * HOUR)}
-        selfManagePath="/bestill/administrer/mt_live_1"
+        selfManagePath="/bestill/administrer/mt_test_1"
       />
     );
 
@@ -307,7 +307,7 @@ describe('ManagePage', () => {
     const ics = decodeURIComponent(href.replace(/^data:text\/calendar;charset=utf-8,/, ''));
 
     expect(ics).toContain('Endre eller avbestill');
-    expect(ics).toContain('/bestill/administrer/mt_live_1');
+    expect(ics).toContain('/bestill/administrer/mt_test_1');
     // The price stays too — the line is an addition, not a replacement.
     expect(ics).toContain('betales i salongen');
   });
@@ -526,7 +526,7 @@ describe('ManagePage', () => {
     expect(lastPostBody()).toEqual({ action: 'reschedule', startTs: osloOctober(8, 12) });
     expect(screen.getByRole('link', { name: 'Se timen' })).toHaveAttribute(
       'href',
-      '/bestill/administrer/mt_live_new'
+      '/bestill/administrer/mt_test_new'
     );
     // And the ADDRESS BAR, which is the copy that survives a refresh. This
     // screen holds the only one the engine will ever hand back — the
@@ -534,7 +534,7 @@ describe('ManagePage', () => {
     // so reloading the URL the visitor arrived on would land them on the token
     // of the row this move cancelled, with the appointment unmanageable online
     // for good.
-    expect(window.location.pathname).toBe('/bestill/administrer/mt_live_new');
+    expect(window.location.pathname).toBe('/bestill/administrer/mt_test_new');
   });
 
   /** The engine mints the replacement token exactly once and omits it from an
@@ -604,7 +604,7 @@ describe('ManagePage', () => {
    * every proxy on the way logs.
    */
   it('never renders the manage token', async () => {
-    const token = 'mt_live_secret_value';
+    const token = 'mt_test_secret_value';
     const { container } = render(
       <ManagePage
         booking={bookingStartingIn(72 * HOUR)}

@@ -1160,7 +1160,7 @@ describe('BookingWizard submission', () => {
     window.sessionStorage.clear();
     stubApi({
       ...OPEN_AT_ONE,
-      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_live_1' }] },
+      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_test_1' }] },
     });
     const user = userEvent.setup();
     const view = renderWizard();
@@ -1170,7 +1170,7 @@ describe('BookingWizard submission', () => {
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
     expect(screen.getByRole('link', { name: /Endre eller avbestill/ })).toHaveAttribute(
       'href',
-      '/bestill/administrer/mt_live_1'
+      '/bestill/administrer/mt_test_1'
     );
 
     // The refresh.
@@ -1181,7 +1181,7 @@ describe('BookingWizard submission', () => {
     expect(await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' })).toBeVisible();
     expect(screen.getByRole('link', { name: /Endre eller avbestill/ })).toHaveAttribute(
       'href',
-      '/bestill/administrer/mt_live_1'
+      '/bestill/administrer/mt_test_1'
     );
     // Restored, not re-fetched: a confirmed booking is not replayed.
     expect(second.bodies).toHaveLength(0);
@@ -1194,7 +1194,7 @@ describe('BookingWizard submission', () => {
     window.sessionStorage.clear();
     stubApi({
       ...OPEN_AT_ONE,
-      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_live_1' }] },
+      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_test_1' }] },
     });
     const user = userEvent.setup();
     const view = renderWizard();
@@ -1210,7 +1210,7 @@ describe('BookingWizard submission', () => {
     expect(screen.queryByRole('heading', { name: 'Timen er bekreftet! 🎉' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Hvem vil du gå til?' })).toBeInTheDocument();
     // And it stays gone: a plain reload no longer restores it either.
-    expect(JSON.stringify(window.sessionStorage)).not.toContain('mt_live_1');
+    expect(JSON.stringify(window.sessionStorage)).not.toContain('mt_test_1');
   });
 
   it('lets a parent start another booking straight after confirming', async () => {
@@ -1321,7 +1321,7 @@ describe('BookingWizard submission', () => {
     window.sessionStorage.clear();
     stubApi({
       slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id)] },
-      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_live_1' }] },
+      create: { bookings: [{ id: 'bk_1', manageToken: 'mt_test_1' }] },
     });
     const user = userEvent.setup();
     const view = renderWizard();
@@ -1483,7 +1483,7 @@ describe('BookingWizard submission', () => {
     stashRebookWho('Jonas');
     stubApi({
       ...OPEN_AT_ONE,
-      create: { bookings: [{ id: 'bk_old', manageToken: 'mt_live_old' }] },
+      create: { bookings: [{ id: 'bk_old', manageToken: 'mt_test_old' }] },
     });
     renderWizard();
 
@@ -1550,7 +1550,7 @@ describe('BookingWizard submission', () => {
     // confirmation — and only then does the link start the booking it was for.
     stubApi({
       ...OPEN_AT_ONE,
-      create: { bookings: [{ id: 'bk_old', manageToken: 'mt_live_old' }] },
+      create: { bookings: [{ id: 'bk_old', manageToken: 'mt_test_old' }] },
     });
     await fillIn(user);
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
