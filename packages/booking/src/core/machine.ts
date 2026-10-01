@@ -1161,10 +1161,21 @@ export function createWizard(config: WizardConfig): Wizard {
         // itself to whoever happened to be free first, and a `slotTaken` — which
         // clears the resolution but keeps the preference — having nothing left to
         // re-query with.
+        //
+        // A family seated side by side cannot take a one-stylist slot: one
+        // stylist cannot cut two children at once, and `pickPartySlot` is the
+        // action that seats them. The wizard never sends this (a party's time
+        // step offers party slots only); a headless caller that does gets the
+        // answer every other caller bug gets — the identical object.
+        if (state.partyMode === 'parallel' && state.items.length > 1) return state;
+        // A regular slot replaces a party slot whole: its seating chart was the
+        // other half of THAT slot, and left behind it would submit every child
+        // to the stylists seated for a time the visitor has just changed.
         return {
           ...state,
           startTs: action.startTs,
           resolvedResourceId: action.resourceId,
+          partyResourceIds: null,
           step: 'details',
           error: null,
         };

@@ -218,3 +218,64 @@ describe('resolveBookingConfig', () => {
     );
   });
 });
+
+/**
+ * Pre-release review: the three secondary portal cookie names derive from
+ * `portal.cookieName` with a prefix and a suffix. A base name that fits the
+ * 128-character limit but leaves no room for them is reported against the
+ * name the site wrote, with the length that would fit — not as a pattern
+ * mismatch on a name the site never set.
+ */
+describe('resolveBookingConfig — derived portal cookie names', () => {
+  const withCookie = (portal: Partial<BookingConfigInput['portal']>) =>
+    ({ timeZone: 'Europe/Oslo', portal: { cookieName: 'x', ...portal } }) as BookingConfigInput;
+
+  it('accepts the longest base name every derived name still fits', () => {
+    // `__Host-` + base + `_vipps_bind` is the longest: 7 + 110 + 11 = 128.
+    const base = 'p'.repeat(110);
+    const config = resolveBookingConfig(withCookie({ cookieName: base }));
+    expect(config.portal.vippsBindingCookieName).toHaveLength(128);
+    expect(config.portal.vippsLinkCookieName).toBe(`${base}_vipps_link`);
+    expect(config.portal.nextCookieName).toBe(`${base}_next`);
+  });
+
+  it('names the base name and the room left when a derived name would be too long', () => {
+    const issues = issuesOf(withCookie({ cookieName: 'p'.repeat(111) }));
+    expect(issues).toEqual([
+      'portal.cookieName: must be at most 110 characters, or the derived portal.vippsBindingCookieName would exceed 128; shorten it or set that name explicitly',
+    ]);
+  });
+
+  it('lists every derived name that would overflow, and the tightest room', () => {
+    const issues = issuesOf(withCookie({ cookieName: 'p'.repeat(124) }));
+    expect(issues).toEqual([
+      'portal.cookieName: must be at most 110 characters, or the derived portal.nextCookieName, portal.vippsBindingCookieName, portal.vippsLinkCookieName would exceed 128; shorten it or set those names explicitly',
+    ]);
+  });
+
+  it('takes a long base name whose secondary names the site sets itself', () => {
+    const config = resolveBookingConfig(
+      withCookie({
+        cookieName: 'p'.repeat(128),
+        nextCookieName: 'p_next',
+        vippsBindingCookieName: '__Host-p_bind',
+        vippsLinkCookieName: 'p_link',
+      })
+    );
+    expect(config.portal.cookieName).toHaveLength(128);
+  });
+
+  it('still judges only what was derived: an explicit name keeps its own issue', () => {
+    const issues = issuesOf(
+      withCookie({ cookieName: 'p'.repeat(111), vippsLinkCookieName: 'bad name' })
+    );
+    expect(issues[0]).toMatch(/^portal\.cookieName: must be at most 110 characters/);
+    expect(issues.some((issue) => issue.startsWith('portal.vippsLinkCookieName:'))).toBe(true);
+    expect(issues.some((issue) => issue.startsWith('portal.vippsBindingCookieName:'))).toBe(false);
+  });
+
+  it('reports a base name with a bad character as before', () => {
+    const issues = issuesOf(withCookie({ cookieName: 'bad name' }));
+    expect(issues.some((issue) => issue.startsWith('portal.cookieName:'))).toBe(true);
+  });
+});
