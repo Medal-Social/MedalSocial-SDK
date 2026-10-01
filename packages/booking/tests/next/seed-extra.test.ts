@@ -252,9 +252,10 @@ describe('seedKeysFor and expireBookingSeeds with nothing to expire', () => {
 
 describe('an adapter that refuses some keys', () => {
   it('without expiry markers: stores a seed even after an expire, and marks nothing', async () => {
-    const { adapter } = store({ refuse: ['/gen/'] });
+    const { adapter } = store({ refuse: ['/gen'] });
     const { seed } = seedOver(adapter);
     expect(seed.expiryMarkerKey('svc-a')).toBeNull();
+    expect(seed.anyExpiryMarkerKey()).toBeNull();
 
     await seed.expireBookingSeeds(['svc-a'], NOW, 0);
     expect(adapter.put).not.toHaveBeenCalled();
@@ -298,7 +299,8 @@ describe('an adapter that refuses some keys', () => {
     expect(seed.catalogueKeyAt(NOW)).toBeNull();
 
     await seed.expireBookingSeeds(['svc-a'], NOW, 0);
-    await vi.waitFor(() => expect(adapter.put).toHaveBeenCalledTimes(1));
+    // The service's marker and the location-wide one.
+    await vi.waitFor(() => expect(adapter.put).toHaveBeenCalledTimes(2));
     // Let the background passes run.
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -381,5 +383,145 @@ describe('an adapter that fails', () => {
 
     await expect(memory.get(latest)).resolves.toEqual(newer);
     await expect(memory.get(seed.catalogueKeyAt(NOW) ?? '')).resolves.toBeDefined();
+  });
+});
+
+/**
+ * Pre-release review: a bucketed hit honours the expiry markers (#176), but
+ * read one marker per prefetched service — up to 21 edge reads per hit at the
+ * maximum prefetch set. It now reads the seed and ONE location-wide marker,
+ * and the per-service ones only when that marker says a write landed around
+ * or after the seed was built.
+ */
+describe('expiry markers on a hit', () => {
+  const MAX = 20;
+  const BIG_MENU = Array.from({ length: MAX + 2 }, (_, index) =>
+    medalService({ id: `svc-${String(index).padStart(2, '0')}`, name: `Klipp ${index}` })
+  );
+  const BIG_CONFIG = {
+    ...PARITY_CONFIG,
+    window: { ...PARITY_CONFIG.window, prefetchLimit: MAX },
+  };
+
+  /** A seed over the maximum prefetch set, with every edge read counted. */
+  function bigSeed() {
+    const { adapter, memory } = store();
+    const get = vi.spyOn(adapter, 'get');
+    const reads = catalogue();
+    reads.cachedServices.mockResolvedValue(BIG_MENU);
+    const { seed, timing } = seedOver(adapter, { config: BIG_CONFIG }, reads);
+    const markerReads = () =>
+      get.mock.calls.filter(([key]) => key.includes('/gen')).map(([key]) => key);
+    return { adapter, memory, get, seed, reads, timing, markerReads };
+  }
+
+  async function warm(seed: ReturnType<typeof bigSeed>['seed'], at = NOW) {
+    await seed.loadBookingSeed(undefined, at);
+    const services = BIG_MENU.map((service) => toBookingServiceDto(service as never));
+    expect(seed.prefetchTargets(services, undefined)).toHaveLength(MAX);
+  }
+
+  it('reads the seed and one marker on a hit with the maximum prefetch set', async () => {
+    const { seed, get, timing, markerReads } = bigSeed();
+    await warm(seed);
+
+    get.mockClear();
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'hit' })
+    );
+    expect(markerReads()).toEqual([seed.anyExpiryMarkerKey()]);
+    // The bucketed catalogue, the bucketed seed and the one marker.
+    expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it('still reads one marker on a hit when the last write here is well before the seed', async () => {
+    const { seed, get, markerReads } = bigSeed();
+    await seed.expireBookingSeeds(['svc-00'], NOW - 60_000, 0);
+    await warm(seed);
+
+    get.mockClear();
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(markerReads()).toEqual([seed.anyExpiryMarkerKey()]);
+  });
+
+  it('serves a hit after a write to a service outside its prefetch set', async () => {
+    const { seed, reads, timing, markerReads, get } = bigSeed();
+    await warm(seed);
+    // svc-21 is bookable but past the prefetch limit.
+    await seed.expireBookingSeeds(['svc-21'], NOW + 1_000, 0);
+
+    reads.cachedAvailability.mockClear();
+    get.mockClear();
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'hit' })
+    );
+    expect(reads.cachedAvailability).not.toHaveBeenCalled();
+    // The location-wide marker, then each prefetched service's to rule it out.
+    expect(markerReads()).toHaveLength(MAX + 1);
+  });
+
+  it('refuses a hit after a write to one of its services', async () => {
+    const { seed, memory, timing } = bigSeed();
+    await warm(seed);
+    const key = seed.seedKeyAt(seed.prefetchKey(BIG_MENU.slice(0, MAX)), NOW) ?? '';
+    const built = await memory.get(key);
+    expect(built).toBeDefined();
+    await seed.expireBookingSeeds(['svc-07'], NOW + 1_000, 0);
+    // The background delete has not reached this location yet.
+    await memory.put(key, built, 30);
+
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'miss' })
+    );
+  });
+
+  it('refuses a hit when racing writes left the location-wide marker on the earlier one', async () => {
+    const { seed, memory, timing } = bigSeed();
+    await warm(seed);
+    const key = seed.seedKeyAt(seed.prefetchKey(BIG_MENU.slice(0, MAX)), NOW) ?? '';
+    const built = await memory.get(key);
+    // Two writes moments apart: svc-03 at NOW + 1 s, another service at
+    // NOW - 1 s whose put of the location-wide marker landed last.
+    await seed.expireBookingSeeds(['svc-03'], NOW + 1_000, 0);
+    await memory.put(seed.anyExpiryMarkerKey() ?? '', NOW - 1_000, 600);
+    await memory.put(key, built, 30);
+
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'miss' })
+    );
+  });
+
+  it('counts an unreadable location-wide marker as no write', async () => {
+    const { adapter, memory } = store({ getThrows: '/gen-any' });
+    const { seed, timing } = seedOver(adapter);
+    await seed.loadBookingSeed(undefined, NOW);
+    // A marker on one of the seed's services that the hit never gets to read.
+    await memory.put(seed.anyExpiryMarkerKey() ?? '', NOW + 1_000, 600);
+    await memory.put(seed.expiryMarkerKey('svc-a') ?? '', NOW + 1_000, 600);
+
+    await seed.loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'hit' })
+    );
   });
 });

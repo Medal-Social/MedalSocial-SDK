@@ -43,9 +43,11 @@
  * from, which `catalogue.ts` bounds at ~60 s: ~90 s for a booking made
  * anywhere else. The site's own create / move / cancel (and a SLOT_TAKEN)
  * delete every seed key containing an affected service in this location
- * (`expireBookingSeeds`), and first write a per-service expiry marker so a
- * build already in flight when the write landed does not store its pre-write
- * seed (it still serves it to its own request); in OTHER locations such a seed
+ * (`expireBookingSeeds`), and first write a per-service expiry marker (plus
+ * one location-wide marker, so a hit checks one key, not one per service) so
+ * a build already in flight when the write landed does not store its
+ * pre-write seed (it still serves it to its own request), and a hit built
+ * before the write is not served; in OTHER locations such a seed
  * stays until its bucket turns, ≤30 s. Medal re-checks every slot at submit,
  * and the 409 already carries fresh openings, so a stale seed costs a retry,
  * never a double booking.
@@ -110,6 +112,18 @@ export const SEED_STALE_MAX_MS = 5 * 60 * 1000;
 const MARKER_TTL_S = 10 * 60;
 
 /**
+ * The location-wide marker (`anyExpiryMarkerKey`) is the instant of the last
+ * write to ANY service here, so a hit reads one key instead of one per
+ * prefetched service (up to `window.prefetchLimit`). Only when it is at or
+ * within this margin of a seed's build instant are the per-service markers
+ * read, to tell a write to one of the seed's services from a write to another
+ * one. The margin covers two writes racing: the edge has no compare-and-set,
+ * so the location-wide marker can end on the earlier of two writes landing
+ * within moments of each other; the per-service markers still hold the later.
+ */
+const MARKER_RACE_MS = 5_000;
+
+/**
  * How long after the first delete the second one runs. The first can land
  * BEFORE the write it answers is visible to a concurrent seed build: the slot
  * tag expiry is written in the platform's deferred work, and a booking-page
@@ -165,6 +179,7 @@ export interface Seed {
   prefetchKey(targets: readonly { id: string }[]): string;
   seedBucket(now: number): number;
   expiryMarkerKey(serviceId: string): string | null;
+  anyExpiryMarkerKey(): string | null;
   catalogueKeyAt(now: number): string | null;
   catalogueLatestKey(): string | null;
   seedLatestKeyAt(key: string, now: number): string | null;
@@ -267,6 +282,11 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
     return keyed((base) => `${base}/gen/${encodeURIComponent(serviceId)}`);
   }
 
+  /** The location-wide expiry marker: the last write to any service here. */
+  function anyExpiryMarkerKey(): string | null {
+    return keyed((base) => `${base}/gen-any`);
+  }
+
   function catalogueKeyAt(now: number): string | null {
     return keyed((base) => `${base}/catalogue/${Math.floor(now / CATALOGUE_BUCKET_MS)}`);
   }
@@ -309,45 +329,50 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   }
 
   /**
-   * The latest expiry marker among `targets`' services, or `null` when none is
-   * set. A marker that cannot be read counts as none: the delete passes and
-   * the 30 s bucket still bound it.
+   * One expiry marker, or `null` when it is not set. A marker that cannot be
+   * read counts as none: the delete passes and the 30 s bucket still bound it.
    */
+  async function readMarker(key: string | null): Promise<number | null> {
+    if (key === null) return null;
+    try {
+      const hit = await edge.get<unknown>(key);
+      const mark = hit === undefined ? Number.NaN : Number(hit);
+      return Number.isFinite(mark) ? mark : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The latest per-service expiry marker among `targets`, or `null`. */
   async function latestExpiry(targets: readonly { id: string }[]): Promise<number | null> {
-    const marks = await Promise.all(
-      targets.map(async ({ id }) => {
-        const key = expiryMarkerKey(id);
-        if (key === null) return null;
-        try {
-          const hit = await edge.get<unknown>(key);
-          return hit === undefined ? null : Number(hit);
-        } catch {
-          return null;
-        }
-      })
-    );
-    const valid = marks.filter((mark): mark is number => mark !== null && Number.isFinite(mark));
+    const marks = await Promise.all(targets.map(({ id }) => readMarker(expiryMarkerKey(id))));
+    const valid = marks.filter((mark) => mark !== null);
     return valid.length === 0 ? null : Math.max(...valid);
   }
 
   /**
-   * Whether a write touching one of the services was marked at or after
-   * `since` (`latest` from `latestExpiry`) — i.e. a seed built at `since` may
-   * hold pre-write openings.
+   * Whether a write touching one of `targets`' services was marked at or
+   * after an instant — i.e. a seed built then may hold pre-write openings.
+   * The location-wide marker is read once, as soon as this is called (so it
+   * runs alongside the seed read); the per-service markers only when it does
+   * not rule a write out (`MARKER_RACE_MS`), and then once for every check.
    */
-  function expiredAt(latest: number | null, since: number): boolean {
-    return latest !== null && latest >= since;
-  }
-
-  /** `expiredAt`, reading the markers now: for a build about to be stored. */
-  async function expiredSince(targets: readonly { id: string }[], since: number): Promise<boolean> {
-    return expiredAt(await latestExpiry(targets), since);
+  function expiryCheck(targets: readonly { id: string }[]): (since: number) => Promise<boolean> {
+    const any = readMarker(anyExpiryMarkerKey());
+    let perService: Promise<number | null> | undefined;
+    return async (since) => {
+      const anyAt = await any;
+      if (anyAt === null || anyAt < since - MARKER_RACE_MS) return false;
+      perService ??= latestExpiry(targets);
+      const latest = await perService;
+      return latest !== null && latest >= since;
+    };
   }
 
   async function writeExpiryMarkers(serviceIds: string[], at: number): Promise<void> {
+    const keys = [...serviceIds.map(expiryMarkerKey), anyExpiryMarkerKey()];
     await Promise.all(
-      serviceIds.map(async (id) => {
-        const key = expiryMarkerKey(id);
+      keys.map(async (key) => {
         if (key === null) return;
         try {
           await edge.put(key, at, MARKER_TTL_S);
@@ -492,14 +517,16 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
           markSeed('bypass');
           return (await buildSeed(targets, now, toTs)).seed;
         }
-        // The markers are read alongside the seed, not after it: a hit costs
-        // no extra round trip.
-        const [hit, latest] = await Promise.all([edgeRead<StoredSeed>(key), latestExpiry(targets)]);
+        // The location-wide marker is read alongside the seed, not after it:
+        // a hit costs no extra round trip, and one marker read whatever the
+        // size of the prefetch set.
+        const expired = expiryCheck(targets);
+        const hit = await edgeRead<StoredSeed>(key);
         // A seed built before a write to one of its services was marked is
         // not served, even inside its bucket: the write route awaited that
         // marker before telling the visitor the slot was theirs, and the
         // background delete may not have run yet.
-        if (hit?.slots && hit.schedules && !expiredAt(latest, hit.generatedAt)) {
+        if (hit?.slots && hit.schedules && !(await expired(hit.generatedAt))) {
           markSeed('hit');
           return freshen(hit, now, toTs);
         }
@@ -511,7 +538,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
             // stored.
             const buildStart = Date.now();
             const { seed, complete } = await buildSeed(targets, now, toTs);
-            if (complete && !(await expiredSince(targets, buildStart))) {
+            if (complete && !(await expiryCheck(targets)(buildStart))) {
               await edgeWrite(key, seed, SEED_TTL_S);
               if (latestKey !== null && (await isNewer(latestKey, seed.generatedAt))) {
                 await edgeWrite(latestKey, seed, Math.ceil(SEED_STALE_MAX_MS / 1000));
@@ -524,7 +551,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
           stale?.slots &&
           stale.schedules &&
           now - stale.generatedAt < SEED_STALE_MAX_MS &&
-          !expiredAt(latest, stale.generatedAt)
+          !(await expired(stale.generatedAt))
         ) {
           markSeed('stale');
           void inBackground(
@@ -667,6 +694,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
     prefetchKey,
     seedBucket,
     expiryMarkerKey,
+    anyExpiryMarkerKey,
     catalogueKeyAt,
     catalogueLatestKey,
     seedLatestKeyAt,
