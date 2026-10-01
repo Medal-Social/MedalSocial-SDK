@@ -3,8 +3,9 @@
 //
 // The same method as meda's `scripts/size-budget.mjs`: esbuild bundles a
 // fixture the way a consumer's bundler would (minified, ESM, tree-shaken),
-// with the peers external — zod is the consumer's, and the SDK appears only as
-// erased types — and the result is gzipped. `/react` (P3) joins this list.
+// with the peers external — zod, React, Next, lucide and meda are the
+// consumer's, and the SDK appears only as erased types — and the result is
+// gzipped.
 //
 // Raising a budget needs a written reason in the PR (as in meda's
 // CONTRIBUTING.md). Both budgets below were raised from the plan's 10 KB in
@@ -21,7 +22,38 @@ import { build } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
-const EXTERNAL = ['zod', '@medalsocial/*', 'react', 'react-dom', 'next', 'server-only'];
+const EXTERNAL = [
+  'zod',
+  '@medalsocial/*',
+  'react',
+  'react/*',
+  'react-dom',
+  'react-dom/*',
+  'next',
+  'next/*',
+  'lucide-react',
+  'server-only',
+];
+
+/**
+ * `/react` shares its `/core` code with `/core` through chunks under dist/.
+ * «Own code» leaves those chunks out, because `/core`'s budgets above already
+ * gate them; the page budget below counts both.
+ */
+/** @type {import('esbuild').Plugin} */
+const OWN_CODE = {
+  name: 'react-own-code',
+  setup(build) {
+    build.onResolve({ filter: /^\.\.\/[^/]+\.mjs$/ }, (args) =>
+      args.importer.includes('/dist/react/') ? { path: args.path, external: true } : undefined
+    );
+  },
+};
+
+/** What a booking page's browser bundle takes from `/react`. */
+const WIZARD_PAGE = `export {
+  BookingWizard, BookingProvider, BookingLink, BookingPendingHost, useNextFree,
+} from './dist/react/index.mjs';`;
 
 const BUDGETS = [
   {
@@ -42,11 +74,41 @@ const BUDGETS = [
     } from './dist/core/index.mjs';`,
     gzipBytes: 12.5 * 1024,
   },
+  {
+    // The plan's budget, on the layer `/react` adds: the wizard, its headless
+    // hook, the provider, the login sheet it offers and the booking link. The
+    // label packs are NOT in it: the page resolves its pack on the server
+    // (`/react/shared`) and passes it as a prop.
+    name: '@medalsocial/booking/react — booking page, own code',
+    contents: WIZARD_PAGE,
+    plugins: [OWN_CODE],
+    gzipBytes: 15 * 1024,
+  },
+  {
+    // The same page with the `/core` code it uses. Not in the plan's table:
+    // the plan's 15 KB was written for the React layer alone, and the core it
+    // sits on is P1's (its client path is gated above). Measured at 0.1.0 plus
+    // ~15%, so the two layers cannot grow unnoticed together either.
+    name: '@medalsocial/booking/react — booking page, with /core',
+    contents: WIZARD_PAGE,
+    gzipBytes: 24.5 * 1024,
+  },
+  {
+    // Everything `/react` exports, manage page and portal included.
+    name: '@medalsocial/booking/react — whole entry, own code',
+    contents: "export * from './dist/react/index.mjs';",
+    plugins: [OWN_CODE],
+    gzipBytes: 20 * 1024,
+  },
 ];
 
 /** The fixture bundled and minified as a consumer would ship it. */
-async function bundled(/** @type {string} */ contents) {
+async function bundled(
+  /** @type {string} */ contents,
+  /** @type {import('esbuild').Plugin[]} */ plugins = []
+) {
   const result = await build({
+    plugins,
     stdin: { contents, resolveDir: root, loader: 'js' },
     bundle: true,
     minify: true,
@@ -59,14 +121,14 @@ async function bundled(/** @type {string} */ contents) {
   return result.outputFiles[0].contents;
 }
 
-if (!existsSync(join(dist, 'core/index.mjs'))) {
-  console.error('[size-budget] dist/core/index.mjs is missing — run `pnpm build` first.');
+if (!existsSync(join(dist, 'core/index.mjs')) || !existsSync(join(dist, 'react/index.mjs'))) {
+  console.error('[size-budget] dist/ is missing — run `pnpm build` first.');
   process.exit(1);
 }
 
 let failed = false;
 for (const budget of BUDGETS) {
-  const bytes = gzipSync(await bundled(budget.contents)).length;
+  const bytes = gzipSync(await bundled(budget.contents, budget.plugins)).length;
   const ok = bytes <= budget.gzipBytes;
   failed ||= !ok;
   console.log(
