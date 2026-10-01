@@ -1161,10 +1161,15 @@ export function createWizard(config: WizardConfig): Wizard {
         // itself to whoever happened to be free first, and a `slotTaken` — which
         // clears the resolution but keeps the preference — having nothing left to
         // re-query with.
+        //
+        // A regular slot replaces a party slot whole: its seating chart was the
+        // other half of THAT slot, and left behind it would submit every child
+        // to the stylists seated for a time the visitor has just changed.
         return {
           ...state,
           startTs: action.startTs,
           resolvedResourceId: action.resourceId,
+          partyResourceIds: null,
           step: 'details',
           error: null,
         };

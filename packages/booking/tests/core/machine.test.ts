@@ -1053,6 +1053,36 @@ describe('wizard machine — a family in one visit', () => {
   });
 
   /**
+   * Pre-release review: a regular slot after a party slot replaces it whole.
+   * The seating chart was the other half of THAT slot; left behind, the
+   * details step and the submission would still seat each child with the
+   * stylists of a time the visitor has just changed.
+   */
+  it('drops the seating chart when a regular slot replaces a party slot', () => {
+    const seated = reduce(family(), {
+      type: 'pickPartySlot',
+      startTs: THURSDAY_15,
+      resourceIds: ['res-1', 'res-2'],
+      mode: 'parallel',
+    });
+    expect(itemResourceIds(seated)).toEqual(['res-1', 'res-2']);
+
+    const later = THURSDAY_15 + 60 * 60_000;
+    const regular = reduce(seated, { type: 'pickSlot', startTs: later, resourceId: 'res-3' });
+
+    expect(regular.partyResourceIds).toBeNull();
+    expect(regular.startTs).toBe(later);
+    expect(regular.resolvedResourceId).toBe('res-3');
+    expect(regular.step).toBe('details');
+    // What the submission and the confirmation card read: the new slot's stylist.
+    expect(itemResourceIds(regular)).toEqual(['res-3', 'res-3']);
+
+    // «Første ledige» on the new slot: nobody from the old chart survives.
+    const open = reduce(seated, { type: 'pickSlot', startTs: later, resourceId: null });
+    expect(itemResourceIds(open)).toEqual([null, null]);
+  });
+
+  /**
    * `itemResourceIds` is the single reader, so the ordinary single booking has
    * to come out of it too — one answer per line, «Første ledige» included.
    */
