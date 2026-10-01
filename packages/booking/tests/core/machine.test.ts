@@ -1063,7 +1063,7 @@ describe('wizard machine — a family in one visit', () => {
       type: 'pickPartySlot',
       startTs: THURSDAY_15,
       resourceIds: ['res-1', 'res-2'],
-      mode: 'parallel',
+      mode: 'sequential',
     });
     expect(itemResourceIds(seated)).toEqual(['res-1', 'res-2']);
 
@@ -1080,6 +1080,39 @@ describe('wizard machine — a family in one visit', () => {
     // «Første ledige» on the new slot: nobody from the old chart survives.
     const open = reduce(seated, { type: 'pickSlot', startTs: later, resourceId: null });
     expect(itemResourceIds(open)).toEqual([null, null]);
+  });
+
+  /**
+   * Second review: a family seated side by side cannot take a one-stylist
+   * slot — it would put both children with one stylist at the same minute.
+   * The wizard never sends it (a party's time step offers party slots only);
+   * a headless caller gets the identical object back. A back-to-back family
+   * can: one stylist, one child after the other, is what that mode means.
+   */
+  it('refuses a one-stylist slot for a family seated side by side', () => {
+    const parallel = reduce(family(), { type: 'setPartyMode', mode: 'parallel' });
+    const seated = reduce(parallel, {
+      type: 'pickPartySlot',
+      startTs: THURSDAY_15,
+      resourceIds: ['res-1', 'res-2'],
+      mode: 'parallel',
+    });
+
+    expect(reduce(parallel, { type: 'pickSlot', startTs: THURSDAY_15, resourceId: 'res-1' })).toBe(
+      parallel
+    );
+    expect(reduce(seated, { type: 'pickSlot', startTs: THURSDAY_15, resourceId: 'res-1' })).toBe(
+      seated
+    );
+    expect(itemResourceIds(seated)).toEqual(['res-1', 'res-2']);
+
+    const sequential = reduce(family(), {
+      type: 'pickSlot',
+      startTs: THURSDAY_15,
+      resourceId: 'res-1',
+    });
+    expect(sequential.partyMode).toBe('sequential');
+    expect(itemResourceIds(sequential)).toEqual(['res-1', 'res-1']);
   });
 
   /**

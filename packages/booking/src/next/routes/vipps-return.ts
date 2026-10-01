@@ -76,6 +76,13 @@ export async function vippsReturnRoute(rt: BookingRuntime, request: Request): Pr
     // malformed one reads as none) is no exchange: the grant is left unspent
     // and the parent goes to the login. The binding is read before anything
     // is cleared, and spent only once it has been checked.
+    //
+    // PRESENCE, NOT A MATCH. Medal's `/vipps/exchange` takes the grant alone
+    // and does not keep the binding with it, so this proves the browser
+    // started A Vipps login in the last fifteen minutes — not that the grant
+    // came from THAT login. Binding the grant itself is Medal's half: it has
+    // to keep the binding's hash on the grant and require it on exchange, as
+    // `/me/vipps/link/complete` already does.
     const binding = await rt.vippsLink.readBrowserBinding();
     if (binding === null) {
       rt.logger.warn({}, 'Vipps grant arrived without this browser’s login binding');

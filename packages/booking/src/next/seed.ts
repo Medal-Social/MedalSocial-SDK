@@ -309,12 +309,10 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   }
 
   /**
-   * Whether any of `targets` was written to at or after `since` — i.e. a build
-   * that started at `since` may hold pre-write openings. A marker that cannot
-   * be read counts as «no»: the delete passes and the 30 s bucket still bound
-   * it.
+   * The latest expiry marker among `targets`' services, or `null` when none is
+   * set. A marker that cannot be read counts as none: the delete passes and
+   * the 30 s bucket still bound it.
    */
-  /** The latest expiry marker among `targets`' services, or `null` when none is set. */
   async function latestExpiry(targets: readonly { id: string }[]): Promise<number | null> {
     const marks = await Promise.all(
       targets.map(async ({ id }) => {
@@ -332,11 +330,16 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
     return valid.length === 0 ? null : Math.max(...valid);
   }
 
-  /** Whether a write touching one of `targets` was marked at or after `since`. */
+  /**
+   * Whether a write touching one of the services was marked at or after
+   * `since` (`latest` from `latestExpiry`) — i.e. a seed built at `since` may
+   * hold pre-write openings.
+   */
   function expiredAt(latest: number | null, since: number): boolean {
     return latest !== null && latest >= since;
   }
 
+  /** `expiredAt`, reading the markers now: for a build about to be stored. */
   async function expiredSince(targets: readonly { id: string }[], since: number): Promise<boolean> {
     return expiredAt(await latestExpiry(targets), since);
   }

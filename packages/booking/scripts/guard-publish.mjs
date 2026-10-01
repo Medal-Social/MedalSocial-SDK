@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Compared exactly: a branch name is case-sensitive, and `PROD` is not `prod`.
 const RELEASE_WORKFLOW =
   'Medal-Social/MedalSocial-SDK/.github/workflows/release.yml@refs/heads/prod';
 
@@ -29,10 +30,7 @@ if (version === '0.0.0') {
     `${name}@0.0.0 is the unversioned manifest; publish only a version the release PR set.`
   );
 }
-if (
-  process.env.GITHUB_ACTIONS !== 'true' ||
-  process.env.GITHUB_WORKFLOW_REF?.toLowerCase() !== RELEASE_WORKFLOW.toLowerCase()
-) {
+if (process.env.GITHUB_ACTIONS !== 'true' || process.env.GITHUB_WORKFLOW_REF !== RELEASE_WORKFLOW) {
   problems.push(
     `${name} publishes only from ${RELEASE_WORKFLOW} (got ${process.env.GITHUB_WORKFLOW_REF ?? 'no workflow'}).`
   );

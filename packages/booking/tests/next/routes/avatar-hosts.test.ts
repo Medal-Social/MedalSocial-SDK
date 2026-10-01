@@ -93,6 +93,8 @@ describe('avatarRoute — which hosts it fetches from', () => {
     ['localhost', 'https://localhost/sara.png'],
     ['a non-default port', 'https://acct.r2.cloudflarestorage.com:8443/sara.png'],
     ['credentials in the URL', 'https://user:pw@acct.r2.cloudflarestorage.com/sara.png'],
+    ['a username alone', 'https://user@acct.r2.cloudflarestorage.com/sara.png'],
+    ['a password alone', 'https://:pw@acct.r2.cloudflarestorage.com/sara.png'],
     ['plain http', 'http://acct.r2.cloudflarestorage.com/sara.png'],
     ['a relative path', '/api/media/photo.png'],
   ])('refuses %s with an uncached 404, fetching nothing', async (_label, url) => {

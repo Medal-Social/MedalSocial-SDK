@@ -56,6 +56,10 @@ describe('guard-publish', () => {
       'a fork',
       { GITHUB_ACTIONS: 'true', GITHUB_WORKFLOW_REF: RELEASE.replace('Medal-Social', 'someone') },
     ],
+    [
+      'a branch named PROD',
+      { GITHUB_ACTIONS: 'true', GITHUB_WORKFLOW_REF: RELEASE.replace('heads/prod', 'heads/PROD') },
+    ],
     ['a workflow ref without GitHub Actions', { GITHUB_WORKFLOW_REF: RELEASE }],
   ])('refuses a publish from %s', (_label, env) => {
     const run = guard('0.1.0', env);
