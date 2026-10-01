@@ -12,9 +12,16 @@ import { defineConfig } from 'vitest/config';
  */
 const env = { TZ: 'Europe/Oslo' };
 
-/** `/next` imports `server-only`, which throws outside an RSC build. */
+/**
+ * `/next` imports `server-only`, which throws outside an RSC build; and it
+ * imports the SDK at runtime, which resolves to the SDK's SOURCE here (as the
+ * typecheck does), so the suite needs no SDK build first.
+ */
 const resolve = {
-  alias: { 'server-only': join(__dirname, 'tests/support/server-only.ts') },
+  alias: {
+    'server-only': join(__dirname, 'tests/support/server-only.ts'),
+    '@medalsocial/sdk': join(__dirname, '../sdk/src/index.ts'),
+  },
 };
 
 export default defineConfig({

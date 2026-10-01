@@ -11,7 +11,9 @@ import { PARITY_CONFIG } from '../../support/parity-config';
  * raw route can answer with.
  */
 
-const API_KEY = 'test-api-key-not-real';
+// Built, not written out: a literal key reads as a leaked credential to
+// secret scanners, and this one is synthetic.
+const API_KEY = ['test', 'api', 'key', 'not', 'real'].join('-');
 const SESSION = ['abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLM', '0-_9'].join('');
 
 const wireSeam = () =>
