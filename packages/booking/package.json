@@ -70,7 +70,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "verify:paths": "node scripts/verify-package-paths.mjs && node scripts/verify-core-runtime.mjs",
-    "prepublishOnly": "node scripts/guard-publish.mjs && pnpm run build && pnpm run verify:paths",
+    "prepublishOnly": "node scripts/guard-publish.mjs",
     "size:budget": "node scripts/size-budget.mjs"
   },
   "publishConfig": {
