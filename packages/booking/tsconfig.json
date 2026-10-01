@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "declaration": true,
+    "outDir": "dist",
+    // The SDK source mapped below sits one level up.
+    "rootDir": "..",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "lib": ["ES2023", "DOM"],
+    "types": [],
+    // Typecheck against the SDK's source, so `pnpm typecheck` needs no build
+    // first. The declaration build (tsconfig.build.json) drops this and
+    // resolves the built package, keeping `@medalsocial/sdk` an import and
+    // keeping tsc from writing declarations into packages/sdk/src.
+    "paths": { "@medalsocial/sdk": ["../sdk/src/index.ts"] }
+  },
+  "include": ["src"]
+}
