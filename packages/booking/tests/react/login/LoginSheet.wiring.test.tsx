@@ -97,6 +97,16 @@ describe('LoginSheet wiring', () => {
     expect(await sendCode()).toBeInTheDocument();
   });
 
+  it('reads the plain action’s refusal of an address as a bad address', async () => {
+    renderInline({
+      startLogin: vi.fn().mockResolvedValue({ ok: false, reason: 'invalid', message: 'Nei.' }),
+    });
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+    expect(await screen.findByText(TEST_LABELS['login.notice.badEmail'])).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
   it('says it could not reach the booking system when the network fails', async () => {
     fetchMock.mockRejectedValue(new TypeError('offline'));
     renderInline();

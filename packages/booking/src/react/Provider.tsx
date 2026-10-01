@@ -160,14 +160,18 @@ export interface ResolvedBooking {
  * the inputs, so a re-render with the same props reuses the same clock,
  * machine and label pack.
  */
-export function useBookingKit(props: BookingOverrides): ResolvedBooking {
+export function useBookingKit(
+  props: BookingOverrides,
+  contact?: Partial<Pick<BookingConfig['contact'], 'phone' | 'address'>>
+): ResolvedBooking {
   const context = useContext(BookingContext);
-  const config = props.config ?? context?.config;
-  if (config === undefined) {
+  const base = props.config ?? context?.config;
+  if (base === undefined) {
     throw new Error(
       'A booking component needs a `config`: pass it, or render it inside <BookingProvider config={…}>.'
     );
   }
+  const config = withContact(base, contact);
   const contextLabels = context?.labels;
   const labels = useMemo(
     () => mergedLabels(config, contextLabels, props.labels),
@@ -185,6 +189,32 @@ export function useBookingKit(props: BookingOverrides): ResolvedBooking {
     [contextComponents, props.components]
   );
   return { kit, classNames, components };
+}
+
+const WITH_CONTACT = new WeakMap<object, Map<string, Readonly<BookingConfig>>>();
+
+/**
+ * The config with a per-request contact over its own (a page that reads the
+ * phone and address from a CMS), one object per pair so the kit is reused.
+ */
+function withContact(
+  config: Readonly<BookingConfig>,
+  contact: Partial<Pick<BookingConfig['contact'], 'phone' | 'address'>> | undefined
+): Readonly<BookingConfig> {
+  if (contact === undefined) return config;
+  const merged = { ...config.contact, ...contact };
+  const key = JSON.stringify([merged.phone, merged.address]);
+  let byKey = WITH_CONTACT.get(config);
+  if (!byKey) {
+    byKey = new Map();
+    WITH_CONTACT.set(config, byKey);
+  }
+  let derived = byKey.get(key);
+  if (!derived) {
+    derived = Object.freeze({ ...config, contact: Object.freeze(merged) });
+    byKey.set(key, derived);
+  }
+  return derived;
 }
 
 /** Stands in for «no labels» as a cache key. */

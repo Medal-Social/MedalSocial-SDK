@@ -64,6 +64,8 @@ import {
 export interface BookingWizardProps extends BookingOverrides {
   /** What the page prefetched (the `/next` loader's seed). */
   seed: BookingSeed;
+  /** This request's phone and address, over `config.contact` (the loader's `contact`). */
+  contact?: { phone?: string | null; address?: string | null };
   /** The parent the page found a portal session for; `null` for a guest. */
   guardian?: BookingGuardianProp;
   /**
@@ -129,7 +131,7 @@ export function BookingWizard(props: BookingWizardProps) {
 }
 
 function BookingWizardShell(props: BookingWizardProps) {
-  const resolved = useBookingKit(props);
+  const resolved = useBookingKit(props, props.contact);
   const booking = useBooking(props);
   const { kit } = booking;
   const { labels } = kit;

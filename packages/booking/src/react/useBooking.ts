@@ -68,6 +68,11 @@ export interface BookingSeed {
 
 export interface UseBookingOptions extends BookingOverrides {
   seed: BookingSeed;
+  /**
+   * The business's phone and address for this request, over `config.contact`
+   * — what `/next`'s `loadBookingPage` answers as `contact`.
+   */
+  contact?: { phone?: string | null; address?: string | null };
   /** The parent the page found a portal session for; `null` for a guest. */
   guardian?: BookingGuardian | null;
   /** How many days the window covers. Default `config.window.rangeDays`. */
@@ -306,7 +311,7 @@ function setupFor(kit: BookingKit) {
 }
 
 export function useBooking(options: UseBookingOptions) {
-  const { kit } = useBookingKit(options);
+  const { kit } = useBookingKit(options, options.contact);
   const { config, labels, wizard, clock, age, phone, deepLinks } = kit;
   const services = options.seed.services;
   const arrivedAs = options.guardian ?? null;

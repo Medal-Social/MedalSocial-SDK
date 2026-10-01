@@ -270,7 +270,7 @@ export function PortalVippsLinkRow({
       flash={flash}
       announceSuccess={!onToast}
       classNames={booking.classNames.vippsLink}
-      onStart={startVippsLink}
+      onStart={() => startVippsLink(null)}
       onSessionExpired={useToLogin(booking)}
       onFlash={(spent) => {
         if (spent === 'linked') onToast?.(kit.labels['vippsLink.success']);

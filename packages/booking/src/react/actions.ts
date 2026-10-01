@@ -1,5 +1,8 @@
 /**
  * The portal's server actions, as the components take them (Decision 8).
+ * `@medalsocial/booking/next`'s `booking.portal.actions` satisfy this shape
+ * (`tests/react/actions-contract.test.ts`), so the app's wrappers pass them
+ * straight through.
  *
  * A library cannot ship a `'use server'` module reliably, so the app owns
  * one three-line wrapper per action and passes the wrappers in as props. The
@@ -54,12 +57,21 @@ export interface PersonActionTarget {
 }
 
 export interface PortalActions {
-  /** Ask for a login code. Answers «sent» whether or not the address is known. */
-  startLogin(input: { email: string }): Promise<ActionAnswer<{ status: 'sent' }>>;
+  /**
+   * Ask for a login code. Answers «sent» whether or not the address is known;
+   * `invalid` only for an address that cannot be one.
+   */
+  startLogin(input: { email: string }): Promise<ActionAnswer<{ status: 'sent' } | InvalidFailure>>;
   /** Start a Vipps login: a form action that redirects to Vipps, or answers why not. */
   startVipps?: VippsStartAction;
-  /** Start linking Vipps to the logged-in profile. */
-  startVippsLink?: () => Promise<VippsLinkStartResult>;
+  /**
+   * Start linking Vipps to the logged-in profile — `useActionState`'s shape,
+   * like `startVipps`; it is called with `null` and no form data.
+   */
+  startVippsLink?: (
+    previous: VippsLinkStartResult,
+    formData?: FormData
+  ) => Promise<VippsLinkStartResult>;
   updateProfile(input: {
     first_name?: string;
     last_name?: string;
@@ -67,7 +79,9 @@ export interface PortalActions {
   }): Promise<ActionAnswer<ProfileActionResult>>;
   setMarketingConsent(input: {
     granted: boolean;
-  }): Promise<ActionAnswer<{ ok: true; marketingConsent: boolean } | SessionFailure>>;
+  }): Promise<
+    ActionAnswer<{ ok: true; marketingConsent: boolean } | SessionFailure | InvalidFailure>
+  >;
   savePerson(
     input: PersonActionTarget & { person: PersonActionInput; create: boolean }
   ): Promise<ActionAnswer<PersonActionResult>>;
@@ -77,7 +91,9 @@ export interface PortalActions {
     ActionAnswer<{ ok: true; filename: string; json: string } | SessionFailure>
   >;
   /** `confirm` is the typed confirmation word; the backend re-checks it. */
-  deleteMe(input: { confirm: string }): Promise<ActionAnswer<{ ok: true } | SessionFailure>>;
+  deleteMe(input: {
+    confirm: string;
+  }): Promise<ActionAnswer<{ ok: true } | SessionFailure | InvalidFailure>>;
 }
 
 /** Why an action did not come back `ok`: a dead session, or the sentence to show. */

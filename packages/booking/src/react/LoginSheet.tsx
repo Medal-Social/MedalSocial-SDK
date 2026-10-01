@@ -106,6 +106,10 @@ export function LoginSheet(props: LoginSheetProps) {
         | undefined;
       if (answer?.serverError) return { ok: false, reason: 'unreachable' };
       if (answer?.validationErrors) return { ok: false, reason: 'invalidEmail' };
+      // The plain action's own refusal of the address.
+      if ((answer as { reason?: unknown } | undefined)?.reason === 'invalid') {
+        return { ok: false, reason: 'invalidEmail' };
+      }
       return { ok: true };
     },
     // The Vipps confirm code is checked by the code alone: the pending link is

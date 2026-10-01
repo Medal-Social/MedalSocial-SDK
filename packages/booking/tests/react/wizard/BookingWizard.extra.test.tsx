@@ -376,6 +376,19 @@ describe('BookingWizard — the package props', () => {
     expect(within(alert).queryByRole('link')).toBeNull();
   });
 
+  it('takes this request’s contact over the config’s', async () => {
+    stubApi({ availability: { status: 500, body: {} } });
+    const user = userEvent.setup();
+    location.search = '?kategori=barn';
+    const { rerender } = render(wizard({ contact: { phone: '99 88 77 66' } }));
+    await user.click(screen.getByRole('button', { name: /Barneklipp/ }));
+    expect(
+      await screen.findByRole('link', { name: 'Ring oss på 99 88 77 66' })
+    ).toBeInTheDocument();
+    rerender(wizard({ contact: { phone: '99 88 77 66' } }));
+    expect(screen.getByRole('link', { name: 'Ring oss på 99 88 77 66' })).toBeInTheDocument();
+  });
+
   it('lets a family switch to «at the same time» on the stylist step', async () => {
     stubApi();
     const user = userEvent.setup();

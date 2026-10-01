@@ -60,9 +60,12 @@ describe('createAttemptStore', () => {
   });
 
   it('mints afresh once the attempt is older than its TTL', () => {
+    // Pinned for the first read too: a millisecond tick between `now` and the
+    // write would leave the record exactly at its TTL, which still counts.
     const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
     const old = store.readAttempt();
-    vi.spyOn(Date, 'now').mockReturnValue(now + ATTEMPT_TTL_MS + 1);
+    clock.mockReturnValue(now + ATTEMPT_TTL_MS + 1);
     expect(store.readAttempt().nonce).not.toBe(old.nonce);
   });
 
