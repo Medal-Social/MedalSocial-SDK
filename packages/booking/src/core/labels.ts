@@ -127,3 +127,33 @@ export function fill(template: string, values: Readonly<Record<string, string | 
     Object.hasOwn(values, name) ? String(values[name]) : hole
   );
 }
+
+/**
+ * `fill`, kept in pieces: `fillParts('Steg {step} av {total}', { step: 3, total: 4 })`
+ * → `['Steg ', '3', ' av ', '4']`. Rendered as element children, each literal
+ * run and each filled hole becomes its own text node: the same DOM as a JSX
+ * `{a}{b}` composition, so the sentence lays out glyph for glyph like a
+ * hand-written one (a single filled string can land sub-pixel apart). Use
+ * `fill` where the target takes text only (`aria-label`, `title`, ICS).
+ * Empty pieces are dropped; an unknown hole stays as written, in its run.
+ */
+export function fillParts(
+  template: string,
+  values: Readonly<Record<string, string | number>>
+): string[] {
+  const parts: string[] = [];
+  let run = '';
+  for (const piece of template.split(/(\{\w+\})/g)) {
+    const name = /^\{(\w+)\}$/.exec(piece)?.[1];
+    if (name === undefined || !Object.hasOwn(values, name)) {
+      run += piece;
+      continue;
+    }
+    if (run !== '') parts.push(run);
+    run = '';
+    const value = String(values[name]);
+    if (value !== '') parts.push(value);
+  }
+  if (run !== '') parts.push(run);
+  return parts;
+}

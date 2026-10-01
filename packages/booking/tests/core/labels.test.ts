@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fill, LABEL_PACKS, labelPackFor, resolveLabels } from '../../src/core/labels';
+import { fill, fillParts, LABEL_PACKS, labelPackFor, resolveLabels } from '../../src/core/labels';
 
 describe('labels', () => {
   it('reads Norwegian in all three spellings, and English for anything else', () => {
@@ -32,6 +32,27 @@ describe('labels', () => {
     expect(fill('{count} barn', { count: 2 })).toBe('2 barn');
     expect(fill('{min}–{max} år', { min: 7, max: 8 })).toBe('7–8 år');
     expect(fill('{nope} {count}', { count: 1 })).toBe('{nope} 1');
+  });
+
+  it('keeps a filled template in pieces: one per literal run and one per hole', () => {
+    expect(
+      fillParts('Steg {step} av {total} · {label}', { step: 3, total: 4, label: 'Tid' })
+    ).toEqual(['Steg ', '3', ' av ', '4', ' · ', 'Tid']);
+    // Holes at either end and side by side leave no empty runs behind.
+    expect(fillParts('{a}{b} og {c}', { a: 'x', b: 'y', c: 'z' })).toEqual(['x', 'y', ' og ', 'z']);
+    // An unknown hole stays as written, inside the run around it.
+    expect(fillParts('{nope} har {count}', { count: 1 })).toEqual(['{nope} har ', '1']);
+    // An empty value is no piece at all; a template without holes is one run.
+    expect(fillParts('Hei {name}!', { name: '' })).toEqual(['Hei ', '!']);
+    expect(fillParts('Hei!', {})).toEqual(['Hei!']);
+    expect(fillParts('', {})).toEqual([]);
+  });
+
+  it('joins back into exactly what fill gives', () => {
+    for (const template of ['Steg {step} av {total}', '{nope} {count}', '{count} barn', 'plain']) {
+      const values = { step: 2, total: 4, count: 7 };
+      expect(fillParts(template, values).join('')).toBe(fill(template, values));
+    }
   });
 });
 

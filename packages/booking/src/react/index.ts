@@ -17,9 +17,15 @@
  * `classNames` per screen slot → `components` (card renderers) →
  * `useBooking()`.
  *
- * Needs Next.js ≥ 16.3 (`next/navigation`, `next/link`) and the screens'
- * stylesheet: `@import '@medalsocial/meda/styles/bridge.css'` and
- * `@import '@medalsocial/meda/booking/styles.css'` in a Tailwind v4 build.
+ * A convenience barrel, not for a performance-critical page: a bundler keeps
+ * a `'use client'` entry whole, so a page importing anything from here ships
+ * the manage page and the portal too. A booking page imports from
+ * `@medalsocial/booking/react/wizard`.
+ *
+ * Needs Next.js ≥ 16.3 (`next/navigation`, `next/link`) and three of meda's
+ * stylesheets in a Tailwind v4 build: `@medalsocial/meda/styles/bridge.css`,
+ * `@medalsocial/meda/primitives/styles.css` (the sheets the screens open) and
+ * `@medalsocial/meda/booking/styles.css`.
  */
 
 export * from './actions';

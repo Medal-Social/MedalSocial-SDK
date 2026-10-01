@@ -7,7 +7,7 @@ import {
   VisitHistory,
 } from '@medalsocial/meda/booking';
 import { type ReactNode, useState } from 'react';
-import { fill } from '../../core/labels';
+import { fillParts } from '../../core/labels';
 import type { PortalBookingDto, PortalProfileDto } from '../../core/portal/dto';
 import { rebookSuggestions } from '../../core/portal/dto';
 import type { PortalActions } from '../actions';
@@ -120,7 +120,7 @@ export function PortalDashboard(props: PortalDashboardProps) {
                   {labels['portal.eyebrow']}
                 </p>
                 <h1 className="font-sans text-3xl font-bold md:text-5xl">
-                  {fill(labels['portal.greeting'], {
+                  {fillParts(labels['portal.greeting'], {
                     name: profile.firstName ?? labels['portal.greetingFallback'],
                   })}
                 </h1>

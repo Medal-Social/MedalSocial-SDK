@@ -36,24 +36,32 @@ const EXTERNAL = [
 ];
 
 /**
- * `/react` shares its `/core` code with `/core` through chunks under dist/.
- * «Own code» leaves those chunks out, because `/core`'s budgets above already
- * gate them; the page budget below counts both.
+ * The build is one module per source module, and `/react`'s modules import
+ * `/core`'s under dist/core/. «Own code» leaves those out, because `/core`'s
+ * budgets above already gate them; the page budgets below count both.
  */
 /** @type {import('esbuild').Plugin} */
 const OWN_CODE = {
   name: 'react-own-code',
   setup(build) {
-    build.onResolve({ filter: /^\.\.\/[^/]+\.mjs$/ }, (args) =>
-      args.importer.includes('/dist/react/') ? { path: args.path, external: true } : undefined
-    );
+    build.onResolve({ filter: /^\.\.?\// }, (args) => {
+      if (!args.importer.startsWith(join(dist, 'react'))) return undefined;
+      const target = resolve(args.resolveDir, args.path);
+      return target.startsWith(join(dist, 'core')) ? { path: target, external: true } : undefined;
+    });
   },
 };
 
-/** What a booking page's browser bundle takes from `/react`. */
+/**
+ * What a booking page's browser bundle takes from the `/react` barrel, when
+ * the consumer's bundler tree-shakes inside it (esbuild does).
+ */
 const WIZARD_PAGE = `export {
   BookingWizard, BookingProvider, BookingLink, BookingPendingHost, useNextFree,
 } from './dist/react/index.mjs';`;
+
+/** The booking page on its own entry, every export of it kept. */
+const WIZARD_ENTRY = "export * from './dist/react/wizard/index.mjs';";
 
 const BUDGETS = [
   {
@@ -94,6 +102,21 @@ const BUDGETS = [
     gzipBytes: 24.5 * 1024,
   },
   {
+    // The booking page's own entry, whole: a bundler that keeps a
+    // `'use client'` entry as one unit (Turbopack does) ships all of it, so
+    // this is the honest measure of the page. It must stay well under the
+    // `/react` barrel below; that gap is the manage page and the portal.
+    name: '@medalsocial/booking/react/wizard — booking page, own code',
+    contents: WIZARD_ENTRY,
+    plugins: [OWN_CODE],
+    gzipBytes: 15 * 1024,
+  },
+  {
+    name: '@medalsocial/booking/react/wizard — booking page, with /core',
+    contents: WIZARD_ENTRY,
+    gzipBytes: 24.5 * 1024,
+  },
+  {
     // Everything `/react` exports, manage page and portal included.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
@@ -121,7 +144,11 @@ async function bundled(
   return result.outputFiles[0].contents;
 }
 
-if (!existsSync(join(dist, 'core/index.mjs')) || !existsSync(join(dist, 'react/index.mjs'))) {
+if (
+  !['core/index.mjs', 'react/index.mjs', 'react/wizard/index.mjs'].every((file) =>
+    existsSync(join(dist, file))
+  )
+) {
   console.error('[size-budget] dist/ is missing — run `pnpm build` first.');
   process.exit(1);
 }
