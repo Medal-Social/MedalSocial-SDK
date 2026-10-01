@@ -604,7 +604,7 @@ describe('ManagePage', () => {
    * every proxy on the way logs.
    */
   it('never renders the manage token', async () => {
-    const token = 'mt_test_secret_value';
+    const token = 'mt_test_never_rendered'; // skipcq: SCT-A000 -- a fixture, not a credential
     const { container } = render(
       <ManagePage
         booking={bookingStartingIn(72 * HOUR)}
