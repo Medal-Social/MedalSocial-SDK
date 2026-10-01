@@ -81,6 +81,22 @@ describe('manageRoute — guards', () => {
     expect(getManage).not.toHaveBeenCalled();
   });
 
+  it('refuses a body over the ceiling before parsing it, and never asks Medal', async () => {
+    const response = await post({ action: 'cancel', reason: 'x'.repeat(5 * 1024) });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalidInput',
+      message: 'body is too large',
+    });
+    expect(cancelManage).not.toHaveBeenCalled();
+  });
+
+  it('takes a body just under the ceiling', async () => {
+    cancelManage.mockResolvedValueOnce(undefined);
+    const response = await post({ action: 'cancel', reason: 'x'.repeat(3 * 1024) });
+    expect(response.status).toBe(200);
+  });
+
   it('refuses a JSON body that is not an object', async () => {
     for (const body of [null, 7]) {
       const response = await post(body);

@@ -107,6 +107,46 @@ describe('LoginSheet wiring', () => {
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
+  it('reads a «sent» inside the safe-action envelope as sent', async () => {
+    renderInline({ startLogin: vi.fn().mockResolvedValue({ data: { status: 'sent' } }) });
+    expect(await sendCode()).toBeInTheDocument();
+  });
+
+  it('reads an enveloped refusal of an address as a bad address, not a sent code', async () => {
+    renderInline({
+      startLogin: vi
+        .fn()
+        .mockResolvedValue({ data: { ok: false, reason: 'invalid', message: 'Nei.' } }),
+    });
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+    expect(await screen.findByText(TEST_LABELS['login.notice.badEmail'])).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
+  it.each([
+    ['no answer', undefined],
+    ['null', null],
+    ['an empty envelope', { data: undefined }],
+    ['an envelope around something else', { data: { ok: true } }],
+    ['a plain answer that is not «sent»', { status: 'queued' }],
+    ['a server error beside validation errors', { serverError: 'x', validationErrors: {} }],
+  ])('never moves on to the code on %s', async (_name, result) => {
+    renderInline({ startLogin: vi.fn().mockResolvedValue(result) });
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+    expect(await screen.findByText(TEST_LABELS['login.notice.unreachable'])).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
+  it('never moves on to the code when the action throws', async () => {
+    renderInline({ startLogin: vi.fn().mockRejectedValue(new Error('boom')) });
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+    expect(await screen.findByText(TEST_LABELS['login.notice.unreachable'])).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
   it('says it could not reach the booking system when the network fails', async () => {
     fetchMock.mockRejectedValue(new TypeError('offline'));
     renderInline();

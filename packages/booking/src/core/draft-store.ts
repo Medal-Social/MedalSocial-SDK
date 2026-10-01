@@ -54,6 +54,13 @@ export interface WizardDraftItem {
    * not as the link they arrived on said.
    */
   adult?: boolean | null;
+  /**
+   * The saved child the line was for (`bookedForPersonId`); `null` for a guest
+   * or a draft written before the field existed. Never trusted on the way
+   * back: a restore reseats it only when the logged-in parent's own family has
+   * a child with this id.
+   */
+  personId?: string | null;
 }
 
 export interface WizardDraft {
@@ -93,6 +100,8 @@ function asDraft(value: unknown, now: number): WizardDraft | null {
           ? item.bookedForBirthYear
           : null,
       adult: typeof item.adult === 'boolean' ? item.adult : null,
+      personId:
+        typeof item.personId === 'string' && item.personId.length > 0 ? item.personId : null,
     });
   }
   const partyResourceIds =

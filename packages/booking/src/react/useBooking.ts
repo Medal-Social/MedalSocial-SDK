@@ -152,17 +152,45 @@ function serviceIdsOf(
 }
 
 /**
- * The basket and the create response, zipped by INDEX. A shorter answer than
- * the basket loses the line's manage link rather than borrowing a sibling's.
+ * Whether a create answer is a whole one: exactly one booking, with its own
+ * distinct id, per submitted line. Anything else — none, fewer, more, an id
+ * missing or repeated — is not a
+ * confirmation; the wizard shows it as the generic create failure
+ * (`upstreamError`, «we still do not know»), whose attempt survives for the
+ * replay under the same idempotency key.
+ */
+export function isCompleteConfirmation(
+  bookings: ReadonlyArray<{ id?: unknown }> | null | undefined,
+  itemCount: number
+): boolean {
+  if (!Array.isArray(bookings) || itemCount <= 0 || bookings.length !== itemCount) return false;
+  const ids = bookings.map((booking) => booking?.id);
+  // Distinct, too: one id on two lines is two calendar entries with one UID.
+  return (
+    ids.every((id) => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length
+  );
+}
+
+/**
+ * The basket and the create response, zipped by INDEX — each line its OWN
+ * booking. Only a whole answer (`isCompleteConfirmation`) gets this far; a line
+ * the answer has no booking for is left out rather than handed a sibling's id,
+ * which would give two calendar entries one UID.
  */
 export function confirmationLines(confirmation: BookingConfirmation): ConfirmedLine[] {
   const { submitted, bookings } = confirmation;
-  return submitted.items.map((item, index) => ({
-    item,
-    bookingId: bookings[index]?.id ?? bookings[0].id,
-    stylistName: submitted.stylistNames[index] ?? null,
-    manageHref: bookings[index]?.manageHref ?? null,
-  }));
+  return submitted.items.flatMap((item, index) => {
+    const booking = bookings[index];
+    if (booking === undefined) return [];
+    return [
+      {
+        item,
+        bookingId: booking.id,
+        stylistName: submitted.stylistNames[index] ?? null,
+        manageHref: booking.manageHref,
+      },
+    ];
+  });
 }
 
 /** Only the stylist the visitor asked for. */
@@ -517,6 +545,42 @@ export function useBooking(options: UseBookingOptions) {
   const restoredStylists = useRef<string[] | null>(null);
 
   /**
+   * A logged-in parent's saved children back in their chairs: each draft line
+   * whose stored `personId` is a child of THIS guardian's family is reseated as
+   * that child (`choosePeople`, then its service again), so it is submitted
+   * with `booked_for_person_id` as it would have been without the round trip.
+   * An id the family does not have — another parent's, a child removed since,
+   * a hand-edited jar — is ignored, and its line restores as a name and a year
+   * exactly as a draft without ids does. Returns the reseated line indexes.
+   */
+  const reseatFamily = (draft: WizardDraft, lines: BookingServiceDto[]): Set<number> => {
+    const reseated = new Set<number>();
+    if (family === null) return reseated;
+    const keys = new Set<string>();
+    // The seats `pickService` / `addService` just built (`peopleFor`), for the
+    // lines that are not reseated. A parent known at mount starts with nobody
+    // seated (`initialWizardState`), so every one of them is a guest chair.
+    const people = draft.items.map((item, index) => {
+      const built = wizard.guestChild(index + 1);
+      const at = item.personId ? family.findIndex((child) => child.personId === item.personId) : -1;
+      const child = at === -1 ? null : personForChild(family[at], at);
+      if (child === null || keys.has(child.key)) {
+        keys.add(built.key);
+        return built;
+      }
+      keys.add(child.key);
+      reseated.add(index);
+      return child;
+    });
+    if (reseated.size === 0) return reseated;
+    dispatch({ type: 'choosePeople', people });
+    for (const index of reseated) {
+      dispatch({ type: 'pickServiceFor', index, service: lines[index] });
+    }
+    return reseated;
+  };
+
+  /**
    * The booking a Vipps login interrupted, rebuilt through the machine's own
    * actions — so it obeys every rule a tapped one does — and trusting nothing
    * beyond the catalogue.
@@ -542,10 +606,13 @@ export function useBooking(options: UseBookingOptions) {
     dispatch({ type: 'pickService', service: first });
     // Every line resolved (checked above), so `rest` holds services only.
     for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
+    const reseated = reseatFamily(draft, resolved as BookingServiceDto[]);
     // Before the stylist: `setPartyMode('parallel')` drops the preference.
     if (draft.partyMode === 'parallel') dispatch({ type: 'setPartyMode', mode: 'parallel' });
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
     draft.items.forEach((item, index) => {
+      // A reseated child's name and year are the family's own, already on the line.
+      if (reseated.has(index)) return;
       if (item.bookedForName !== null) {
         dispatch({
           type: 'setItemField',
@@ -597,6 +664,14 @@ export function useBooking(options: UseBookingOptions) {
       kit.attempts.clearAttempt();
       stored = kit.attempts.readAttempt();
     }
+    // A remembered confirmation that is not a whole one is no confirmation.
+    if (
+      stored.confirmed !== undefined &&
+      !isCompleteConfirmation(stored.confirmed.bookings, stored.confirmed.submitted.items.length)
+    ) {
+      kit.attempts.clearAttempt();
+      stored = kit.attempts.readAttempt();
+    }
     setAttempt(stored);
     applyRebookWho();
     if (stored.confirmed !== undefined) {
@@ -632,6 +707,7 @@ export function useBooking(options: UseBookingOptions) {
         bookedForName: item.bookedForName ?? null,
         bookedForBirthYear: item.bookedForBirthYear ?? null,
         adult: item.adult === true,
+        personId: item.bookedForPersonId ?? null,
       })),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
@@ -1115,8 +1191,9 @@ export function useBooking(options: UseBookingOptions) {
       }
 
       const bookings = payload?.bookings ?? [];
-      if (bookings.length === 0) {
-        // A 201 with no booking in it is not a booking.
+      if (!isCompleteConfirmation(bookings, submitted.items.length)) {
+        // A 201 with no booking in it is not a booking, and one short of the
+        // basket is not a confirmation: the attempt stays pending.
         dispatch({ type: 'submitFailed', error: 'upstreamError' });
         return;
       }

@@ -113,4 +113,27 @@ describe('draft-store', () => {
     stashDraft(draft(), NOW);
     expect(takeDraft(NOW + MINUTE)?.items[0].adult).toBeNull();
   });
+
+  it('keeps a line’s person id, and reads an older or malformed one as none', () => {
+    const line = { serviceId: 'svc-gutt', bookedForName: 'Jonas', bookedForBirthYear: 2017 };
+    stashDraft(
+      draft({
+        items: [
+          { ...line, personId: 'p-1' },
+          { ...line, personId: '' },
+          { ...line, personId: 7 as unknown as string },
+          { ...line, personId: null },
+          line,
+        ],
+      }),
+      NOW
+    );
+    expect(takeDraft(NOW + MINUTE)?.items.map((item) => item.personId)).toEqual([
+      'p-1',
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
 });

@@ -8,7 +8,7 @@ import {
 } from '@medalsocial/meda/booking';
 import { useRouter } from 'next/navigation';
 import type { BookingGuardian } from '../core/types';
-import type { PortalActions, SafeActionEnvelope } from './actions';
+import { type PortalActions, readStartLogin } from './actions';
 import { type BookingOverrides, useBookingKit } from './Provider';
 
 export type { VippsConfirm };
@@ -101,16 +101,11 @@ export function LoginSheet(props: LoginSheetProps) {
     // «Sent» for every address; only a failed action is not (so the form is
     // never an oracle for who books here, and never claims a code it did not send).
     onStartLogin: async (email: string): Promise<LoginStartResult> => {
-      const answer = (await actions.startLogin({ email })) as
-        | SafeActionEnvelope<unknown>
-        | undefined;
-      if (answer?.serverError) return { ok: false, reason: 'unreachable' };
-      if (answer?.validationErrors) return { ok: false, reason: 'invalidEmail' };
-      // The plain action's own refusal of the address.
-      if ((answer as { reason?: unknown } | undefined)?.reason === 'invalid') {
-        return { ok: false, reason: 'invalidEmail' };
+      try {
+        return readStartLogin(await actions.startLogin({ email }));
+      } catch {
+        return { ok: false, reason: 'unreachable' };
       }
-      return { ok: true };
     },
     // The Vipps confirm code is checked by the code alone: the pending link is
     // in an httpOnly cookie the route reads.

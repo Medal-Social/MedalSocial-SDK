@@ -123,6 +123,32 @@ function isEnvelope<T>(answer: ActionAnswer<T> | undefined): answer is SafeActio
 }
 
 /**
+ * `startLogin`'s answer, read for the login form: `sent` only for a result
+ * that says so — plain or inside the envelope. The action's own refusal of
+ * the address (or zod's) is a bad address; a server error, an empty envelope,
+ * an answer that is neither, or no answer at all is `unreachable`, so the
+ * form never moves on to a code that was not sent.
+ */
+export function readStartLogin(
+  answer: ActionAnswer<{ status: 'sent' } | InvalidFailure> | undefined
+): { ok: true } | { ok: false; reason: 'unreachable' | 'invalidEmail' } {
+  const envelope = isEnvelope(answer) ? answer : undefined;
+  const data = (envelope ? envelope.data : answer) as
+    | { status?: unknown; ok?: unknown; reason?: unknown }
+    | null
+    | undefined;
+  if (data && typeof data === 'object') {
+    if (data.status === 'sent') return { ok: true };
+    if (data.ok === false && data.reason === 'invalid')
+      return { ok: false, reason: 'invalidEmail' };
+  }
+  if (envelope?.validationErrors && !envelope.serverError) {
+    return { ok: false, reason: 'invalidEmail' };
+  }
+  return { ok: false, reason: 'unreachable' };
+}
+
+/**
  * An action's answer, read: `{ ok: true, value }`, or the failure a form acts
  * on. The action's own `message` wins over zod's, which wins over
  * `invalidInput`; anything unreadable (a thrown call, a server error, an
