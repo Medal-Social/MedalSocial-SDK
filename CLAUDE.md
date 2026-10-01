@@ -38,8 +38,7 @@ and is never published.
   script, a `build`/`test`/`typecheck` script so the fan-out picks it up, a
   `knip.json` workspace entry and a changeset for its first release. Keep the
   public-repo rule: no customer names, copy or data in any package.
-- **`@medalsocial/booking`** (plan: Vault `vault/medal/booking/plans/2026-09-30-booking-package-extraction.md`)
-  is ESM-only with entries `./core`, `./react`, `./next` and
+- **`@medalsocial/booking`** is ESM-only with entries `./core`, `./react`, `./next` and
   `./next/cache/{workers,memory,next-data,noop}`. `/core` imports no React,
   Next, `server-only` or meda (Biome `noRestrictedImports` +
   `tests/core/boundary.test.ts`; `verify:paths` also imports the built
