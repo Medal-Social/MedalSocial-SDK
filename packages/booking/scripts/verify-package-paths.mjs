@@ -2,8 +2,9 @@
 // Verifies that every path declared in package.json (`main`, `module`,
 // `types`, and `exports`) points at a file that actually exists on disk.
 //
-// Wired into `prepublishOnly` (after the tsdown build) so a publish FAILS if
-// the package.json claims an entry point that the build doesn't produce.
+// Wired into the root `release` script (after the build, before
+// `changeset publish`) and the CI build job, so a publish FAILS if the
+// package.json claims an entry point that the build doesn't produce.
 //
 // History: v1.1.4 shipped to npm with main/module/types/exports pointing at
 // `dist/index.*` while the build actually emits `dist/src/index.*`. Consumers

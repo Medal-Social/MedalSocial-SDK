@@ -257,12 +257,15 @@ type DerivedCookieName = keyof typeof DERIVED_COOKIE_NAMES;
 /**
  * A derived name that would be too long, said about `portal.cookieName`
  * (which the site wrote) rather than a name it never set. `null` when every
- * derived name fits — the schema then judges the characters as usual.
+ * derived name fits — the schema then judges the characters as usual — and
+ * when the base is not a string at all (a runtime input the types did not
+ * catch): the schema's own issue on `portal.cookieName` says so.
  */
 function derivedCookieNameIssue(
-  session: string,
+  session: unknown,
   derived: readonly DerivedCookieName[]
 ): { path: string; message: string } | null {
+  if (typeof session !== 'string') return null;
   const tooLong = derived.filter((name) => {
     const { prefix, suffix } = DERIVED_COOKIE_NAMES[name];
     return prefix.length + session.length + suffix.length > MAX_COOKIE_NAME;
