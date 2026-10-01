@@ -6,8 +6,8 @@
 //    must not appear at runtime at all).
 // 2. Every module under `dist/react` starts with the 'use client' directive,
 //    except the server-safe graph of `dist/react/shared.mjs`, which carries
-//    none; and the booking page's entry (`dist/react/wizard`) reaches neither
-//    the manage page nor the portal.
+//    none; and the booking page's entry (`dist/react/wizard`) and the
+//    layout's (`dist/react/link`) reach neither the manage page nor the portal.
 // 3. Every `dist/next` entry imports `server-only`, so a client component that
 //    reaches for one fails the consumer's build.
 //
@@ -99,15 +99,18 @@ for (const file of readdirSync(reactDir, { recursive: true })) {
   if (!sharedGraph.has(path) && !client)
     errors.push(`dist/${name} lacks its 'use client' directive`);
 }
-for (const entry of ['react/index.mjs', 'react/wizard/index.mjs']) {
+for (const entry of ['react/index.mjs', 'react/wizard/index.mjs', 'react/link/index.mjs']) {
   if (!readFileSync(join(dist, entry), 'utf8').startsWith("'use client';"))
     errors.push(`dist/${entry} lacks its 'use client' directive`);
 }
-// The point of `/react/wizard`: a booking page does not ship the rest.
-for (const path of graphOf('react/wizard/index.mjs')) {
-  const name = relative(dist, path);
-  if (name.startsWith('react/portal/') || name === 'react/ManageBooking.mjs')
-    errors.push(`dist/react/wizard reaches dist/${name}`);
+// The point of `/react/wizard` and `/react/link`: a booking page, and the
+// layout around it, do not ship the rest.
+for (const entry of ['react/wizard', 'react/link']) {
+  for (const path of graphOf(`${entry}/index.mjs`)) {
+    const name = relative(dist, path);
+    if (name.startsWith('react/portal/') || name === 'react/ManageBooking.mjs')
+      errors.push(`dist/${entry} reaches dist/${name}`);
+  }
 }
 try {
   const { mergeLabels } = await import(pathToFileURL(join(dist, 'react/shared.mjs')).href);
@@ -129,5 +132,5 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  '[verify-core-runtime] OK — core runs in bare Node, /react and /react/wizard are client entries, /react/shared is server-safe, /next is server-only.'
+  '[verify-core-runtime] OK — core runs in bare Node, /react, /react/wizard and /react/link are client entries, /react/shared is server-safe, /next is server-only.'
 );

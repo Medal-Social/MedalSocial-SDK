@@ -15,6 +15,7 @@ and the customer-portal helpers — built on [`@medalsocial/sdk`](../sdk).
 | `@medalsocial/booking/core` | Config, wizard state machine, clock, money, phone, categories, age, party seating, deep links, DTO mapping, ICS, browser stores, portal pure helpers | Browser, Node, Workers — no React, no Next, no DOM at import time |
 | `@medalsocial/booking/react` | `<BookingWizard>` and the headless `useBooking()`, `<ManageBooking>`, `<PortalDashboard>`, `<LoginSheet>`, `<LoginFromQuery>`, `<BookingLink>`, `useNextFree()`, `<BookingProvider>` — composed from `@medalsocial/meda/booking` | Client components (`'use client'`) |
 | `@medalsocial/booking/react/wizard` | The booking page's entry: `<BookingWizard>`, `useBooking()`, `<BookingProvider>`, `<LoginSheet>` — and none of the manage page or the portal. Import a booking page from here | Client components (`'use client'`) |
+| `@medalsocial/booking/react/link` | What a layout mounts outside the booking page: `<BookingLink>`, `<BookingPendingHost>`, `useNextFree()`, `<BookingProvider>`. A root layout renders on the booking page too, so import it from here | Client components (`'use client'`) |
 | `@medalsocial/booking/react/shared` | The label packs (`BOOKING_LABELS`, `mergeLabels`) and the portal's URL/cookie readers (`parsePortalTab`, …) | Server Components and the browser — no React |
 | `@medalsocial/booking/next` | `createBookingServer`: one handler for every booking and portal API route, the page loaders (`loadBookingPage`, `loadManagePage`, `loadPortalPage`), portal session and action functions, the Medal seam | Server only (`server-only`), Next ≥ 16.3 |
 | `@medalsocial/booking/next/cache/{workers,memory,next-data,noop}` | Cache adapters: Workers Cache API, in-process LRU, Next's data cache, none | Server only |
@@ -22,8 +23,9 @@ and the customer-portal helpers — built on [`@medalsocial/sdk`](../sdk).
 ESM only, one built module per source module, `"sideEffects": false`, so a
 bundler keeps only the modules a page reaches. A bundler keeps a `'use client'`
 entry whole, though (Turbopack does), so `/react` brings everything it exports
-to the page that imports it: use `/react/wizard` on a booking page and keep
-`/react` for pages where size does not matter.
+to the page that imports it: use `/react/wizard` on a booking page and
+`/react/link` in the layout around it, and keep `/react` for pages where size
+does not matter.
 
 Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
 and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.2 and `lucide-react` (all

@@ -8,7 +8,7 @@ import { defineConfig } from 'tsdown';
  * bundler keeps only the modules a page reaches and `sideEffects: false`
  * lets it drop the rest.
  *
- * `/react` and `/react/wizard` are client entries. After the build every
+ * `/react`, `/react/wizard` and `/react/link` are client entries. After the build every
  * module under dist/react/ starts with the `'use client'` directive, except
  * the server-safe graph of `/react/shared` (the label packs and the portal's
  * parsers, which a Server Component calls). A banner in the shared config
@@ -76,6 +76,8 @@ export default defineConfig({
     'react/index': 'src/react/index.ts',
     // The booking page's own client entry: the wizard without manage or portal.
     'react/wizard/index': 'src/react/wizard/index.ts',
+    // What a root layout mounts (booking links, the pending host): no wizard.
+    'react/link/index': 'src/react/link/index.ts',
     // Server-safe (no 'use client'): the label packs and the portal's parsers.
     'react/shared': 'src/react/shared.ts',
     'next/index': 'src/next/index.ts',

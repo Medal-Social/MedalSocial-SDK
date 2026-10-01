@@ -20,7 +20,8 @@
  * A convenience barrel, not for a performance-critical page: a bundler keeps
  * a `'use client'` entry whole, so a page importing anything from here ships
  * the manage page and the portal too. A booking page imports from
- * `@medalsocial/booking/react/wizard`.
+ * `@medalsocial/booking/react/wizard`, and a layout's booking links
+ * from `@medalsocial/booking/react/link`.
  *
  * Needs Next.js ≥ 16.3 (`next/navigation`, `next/link`) and three of meda's
  * stylesheets in a Tailwind v4 build: `@medalsocial/meda/styles/bridge.css`,

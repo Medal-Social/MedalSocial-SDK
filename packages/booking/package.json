@@ -27,6 +27,10 @@
       "types": "./dist/react/wizard/index.d.mts",
       "import": "./dist/react/wizard/index.mjs"
     },
+    "./react/link": {
+      "types": "./dist/react/link/index.d.mts",
+      "import": "./dist/react/link/index.mjs"
+    },
     "./react/shared": {
       "types": "./dist/react/shared.d.mts",
       "import": "./dist/react/shared.mjs"

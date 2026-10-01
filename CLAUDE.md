@@ -38,12 +38,12 @@ and is never published.
   script, a `build`/`test`/`typecheck` script so the fan-out picks it up, a
   `knip.json` workspace entry and a changeset for its first release. Keep the
   public-repo rule: no customer names, copy or data in any package.
-- **`@medalsocial/booking`** is ESM-only with entries `./core`, `./react`, `./react/wizard`, `./react/shared`, `./next` and
+- **`@medalsocial/booking`** is ESM-only with entries `./core`, `./react`, `./react/wizard`, `./react/link`, `./react/shared`, `./next` and
   `./next/cache/{workers,memory,next-data,noop}`. The build is unbundled (one
   `dist/` module per source module, `"sideEffects": false`); every `dist/react`
   module carries `'use client'` except the server-safe graph of `/react/shared`
-  (checked by `verify:paths`). A booking page imports `/react/wizard`, never the
-  `/react` barrel. `/core` imports no React,
+  (checked by `verify:paths`). A booking page imports `/react/wizard` (its layout
+  `/react/link`), never the `/react` barrel. `/core` imports no React,
   Next, `server-only` or meda (Biome `noRestrictedImports` +
   `tests/core/boundary.test.ts`; `verify:paths` also imports the built
   `dist/core` in bare Node). Its typecheck maps `@medalsocial/sdk` onto

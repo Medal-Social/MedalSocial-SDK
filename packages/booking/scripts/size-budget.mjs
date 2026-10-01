@@ -60,8 +60,13 @@ const WIZARD_PAGE = `export {
   BookingWizard, BookingProvider, BookingLink, BookingPendingHost, useNextFree,
 } from './dist/react/index.mjs';`;
 
-/** The booking page on its own entry, every export of it kept. */
-const WIZARD_ENTRY = "export * from './dist/react/wizard/index.mjs';";
+/**
+ * The booking page on its own entries, every export kept: the wizard, and
+ * the layout's `/react/link` (booking links, the pending host), which renders
+ * on the booking page too.
+ */
+const WIZARD_ENTRY = `export * from './dist/react/wizard/index.mjs';
+export * from './dist/react/link/index.mjs';`;
 
 const BUDGETS = [
   {
@@ -102,17 +107,17 @@ const BUDGETS = [
     gzipBytes: 24.5 * 1024,
   },
   {
-    // The booking page's own entry, whole: a bundler that keeps a
-    // `'use client'` entry as one unit (Turbopack does) ships all of it, so
+    // The booking page's own entries, whole: a bundler that keeps a
+    // `'use client'` entry as one unit (Turbopack does) ships all of each, so
     // this is the honest measure of the page. It must stay well under the
     // `/react` barrel below; that gap is the manage page and the portal.
-    name: '@medalsocial/booking/react/wizard — booking page, own code',
+    name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
     gzipBytes: 15 * 1024,
   },
   {
-    name: '@medalsocial/booking/react/wizard — booking page, with /core',
+    name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
     gzipBytes: 24.5 * 1024,
   },
@@ -145,8 +150,8 @@ async function bundled(
 }
 
 if (
-  !['core/index.mjs', 'react/index.mjs', 'react/wizard/index.mjs'].every((file) =>
-    existsSync(join(dist, file))
+  !['core/index.mjs', 'react/index.mjs', 'react/wizard/index.mjs', 'react/link/index.mjs'].every(
+    (file) => existsSync(join(dist, file))
   )
 ) {
   console.error('[size-budget] dist/ is missing — run `pnpm build` first.');
