@@ -40,9 +40,11 @@ const VIPPS_LOGIN_QUERY = 'vipps';
  * than one profile, log in with e-mail to pick one), `?vipps=confirm_email`
  * (one plausible profile, a code is on its way) or `?vipps=failed`.
  *
- * The cookie is written on ONE branch: a grant Medal accepted. A grant it
- * refused, or an exchange that could not be made at all, goes to the login
- * with `?vipps=failed` and the e-mail form; so does anything unrecognised.
+ * The cookie is written on ONE branch: a grant Medal accepted, arriving in
+ * the browser that started the login (it holds the binding cookie). A grant
+ * in any other browser is never exchanged. That, a grant Medal refused, or an
+ * exchange that could not be made at all goes to the login with
+ * `?vipps=failed` and the e-mail form; so does anything unrecognised.
  *
  * WHERE THE PARENT LANDS is the portal unless a login that started somewhere
  * else said otherwise; that destination travels in a read-once httpOnly
@@ -65,6 +67,20 @@ export async function vippsReturnRoute(rt: BookingRuntime, request: Request): Pr
   const next = await rt.nextPath.takePortalNextPath();
 
   if (grant) {
+    // LOGIN CSRF. A grant is a session for whichever Vipps account finished
+    // the login, so one lifted from an attacker's own callback and sent to a
+    // parent as a link would sign the parent into the attacker's account —
+    // where they would then type their own and their children's details.
+    // Only the browser that STARTED a login holds its binding (minted per
+    // attempt by `startVipps`, httpOnly and `__Host-`), so no binding (a
+    // malformed one reads as none) is no exchange: the grant is left unspent
+    // and the parent goes to the login. The binding is read before anything
+    // is cleared, and spent only once it has been checked.
+    const binding = await rt.vippsLink.readBrowserBinding();
+    if (binding === null) {
+      rt.logger.warn({}, 'Vipps grant arrived without this browser’s login binding');
+      return seeOther(next ?? loginWith('failed'), request);
+    }
     // A grant needs no pending link, so this attempt's binding is spent.
     await rt.vippsLink.clearBrowserBinding();
     let session: Awaited<ReturnType<BookingRuntime['portal']['exchangeVippsGrant']>>;
