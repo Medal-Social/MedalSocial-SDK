@@ -4,16 +4,18 @@
  * Everything else on the page is `ManageScreen`'s (`manage.*`, `time.*`).
  */
 
+import type { BookingLabel } from '../../core/labels';
+
 export interface ManageLabels {
   /** The calendar entry's title: `{service}` (and `{name}`) at `{business}`. */
-  'manage.ics.title': string;
-  'manage.ics.titleFor': string;
+  'manage.ics.title': BookingLabel;
+  'manage.ics.titleFor': BookingLabel;
   /** The entry's first line: `{price}` and where it is paid. */
-  'manage.ics.price': string;
+  'manage.ics.price': BookingLabel;
   /** The entry's manage line: `{url}`, this page's own link. */
-  'manage.ics.manage': string;
+  'manage.ics.manage': BookingLabel;
   /** The calendar file's download name. */
-  'manage.ics.fileName': string;
+  'manage.ics.fileName': BookingLabel;
 }
 
 export const MANAGE_LABELS_NB: ManageLabels = {

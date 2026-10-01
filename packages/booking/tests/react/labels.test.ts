@@ -30,8 +30,31 @@ describe('the built-in label packs', () => {
     expect(mergeLabels('en-GB')['who.heading']).toBe(BOOKING_LABELS.en['who.heading']);
   });
 
-  it('ignores a value that is not a string', () => {
-    const merged = mergeLabels('nb', { 'wizard.title': 3 as unknown as string });
+  it('ignores a value that is not a label', () => {
+    const merged = mergeLabels('nb', {
+      'wizard.title': 3 as unknown as string,
+      'wizard.retry': ['Prøv ', 4] as unknown as string[],
+    });
     expect(merged['wizard.title']).toBe(BOOKING_LABELS.nb['wizard.title']);
+    expect(merged['wizard.retry']).toBe(BOOKING_LABELS.nb['wizard.retry']);
+  });
+
+  it('takes a label in either form, string or array of text pieces', () => {
+    const merged = mergeLabels('nb', {
+      'wizard.progress': 'Steg {step} av {total}',
+      'confirmation.party.total': ['Totalt ', '{total}'],
+    });
+    expect(merged['wizard.progress']).toBe('Steg {step} av {total}');
+    expect(merged['confirmation.party.total']).toEqual(['Totalt ', '{total}']);
+  });
+
+  it('builds in arrays only where the package itself splits a sentence', () => {
+    for (const pack of [BOOKING_LABELS.nb, BOOKING_LABELS.en]) {
+      const split = Object.entries(pack)
+        .filter(([, value]) => Array.isArray(value))
+        .map(([key]) => key)
+        .sort();
+      expect(split).toEqual(['portal.greeting', 'wizard.progress', 'wizard.slotsUnavailable.call']);
+    }
   });
 });

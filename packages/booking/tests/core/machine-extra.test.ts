@@ -75,3 +75,32 @@ describe('reduce — a site without parallel seating', () => {
     ).toBe(state);
   });
 });
+
+describe('summaryLine — labels written as arrays', () => {
+  const pieced = createWizard(
+    resolveBookingConfig({
+      timeZone: 'Europe/Oslo',
+      labels: {
+        'people.self': ['Meg ', 'selv'],
+        'people.adult': ['Vok', 'sen'],
+        'summary.firstAvailable': ['Første ', 'ledige'],
+        'summary.pickTime': ['Velg ', 'tid'],
+      },
+    })
+  );
+
+  it('joins each label as text, never with commas', () => {
+    const seated = pieced.reduce(initialState(), {
+      type: 'choosePeople',
+      people: [
+        { key: 'self', adult: true },
+        { key: 'adult:1', adult: true },
+      ],
+    });
+    expect(pieced.summaryLine(seated, () => null)).toBe('Meg selv, Voksen');
+    const picked = pieced.reduce(initialState(), { type: 'pickService', service: GUTTEKLIPP });
+    expect(pieced.summaryLine(picked, () => null)).toMatch(
+      /^Gutteklipp · Første ledige · Velg tid · /
+    );
+  });
+});

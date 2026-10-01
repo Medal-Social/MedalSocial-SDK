@@ -74,6 +74,20 @@ describe('resolveBookingConfig', () => {
     expect(config.labels).toEqual({ 'summary.pickTime': 'Finn en tid' });
   });
 
+  it('keeps a label written as an array of text pieces, and refuses anything else', () => {
+    const config = resolveBookingConfig({
+      timeZone: 'Europe/Oslo',
+      labels: { 'summary.services': ['{count}', ' tjenester'] },
+    });
+    expect(config.labels).toEqual({ 'summary.services': ['{count}', ' tjenester'] });
+    expect(() =>
+      resolveBookingConfig({
+        timeZone: 'Europe/Oslo',
+        labels: { 'summary.services': [1] as unknown as string[] },
+      })
+    ).toThrow(/labels/);
+  });
+
   it.each<[string, BookingConfigInput, string]>([
     ['an unknown zone', { timeZone: 'Mars/Olympus' }, 'timeZone: must be an IANA time zone'],
     [

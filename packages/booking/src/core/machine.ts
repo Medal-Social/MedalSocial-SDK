@@ -20,7 +20,7 @@ import { isChildCategory } from './categories';
 import { createClock } from './clock';
 import type { BookingConfig } from './config';
 import { resourceMatches } from './deep-link';
-import { fill, resolveLabels } from './labels';
+import { fill, labelText, resolveLabels } from './labels';
 import { createMoney } from './money';
 
 /**
@@ -1479,7 +1479,8 @@ export function createWizard(config: WizardConfig): Wizard {
       .filter((person) => !person.key.startsWith('guest:'))
       .map(
         (person) =>
-          person.name ?? (person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
+          person.name ??
+          labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
       );
     if (guests > 0) parts.unshift(fill(labels['people.children'], { count: guests }));
     return parts.join(', ');
@@ -1558,8 +1559,8 @@ export function createWizard(config: WizardConfig): Wizard {
     return [
       service,
       stylistLabel(state, resolveStylistName) ??
-        (unnamedPreference ? labels['summary.firstAvailable'] : UNCHOSEN),
-      timeLabel(state.startTs, now) ?? labels['summary.pickTime'],
+        (unnamedPreference ? labelText(labels['summary.firstAvailable']) : UNCHOSEN),
+      timeLabel(state.startTs, now) ?? labelText(labels['summary.pickTime']),
       // Defensive: a service in the bar means a price.
       /* v8 ignore start */
       priceLabel(state) ?? UNCHOSEN,

@@ -35,6 +35,7 @@ import {
 } from '../../../src/react/useBooking';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
+import { textNodesOf } from '../../support/text-nodes';
 import { pinAForeignViewerClock } from '../../support/viewer-clock';
 
 pinAForeignViewerClock();
@@ -398,6 +399,27 @@ describe('BookingWizard — the package props', () => {
     expect(within(alert).queryByRole('link')).toBeNull();
   });
 
+  it('renders a package label the site writes as a string as ONE text node', async () => {
+    stubApi({ availability: { status: 500, body: {} } });
+    const user = userEvent.setup();
+    location.search = '?kategori=barn';
+    render(
+      wizard({
+        contact: { phone: '99 88 77 66' },
+        labels: {
+          ...TEST_LABELS,
+          'wizard.progress': 'Steg {step} av {total} · {label}',
+          'wizard.slotsUnavailable.call': 'ring oss på {phone}',
+        },
+      })
+    );
+    const progress = screen.getByText(/^Steg \d av \d · /);
+    expect(textNodesOf(progress)).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: /Barneklipp/ }));
+    const call = await screen.findByRole('link', { name: 'Ring oss på 99 88 77 66' });
+    expect(textNodesOf(call)).toEqual(['ring oss på 99 88 77 66']);
+  });
+
   it('takes this request’s contact over the config’s', async () => {
     stubApi({ availability: { status: 500, body: {} } });
     const user = userEvent.setup();
@@ -427,6 +449,31 @@ describe('BookingWizard — the package props', () => {
     const parallel = await screen.findByRole('button', { name: /samtidig/i });
     await user.click(parallel);
     expect(parallel).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('spells the party size from the pack for {sizeWord}', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?antall=2';
+    render(
+      wizard({
+        labels: {
+          ...TEST_LABELS,
+          'stylist.party.parallel.two': 'Alle {sizeWord} samtidig',
+          'stylist.party.parallelNote.two': 'Vi finner {sizeWord} ledige på én gang.',
+        },
+      })
+    );
+    for (const list of ['Tjenester for Barn 1', 'Tjenester for Barn 2']) {
+      await user.click(
+        within(await screen.findByRole('list', { name: list })).getByRole('button', {
+          name: /Barneklipp/,
+        })
+      );
+    }
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('button', { name: /Alle to samtidig/ }));
+    expect(screen.getByText('Vi finner to ledige på én gang.')).toBeInTheDocument();
   });
 
   it('names a parent who logged in with no name by their e-mail', async () => {

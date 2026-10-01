@@ -23,7 +23,7 @@ import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../cor
 import { serviceMatches } from '../core/deep-link';
 import { stylistDisplayName } from '../core/display-name';
 import { DRAFT_MAX_AGE_MS, type WizardDraft } from '../core/draft-store';
-import { fill } from '../core/labels';
+import { fill, labelText } from '../core/labels';
 import type {
   WizardAction,
   WizardPerson,
@@ -452,7 +452,7 @@ export function useBooking(options: UseBookingOptions) {
       service: grownUp,
       note: fill(labels['wizard.suggestion.outgrown'], {
         last: last.name,
-        name: person.name ?? labels['wizard.suggestion.someone'],
+        name: person.name ?? labelText(labels['wizard.suggestion.someone']),
         next: grownUp.name,
       }),
     };
@@ -948,7 +948,7 @@ export function useBooking(options: UseBookingOptions) {
       state.items.every((item) => chosen.serviceIds.includes(item.service.id));
     if (covers) return;
     dispatch({ type: 'pickResource', resourceId: null });
-    setStylistNotice(labels['wizard.stylistGone']);
+    setStylistNotice(labelText(labels['wizard.stylistGone']));
   }, [labels, resourcesKnown, resources, state.step, state.resourceId, state.items]);
 
   /** The open dates with the cutoffs pulled back to fit the WHOLE visit (the safe direction). */
@@ -1024,11 +1024,11 @@ export function useBooking(options: UseBookingOptions) {
     notes?: string;
   }): Promise<{ ok: true; child: BookingFamilyMember } | { ok: false; message: string }> {
     const copy: Record<string, string> = {
-      invalid: labels['wizard.addChild.invalid'],
-      session: labels['wizard.addChild.session'],
-      throttled: labels['wizard.addChild.throttled'],
+      invalid: labelText(labels['wizard.addChild.invalid']),
+      session: labelText(labels['wizard.addChild.session']),
+      throttled: labelText(labels['wizard.addChild.throttled']),
     };
-    const unreachable = labels['wizard.addChild.unreachable'];
+    const unreachable = labelText(labels['wizard.addChild.unreachable']);
     try {
       const response = await fetch(`${config.paths.portalApi}/persons`, {
         method: 'POST',

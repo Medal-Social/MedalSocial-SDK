@@ -27,6 +27,7 @@ import {
 } from '@medalsocial/meda/booking';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { labelText } from '../../core/labels';
 import {
   type ActionAnswer,
   type PersonActionResult,
@@ -34,6 +35,7 @@ import {
   readAction,
 } from '../actions';
 import type { ResolvedBooking } from '../Provider';
+import { screenLabels } from '../screen-labels';
 import { agePromptCookie } from './age-prompt';
 import { bookAgainHref } from './book-again';
 import { leavePortal } from './leave';
@@ -54,7 +56,7 @@ function settleAction<T extends object, R>(
 ): R | PortalActionFailure {
   const read = readAction(answer, {
     unreachable,
-    invalidInput: booking.kit.labels['portal.invalidInput'],
+    invalidInput: labelText(booking.kit.labels['portal.invalidInput']),
   });
   if (read.ok) return ok(read.value as Ok<T>);
   return read.failure.kind === 'session'
@@ -83,10 +85,10 @@ export function PortalProfileForm({
   actions: Pick<PortalActions, 'updateProfile' | 'setMarketingConsent'>;
 }) {
   const { labels } = booking.kit;
-  const unreachable = labels['profileForm.unreachable'];
+  const unreachable = labelText(labels['profileForm.unreachable']);
   return (
     <ProfileForm
-      labels={labels}
+      labels={screenLabels(labels)}
       profile={profile}
       classNames={booking.classNames.profileForm}
       onSessionExpired={useToLogin(booking)}
@@ -148,7 +150,7 @@ export function PortalFamilyEditor({
 }) {
   const { kit } = booking;
   const settled = (answer: ActionAnswer<PersonActionResult>): PersonSaveResult =>
-    settleAction(answer, booking, kit.labels['familyEditor.unreachable'], (value) => ({
+    settleAction(answer, booking, labelText(kit.labels['familyEditor.unreachable']), (value) => ({
       ok: true,
       family: value.profile.family,
       personId: value.personId,
@@ -156,7 +158,7 @@ export function PortalFamilyEditor({
     }));
   return (
     <FamilyEditor
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       family={family}
       nouns={nouns}
@@ -203,10 +205,10 @@ export function PortalDataControls({
   /** Where a deleted visitor lands (one document load, replacing this entry). */
   deletedHref: string;
 }) {
-  const unreachable = booking.kit.labels['dataControls.unreachable'];
+  const unreachable = labelText(booking.kit.labels['dataControls.unreachable']);
   return (
     <DataControls
-      labels={booking.kit.labels}
+      labels={screenLabels(booking.kit.labels)}
       classNames={booking.classNames.dataControls}
       onSessionExpired={useToLogin(booking)}
       onExport={async () =>
@@ -234,13 +236,13 @@ export function PortalLogoutButton({
   const { labels } = booking.kit;
   return (
     <LogoutButton
-      labels={labels}
+      labels={screenLabels(labels)}
       classNames={booking.classNames.logout}
       onLogout={async () => {
         // Only an `ok` leaves: navigating away on a failure would SAY logged
         // out while the session may still be live.
         if (!readAction(await actions.logout(), { unreachable: '', invalidInput: '' }).ok) {
-          return { ok: false, message: labels['logout.unreachable'] };
+          return { ok: false, message: labelText(labels['logout.unreachable']) };
         }
         leavePortal(logoutHref);
         return { ok: true };
@@ -265,7 +267,7 @@ export function PortalVippsLinkRow({
   const { kit } = booking;
   return (
     <VippsLinkRow
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       linked={linked}
       flash={flash}
       announceSuccess={!onToast}
@@ -273,7 +275,7 @@ export function PortalVippsLinkRow({
       onStart={() => startVippsLink(null)}
       onSessionExpired={useToLogin(booking)}
       onFlash={(spent) => {
-        if (spent === 'linked') onToast?.(kit.labels['vippsLink.success']);
+        if (spent === 'linked') onToast?.(labelText(kit.labels['vippsLink.success']));
         // Spend the flash. Best effort: it lapses on its own regardless.
         void fetch(vippsFlashPath(kit.config), { method: 'DELETE', keepalive: true }).catch(
           () => undefined
@@ -304,7 +306,7 @@ export function PortalChildCards({
       variant={variant}
       empty={empty}
       stylistNames={stylistNames}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       classNames={booking.classNames.childCards}
       components={booking.components}
@@ -330,7 +332,7 @@ export function PortalRebookCards({
   return (
     <RebookCards
       suggestions={suggestions}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       classNames={booking.classNames.rebook}
       components={booking.components}
       hrefFor={(suggestion) =>

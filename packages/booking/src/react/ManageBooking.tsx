@@ -5,9 +5,10 @@ import {
   ManageScreen,
 } from '@medalsocial/meda/booking';
 import { useCallback, useMemo, useState } from 'react';
-import { fill } from '../core/labels';
+import { fill, labelText } from '../core/labels';
 import type { BookingManageDto, BookingServiceDto, BookingSlotDto } from '../core/types';
 import { type BookingOverrides, useBookingKit } from './Provider';
+import { screenLabels } from './screen-labels';
 
 const DAY_MS = 86_400_000;
 
@@ -198,7 +199,7 @@ export function ManageBooking({
   const icsHref = useMemo(() => {
     const serviceLabel =
       booking.serviceName === UNKNOWN_SERVICE
-        ? labels['manage.serviceFallback']
+        ? labelText(labels['manage.serviceFallback'])
         : booking.serviceName;
     const name = booking.bookedForName;
     const moved = booking.rescheduledFromId !== null;
@@ -227,7 +228,7 @@ export function ManageBooking({
 
   return (
     <ManageScreen
-      labels={labels}
+      labels={screenLabels(labels)}
       format={kit.format}
       dayparts={kit.dayparts}
       booking={booking}
@@ -236,7 +237,7 @@ export function ManageBooking({
       bookingHref={bookHref ?? paths.booking}
       portalHref={paths.portal}
       icsHref={icsHref}
-      icsFileName={labels['manage.ics.fileName']}
+      icsFileName={labelText(labels['manage.ics.fileName'])}
       pricing={pricing}
       reschedule={{ slots, failed }}
       onRequestSlots={loadSlots}

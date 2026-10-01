@@ -5,31 +5,33 @@
  * refused without naming a field.
  */
 
+import type { BookingLabel } from '../../core/labels';
+
 export interface PortalLabels {
   /** The small line above the greeting. */
-  'portal.eyebrow': string;
-  /** `{name}`: the visitor's first name, or `portal.greetingFallback`. */
-  'portal.greeting': string;
-  'portal.greetingFallback': string;
+  'portal.eyebrow': BookingLabel;
+  /** `{name}`: the visitor's first name, or `portal.greetingFallback`. Built in as an array, the name its own text node. */
+  'portal.greeting': BookingLabel;
+  'portal.greetingFallback': BookingLabel;
   /** The header's button into the booking flow. */
-  'portal.book': string;
+  'portal.book': BookingLabel;
   /** The tabs: the rail's label, and the bottom bar's shorter one. */
-  'portal.tab.overview': string;
-  'portal.tab.overviewShort': string;
-  'portal.tab.family': string;
-  'portal.tab.history': string;
-  'portal.tab.profile': string;
+  'portal.tab.overview': BookingLabel;
+  'portal.tab.overviewShort': BookingLabel;
+  'portal.tab.family': BookingLabel;
+  'portal.tab.history': BookingLabel;
+  'portal.tab.profile': BookingLabel;
   /** The family cards' heading, on the overview and on the family tab. */
-  'portal.family.heading': string;
+  'portal.family.heading': BookingLabel;
   /** The sentence under it on the family tab. */
-  'portal.family.lead': string;
+  'portal.family.lead': BookingLabel;
   /** A form the backend refused without saying which field. */
-  'portal.invalidInput': string;
+  'portal.invalidInput': BookingLabel;
 }
 
 export const PORTAL_LABELS_NB: PortalLabels = {
   'portal.eyebrow': 'MIN SIDE',
-  'portal.greeting': 'Hei {name}!',
+  'portal.greeting': ['Hei ', '{name}', '!'],
   'portal.greetingFallback': 'der',
   'portal.book': 'Bestill ny time',
   'portal.tab.overview': 'Oversikt',
@@ -45,7 +47,7 @@ export const PORTAL_LABELS_NB: PortalLabels = {
 
 export const PORTAL_LABELS_EN: PortalLabels = {
   'portal.eyebrow': 'MY PAGE',
-  'portal.greeting': 'Hi {name}!',
+  'portal.greeting': ['Hi ', '{name}', '!'],
   'portal.greetingFallback': 'there',
   'portal.book': 'Book an appointment',
   'portal.tab.overview': 'Overview',

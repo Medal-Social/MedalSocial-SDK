@@ -18,10 +18,11 @@ import type {
 } from '@medalsocial/meda/booking';
 import type { AgeRange } from '../../core/age';
 import { normaliseCategory } from '../../core/categories';
-import { fill } from '../../core/labels';
+import { fill, labelText } from '../../core/labels';
 import { SELF_KEY, type WizardItem, type WizardPerson, type WizardState } from '../../core/machine';
 import type { BookingFamilyMember, BookingServiceDto } from '../../core/types';
 import type { BookingKit } from '../kit';
+import type { BookingLabels } from '../labels';
 import type { BookingConfirmation, BookingSuggestion } from '../useBooking';
 import { confirmationLines, personForChild } from '../useBooking';
 
@@ -56,7 +57,7 @@ export function childLine(kit: BookingKit, child: BookingFamilyMember, dayKey: s
   if (child.lastVisit) {
     parts.push(
       fill(labels['wizard.who.lastVisit'], {
-        service: child.lastVisit.serviceName ?? labels['wizard.who.lastVisitFallback'],
+        service: child.lastVisit.serviceName ?? labelText(labels['wizard.who.lastVisitFallback']),
         date: kit.clock.date(child.lastVisit.startTs),
       })
     );
@@ -105,7 +106,7 @@ export function partyPeople(
     if (person.adult) {
       return {
         key: person.key,
-        label: person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'],
+        label: labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult']),
         adult: true,
       };
     }
@@ -188,7 +189,7 @@ export function detailsScreenBase(kit: BookingKit) {
     normalisePhone: phone.nationalDigits,
     phone: config.contact.phone,
     // A link with no words is a link nobody can name: drawn only with its text.
-    termsHref: kit.labels['details.terms.link'] ? config.consent.termsUrl : null,
+    termsHref: labelText(kit.labels['details.terms.link']) ? config.consent.termsUrl : null,
     marketingConsent: config.consent.marketing !== null,
   };
 }
@@ -251,7 +252,17 @@ export function confirmationProps(
     totalOre: wizard.totalPriceOre(items, submitted.startTs),
     address: config.contact.address,
     calendarHref,
-    calendarFileName: labels['wizard.ics.fileName'],
+    calendarFileName: labelText(labels['wizard.ics.fileName']),
     portalHref: config.paths.portal,
   };
+}
+
+/**
+ * The party size as the copy spells it (`wizard.party.sizeWord.*`), for
+ * `{sizeWord}` in the stylist step's party labels; `undefined` (meda fills in
+ * the number) where the pack leaves it blank.
+ */
+export function partySizeWord(labels: Readonly<BookingLabels>, size: number): string | undefined {
+  const suffix = size === 2 ? 'two' : size === 3 ? 'three' : 'other';
+  return labelText(labels[`wizard.party.sizeWord.${suffix}`]) || undefined;
 }

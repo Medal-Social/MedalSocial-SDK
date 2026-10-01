@@ -328,7 +328,7 @@ const schema = z
     storageNamespace: key,
     ics: z.object({ prodId: z.string().regex(/^-\/\/.+\/\/.+$/), uidDomain: z.string().min(1) }),
     monitoring: z.object({ enabled: z.boolean(), sampleRate: z.number().min(0).max(1) }),
-    labels: z.record(z.string(), z.string()).optional(),
+    labels: z.record(z.string(), z.union([z.string(), z.array(z.string())])).optional(),
   })
   .superRefine((config, ctx) => {
     const keys = config.categories.map((category) => category.key);

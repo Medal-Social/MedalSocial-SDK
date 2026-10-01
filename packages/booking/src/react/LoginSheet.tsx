@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import type { BookingGuardian } from '../core/types';
 import { type PortalActions, readStartLogin } from './actions';
 import { type BookingOverrides, useBookingKit } from './Provider';
+import { screenLabels } from './screen-labels';
 
 export type { VippsConfirm };
 
@@ -97,7 +98,7 @@ export function LoginSheet(props: LoginSheetProps) {
   const { actions } = props;
   const api = config.paths.portalApi;
   const screen = {
-    labels,
+    labels: screenLabels(labels),
     // «Sent» for every address; only a failed action is not (so the form is
     // never an oracle for who books here, and never claims a code it did not send).
     onStartLogin: async (email: string): Promise<LoginStartResult> => {
