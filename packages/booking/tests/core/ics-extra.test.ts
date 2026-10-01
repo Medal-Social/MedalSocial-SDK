@@ -10,3 +10,17 @@ describe('icsDataUrl', () => {
     expect(createIcs(PARITY_CONFIG).icsDataUrl).toBe(icsDataUrl);
   });
 });
+
+describe('buildIcs — the UID line', () => {
+  it('cannot be split into a second property by a line break in the id', () => {
+    const ics = createIcs(PARITY_CONFIG).buildIcs({
+      uid: 'bk-1\r\nATTENDEE:mailto:x@example.com',
+      startTs: 0,
+      endTs: 1,
+      summary: 'Gutteklipp',
+      stampTs: 0,
+    });
+    expect(ics).toContain('UID:bk-1ATTENDEE:mailto:x@example.com\r\n');
+    expect(ics.split('\r\n').some((line) => line.startsWith('ATTENDEE'))).toBe(false);
+  });
+});

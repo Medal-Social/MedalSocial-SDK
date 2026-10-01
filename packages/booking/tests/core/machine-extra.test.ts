@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { resolveBookingConfig } from '../../src/core/config';
 import { createWizard, initialState, type WizardService } from '../../src/core/machine';
 import { PARITY_CONFIG } from '../support/parity-config';
 
@@ -44,5 +45,33 @@ describe('reduce — the paths the component suite used to cover', () => {
       people: [{ key: 'guest:1' }, { key: 'guest:2' }],
     });
     expect(reduce(seated, { type: 'pickServiceFor', index: 5, service: GUTTEKLIPP })).toBe(seated);
+  });
+});
+
+describe('reduce — a site without parallel seating', () => {
+  const sequentialOnly = createWizard(
+    resolveBookingConfig({
+      timeZone: 'Europe/Oslo',
+      party: { allowParallel: false },
+    })
+  );
+
+  it('refuses the parallel mode and a parallel party slot, and keeps sequential ones', () => {
+    const state = sequentialOnly.reduce(initialState(), {
+      type: 'choosePeople',
+      people: [{ key: 'guest:1' }, { key: 'guest:2' }],
+    });
+    expect(sequentialOnly.reduce(state, { type: 'setPartyMode', mode: 'parallel' })).toBe(state);
+    expect(
+      sequentialOnly.reduce(state, { type: 'setPartyMode', mode: 'sequential' }).partyMode
+    ).toBe('sequential');
+    expect(
+      sequentialOnly.reduce(state, {
+        type: 'pickPartySlot',
+        startTs: 1,
+        resourceIds: [],
+        mode: 'parallel',
+      })
+    ).toBe(state);
   });
 });

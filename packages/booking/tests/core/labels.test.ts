@@ -22,6 +22,9 @@ describe('labels', () => {
 
   it('gives both packs the same keys for the core', () => {
     const core = (pack: object) => Object.keys(pack).filter((key) => !key.startsWith('daypart.'));
+    // Every Norwegian default day part has English words as well.
+    const parts = (pack: object) => Object.keys(pack).filter((key) => key.startsWith('daypart.'));
+    expect(parts(LABEL_PACKS.en)).toEqual(expect.arrayContaining(parts(LABEL_PACKS.nb)));
     expect(core(LABEL_PACKS.en).sort()).toEqual(core(LABEL_PACKS.nb).sort());
   });
 
@@ -29,5 +32,13 @@ describe('labels', () => {
     expect(fill('{count} barn', { count: 2 })).toBe('2 barn');
     expect(fill('{min}–{max} år', { min: 7, max: 8 })).toBe('7–8 år');
     expect(fill('{nope} {count}', { count: 1 })).toBe('{nope} 1');
+  });
+});
+
+describe('labels — the default day parts in English', () => {
+  it('names the Norwegian default keys in the en pack too', () => {
+    expect(LABEL_PACKS.en['daypart.formiddag']).toBe('Morning');
+    expect(LABEL_PACKS.en['daypart.ettermiddag']).toBe('Afternoon');
+    expect(LABEL_PACKS.en['daypart.kveld']).toBe('Evening');
   });
 });

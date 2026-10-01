@@ -91,6 +91,10 @@ const EN: BookingLabels = {
   'daypart.morning': 'Morning',
   'daypart.afternoon': 'Afternoon',
   'daypart.evening': 'Evening',
+  // The default day parts keep their Norwegian keys in any locale.
+  'daypart.formiddag': 'Morning',
+  'daypart.ettermiddag': 'Afternoon',
+  'daypart.kveld': 'Evening',
 };
 
 /** The built-in packs, by language subtag. */

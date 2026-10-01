@@ -66,6 +66,28 @@ export function restorePendingInStorage(
 /** How long the pre-hydration gate may hide step 1 before it gives up. */
 export const RESTORE_FALLBACK_MS = 10_000;
 
+/** The characters that can end or bend an inline `<script>` from inside a string literal. */
+const SCRIPT_UNSAFE: Readonly<Record<string, string>> = {
+  '<': '\\u003C',
+  '>': '\\u003E',
+  '/': '\\u002F',
+  '\u2028': '\\u2028',
+  '\u2029': '\\u2029',
+};
+
+/**
+ * A value as a JavaScript literal that is safe INSIDE an HTML `<script>`.
+ *
+ * `JSON.stringify` alone is a valid literal but not a safe one: a root id
+ * holding `</script>` would end the element mid-string, and U+2028/U+2029 end
+ * a line in older parsers. Escaping them as `\uXXXX` keeps the value exactly
+ * the same once the script runs — the storage keys and ids this site passes
+ * contain none of them, so the emitted script is unchanged for them.
+ */
+function scriptLiteral(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>/\u2028\u2029]/g, (char) => SCRIPT_UNSAFE[char]);
+}
+
 function restoreGateScript(
   namespace: string,
   rootId: string,
@@ -79,8 +101,8 @@ function restoreGateScript(
     DRAFT_MAX_AGE_MS,
     prefilled,
     resuming,
-  ].map((value) => JSON.stringify(value));
-  const id = JSON.stringify(rootId);
+  ].map(scriptLiteral);
+  const id = scriptLiteral(rootId);
   // The fallback: if React has not taken the root over (`data-hydrated`)
   // within RESTORE_FALLBACK_MS — a script error, a stalled bundle — step 1 is
   // shown again rather than a skeleton for ever.

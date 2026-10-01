@@ -32,9 +32,8 @@ describe('paths', () => {
 
   it('has no portal to recognise when the site has none', () => {
     const none = createPaths(resolveBookingConfig({ timeZone: 'UTC', paths: { portal: null } }));
-    expect(none.isPortalPath('/min-side')).toBe(true);
-    const off = createPaths({ paths: { ...PARITY_CONFIG.paths, portal: null } });
-    expect(off.isPortalPath('/min-side')).toBe(false);
+    expect(none.isPortalPath('/min-side')).toBe(false);
+    expect(none.isManagePath('/bestill/administrer/tok')).toBe(true);
   });
 
   it('treats a dot in a configured path as a dot', () => {

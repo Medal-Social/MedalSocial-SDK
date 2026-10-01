@@ -40,15 +40,16 @@ describe('resolveBookingConfig', () => {
     expect(config.dayparts.map((part) => part.key)).toEqual(['formiddag', 'ettermiddag', 'kveld']);
   });
 
-  it('merges objects key by key, replaces arrays, and keeps a default for null', () => {
+  it('merges objects key by key, replaces arrays, and keeps a default only for undefined', () => {
     const config = resolveBookingConfig({
       timeZone: 'Europe/Oslo',
       paths: { booking: '/book', portal: null },
       dayparts: [{ key: 'all', from: 0, to: 24 }],
-      contact: null,
+      contact: undefined,
     });
     expect(config.paths).toMatchObject({ booking: '/book', manage: '/bestill/administrer' });
-    expect(config.paths.portal).toBe('/min-side');
+    // `null` is an answer: this site has no portal.
+    expect(config.paths.portal).toBeNull();
     expect(config.dayparts).toEqual([{ key: 'all', from: 0, to: 24 }]);
     expect(config.contact).toEqual({ phone: null, address: null, name: '' });
     // The return path follows the booking page it was given.
@@ -153,6 +154,30 @@ describe('resolveBookingConfig', () => {
       'an enabled portal with no way in',
       { timeZone: 'UTC', portal: { enabled: true, methods: [] } },
       'portal.methods: an enabled portal needs a login method',
+    ],
+    [
+      'a category key with capitals, which a lower-cased link value never matches',
+      {
+        timeZone: 'UTC',
+        categories: [{ key: 'Annet', audience: 'any' }],
+        fallbackCategory: 'Annet',
+      },
+      'categories.0.key: must be 1–64 lower-case word characters',
+    ],
+    [
+      'a who value with capitals',
+      { timeZone: 'UTC', whoValues: { child: 'Barn', adult: 'voksen' } },
+      'whoValues.child: must be 1–64 lower-case word characters',
+    ],
+    [
+      'a return prefix that does not end at a segment',
+      { timeZone: 'UTC', portal: { returnPaths: { exact: [], prefixes: ['/flow'] } } },
+      'portal.returnPaths.prefixes.0: a prefix must end with /',
+    ],
+    [
+      'a non-nullable section set to null',
+      { timeZone: 'UTC', contact: null as never },
+      'contact: Invalid input: expected object, received null',
     ],
     [
       'a binding cookie without the __Host- prefix',

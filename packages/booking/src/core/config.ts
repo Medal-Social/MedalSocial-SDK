@@ -118,6 +118,12 @@ export interface BookingConfig {
   };
   /** Namespaces browser storage keys: `<ns>:booking:draft`, … */
   storageNamespace: string;
+  /**
+   * `prodId` stamps every calendar file. `uidDomain` is for UIDs the package
+   * mints itself (`/react`, 0.1.0); a booking id passed in as `uid` is used as
+   * is, so a calendar entry made before a site moved onto the package is still
+   * the same entry after it.
+   */
   ics: { prodId: string; uidDomain: string };
   monitoring: { enabled: boolean; sampleRate: number };
   /** Copy, merged over the built-in pack for `locale`. */
@@ -127,7 +133,7 @@ export interface BookingConfig {
 type DeepPartial<T> = T extends readonly unknown[]
   ? T
   : T extends object
-    ? { [K in keyof T]?: DeepPartial<T[K]> | null }
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
     : T;
 
 /** What a site passes: `timeZone`, and whatever it wants to change. */
@@ -195,9 +201,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Objects merge key by key; arrays and scalars replace. `undefined` and `null` keep the default. */
+/**
+ * Objects merge key by key; arrays, scalars and `null` replace. Only
+ * `undefined` keeps the default — `paths.portal: null` means «no portal».
+ */
 function merge(base: unknown, patch: unknown): unknown {
-  if (patch === undefined || patch === null) return base;
+  if (patch === undefined) return base;
   if (!isRecord(base) || !isRecord(patch)) return patch;
   const out: Record<string, unknown> = { ...base };
   for (const [key, value] of Object.entries(patch)) out[key] = merge(base[key], value);
@@ -223,6 +232,10 @@ function validLocale(value: string): boolean {
 
 const path = z.string().regex(/^\/[^\s?#]*$/, 'must be a root-relative path');
 const key = z.string().regex(/^[\w-]{1,64}$/, 'must be 1–64 word characters');
+/** Group keys and `?hvem=` values are matched against a lower-cased query value. */
+const lowerKey = z.string().regex(/^[a-z0-9_-]{1,64}$/, 'must be 1–64 lower-case word characters');
+/** A prefix must end at a segment boundary, or `/flow` would also admit `/flow-evil`. */
+const prefix = path.refine((value) => value.endsWith('/'), 'a prefix must end with /');
 /** RFC 6265 token characters, which is every name a browser keeps intact. */
 const cookieName = z.string().regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,128}$/);
 
@@ -255,19 +268,22 @@ const schema = z
       rebookService: key,
       rebookStylist: key,
     }),
-    whoValues: z.object({ child: key, adult: key }),
+    whoValues: z.object({ child: lowerKey, adult: lowerKey }),
     categories: z
       .array(
         z.object({
-          key,
+          key: lowerKey,
           audience: z.enum(['child', 'adult', 'any']),
           adultEquivalent: z
-            .union([key, z.array(z.object({ nameIncludes: z.string().min(1), category: key }))])
+            .union([
+              lowerKey,
+              z.array(z.object({ nameIncludes: z.string().min(1), category: lowerKey })),
+            ])
             .optional(),
         })
       )
       .min(1),
-    fallbackCategory: key,
+    fallbackCategory: lowerKey,
     party: z.object({
       maxPeople: z.number().int().min(1).max(20),
       allowParallel: z.boolean(),
@@ -276,7 +292,7 @@ const schema = z
     window: z.object({
       rangeDays: z.number().int().min(1).max(62),
       prefetchLimit: z.number().int().min(0).max(20),
-      prefetchCategory: key.nullable(),
+      prefetchCategory: lowerKey.nullable(),
     }),
     dayparts: z
       .array(
@@ -303,7 +319,7 @@ const schema = z
         'must carry the __Host- prefix'
       ),
       vippsLinkCookieName: cookieName,
-      returnPaths: z.object({ exact: z.array(path), prefixes: z.array(path) }),
+      returnPaths: z.object({ exact: z.array(path), prefixes: z.array(prefix) }),
     }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),

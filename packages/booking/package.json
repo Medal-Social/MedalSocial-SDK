@@ -51,7 +51,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "node scripts/ensure-sdk-types.mjs && tsdown",
     "dev": "tsdown --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",

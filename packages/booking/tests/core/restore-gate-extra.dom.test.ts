@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { restorePendingInStorage } from '../../src/core/restore-gate';
+import { createRestoreGate, restorePendingInStorage } from '../../src/core/restore-gate';
 
 const ATTEMPT = 'gate:attempt';
 const DRAFT = 'gate:draft';
@@ -54,5 +54,33 @@ describe('restorePendingInStorage', () => {
     expect(ask(false, true)).toBe(false);
     put(DRAFT, { items: [{}] });
     expect(ask(false, true)).toBe(false);
+  });
+});
+
+describe('restoreGateScript — safe inside an inline <script>', () => {
+  const { restoreGateScript } = createRestoreGate('gate');
+
+  it('escapes what could end the element or a line, and still finds the same root', () => {
+    const rootId = 'root</script><img src=x>\u2028\u2029/';
+    const script = restoreGateScript(rootId, false, false);
+    // The gate's own source has `<=` and `=>`; what must not appear is the id's markup.
+    expect(script).not.toContain('</');
+    expect(script).not.toContain('<img');
+    expect(script).not.toMatch(/\u2028|\u2029/);
+    expect(script).toContain('root\\u003C\\u002Fscript\\u003E');
+
+    put('gate:booking:attempt', { nonce: 'n', at: Date.now(), pending: {} });
+    const root = document.createElement('div');
+    root.id = rootId;
+    document.body.append(root);
+    expect(new Function(`return ${script}`)()).toBe(true);
+    expect(root.hasAttribute('data-restoring')).toBe(true);
+    root.remove();
+  });
+
+  it('emits plain JSON literals for ordinary ids and keys', () => {
+    const script = restoreGateScript('booking-root', true, false);
+    expect(script).toContain('"gate:booking:attempt"');
+    expect(script).toContain('document.getElementById("booking-root")');
   });
 });

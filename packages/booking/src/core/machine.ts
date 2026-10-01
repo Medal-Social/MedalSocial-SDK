@@ -1170,6 +1170,9 @@ export function createWizard(config: WizardConfig): Wizard {
         };
 
       case 'setPartyMode': {
+        // A site that seats families one after another only (`party.allowParallel`)
+        // has no parallel mode to switch to.
+        if (action.mode === 'parallel' && !config.party.allowParallel) return state;
         // «To frisører samtidig» and «jeg vil til Sara» cannot both be true — one
         // stylist cannot cut two children at once — so choosing the parallel mode
         // drops the named preference rather than leaving step 2 showing a stylist
@@ -1192,6 +1195,7 @@ export function createWizard(config: WizardConfig): Wizard {
       }
 
       case 'pickPartySlot':
+        if (action.mode === 'parallel' && !config.party.allowParallel) return state;
         // A seating chart that names a different number of children than the
         // basket holds is the caller's bug, and gets the answer `setItemField`
         // gives one: the identical object. Booking on it would submit a stylist

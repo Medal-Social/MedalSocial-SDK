@@ -18,7 +18,8 @@
     "types": [],
     // Typecheck against the SDK's source, so `pnpm typecheck` needs no build
     // first. The declaration build (tsconfig.build.json) drops this and
-    // resolves the built package, keeping `@medalsocial/sdk` an import.
+    // resolves the built package, keeping `@medalsocial/sdk` an import and
+    // keeping tsc from writing declarations into packages/sdk/src.
     "paths": { "@medalsocial/sdk": ["../sdk/src/index.ts"] }
   },
   "include": ["src"]

@@ -43,8 +43,11 @@ and is never published.
   Next, `server-only` or meda (Biome `noRestrictedImports` +
   `tests/core/boundary.test.ts`; `verify:paths` also imports the built
   `dist/core` in bare Node). Its typecheck maps `@medalsocial/sdk` onto
-  `../sdk/src` so no build is needed first; the declaration build
-  (`tsconfig.build.json`) resolves the built SDK instead. Size budgets:
+  `../sdk/src` so no build is needed first. The declaration build
+  (`tsconfig.build.json`) resolves the BUILT SDK instead — mapping the source
+  there makes tsc write `.d.ts` files into `packages/sdk/src` — and
+  `scripts/ensure-sdk-types.mjs` builds the SDK first when its types are
+  missing. Size budgets:
   `pnpm --filter @medalsocial/booking run size:budget` (CI `build` job).
   It stays `"private": true` — so `changeset publish` skips it — until the
   release PR for 0.1.0 removes the flag; its changesets accumulate until then.

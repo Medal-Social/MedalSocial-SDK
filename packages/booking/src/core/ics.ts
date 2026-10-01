@@ -124,7 +124,9 @@ function textProperty(name: string, value: string | undefined): string | null {
 function eventLines(event: IcsEvent): (string | null)[] {
   return [
     'BEGIN:VEVENT',
-    `UID:${event.uid}`,
+    // UID is not TEXT, so it has no escape: a line break in one would start a
+    // property of its own. Booking ids never hold one; nothing here relies on it.
+    `UID:${event.uid.replace(/[\r\n]/g, '')}`,
     `SEQUENCE:${event.sequence ?? 0}`,
     `DTSTAMP:${utcStamp(event.stampTs ?? Date.now())}`,
     `DTSTART:${utcStamp(event.startTs)}`,
