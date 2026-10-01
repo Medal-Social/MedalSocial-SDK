@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { RESOURCE_ID_SHAPE } from '../../core/dto';
 import { earliestOpening } from '../../core/next-available';
 import type { MedalResource } from '../../core/wire';
+import { DEFAULT_AVATAR_HOSTS } from '../options';
 import type { BookingRuntime } from '../runtime';
 import { bookingErrorResponse, catalogueErrorResponse, knownServiceId, parseRange } from './shared';
 
@@ -239,18 +240,62 @@ function etagFor(objectKey: string): string {
 }
 
 /**
- * The object, without the signature: origin and path.
+ * Names that never leave the machine or the private network, whatever a site
+ * lists: a photo fetched from one of them would be this server probing its own
+ * neighbourhood on behalf of whoever can edit a stylist's photo.
+ */
+const INTERNAL_NAME = /(^|\.)(localhost|local|internal|intranet|lan|home\.arpa)$/;
+/** WHATWG URL normalises every IPv4 spelling (`2130706433`, `0x7f.1`) to dotted quads. */
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/** Whether `hostname` (already lower-cased by `URL`) is one the site allows. */
+function allowedPhotoHost(hostname: string, allowed: readonly string[]): boolean {
+  // An IPv6 literal, an IPv4 one, a single label or an internal name: never.
+  if (hostname.startsWith('[') || IPV4.test(hostname) || !hostname.includes('.')) return false;
+  if (INTERNAL_NAME.test(hostname)) return false;
+  return allowed.some((entry) => {
+    const pattern = entry.trim().toLowerCase();
+    if (pattern.startsWith('*.')) {
+      const suffix = pattern.slice(1);
+      // `*.` alone, or `*.com`, would be every host there is.
+      return suffix.lastIndexOf('.') > 0 && hostname.endsWith(suffix);
+    }
+    return pattern.length > 0 && hostname === pattern;
+  });
+}
+
+/**
+ * The object, without the signature: origin and path. `null` for a URL this
+ * server will not fetch — anything but `https:` on the default port, with no
+ * credentials, on a host the site allows (`options.avatarHosts`).
  *
  * ASSUMPTION: the ETag is only a content validator because Medal stores each
  * uploaded avatar under a fresh key, so a new photo is a new path.
  */
-function objectKeyOf(photoUrl: string): string | null {
+function objectKeyOf(photoUrl: string, allowed: readonly string[]): string | null {
+  let url: URL;
   try {
-    const url = new URL(photoUrl);
-    return url.protocol === 'https:' ? `${url.origin}${url.pathname}` : null;
+    url = new URL(photoUrl);
   } catch {
     return null;
   }
+  if (url.protocol !== 'https:' || url.port !== '' || url.username !== '' || url.password !== '') {
+    return null;
+  }
+  return allowedPhotoHost(url.hostname, allowed) ? `${url.origin}${url.pathname}` : null;
+}
+
+/**
+ * The raster formats a stylist photo may be. Anything else — SVG above all,
+ * and HTML or a missing type — is refused rather than served from this
+ * origin, where it would be the site's own active content.
+ */
+const RASTER_TYPES = new Set(['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp']);
+
+/** `Image/PNG; charset=…` → `image/png`; `null` for a type that is not on the list. */
+function rasterType(header: string | null): string | null {
+  const type = (header ?? '').split(';')[0].trim().toLowerCase();
+  return RASTER_TYPES.has(type) ? type : null;
 }
 
 function etagMatches(header: string | null, etag: string): boolean {
@@ -286,8 +331,14 @@ export async function avatarRoute(
     rt.logger.warn({ err: error, resourceId }, 'Could not read the stylists for an avatar');
     return uncached(502);
   }
-  const objectKey = photoUrl ? objectKeyOf(photoUrl) : null;
-  if (!photoUrl || objectKey === null) return uncached(404);
+  const objectKey = photoUrl
+    ? objectKeyOf(photoUrl, rt.options.avatarHosts ?? DEFAULT_AVATAR_HOSTS)
+    : null;
+  if (!photoUrl || objectKey === null) {
+    if (photoUrl)
+      rt.logger.warn({ resourceId }, 'Stylist photo is on a host this site does not allow');
+    return uncached(404);
+  }
 
   const etag = etagFor(objectKey);
   if (etagMatches(request.headers.get('If-None-Match'), etag)) {
@@ -301,18 +352,24 @@ export async function avatarRoute(
   try {
     upstream = await fetch(photoUrl, {
       cache: 'no-store',
+      // A redirect is answered, never followed: its target was not checked
+      // against the allowed hosts. A 3xx is not `ok`, so it is a 502 below.
+      redirect: 'manual',
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch (error) {
     rt.logger.warn({ err: error, resourceId }, 'Could not fetch a stylist photo');
     return uncached(502);
   }
-  const contentType = upstream.headers.get('Content-Type') ?? '';
-  // Only images are relayed. Whatever the bucket answers is served from THIS
-  // origin, and an HTML or SVG body here would be script on the site.
-  if (!upstream.ok || !contentType.startsWith('image/') || contentType.includes('svg')) {
+  const contentType = rasterType(upstream.headers.get('Content-Type'));
+  // Only raster images are relayed. Whatever the bucket answers is served from
+  // THIS origin, and an HTML or SVG body here would be script on the site.
+  if (!upstream.ok || contentType === null) {
     if (upstream.ok) {
-      rt.logger.warn({ resourceId, contentType }, 'Stylist photo is not a raster image');
+      rt.logger.warn(
+        { resourceId, contentType: upstream.headers.get('Content-Type') },
+        'Stylist photo is not a raster image'
+      );
     }
     await upstream.body?.cancel();
     return uncached(502);
@@ -325,6 +382,9 @@ export async function avatarRoute(
       'Cache-Control': AVATAR_CACHE_CONTROL,
       ETag: etag,
       'X-Content-Type-Options': 'nosniff',
+      // Belt and braces for a body opened as a document: no script, no
+      // subresource, a unique origin.
+      'Content-Security-Policy': "default-src 'none'; sandbox",
     },
   });
 }

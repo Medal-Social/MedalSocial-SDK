@@ -57,7 +57,7 @@ export type {
   BookingTimingPhase,
   PortalMessages,
 } from './options';
-export { DEFAULT_EDGE_PREFIX, DEFAULT_PORTAL_MESSAGES } from './options';
+export { DEFAULT_AVATAR_HOSTS, DEFAULT_EDGE_PREFIX, DEFAULT_PORTAL_MESSAGES } from './options';
 export type {
   InvalidInput,
   PersonActionResult,

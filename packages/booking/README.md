@@ -193,6 +193,13 @@ export const { GET, POST, DELETE } = booking.handler;
   holds services, stylists, hours and free slots. On Node use
   `memoryCacheAdapter()` for both. Every adapter keeps one contract
   (`tests/next/cache/contract.test.ts`).
+- **Stylist photos.** `/api/booking/avatar/<id>` fetches a stylist's photo
+  server-side and serves it from the site with a day of browser cache. It
+  fetches only from `avatarHosts` (exact names or `*.` suffixes; default
+  `DEFAULT_AVATAR_HOSTS`, Medal's photo storage and Google profile pictures),
+  over `https:` on the default port, never from an IP address or internal
+  name and never through a redirect, and it relays only JPEG, PNG, WebP, AVIF
+  and GIF. A photo anywhere else falls back to the stylist's initials.
 - `examples/next-booking` is a runnable site on plain `next start`.
 
 ## Development

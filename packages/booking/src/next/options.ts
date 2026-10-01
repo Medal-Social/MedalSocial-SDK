@@ -132,7 +132,27 @@ export interface BookingServerOptions {
   baseUrl?: string | (() => string | undefined);
   /** The portal's server-side switches. Every field has a default. */
   portal?: BookingPortalServerOptions;
+  /**
+   * The hosts the avatar route may fetch a stylist photo from: an exact
+   * hostname (`images.example.com`) or a `*.` suffix (`*.example.com`, which
+   * matches every subdomain but not the apex). Default
+   * `DEFAULT_AVATAR_HOSTS` — Medal's photo storage and Google profile
+   * pictures. Whatever is listed, the route only fetches `https:` on the
+   * default port, never an IP address, `localhost` or an internal name, and
+   * never follows a redirect.
+   */
+  avatarHosts?: readonly string[];
 }
+
+/**
+ * Where Medal's `photo_url` points: presigned Cloudflare R2 objects (Medal's
+ * own photo storage) and, for a stylist linked to a member with no photo of
+ * their own, that member's Google profile picture.
+ */
+export const DEFAULT_AVATAR_HOSTS: readonly string[] = Object.freeze([
+  '*.r2.cloudflarestorage.com',
+  '*.googleusercontent.com',
+]);
 
 export interface BookingPortalServerOptions {
   /**
