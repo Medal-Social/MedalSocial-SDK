@@ -75,7 +75,24 @@ describe('guard-publish', () => {
 
   it('is what the package runs before every publish, and asks npm for provenance', () => {
     const pkg = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8'));
-    expect(pkg.scripts.prepublishOnly).toMatch(/^node scripts\/guard-publish\.mjs && /);
+    expect(pkg.scripts.prepublishOnly).toBe('node scripts/guard-publish.mjs');
     expect(pkg.publishConfig).toEqual({ access: 'public', provenance: true });
+  });
+
+  /**
+   * Pre-release review: `prepublishOnly` rebuilt and re-verified the package
+   * the root `release` script had just built and verified. The guard is all
+   * it runs now, so the build and the path check before `changeset publish`
+   * are what a published tarball relies on.
+   */
+  it('leaves the build and the path check to the root release script', () => {
+    const root = JSON.parse(readFileSync(join(__dirname, '../../../../package.json'), 'utf8'));
+    const steps = (root.scripts.release as string).split(' && ');
+    const build = steps.indexOf("pnpm -r --filter './packages/*' build");
+    const verify = steps.indexOf("pnpm -r --filter './packages/*' verify:paths");
+    const publish = steps.indexOf('changeset publish');
+    expect(build).toBeGreaterThanOrEqual(0);
+    expect(verify).toBeGreaterThan(build);
+    expect(publish).toBeGreaterThan(verify);
   });
 });
