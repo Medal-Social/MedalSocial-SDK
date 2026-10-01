@@ -140,7 +140,7 @@ export function BookingProvider({
       config: config ?? parent?.config,
       labels:
         parent?.labels && labels ? { ...parent.labels, ...labels } : (labels ?? parent?.labels),
-      classNames: { ...parent?.classNames, ...classNames },
+      classNames: mergeClassNames(parent?.classNames, classNames),
       components: { ...parent?.components, ...components },
     }),
     [config, labels, classNames, components, parent]

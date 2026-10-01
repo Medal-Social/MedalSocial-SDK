@@ -54,6 +54,17 @@ describe('BookingProvider and useBookingKit', () => {
     expect(classNames.service).toEqual({ root: 'svc' });
   });
 
+  it('merges a nested provider’s slot classes slot by slot, not screen by screen', () => {
+    const { result } = renderHook(() => useBookingKit({}), {
+      wrapper: ({ children }) => (
+        <BookingProvider config={PARITY_CONFIG} classNames={{ time: { chip: 'a', root: 'r' } }}>
+          <BookingProvider classNames={{ time: { chip: 'b' } }}>{children}</BookingProvider>
+        </BookingProvider>
+      ),
+    });
+    expect(result.current.classNames.time).toEqual({ chip: 'b', root: 'r' });
+  });
+
   it('takes a provider’s labels when the inner one names none', () => {
     const { result } = renderHook(() => useBookingKit({}), {
       wrapper: ({ children }) => (
