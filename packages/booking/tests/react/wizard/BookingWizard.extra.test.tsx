@@ -28,7 +28,11 @@ import type {
 } from '../../../src/core/types';
 import { BookingWizard, type BookingWizardProps } from '../../../src/react/BookingWizard';
 import { BookingProvider } from '../../../src/react/Provider';
-import { confirmationLines, useBooking } from '../../../src/react/useBooking';
+import {
+  confirmationLines,
+  isCompleteConfirmation,
+  useBooking,
+} from '../../../src/react/useBooking';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
 import { pinAForeignViewerClock } from '../../support/viewer-clock';
@@ -323,6 +327,24 @@ describe('BookingWizard — the package props', () => {
     expect(onEvent).toHaveBeenCalledWith({ type: 'submit_ok', bookings: 1 });
   });
 
+  it('gives each line’s calendar entry its own booking id as the UID', async () => {
+    stubApi();
+    attempts.rememberConfirmed(attempts.readAttempt(), {
+      bookings: [
+        { id: 'bk-theo', manageHref: null },
+        { id: 'bk-mia', manageHref: null },
+      ],
+      submitted: SUBMITTED(['Theo', 'Mia']),
+    });
+    render(wizard());
+    const link = await screen.findByRole('link', { name: 'Legg til i kalender' });
+    const ics = decodeURIComponent(link.getAttribute('href') ?? '').replace(/\r\n /g, '');
+    expect(ics.match(/^UID:.*$/gm)?.map((uid) => uid.split('@')[0])).toEqual([
+      'UID:bk-theo',
+      'UID:bk-mia',
+    ]);
+  });
+
   it('writes the manage link into the calendar file absolute, with the address', async () => {
     stubApi();
     attempts.rememberConfirmed(attempts.readAttempt(), {
@@ -470,15 +492,71 @@ describe('useBooking — the corners', () => {
     ...extra,
   });
 
-  it('zips a short answer onto the basket without lending a sibling its manage link', () => {
+  it('zips each line to its OWN booking, and leaves out a line the answer has none for', () => {
     const lines = confirmationLines({
       bookings: [{ id: 'bk-1', manageHref: '/m/1' }],
       submitted: { ...SUBMITTED(['Theo', 'Mia']), stylistNames: [] },
     });
     expect(lines.map((line) => [line.bookingId, line.manageHref, line.stylistName])).toEqual([
       ['bk-1', '/m/1', null],
-      ['bk-1', null, null],
     ]);
+    expect(confirmationLines({ bookings: [], submitted: SUBMITTED(['Theo']) })).toEqual([]);
+  });
+
+  it.each([
+    ['one per line', [{ id: 'a' }, { id: 'b' }], 2, true],
+    ['none', [], 2, false],
+    ['none for no lines', [], 0, false],
+    ['fewer', [{ id: 'a' }], 2, false],
+    ['more', [{ id: 'a' }, { id: 'b' }, { id: 'c' }], 2, false],
+    ['an empty id', [{ id: 'a' }, { id: '' }], 2, false],
+    ['an id that is not a string', [{ id: 'a' }, { id: 7 }], 2, false],
+    ['a null entry', [{ id: 'a' }, null], 2, false],
+    ['no array', null, 1, false],
+  ])('reads %s as a whole answer: %s', (_name, bookings, count, whole) => {
+    expect(isCompleteConfirmation(bookings as never, count as number)).toBe(whole);
+  });
+
+  it('refuses a 201 one booking short of the basket, and keeps the attempt pending', async () => {
+    stubApi({ create: { status: 201, body: { bookings: [{ id: 'bk-1', manageToken: 't1' }] } } });
+    location.search = '?resume=1';
+    drafts.stashDraft({
+      items: [
+        { serviceId: KIDS.id, bookedForName: 'Theo', bookedForBirthYear: 2019, adult: false },
+        { serviceId: KIDS.id, bookedForName: 'Mia', bookedForBirthYear: 2023, adult: false },
+      ],
+      resourceId: null,
+      partyMode: 'sequential',
+      startTs: osloTs(2, 13),
+      resolvedResourceId: BJARNE.id,
+      partyResourceIds: null,
+    });
+    const { result } = renderHook(() => useBooking(options()));
+    await waitFor(() => expect(result.current.state.items).toHaveLength(2));
+    await act(() =>
+      result.current.submit({
+        items: [],
+        contact: { phone: '' },
+        consentTerms: true,
+        consentMarketing: false,
+      })
+    );
+    expect(result.current.state.error).toBe('upstreamError');
+    expect(result.current.confirmed).toBeNull();
+    expect(attempts.readAttempt().pending).toBeDefined();
+    expect(attempts.readAttempt().confirmed).toBeUndefined();
+  });
+
+  it('forgets a remembered confirmation that is not one booking per line', async () => {
+    stubApi();
+    attempts.rememberConfirmed(attempts.readAttempt(), {
+      bookings: [{ id: 'bk-1', manageHref: null }],
+      submitted: SUBMITTED(['Theo', 'Mia']),
+    });
+    const { result } = renderHook(() => useBooking(options()));
+    await waitFor(() => expect(result.current.restore.restoring).toBe(false));
+    expect(result.current.confirmed).toBeNull();
+    expect(attempts.readAttempt().confirmed).toBeUndefined();
   });
 
   it('reads no link when there is no router to ask', () => {
@@ -695,6 +773,123 @@ describe('useBooking — the corners', () => {
     expect(result.current.state.partyMode).toBe('parallel');
     expect(result.current.state.items.map((item) => item.bookedForName)).toEqual(['Theo', 'Mia']);
     expect(result.current.state.partyResourceIds).toEqual([BJARNE.id, OLA.id]);
+  });
+
+  const familyDraft = (items: Array<Record<string, unknown>>) =>
+    drafts.stashDraft({
+      items: items.map((item) => ({
+        serviceId: KIDS.id,
+        bookedForName: null,
+        bookedForBirthYear: null,
+        adult: false,
+        ...item,
+      })),
+      resourceId: null,
+      partyMode: 'sequential',
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    });
+
+  it('keeps the saved child’s person id in the draft it writes', async () => {
+    stubApi();
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    act(() =>
+      result.current.people.choosePeople(
+        [{ key: 'p:p-theo', name: 'Theo', birthYear: 2019, personId: 'p-theo' }],
+        true
+      )
+    );
+    act(() => result.current.pickService(KIDS));
+    await waitFor(() => expect(result.current.state.step).toBe('when'));
+    const stored = JSON.parse(String(window.sessionStorage.getItem(drafts.DRAFT_STORAGE_KEY)));
+    expect(stored.items).toEqual([
+      expect.objectContaining({ serviceId: KIDS.id, bookedForName: 'Theo', personId: 'p-theo' }),
+    ]);
+  });
+
+  it('reseats a parent’s own child from the draft by person id', async () => {
+    stubApi();
+    location.search = '?resume=1';
+    familyDraft([
+      { bookedForName: 'Theo', bookedForBirthYear: 2019, personId: 'p-theo' },
+      { serviceId: SMALL.id, bookedForName: 'Mia', bookedForBirthYear: 2023 },
+    ]);
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    await waitFor(() => expect(result.current.restore.restoring).toBe(false));
+    const { people, items } = result.current.state;
+    expect(people.map((person) => person.key)).toEqual(['p:p-theo', 'guest:2']);
+    expect(
+      items.map((item) => [item.service.id, item.bookedForPersonId, item.bookedForName])
+    ).toEqual([
+      [KIDS.id, 'p-theo', 'Theo'],
+      [SMALL.id, undefined, 'Mia'],
+    ]);
+    expect(result.current.state.step).toBe('when');
+  });
+
+  it('never reseats a person id the parent’s family does not have', async () => {
+    stubApi();
+    location.search = '?resume=1';
+    familyDraft([{ bookedForName: 'Theo', bookedForBirthYear: 2019, personId: 'p-stranger' }]);
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    await waitFor(() => expect(result.current.restore.restoring).toBe(false));
+    expect(result.current.state.people.map((person) => person.key)).toEqual(['guest:1']);
+    expect(result.current.state.items).toEqual([
+      {
+        service: expect.objectContaining({ id: KIDS.id }),
+        bookedForName: 'Theo',
+        bookedForBirthYear: 2019,
+      },
+    ]);
+  });
+
+  it('seats one child once when two lines name the same id', async () => {
+    stubApi();
+    location.search = '?resume=1';
+    familyDraft([
+      { bookedForName: 'Theo', personId: 'p-theo' },
+      { bookedForName: 'Theo', personId: 'p-theo' },
+    ]);
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    await waitFor(() => expect(result.current.restore.restoring).toBe(false));
+    expect(result.current.state.people.map((person) => person.key)).toEqual([
+      'p:p-theo',
+      'guest:2',
+    ]);
+    expect(result.current.state.items.map((item) => item.bookedForPersonId)).toEqual([
+      'p-theo',
+      undefined,
+    ]);
+  });
+
+  it('restores a draft written before person ids exactly as before', async () => {
+    stubApi();
+    location.search = '?resume=1';
+    const legacy = {
+      items: [
+        { serviceId: KIDS.id, bookedForName: 'Theo', bookedForBirthYear: 2019, adult: false },
+      ],
+      resourceId: null,
+      partyMode: 'sequential',
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+      savedAt: NOW,
+    };
+    window.sessionStorage.setItem(drafts.DRAFT_STORAGE_KEY, JSON.stringify(legacy));
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    await waitFor(() => expect(result.current.restore.restoring).toBe(false));
+    expect(result.current.state.people).toEqual([
+      { key: 'guest:1', name: 'Theo', birthYear: 2019 },
+    ]);
+    expect(result.current.state.items).toEqual([
+      {
+        service: expect.objectContaining({ id: KIDS.id }),
+        bookedForName: 'Theo',
+        bookedForBirthYear: 2019,
+      },
+    ]);
   });
 
   it('rebuilds a grown-up guest’s draft as the grown-up, first available', async () => {

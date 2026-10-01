@@ -120,9 +120,13 @@ beforeEach(() => {
   vi.mocked(createBooking).mockReset();
   vi.mocked(recordConsent).mockReset();
   vi.mocked(recordConsent).mockResolvedValue({});
-  vi.mocked(createBooking).mockResolvedValue({
-    bookings: [{ id: 'bk_1', manage_token: 'mt_live_1' }],
-  });
+  // One booking per line, as Medal answers a whole create.
+  vi.mocked(createBooking).mockImplementation(async (body: { items: unknown[] }) => ({
+    bookings: body.items.map((_, index) => ({
+      id: `bk_${index + 1}`,
+      manage_token: `mt_live_${index + 1}`,
+    })),
+  }));
 });
 
 describe('POST /api/booking/create', () => {
@@ -643,7 +647,16 @@ describe('POST /api/booking/create', () => {
       ],
     });
 
-    const response = await POST(validRequest());
+    const response = await POST(
+      request({
+        items: [
+          { serviceId: 'svc', startTs: 1, bookedForName: 'Jonas' },
+          { serviceId: 'svc', startTs: 2, bookedForName: 'Ida' },
+        ],
+        contact: { phone: '40000000', name: 'Kari' },
+        consentTerms: true,
+      })
+    );
     const body = await response.json();
 
     expect(response.status).toBe(201);

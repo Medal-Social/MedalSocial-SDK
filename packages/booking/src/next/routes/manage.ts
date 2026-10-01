@@ -2,6 +2,7 @@ import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
 import { toManageDto } from '../manage-dto';
 import { MedalConfigError } from '../medal';
+import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
 import { bookingErrorResponse, digestOf, isSlotTaken } from './shared';
 
@@ -161,6 +162,13 @@ async function expireAfterWrite(
   await rt.seed.expireBookingSeeds([id]);
 }
 
+/**
+ * The manage body's ceiling: an action, a reason chip and an instant fit in
+ * a few hundred bytes. Read in bytes before anything parses it, as the portal
+ * routes cap theirs.
+ */
+const MANAGE_MAX_BODY_BYTES = 4 * 1024;
+
 export async function manageRoute(
   rt: BookingRuntime,
   request: Request,
@@ -175,7 +183,9 @@ export async function manageRoute(
 
   let parsed: unknown;
   try {
-    parsed = await request.json();
+    const text = await readBoundedText(request, MANAGE_MAX_BODY_BYTES);
+    if (text === null) return invalid('body is too large');
+    parsed = JSON.parse(text);
   } catch {
     return invalid('body must be valid JSON');
   }

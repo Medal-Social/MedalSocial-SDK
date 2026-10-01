@@ -15,6 +15,7 @@ import { marketingConsent } from '../../core/consent';
 import type { BookingSlotDto } from '../../core/types';
 import { type CreateBookingBody, MedalConfigError } from '../medal';
 import { PortalSessionExpiredError } from '../portal/medal-portal';
+import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
 import { bookingErrorResponse, isSlotTaken, parseRange } from './shared';
 
@@ -378,6 +379,14 @@ function createErrorResponse(rt: BookingRuntime, error: unknown): NextResponse {
 }
 
 /**
+ * The create body's ceiling, read in bytes before anything parses it (as the
+ * portal routes cap theirs). A family of three is about two kilobytes; this
+ * leaves room for the largest party a site may configure and a long note,
+ * and refuses the megabyte nobody's wizard sends.
+ */
+const CREATE_MAX_BODY_BYTES = 32 * 1024;
+
+/**
  * One submission, one booking — or one family, all-or-nothing, when `items`
  * carries more than one child.
  *
@@ -391,7 +400,9 @@ function createErrorResponse(rt: BookingRuntime, error: unknown): NextResponse {
 export async function createRoute(rt: BookingRuntime, request: Request): Promise<Response> {
   let parsed: unknown;
   try {
-    parsed = await request.json();
+    const text = await readBoundedText(request, CREATE_MAX_BODY_BYTES);
+    if (text === null) return invalid('body is too large');
+    parsed = JSON.parse(text);
   } catch {
     // A body that will not parse is the browser's fault, not Medal's. Letting
     // it fall into the catch below would answer 502 and point the salon at an
@@ -435,11 +446,28 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
       keyBody
     );
     const result = await rt.medal.createBooking(mapped.body, idempotencyKey);
+    const booked = Array.isArray(result.bookings) ? result.bookings : [];
+    const whole =
+      booked.length === mapped.body.items.length &&
+      booked.every((booking) => typeof booking.id === 'string' && booking.id.length > 0);
     // The slots just taken are in the slot cache and in this colo's booking
     // seeds; expire both so neither this parent going back nor the next
     // visitor is offered them again.
     rt.catalogue.expireSlots(bookedServiceIds(mapped.body));
     await rt.seed.expireBookingSeeds(bookedServiceIds(mapped.body));
+    // ONE BOOKING PER LINE, each with its own id, or no confirmation: a short
+    // answer would hand the wizard lines with no booking behind them (and
+    // calendar entries with no UID of their own). Something may be booked, so
+    // the caches above still go; the answer is the generic create failure,
+    // whose attempt the wizard keeps for the replay under the same key — and
+    // no consent is filed for an appointment nobody can confirm.
+    if (!whole) {
+      rt.logger.error(
+        { expected: mapped.body.items.length, received: booked.length },
+        'Booking create answered without one booking per line'
+      );
+      return bookingErrorResponse('upstreamError', 502);
+    }
     // After the booking, never before: a consent recorded for an appointment
     // that then failed to exist is a mailing-list entry the customer never
     // agreed to give. `after` keeps that ordering — it is scheduled here, so it
@@ -457,7 +485,7 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     // from here would give it a second source to disagree with.
     return NextResponse.json(
       {
-        bookings: result.bookings.map((booking) => ({
+        bookings: booked.map((booking) => ({
           id: booking.id,
           manageToken: booking.manage_token,
         })),

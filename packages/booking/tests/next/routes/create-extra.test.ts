@@ -22,9 +22,10 @@ const readPortalSession = vi.fn();
 const getMe = vi.fn();
 const logger = testLogger();
 
+const expireSlots = vi.fn();
 const overrides = {
   medal: { createBooking, recordConsent } as never,
-  catalogue: { expireSlots: vi.fn(), cachedAvailability: vi.fn() } as never,
+  catalogue: { expireSlots, cachedAvailability: vi.fn() } as never,
   seed: { expireBookingSeeds: vi.fn() } as never,
   session: { readPortalSession } as never,
   portal: { getMe } as never,
@@ -71,6 +72,38 @@ describe('createRoute — malformed bodies', () => {
       });
     }
     expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('refuses a body over the ceiling before parsing it, and never asks Medal', async () => {
+    const response = await createRoute(
+      rt,
+      request({ ...PERSON_REQUEST, notes: 'x'.repeat(33 * 1024) })
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalidInput',
+      message: 'body is too large',
+    });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('counts the ceiling in bytes, not characters', async () => {
+    // 12k three-byte characters: 36 KiB on the wire, 12k code units decoded.
+    const response = await createRoute(
+      rt,
+      request({ ...PERSON_REQUEST, notes: '\u20ac'.repeat(12 * 1024) })
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toBe('body is too large');
+  });
+
+  it('refuses a body that is not JSON', async () => {
+    const response = await createRoute(
+      rt,
+      new Request('https://salong.example/api/booking/create', { method: 'POST', body: '{' })
+    );
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toBe('body must be valid JSON');
   });
 
   it('names the line whose service is blank', async () => {
@@ -153,4 +186,42 @@ describe('createRoute — the phone rule', () => {
     expect(readPortalSession).not.toHaveBeenCalled();
     expect(createBooking.mock.calls[0][0].items[0]).not.toHaveProperty('booked_for_person_id');
   });
+});
+
+describe('createRoute — an answer that is not one booking per line', () => {
+  const TWO = {
+    items: [
+      { serviceId: 'svc', startTs: 1, bookedForName: 'Jonas' },
+      { serviceId: 'svc', startTs: 2, bookedForName: 'Ida' },
+    ],
+    contact: { phone: '40000000', email: 'kari@example.test' },
+    consentTerms: true,
+    consentMarketing: true,
+  };
+
+  it.each([
+    ['no bookings', { bookings: [] }],
+    ['no bookings array', {}],
+    ['one booking for two lines', { bookings: [{ id: 'bk_1', manage_token: 'mt_1' }] }],
+    [
+      'three bookings for two lines',
+      { bookings: [{ id: 'bk_1' }, { id: 'bk_2' }, { id: 'bk_3' }] },
+    ],
+    ['a booking with no id', { bookings: [{ id: 'bk_1' }, { id: '' }] }],
+    ['a booking whose id is not a string', { bookings: [{ id: 'bk_1' }, { id: 7 }] }],
+  ])(
+    'answers %s as the generic create failure, files no consent, still expires the caches',
+    async (_name, result) => {
+      createBooking.mockResolvedValueOnce(result);
+      const response = await createRoute(rt, request(TWO));
+      expect(response.status).toBe(502);
+      expect(await response.json()).toEqual({ error: 'upstreamError' });
+      expect(recordConsent).not.toHaveBeenCalled();
+      expect(expireSlots).toHaveBeenCalledWith(['svc', 'svc']);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ expected: 2 }),
+        'Booking create answered without one booking per line'
+      );
+    }
+  );
 });
