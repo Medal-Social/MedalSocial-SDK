@@ -339,6 +339,53 @@ describe('loadBookingSeed', () => {
     expect(store.seed).toBe('miss');
   });
 
+  /**
+   * Pre-release review: a bucketed HIT honours the markers too. A write route
+   * awaits the marker before telling the visitor the slot is theirs; the
+   * deletes follow in the background, so a request landing between the two
+   * must not get the pre-booking seed from the same 30 s bucket.
+   */
+  it('never serves a bucketed seed built before a booking marked its service expired', async () => {
+    onWorkers();
+    uninstall = installColoCache(colo);
+    await loadBookingSeed(undefined);
+    await drainWaitUntil();
+    const key = seedKeyAt('svc-gutt,svc-jente', NOW) ?? '';
+    const built = colo.entries.get(key);
+    expect(built).toBeDefined();
+
+    await expireBookingSeeds(['svc-gutt'], NOW + 1_000, 0);
+    await drainWaitUntil();
+    // The background delete has not reached this location yet.
+    colo.entries.set(key, built as NonNullable<typeof built>);
+
+    vi.mocked(cachedAvailability).mockClear();
+    onWorkers();
+    // Same bucket as the stored seed.
+    expect(seedKeyAt('svc-gutt,svc-jente', NOW + 2_000)).toBe(key);
+    await loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(store.seed).toBe('miss');
+    expect(cachedAvailability).toHaveBeenCalled();
+  });
+
+  it('still serves a bucketed seed built after the last marker on its services', async () => {
+    onWorkers();
+    uninstall = installColoCache(colo);
+    await expireBookingSeeds(['svc-gutt'], NOW - 1_000, 0);
+    await drainWaitUntil();
+    onWorkers();
+    await loadBookingSeed(undefined);
+    await drainWaitUntil();
+
+    vi.mocked(cachedAvailability).mockClear();
+    onWorkers();
+    await loadBookingSeed(undefined, NOW + 2_000);
+
+    expect(store.seed).toBe('hit');
+    expect(cachedAvailability).not.toHaveBeenCalled();
+  });
+
   it('shares one rebuild between visitors who arrive while it runs', async () => {
     onWorkers();
     uninstall = installColoCache(colo);

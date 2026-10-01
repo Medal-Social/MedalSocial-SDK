@@ -314,7 +314,8 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
    * be read counts as «no»: the delete passes and the 30 s bucket still bound
    * it.
    */
-  async function expiredSince(targets: readonly { id: string }[], since: number): Promise<boolean> {
+  /** The latest expiry marker among `targets`' services, or `null` when none is set. */
+  async function latestExpiry(targets: readonly { id: string }[]): Promise<number | null> {
     const marks = await Promise.all(
       targets.map(async ({ id }) => {
         const key = expiryMarkerKey(id);
@@ -327,7 +328,17 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
         }
       })
     );
-    return marks.some((mark) => mark !== null && Number.isFinite(mark) && mark >= since);
+    const valid = marks.filter((mark): mark is number => mark !== null && Number.isFinite(mark));
+    return valid.length === 0 ? null : Math.max(...valid);
+  }
+
+  /** Whether a write touching one of `targets` was marked at or after `since`. */
+  function expiredAt(latest: number | null, since: number): boolean {
+    return latest !== null && latest >= since;
+  }
+
+  async function expiredSince(targets: readonly { id: string }[], since: number): Promise<boolean> {
+    return expiredAt(await latestExpiry(targets), since);
   }
 
   async function writeExpiryMarkers(serviceIds: string[], at: number): Promise<void> {
@@ -478,8 +489,14 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
           markSeed('bypass');
           return (await buildSeed(targets, now, toTs)).seed;
         }
-        const hit = await edgeRead<StoredSeed>(key);
-        if (hit?.slots && hit.schedules) {
+        // The markers are read alongside the seed, not after it: a hit costs
+        // no extra round trip.
+        const [hit, latest] = await Promise.all([edgeRead<StoredSeed>(key), latestExpiry(targets)]);
+        // A seed built before a write to one of its services was marked is
+        // not served, even inside its bucket: the write route awaited that
+        // marker before telling the visitor the slot was theirs, and the
+        // background delete may not have run yet.
+        if (hit?.slots && hit.schedules && !expiredAt(latest, hit.generatedAt)) {
           markSeed('hit');
           return freshen(hit, now, toTs);
         }
@@ -504,7 +521,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
           stale?.slots &&
           stale.schedules &&
           now - stale.generatedAt < SEED_STALE_MAX_MS &&
-          !(await expiredSince(targets, stale.generatedAt))
+          !expiredAt(latest, stale.generatedAt)
         ) {
           markSeed('stale');
           void inBackground(
