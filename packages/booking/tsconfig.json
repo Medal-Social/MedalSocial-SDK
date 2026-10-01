@@ -14,7 +14,8 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "types": [],
     // Typecheck against the SDK's source, so `pnpm typecheck` needs no build
     // first. The declaration build (tsconfig.build.json) drops this and

@@ -28,6 +28,8 @@ export default defineConfig({
   entry: {
     'core/index': 'src/core/index.ts',
     'react/index': 'src/react/index.ts',
+    // Server-safe (no 'use client'): the label packs and the portal's parsers.
+    'react/shared': 'src/react/shared.ts',
     'next/index': 'src/next/index.ts',
     'next/cache/workers': 'src/next/cache/workers.ts',
     'next/cache/memory': 'src/next/cache/memory.ts',

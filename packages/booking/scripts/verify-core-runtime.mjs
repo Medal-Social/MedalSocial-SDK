@@ -78,6 +78,23 @@ const react = readFileSync(join(dist, 'react/index.mjs'), 'utf8');
 if (!react.startsWith("'use client';"))
   errors.push("dist/react/index.mjs lacks its 'use client' directive");
 
+// `/react/shared` is what a Server Component calls: no directive, no React, and
+// it imports in bare Node.
+const shared = readFileSync(join(dist, 'react/shared.mjs'), 'utf8');
+if (shared.includes("'use client'")) errors.push("dist/react/shared.mjs carries 'use client'");
+for (const specifier of specifiersOf(shared)) {
+  if (!specifier.startsWith('.') && specifier !== 'zod') {
+    errors.push(`dist/react/shared.mjs imports «${specifier}» at runtime`);
+  }
+}
+try {
+  const { mergeLabels } = await import(pathToFileURL(join(dist, 'react/shared.mjs')).href);
+  if (typeof mergeLabels('nb-NO')['who.heading'] !== 'string')
+    errors.push('dist/react/shared: mergeLabels gave no pack');
+} catch (error) {
+  errors.push(`dist/react/shared does not import in bare Node: ${String(error)}`);
+}
+
 for (const entry of NEXT_ENTRIES) {
   if (!specifiersOf(readFileSync(join(dist, entry), 'utf8')).includes('server-only')) {
     errors.push(`dist/${entry} does not import server-only`);
@@ -90,5 +107,5 @@ if (errors.length > 0) {
   process.exit(1);
 }
 console.log(
-  '[verify-core-runtime] OK — core runs in bare Node, /react is a client entry, /next is server-only.'
+  '[verify-core-runtime] OK — core runs in bare Node, /react is a client entry, /react/shared is server-safe, /next is server-only.'
 );

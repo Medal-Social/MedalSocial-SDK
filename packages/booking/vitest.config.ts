@@ -2,9 +2,9 @@ import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Two projects: `node` for everything that must run without a DOM (which is
+ * Three projects: `node` for everything that must run without a DOM (which is
  * nearly all of `/core`), `jsdom` for the browser-storage and address-bar
- * helpers (`*.dom.test.ts`).
+ * helpers (`*.dom.test.ts`), and `react` for the components (`tests/react/`).
  *
  * TZ is pinned to the parity fixture's own zone, as the suite these tests
  * came from pinned it; the files that care about the VIEWER's clock move it
@@ -33,7 +33,7 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['tests/**/*.test.ts'],
-          exclude: ['tests/**/*.dom.test.ts'],
+          exclude: ['tests/**/*.dom.test.ts', 'tests/react/**'],
           env,
         },
       },
@@ -47,11 +47,20 @@ export default defineConfig({
           env,
         },
       },
+      {
+        test: {
+          name: 'react',
+          environment: 'jsdom',
+          include: ['tests/react/**/*.test.{ts,tsx}'],
+          setupFiles: ['tests/support/dom-setup.ts', 'tests/support/react-setup.ts'],
+          env,
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/core/types.ts', 'src/core/wire.ts'],
       thresholds: {
         lines: 100,

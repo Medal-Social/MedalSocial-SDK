@@ -4,24 +4,23 @@ The booking product behind a Medal Social booking site: the wizard's rules,
 the business's clock, money, phone and deep-link handling, browser stores,
 and the customer-portal helpers — built on [`@medalsocial/sdk`](../sdk).
 
-> **Status: pre-release (0.x, not yet published).** `/core` is in place;
-> `/react` (the wizard, manage page and portal, composed from
-> `@medalsocial/meda/booking`) and `/next` (server loaders, one route handler
-> for every booking and portal API route, cache adapters) are reserved entries
-> that land before the first release, `0.1.0`. In 0.x a minor version may
-> break; pin the exact version.
+> **Status: pre-release (0.x, not yet published).** `/core`, `/react` and
+> `/next` are in place for the first release, `0.1.0`. In 0.x a minor version
+> may break; pin the exact version.
 
 ## Entry points
 
 | Import | What it is | Runs in |
 |---|---|---|
 | `@medalsocial/booking/core` | Config, wizard state machine, clock, money, phone, categories, age, party seating, deep links, DTO mapping, ICS, browser stores, portal pure helpers | Browser, Node, Workers — no React, no Next, no DOM at import time |
-| `@medalsocial/booking/react` | Reserved (0.1.0): `<BookingWizard>`, `<ManageBooking>`, `<PortalDashboard>`, `<LoginSheet>`, `useBooking()` | Client components (`'use client'`) |
+| `@medalsocial/booking/react` | `<BookingWizard>` and the headless `useBooking()`, `<ManageBooking>`, `<PortalDashboard>`, `<LoginSheet>`, `<LoginFromQuery>`, `<BookingLink>`, `useNextFree()`, `<BookingProvider>` — composed from `@medalsocial/meda/booking` | Client components (`'use client'`) |
+| `@medalsocial/booking/react/shared` | The label packs (`BOOKING_LABELS`, `mergeLabels`) and the portal's URL/cookie readers (`parsePortalTab`, …) | Server Components and the browser — no React |
 | `@medalsocial/booking/next` | `createBookingServer`: one handler for every booking and portal API route, the page loaders (`loadBookingPage`, `loadManagePage`, `loadPortalPage`), portal session and action functions, the Medal seam | Server only (`server-only`), Next ≥ 16.3 |
 | `@medalsocial/booking/next/cache/{workers,memory,next-data,noop}` | Cache adapters: Workers Cache API, in-process LRU, Next's data cache, none | Server only |
 
 ESM only. Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
-and optionally `next` ≥ 16.3 and `@medalsocial/meda` ^3.2.
+and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.2 and `lucide-react` (all
+three needed by `/react`).
 
 ## Configuration
 
@@ -77,6 +76,45 @@ its own values in.
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
 uses.
+
+## The UI (`/react`)
+
+The screens are meda's; the package feeds them. A site needs Tailwind v4 and
+meda's stylesheets (`@import '@medalsocial/meda/styles/bridge.css'` and
+`@import '@medalsocial/meda/booking/styles.css'`), and themes them with its
+own shadcn variables (`--primary`, `--card`, …).
+
+```tsx
+// app/bestill/page.tsx — a Server Component
+import { resolveBookingConfig } from '@medalsocial/booking/core';
+import { BookingWizard } from '@medalsocial/booking/react';
+import { mergeLabels } from '@medalsocial/booking/react/shared';
+import { startLogin, startVipps } from './actions'; // the app's 'use server' wrappers
+
+const config = resolveBookingConfig({
+  timeZone: 'Europe/Oslo',
+  // Resolved here, so the browser bundle carries no copy it does not show.
+  labels: mergeLabels('nb-NO', { 'who.heading': 'Hvem gjelder timen?' }),
+});
+
+export default async function Page() {
+  const seed = await loadSeed(); // `/next`'s loader
+  return <BookingWizard config={config} seed={seed} actions={{ startLogin, startVipps }} />;
+}
+```
+
+The override ladder, cheapest first, all public API:
+
+1. **CSS variables** — the bridge's shadcn names.
+2. **`labels`** — any key of `BookingLabels`, over the pack in `config.labels`.
+3. **`classNames`** — per screen and slot: `classNames={{ who: { chip: '…' }, time: { chip: '…' } }}`.
+4. **`components`** — card renderers: `components={{ ServiceCard, StylistCard, TimeChip, … }}`.
+5. **`useBooking()`** — the wizard's whole state, fetches and actions, without its markup.
+
+`<BookingProvider config labels classNames components>` shares one set of
+these with every booking piece under it. Server actions stay in the app
+(`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
+prop, answering with its result or with next-safe-action's envelope.
 
 ## Server (`/next`)
 
