@@ -16,9 +16,9 @@ const GET = async (request: Request, context: { params: Promise<{ resourceId: st
   avatarRoute(rt, request, (await context.params).resourceId);
 
 const PHOTO =
-  'https://r2.example.com/bucket/stylists/sara.png?X-Amz-Date=20260929T120000Z&X-Amz-Signature=abc';
+  'https://acct.r2.cloudflarestorage.com/bucket/stylists/sara.png?X-Amz-Date=20260929T120000Z&X-Amz-Signature=abc';
 const RESIGNED =
-  'https://r2.example.com/bucket/stylists/sara.png?X-Amz-Date=20260929T130000Z&X-Amz-Signature=def';
+  'https://acct.r2.cloudflarestorage.com/bucket/stylists/sara.png?X-Amz-Date=20260929T130000Z&X-Amz-Signature=def';
 
 const SARA = {
   id: 'res_sara-1',
@@ -78,7 +78,11 @@ describe('GET /api/booking/avatar/[resourceId]', () => {
     expect(second).toBe(first);
 
     cachedResources.mockResolvedValue([
-      { ...SARA, photo_url: 'https://r2.example.com/bucket/stylists/sara-new.png?X-Amz-Date=1' },
+      {
+        ...SARA,
+        photo_url:
+          'https://acct.r2.cloudflarestorage.com/bucket/stylists/sara-new.png?X-Amz-Date=1',
+      },
     ]);
     expect((await call(SARA.id)).headers.get('ETag')).not.toBe(first);
   });

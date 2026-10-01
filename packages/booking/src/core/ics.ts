@@ -73,11 +73,19 @@ function utcStamp(ts: number): string {
  * Backslash first, or the escapes added below would be escaped again.
  */
 function escapeText(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+  return (
+    value
+      .replace(/\\/g, '\\\\')
+      .replace(/;/g, '\\;')
+      .replace(/,/g, '\\,')
+      // Every line break, in each of its three spellings: a lone CR is a line
+      // end to more than one calendar parser, and an unescaped one would start
+      // a property of the visitor's choosing.
+      .replace(/\r\n|\r|\n/g, '\\n')
+      // TEXT admits no other control character (RFC 5545 §3.3.11) but HTAB.
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point.
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+  );
 }
 
 /**
@@ -126,7 +134,8 @@ function eventLines(event: IcsEvent): (string | null)[] {
     'BEGIN:VEVENT',
     // UID is not TEXT, so it has no escape: a line break in one would start a
     // property of its own. Booking ids never hold one; nothing here relies on it.
-    `UID:${event.uid.replace(/[\r\n]/g, '')}`,
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point.
+    `UID:${event.uid.replace(/[\u0000-\u001F\u007F]/g, '')}`,
     `SEQUENCE:${event.sequence ?? 0}`,
     `DTSTAMP:${utcStamp(event.stampTs ?? Date.now())}`,
     `DTSTART:${utcStamp(event.startTs)}`,

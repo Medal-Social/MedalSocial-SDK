@@ -5,7 +5,7 @@ import {
   vippsLinkReturnRoute,
   vippsReturnRoute,
 } from '../../../src/next/routes/vipps-return';
-import { testRuntime } from '../../support/next-runtime';
+import { testCookieJar, testRuntime } from '../../support/next-runtime';
 import { PARITY_CONFIG } from '../../support/parity-config';
 
 /**
@@ -85,5 +85,61 @@ describe('vippsLinkReturnRoute on a site with no portal page', () => {
     expect(response.headers.get('location')).toBe(`${ORIGIN}/`);
     expect(response.headers.get('referrer-policy')).toBe('no-referrer');
     expect(readPortalSession).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The login-CSRF guard against the real binding cookie, not a mock: a grant
+ * is exchanged only in a browser whose `__Host-` binding cookie is the shape
+ * this site mints, and the cookie is spent only after it was read.
+ */
+describe('vippsReturnRoute — a grant against the real binding cookie', () => {
+  const BINDING_COOKIE = PARITY_CONFIG.portal.vippsBindingCookieName;
+  // Built, not written out (secret scanners); synthetic.
+  const BINDING = ['abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLM', '0-_9'].join('');
+
+  function runtime(initial: Record<string, string>) {
+    const exchangeVippsGrant = vi.fn(async () => ({ sessionToken: 'token', expiresAt: 1 }));
+    const writePortalSession = vi.fn();
+    const takePortalNextPath = vi.fn(async () => null);
+    const cookies = testCookieJar(initial);
+    const rt = testRuntime(
+      {
+        portal: { exchangeVippsGrant } as never,
+        session: { writePortalSession } as never,
+        nextPath: { takePortalNextPath } as never,
+      },
+      { cookies: cookies.source }
+    );
+    return { rt, exchangeVippsGrant, writePortalSession, cookies };
+  }
+
+  const grantRequest = () => new Request(`${ORIGIN}/min-side/vipps?grant=grant-value`);
+
+  it('exchanges the grant, then spends the binding, when this browser started the login', async () => {
+    const { rt, exchangeVippsGrant, writePortalSession, cookies } = runtime({
+      [BINDING_COOKIE]: BINDING,
+    });
+
+    const response = await vippsReturnRoute(rt, grantRequest());
+
+    expect(exchangeVippsGrant).toHaveBeenCalledWith('grant-value');
+    expect(writePortalSession).toHaveBeenCalledOnce();
+    expect(cookies.values.has(BINDING_COOKIE)).toBe(false);
+    expect(response.headers.get('location')).toBe(`${ORIGIN}/min-side`);
+  });
+
+  it.each([
+    ['no binding cookie at all', {}],
+    ['a binding that is not the shape this site mints', { [BINDING_COOKIE]: 'planted' }],
+  ])('refuses the grant with %s', async (_label, initial: Record<string, string>) => {
+    const { rt, exchangeVippsGrant, writePortalSession, cookies } = runtime(initial);
+
+    const response = await vippsReturnRoute(rt, grantRequest());
+
+    expect(exchangeVippsGrant).not.toHaveBeenCalled();
+    expect(writePortalSession).not.toHaveBeenCalled();
+    expect(cookies.jar.delete).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe(`${ORIGIN}/min-side/logg-inn?vipps=failed`);
   });
 });

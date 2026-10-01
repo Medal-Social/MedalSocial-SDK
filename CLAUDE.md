@@ -13,7 +13,7 @@ and is never published.
 | Package | Directory | Registries |
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
-| `@medalsocial/booking` | `packages/booking` | npm only, **unpublished** (`"private": true` until 0.1.0) |
+| `@medalsocial/booking` | `packages/booking` | npm only (provenance), **unpublished** until the 0.1.0 release PR |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
@@ -53,8 +53,12 @@ and is never published.
   `scripts/ensure-sdk-types.mjs` builds the SDK first when its types are
   missing. Size budgets:
   `pnpm --filter @medalsocial/booking run size:budget` (CI `build` job).
-  It stays `"private": true` — so `changeset publish` skips it — until the
-  release PR for 0.1.0 removes the flag; its changesets accumulate until then.
+  It is publishable (#169) but publishes from the release workflow only:
+  `prepublishOnly` runs `scripts/guard-publish.mjs`, which refuses the
+  unversioned `0.0.0` manifest and any run that is not
+  `.github/workflows/release.yml` on `prod`, and `publishConfig.provenance`
+  makes a publish without OIDC fail on npm's side. Its changesets accumulate
+  until the release PR versions it.
   Public-repo rule: `tests/core/denylist.test.ts` fails on a customer or staff
   name anywhere in the package (hashed list, so the test names nobody).
 - The published tarball must not change when files move around the workspace:
