@@ -152,8 +152,9 @@ function serviceIdsOf(
 }
 
 /**
- * Whether a create answer is a whole one: exactly one booking, with an id, per
- * submitted line. Anything else — none, fewer, more, an id missing — is not a
+ * Whether a create answer is a whole one: exactly one booking, with its own
+ * distinct id, per submitted line. Anything else — none, fewer, more, an id
+ * missing or repeated — is not a
  * confirmation; the wizard shows it as the generic create failure
  * (`upstreamError`, «we still do not know»), whose attempt survives for the
  * replay under the same idempotency key.
@@ -162,11 +163,11 @@ export function isCompleteConfirmation(
   bookings: ReadonlyArray<{ id?: unknown }> | null | undefined,
   itemCount: number
 ): boolean {
+  if (!Array.isArray(bookings) || itemCount <= 0 || bookings.length !== itemCount) return false;
+  const ids = bookings.map((booking) => booking?.id);
+  // Distinct, too: one id on two lines is two calendar entries with one UID.
   return (
-    Array.isArray(bookings) &&
-    itemCount > 0 &&
-    bookings.length === itemCount &&
-    bookings.every((booking) => typeof booking?.id === 'string' && booking.id.length > 0)
+    ids.every((id) => typeof id === 'string' && id.length > 0) && new Set(ids).size === ids.length
   );
 }
 

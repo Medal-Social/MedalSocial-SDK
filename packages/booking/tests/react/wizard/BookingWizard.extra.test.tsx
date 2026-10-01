@@ -512,6 +512,7 @@ describe('useBooking — the corners', () => {
     ['an empty id', [{ id: 'a' }, { id: '' }], 2, false],
     ['an id that is not a string', [{ id: 'a' }, { id: 7 }], 2, false],
     ['a null entry', [{ id: 'a' }, null], 2, false],
+    ['one id on two lines', [{ id: 'a' }, { id: 'a' }], 2, false],
     ['no array', null, 1, false],
   ])('reads %s as a whole answer: %s', (_name, bookings, count, whole) => {
     expect(isCompleteConfirmation(bookings as never, count as number)).toBe(whole);

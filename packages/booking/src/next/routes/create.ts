@@ -447,15 +447,18 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     );
     const result = await rt.medal.createBooking(mapped.body, idempotencyKey);
     const booked = Array.isArray(result.bookings) ? result.bookings : [];
+    // A null entry is a short answer, not a throw: the caches below must still go.
+    const ids = booked.map((booking) => (booking as { id?: unknown } | null)?.id);
     const whole =
       booked.length === mapped.body.items.length &&
-      booked.every((booking) => typeof booking.id === 'string' && booking.id.length > 0);
+      ids.every((id) => typeof id === 'string' && id.length > 0) &&
+      new Set(ids).size === ids.length;
     // The slots just taken are in the slot cache and in this colo's booking
     // seeds; expire both so neither this parent going back nor the next
     // visitor is offered them again.
     rt.catalogue.expireSlots(bookedServiceIds(mapped.body));
     await rt.seed.expireBookingSeeds(bookedServiceIds(mapped.body));
-    // ONE BOOKING PER LINE, each with its own id, or no confirmation: a short
+    // ONE BOOKING PER LINE, each with its own DISTINCT id, or no confirmation: a short
     // answer would hand the wizard lines with no booking behind them (and
     // calendar entries with no UID of their own). Something may be booked, so
     // the caches above still go; the answer is the generic create failure,

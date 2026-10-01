@@ -209,6 +209,8 @@ describe('createRoute — an answer that is not one booking per line', () => {
     ],
     ['a booking with no id', { bookings: [{ id: 'bk_1' }, { id: '' }] }],
     ['a booking whose id is not a string', { bookings: [{ id: 'bk_1' }, { id: 7 }] }],
+    ['a null entry', { bookings: [{ id: 'bk_1' }, null] }],
+    ['one id on two lines', { bookings: [{ id: 'bk_1' }, { id: 'bk_1' }] }],
   ])(
     'answers %s as the generic create failure, files no consent, still expires the caches',
     async (_name, result) => {
