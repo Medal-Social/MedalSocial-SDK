@@ -4,6 +4,59 @@
 
 TypeScript SDK for the Medal Social API. Public open-source package published to npm as `@medalsocial/sdk`.
 
+## Packages
+
+The repository is a **pnpm workspace** (`pnpm-workspace.yaml`: `packages/*` +
+`examples/*`). The root `package.json` is private (`medalsocial-sdk-monorepo`)
+and is never published.
+
+| Package | Directory | Registries |
+|---|---|---|
+| `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
+| `@medalsocial/booking` | `packages/booking` | npm only, **unpublished** (`"private": true` until 0.1.0) |
+
+- **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
+  repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
+  lint-staged, Changesets, `.pnpmfile.cjs`, CI and the Pilot plugin manifest
+  (`plugin.toml`) live at the root. Root tooling never reaches into a package
+  directory; the secretlint scripts' unit tests run with the SDK's script suite
+  (`packages/sdk/tests/scripts`). `pnpm build` / `test` / `test:coverage` /
+  `typecheck` fan out with `pnpm -r --filter './packages/*'`; `pnpm lint` is one
+  Biome run over the whole repository; `pnpm quality` is lint + typecheck + test.
+- **Package = everything that ships.** Source, tests, `scripts/`, `skills/`,
+  `jsr.json`, the tsconfigs, tsdown/vitest/typedoc/redocly configs, `README.md`,
+  `CHANGELOG.md` and a copy of `LICENSE`/`NOTICE` sit in the package directory.
+  Package-only commands take a filter: `pnpm --filter @medalsocial/sdk <script>`.
+- **Releases stay per package.** `.changeset/config.json` is one config with
+  independent versions (`fixed: []`, `linked: []`). `pnpm run version` is
+  `changeset version && node packages/sdk/scripts/sync-version.mjs`, and
+  `pnpm run release` builds and path-verifies every package before
+  `changeset publish`. JSR is `@medalsocial/sdk` only
+  (`pnpm --filter @medalsocial/sdk run jsr:publish` in `release.yml`).
+- **A new package** gets its own `package.json` (`files`, `exports`,
+  `publishConfig.access: public`, `LICENSE`/`NOTICE` copies), a `verify:paths`
+  script, a `build`/`test`/`typecheck` script so the fan-out picks it up, a
+  `knip.json` workspace entry and a changeset for its first release. Keep the
+  public-repo rule: no customer names, copy or data in any package.
+- **`@medalsocial/booking`** is ESM-only with entries `./core`, `./react`, `./next` and
+  `./next/cache/{workers,memory,next-data,noop}`. `/core` imports no React,
+  Next, `server-only` or meda (Biome `noRestrictedImports` +
+  `tests/core/boundary.test.ts`; `verify:paths` also imports the built
+  `dist/core` in bare Node). Its typecheck maps `@medalsocial/sdk` onto
+  `../sdk/src` so no build is needed first. The declaration build
+  (`tsconfig.build.json`) resolves the BUILT SDK instead — mapping the source
+  there makes tsc write `.d.ts` files into `packages/sdk/src` — and
+  `scripts/ensure-sdk-types.mjs` builds the SDK first when its types are
+  missing. Size budgets:
+  `pnpm --filter @medalsocial/booking run size:budget` (CI `build` job).
+  It stays `"private": true` — so `changeset publish` skips it — until the
+  release PR for 0.1.0 removes the flag; its changesets accumulate until then.
+  Public-repo rule: `tests/core/denylist.test.ts` fails on a customer or staff
+  name anywhere in the package (hashed list, so the test names nobody).
+- The published tarball must not change when files move around the workspace:
+  compare `npm pack --dry-run --json` file lists and `package.json#exports`
+  before and after, and the `jsr publish --dry-run` file set.
+
 ## Branch Strategy
 
 ```
@@ -152,18 +205,18 @@ not from inside `pnpm release`. Two reasons:
    non-zero on a version that is already live and immutable — and a plain
    re-run then dies on "already published".
 
-`pnpm jsr:publish` (`scripts/jsr-publish.mjs`) handles both: it asks
+`pnpm --filter @medalsocial/sdk run jsr:publish` (`packages/sdk/scripts/jsr-publish.mjs`) handles both: it asks
 `https://jsr.io/@medalsocial/sdk/<version>_meta.json` before publishing and
 skips if the version is there, and asks again if the CLI fails — a failure on a
 version the registry already has downgrades to a warning naming the likely
-culprit. Anything else still fails the job. `pnpm jsr:publish --dry-run`
+culprit. Anything else still fails the job. `pnpm jsr:publish --dry-run` (from `packages/sdk`)
 reports what it would do without publishing.
 
 That dry run does **not** validate the package — it never runs `jsr publish`,
 so a slow type (a public-API symbol with no explicit type) or a publish-scope
 error passes it and fails only mid-release, after npm already has the version.
 CI's `build` job therefore runs the real CLI,
-`pnpm exec jsr publish --dry-run --allow-dirty`; run the same locally before
+`pnpm exec jsr publish --dry-run --allow-dirty` in `packages/sdk`; run the same locally before
 promoting. 1.11.0 was caught this way: `MedalTimeoutError`'s constructor had an
 untyped default parameter.
 
@@ -179,10 +232,10 @@ tell an attestation failure from a healthy release after the fact.
 |-----|---------------|
 | `test` | Vitest via `pnpm test:coverage` + Codecov upload. Coverage thresholds are **100%** on statements/branches/functions/lines — a new uncovered branch fails CI |
 | `lint` | Biome |
-| `build` | `pnpm typecheck`, then OpenAPI lint, `tsdown` build, OpenAPI coverage, entry-point verification, then a JSR dry run (`jsr publish --dry-run`: slow types and the publish scope) |
-| `security` | secretlint over tracked files + knip |
+| `build` | `pnpm typecheck` (every package), then the SDK's version sync check and OpenAPI lint, `pnpm build` (every package), the SDK's OpenAPI coverage, `verify:paths` for every package, then a JSR dry run in `packages/sdk` (`jsr publish --dry-run`: slow types and the publish scope) |
+| `security` | secretlint over every tracked file in the repository + knip (all workspaces) |
 
-`pnpm typecheck` runs `tsc --noEmit` twice: once on `tsconfig.json` (`src` only,
+In `packages/sdk`, `typecheck` runs `tsc --noEmit` twice: once on `tsconfig.json` (`src` only,
 the shipped surface) and once on `tsconfig.test.json`, which widens it to
 `tests`, `pilot` and `scripts`. Vitest never typechecks, so without the second
 pass test files are unchecked.
@@ -217,6 +270,8 @@ its own comment when it can go:
 
 ## Project Structure
 
+Paths below are inside `packages/sdk/` unless they say otherwise.
+
 ```
 src/
   client.ts              # BaseClient — HTTP, retry (jittered backoff, drains body before
@@ -242,6 +297,10 @@ tests/
   integration.test.ts    # Live API tests — skipped without credentials
 ```
 
+At the repository root: `scripts/secretlint-{repo,staged}.mjs` (repo-wide
+secret scans, tested from `packages/sdk/tests/scripts`), `plugin.toml` (Pilot plugin manifest), `examples/`,
+`.changeset/`, `.github/`, `.husky/` and the shared tool configs.
+
 There is no `src/devices/`: the module was never exported from any entry point,
 so nothing could consume it, and it was deleted in the SDK-B audit round along
 with its unfinished plan. Both are in git history if the device work restarts —
@@ -255,6 +314,6 @@ bring it back with tests and a `./devices` entry, not as dead code.
 - **No `NPM_TOKEN`** — publishing uses OIDC, do not add a static token
 - **This repository is the authoritative source for the SDK.** The API it wraps is implemented in the private Medal Social monorepo; when the SDK's types drift from what the API actually accepts or returns, fix them here (types, resources and the OpenAPI document together), and remember that a value the API refuses with a 400 is a correction, not a breaking change, even when TypeScript now rejects it.
 - **Enums are closed on purpose.** `DealStatus`, `DealCurrency`, `ContactStatus`, `PostStatus`, `EmailSendStatus`, `HelpdeskChannel`, `ChannelType`, `PortalLocale`, `SubscribableWebhookEventType` name exactly what the API accepts — do not widen them to `string` to make a caller compile. The one deliberate exception is `MedalErrorCode`, which is widened with `(string & {})`: a response code the server adds later must still arrive intact.
-- **The coverage gate is a PARITY gate.** `pnpm openapi:coverage` derives the operation list from the SDK's own document and then diffs it against `openapi/reference/medal-api-v1-surface.json`, a committed snapshot of the Medal API's published surface. Adding a route means adding it to the document AND to a resource; adding a request enum means matching the API's values. Refresh the snapshot from a monorepo checkout with `--reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json` **followed by `pnpm exec biome format --write openapi/reference/medal-api-v1-surface.json`** (the script has no formatter, and `pnpm lint` checks the committed file), or run the check straight against the live document with `--reference <that file>`. Reviewed differences go in `openapi/parity-exceptions.json` with a reason each — a stale entry fails the gate.
-- **The version lives in one place.** `package.json` is the source; `src/version.ts` (`SDK_VERSION`, sent in the `User-Agent`), `jsr.json`, the OpenAPI `info.version` and the Pilot manifest's `[plugin] version` in `plugin.toml` are written by `scripts/sync-version.mjs`, which `pnpm run version` runs right after `changeset version`. Never hand-edit those four — `pnpm run version:check` (in the `build` CI job) and `tests/version-sync.test.ts` fail on drift.
+- **The coverage gate is a PARITY gate.** `pnpm --filter @medalsocial/sdk run openapi:coverage` derives the operation list from the SDK's own document and then diffs it against `openapi/reference/medal-api-v1-surface.json`, a committed snapshot of the Medal API's published surface. Adding a route means adding it to the document AND to a resource; adding a request enum means matching the API's values. Refresh the snapshot from a monorepo checkout (run from `packages/sdk`) with `--reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json` **followed by `pnpm exec biome format --write openapi/reference/medal-api-v1-surface.json`** (the script has no formatter, and `pnpm lint` checks the committed file), or run the check straight against the live document with `--reference <that file>`. Reviewed differences go in `openapi/parity-exceptions.json` with a reason each — a stale entry fails the gate.
+- **The version lives in one place.** `package.json` is the source; `src/version.ts` (`SDK_VERSION`, sent in the `User-Agent`), `jsr.json`, the OpenAPI `info.version` and the Pilot manifest's `[plugin] version` in `plugin.toml` are written by `packages/sdk/scripts/sync-version.mjs` (`plugin.toml` stays at the repository root; the script finds it two levels above the package, or through `--plugin-root`), which `pnpm run version` runs right after `changeset version`. Never hand-edit those four — `pnpm --filter @medalsocial/sdk run version:check` (in the `build` CI job) and `tests/version-sync.test.ts` fail on drift.
 - **`engines.node` is `>=22`, and CI proves it.** The client only needs `fetch`, `AbortController`, `WritableStream` and Web Crypto, so the floor is set by what we can certify, not by an API: Node 20 reached end-of-life on 2026-04-30, and pnpm 11 (`>=22.13`), `changesets`, `secretlint` and `lint-staged` all need 22+. The `test` job runs the suite on 24 and `test-node` on 22 (a separate job, because `prod`'s ruleset requires a context named exactly `test`); add a line to that matrix when raising or widening the floor, never just the string in `package.json`.

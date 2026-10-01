@@ -1,0 +1,31 @@
+{
+  "name": "medalsocial-example-next-booking",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A minimal Next 16 booking site on @medalsocial/booking/next, against a mock Medal \u2014 the package's CI smoke target",
+  "scripts": {
+    "prebuild": "pnpm --filter @medalsocial/booking run build",
+    "build": "next build",
+    "start": "next start --port 3100",
+    "mock:medal": "node mock-medal/server.mjs",
+    "check:client": "node scripts/check-client-bundle.mjs --self-test && node scripts/check-client-bundle.mjs",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@medalsocial/booking": "workspace:*",
+    "@medalsocial/meda": "^3.2.0",
+    "lucide-react": "^1.49.0",
+    "next": "16.3.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.2.2",
+    "typescript": "^7.0.2"
+  }
+}

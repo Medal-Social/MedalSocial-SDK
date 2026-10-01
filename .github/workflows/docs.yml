@@ -24,11 +24,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # TypeDoc runs in packages/sdk (typedoc.json lives there) and writes
+      # packages/sdk/docs.
       - name: Build docs
-        run: pnpm run docs
+        run: pnpm --filter @medalsocial/sdk run docs
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+          publish_dir: ./packages/sdk/docs

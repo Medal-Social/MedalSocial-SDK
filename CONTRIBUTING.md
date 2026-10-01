@@ -9,25 +9,42 @@
 
 ## Development
 
+Run these from the repository root; they fan out over every package in
+`packages/`:
+
 ```bash
-pnpm build          # Build dist/
-pnpm dev            # Build in watch mode
+pnpm build          # Build each package's dist/
 pnpm test           # Run unit tests
-pnpm lint           # Check code style
-pnpm docs           # Generate TypeDoc documentation
+pnpm lint           # Check code style (Biome, whole repository)
+pnpm typecheck      # Typecheck each package
+pnpm quality        # lint + typecheck + test
+```
+
+Package-only commands run with a filter, for example:
+
+```bash
+pnpm --filter @medalsocial/sdk dev    # Build the SDK in watch mode
+pnpm --filter @medalsocial/sdk docs   # Generate TypeDoc documentation
 ```
 
 ## Project Structure
 
+The repository is a pnpm workspace. Shared tooling (Biome, knip, commitlint,
+secretlint, Husky, Changesets, CI) sits at the root; each published package
+has its own directory under `packages/`.
+
 ```
-src/
-  client.ts         # BaseClient — HTTP layer, retry, auth
-  index.ts          # Medal class — main entry point
-  resources/        # One file per API resource
-  types/            # TypeScript types per resource
-tests/
-  client.test.ts    # Unit tests
-  integration.test.ts # Live API tests (skipped without credentials)
+packages/
+  sdk/                # @medalsocial/sdk
+    src/
+      client.ts       # BaseClient — HTTP layer, retry, auth
+      index.ts        # Medal class — main entry point
+      resources/      # One file per API resource
+      types/          # TypeScript types per resource
+    tests/
+      client.test.ts  # Unit tests
+      integration.test.ts # Live API tests (skipped without credentials)
+examples/             # Small apps that use the packages via workspace:*
 ```
 
 ## Pull Requests
@@ -74,11 +91,11 @@ This adds:
 Signed-off-by: Your Name <your@email.com>
 ```
 
-## Agent Skills (`skills/`)
+## Agent Skills (`packages/sdk/skills/`)
 
-`@medalsocial/sdk` ships [TanStack Intent](https://tanstack.com/intent) skills in `skills/` that travel with each published version. Consumers running `npx @tanstack/intent install` get versioned usage guidance written into their agent config (`CLAUDE.md` / `AGENTS.md`).
+`@medalsocial/sdk` ships [TanStack Intent](https://tanstack.com/intent) skills in `packages/sdk/skills/` that travel with each published version. Consumers running `npx @tanstack/intent install` get versioned usage guidance written into their agent config (`CLAUDE.md` / `AGENTS.md`).
 
-**If your PR changes a public surface** — a method signature, the `Medal` constructor, error shapes, base URL behavior, retry semantics, or a new resource — **update the matching `skills/<area>/SKILL.md` in the same PR.** The `Check Skills` workflow runs `intent validate` on every PR touching `skills/` and will fail if structure breaks. A separate `stale` check runs after releases and opens a single review PR when source docs drift from skills; that is a safety net, not the primary discipline.
+**If your PR changes a public surface** — a method signature, the `Medal` constructor, error shapes, base URL behavior, retry semantics, or a new resource — **update the matching `packages/sdk/skills/<area>/SKILL.md` in the same PR.** The `Check Skills` workflow runs `intent validate` on every PR touching `skills/` and will fail if structure breaks. A separate `stale` check runs after releases and opens a single review PR when source docs drift from skills; that is a safety net, not the primary discipline.
 
 ## AI-Assisted Changes
 
