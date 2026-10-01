@@ -218,6 +218,13 @@ describe('the wizard’s screen adapters', () => {
     expect(detailsLines(kit, state)).toEqual([{ startTs: 0, resourceId: null }]);
     const unworded = createBookingKit(PARITY_CONFIG, { ...TEST_LABELS, 'details.terms.link': '' });
     expect(detailsScreenBase(unworded).termsHref).toBeNull();
+    for (const blank of [[], ['']]) {
+      const kitWithBlank = createBookingKit(PARITY_CONFIG, {
+        ...TEST_LABELS,
+        'details.terms.link': blank,
+      });
+      expect(detailsScreenBase(kitWithBlank).termsHref).toBeNull();
+    }
     const worded = createBookingKit(PARITY_CONFIG, {
       ...TEST_LABELS,
       'details.terms.link': 'Vilkår',

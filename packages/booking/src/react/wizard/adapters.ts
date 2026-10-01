@@ -189,7 +189,7 @@ export function detailsScreenBase(kit: BookingKit) {
     normalisePhone: phone.nationalDigits,
     phone: config.contact.phone,
     // A link with no words is a link nobody can name: drawn only with its text.
-    termsHref: kit.labels['details.terms.link'] ? config.consent.termsUrl : null,
+    termsHref: labelText(kit.labels['details.terms.link']) ? config.consent.termsUrl : null,
     marketingConsent: config.consent.marketing !== null,
   };
 }
