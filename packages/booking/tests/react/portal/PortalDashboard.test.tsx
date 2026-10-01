@@ -13,6 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => router }));
 vi.mock('../../../src/react/portal/leave', () => ({ leavePortal: vi.fn() }));
 
 import type { BookingConfig } from '../../../src/core/config';
+import { type BookingLabel, labelText } from '../../../src/core/labels';
 import type {
   PortalBookingDto,
   PortalFamilyMemberDto,
@@ -146,6 +147,12 @@ describe('PortalDashboard', () => {
     const greeting = screen.getByRole('heading', { level: 1, name: 'Hei Kari!' });
     // One text node per literal run and per hole, as a JSX sentence renders.
     expect(textNodesOf(greeting)).toEqual(['Hei ', 'Kari', '!']);
+  });
+
+  it('greets in one text node when the site writes the greeting as a string', () => {
+    dashboard({ labels: { ...TEST_LABELS, 'portal.greeting': 'Hei {name}!' } });
+    const greeting = screen.getByRole('heading', { level: 1, name: 'Hei Kari!' });
+    expect(textNodesOf(greeting)).toEqual(['Hei Kari!']);
     expect(screen.getByText('MIN SIDE')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Bestill ny time' })).toHaveAttribute(
       'href',
@@ -435,7 +442,7 @@ describe('the server page’s helpers', () => {
 
   it('ships the dashboard’s own words in both packs, with the same placeholders', () => {
     for (const key of Object.keys(BOOKING_LABELS.nb).filter((k) => k.startsWith('portal.'))) {
-      const holes = (text: string) => text.match(/\{\w+\}/g) ?? [];
+      const holes = (label: BookingLabel) => labelText(label).match(/\{\w+\}/g) ?? [];
       expect(holes(BOOKING_LABELS.en[key as 'portal.greeting']), key).toEqual(
         holes(BOOKING_LABELS.nb[key as 'portal.greeting'])
       );

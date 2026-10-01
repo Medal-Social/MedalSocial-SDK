@@ -123,7 +123,8 @@ export default async function Page() {
 The override ladder, cheapest first, all public API:
 
 1. **CSS variables** — the bridge's shadcn names.
-2. **`labels`** — any key of `BookingLabels`, over the pack in `config.labels`.
+2. **`labels`** — any key of `BookingLabels`, over the pack in `config.labels`
+   (see [Labels and text nodes](#labels-and-text-nodes)).
 3. **`classNames`** — per screen and slot: `classNames={{ who: { chip: '…' }, time: { chip: '…' } }}`.
 4. **`components`** — card renderers: `components={{ ServiceCard, StylistCard, TimeChip, … }}`.
 5. **`useBooking()`** — the wizard's whole state, fetches and actions, without its markup.
@@ -132,6 +133,31 @@ The override ladder, cheapest first, all public API:
 these with every booking piece under it. Server actions stay in the app
 (`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
 prop, answering with its result or with next-safe-action's envelope.
+
+### Labels and text nodes
+
+A label is a `BookingLabel`: a `string` or an array of strings. Both forms are
+serialisable and work for every key. They differ only in the DOM they render as:
+
+- A **string** is ONE text node once its `{holes}` are filled, the way a
+  template literal is.
+- An **array** is one text node per element, each element filled with the same
+  values. For example, `['Steg ', '{step}', ' av ', '{total}']` is four nodes,
+  the DOM of `Steg {step} av {total}` written out in JSX. An element that fills
+  to `''` renders nothing.
+
+A browser lays text out per text node, so a site moving onto these screens
+from its own JSX can match its old pixels by writing each sentence in the shape
+its old markup had. Text-only targets read an array joined: `aria-label`, the
+calendar file, its name, and messages.
+
+The built-in packs are strings, except the three sentences the package itself
+draws in pieces: `wizard.progress`, `wizard.slotsUnavailable.call` and
+`portal.greeting`. `wizard.party.sizeWord.two` / `.three` / `.other` spell the
+party size («to», «tre», «flere») for `{sizeWord}` in the stylist step's
+`stylist.party.parallel.*` and `stylist.party.parallelNote.*`. Left blank, the
+number is filled in instead. An array for a meda screen key needs
+`@medalsocial/meda` 3.4 or later.
 
 ## Server (`/next`)
 

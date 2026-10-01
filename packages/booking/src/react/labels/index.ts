@@ -11,7 +11,9 @@
  */
 
 import {
+  type BookingLabel,
   type BookingLabels as CoreLabels,
+  isBookingLabel,
   type KeyedLabels,
   LABEL_PACKS,
   labelPackFor,
@@ -22,7 +24,7 @@ import { PORTAL_LABELS_EN, PORTAL_LABELS_NB, type PortalLabels } from './portal'
 import { SCREEN_LABELS_EN, SCREEN_LABELS_NB, type ScreenLabels } from './screens';
 import { WIZARD_LABELS_EN, WIZARD_LABELS_NB, type WizardLabels } from './wizard';
 
-export type { LoginLabels, ManageLabels, PortalLabels, ScreenLabels, WizardLabels };
+export type { BookingLabel, LoginLabels, ManageLabels, PortalLabels, ScreenLabels, WizardLabels };
 
 /** One complete pack. `daypart.<key>` and `category.<key>` are per configured group. */
 export type BookingLabels = CoreLabels &
@@ -67,17 +69,18 @@ export const BOOKING_LABELS: Readonly<Record<'nb' | 'en', Readonly<BookingLabels
 
 /**
  * The built-in pack for `locale` (`nb` for Norwegian in any spelling, `en`
- * otherwise) with each of `overrides`' strings over it, later arguments
- * winning. A key whose value is not a string is ignored.
+ * otherwise) with each of `overrides`' labels over it, later arguments
+ * winning. A label is a string (one text node) or an array of strings (one
+ * text node per element); a key whose value is neither is ignored.
  */
 export function mergeLabels(
   locale: string,
   ...overrides: ReadonlyArray<BookingLabelsInput | null | undefined>
 ): Readonly<BookingLabels> {
-  const merged: Record<string, string> = { ...BOOKING_LABELS[labelPackFor(locale)] };
+  const merged: Record<string, BookingLabel> = { ...BOOKING_LABELS[labelPackFor(locale)] };
   for (const layer of overrides) {
     for (const [key, value] of Object.entries(layer ?? {})) {
-      if (typeof value === 'string') merged[key] = value;
+      if (isBookingLabel(value)) merged[key] = value;
     }
   }
   return merged as unknown as BookingLabels;

@@ -7,46 +7,65 @@
  * few sentences that are assembled out of state, so the rule that assembles
  * them and the words it uses have to travel together.
  *
- * A template is a plain string with `{name}` holes, so a label pack stays
- * serialisable: it rides in `BookingConfig.labels`, which is a page prop.
+ * A template has `{name}` holes and is a `BookingLabel`: a string or an array
+ * of strings, so a label pack stays serialisable (it rides in
+ * `BookingConfig.labels`, which is a page prop). Rendered as element children
+ * (`fillParts`), a string is ONE text node once filled and an array is one
+ * text node per element; as text (`fill`), an array's elements are joined.
  */
+
+/**
+ * One label. A `string` renders as one text node once filled, like a template
+ * literal; a `string[]` renders one text node per element, each filled with
+ * the same values: `['Steg ', '{step}', ' av ', '{total}']` is four nodes.
+ * Text-only targets (`aria-label`, ICS, a file name) read it joined.
+ */
+export type BookingLabel = string | readonly string[];
+
+/** Whether `value` is a `BookingLabel`: a string, or an array of strings. */
+export function isBookingLabel(value: unknown): value is BookingLabel {
+  return (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every((piece) => typeof piece === 'string'))
+  );
+}
 
 /** The labels the core reads. `/react` (P3) adds the screen copy on top. */
 export interface CoreLabels {
   /** `i dag` — mid-sentence, for «Neste ledige i dag 14:15». */
-  'clock.today': string;
-  'clock.tomorrow': string;
+  'clock.today': BookingLabel;
+  'clock.tomorrow': BookingLabel;
   /** `I dag` — the same day, sized for a chip in the date strip. */
-  'clock.todayChip': string;
-  'clock.tomorrowChip': string;
+  'clock.todayChip': BookingLabel;
+  'clock.tomorrowChip': BookingLabel;
   /** `{day} {time}` — «i dag 14:15». */
-  'clock.when': string;
+  'clock.when': BookingLabel;
   /** `{date} kl. {time}` — the manage page's whole appointment in one line. */
-  'clock.dateTime': string;
+  'clock.dateTime': BookingLabel;
   /** `{min} år`. */
-  'age.exact': string;
+  'age.exact': BookingLabel;
   /** `{min}–{max} år`, when only the birth year is known. */
-  'age.range': string;
+  'age.range': BookingLabel;
   /** The summary bar's stylist part for a null preference. */
-  'summary.firstAvailable': string;
+  'summary.firstAvailable': BookingLabel;
   /** The summary bar's time part before an hour is picked. */
-  'summary.pickTime': string;
+  'summary.pickTime': BookingLabel;
   /** `{count} tjenester` — a family's summary. */
-  'summary.services': string;
+  'summary.services': BookingLabel;
   /** `{minutes} min totalt`. */
-  'summary.totalMinutes': string;
+  'summary.totalMinutes': BookingLabel;
   /** `{count} barn` — guest children on step 1. */
-  'people.children': string;
+  'people.children': BookingLabel;
   /** The logged-in parent's own seat. */
-  'people.self': string;
+  'people.self': BookingLabel;
   /** A guest grown-up's seat. */
-  'people.adult': string;
+  'people.adult': BookingLabel;
 }
 
 /** Per-key copy for config-defined groups: `daypart.<key>`, `category.<key>`. */
 export type KeyedLabels = {
-  [key: `daypart.${string}`]: string;
-  [key: `category.${string}`]: string;
+  [key: `daypart.${string}`]: BookingLabel;
+  [key: `category.${string}`]: BookingLabel;
 };
 
 export type BookingLabels = CoreLabels & KeyedLabels;
@@ -116,44 +135,49 @@ export function resolveLabels(
 ): Readonly<BookingLabels> {
   const merged: BookingLabels = { ...LABEL_PACKS[labelPackFor(locale)] };
   for (const [key, value] of Object.entries(overrides ?? {})) {
-    if (typeof value === 'string') (merged as unknown as Record<string, string>)[key] = value;
+    if (isBookingLabel(value)) (merged as unknown as Record<string, BookingLabel>)[key] = value;
   }
   return merged;
 }
 
-/** `fill('{count} barn', { count: 2 })` → «2 barn». An unknown hole stays as written. */
-export function fill(template: string, values: Readonly<Record<string, string | number>>): string {
+function fillOne(template: string, values: Readonly<Record<string, string | number>>): string {
   return template.replace(/\{(\w+)\}/g, (hole, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : hole
   );
 }
 
+/** A label as plain text: an array's elements joined, a string as it is. */
+export function labelText(label: BookingLabel): string {
+  return typeof label === 'string' ? label : label.join('');
+}
+
 /**
- * `fill`, kept in pieces: `fillParts('Steg {step} av {total}', { step: 3, total: 4 })`
- * → `['Steg ', '3', ' av ', '4']`. Rendered as element children, each literal
- * run and each filled hole becomes its own text node: the same DOM as a JSX
- * `{a}{b}` composition, so the sentence lays out glyph for glyph like a
- * hand-written one (a single filled string can land sub-pixel apart). Use
- * `fill` where the target takes text only (`aria-label`, `title`, ICS).
- * Empty pieces are dropped; an unknown hole stays as written, in its run.
+ * `fill('{count} barn', { count: 2 })` → «2 barn», as plain text: an array is
+ * filled element by element and joined. An unknown hole stays as written.
+ */
+export function fill(
+  template: BookingLabel,
+  values: Readonly<Record<string, string | number>>
+): string {
+  return typeof template === 'string'
+    ? fillOne(template, values)
+    : template.map((piece) => fillOne(piece, values)).join('');
+}
+
+/**
+ * A filled label as the text nodes it renders as: one for a string (like a
+ * template literal), one per element for an array, each element filled with
+ * the same values — `fillParts(['Steg ', '{step}', ' av {total}'], { step: 3,
+ * total: 4 })` → `['Steg ', '3', ' av 4']`. Rendered as element children,
+ * each entry becomes its own text node, so a pack decides where a sentence
+ * breaks (a browser lays text out per text node, and the same sentence split
+ * differently can land a sub-pixel apart). Use `fill` where the target takes
+ * text only (`aria-label`, `title`, ICS). Empty pieces are dropped.
  */
 export function fillParts(
-  template: string,
+  template: BookingLabel,
   values: Readonly<Record<string, string | number>>
 ): string[] {
-  const parts: string[] = [];
-  let run = '';
-  for (const piece of template.split(/(\{\w+\})/g)) {
-    const name = /^\{(\w+)\}$/.exec(piece)?.[1];
-    if (name === undefined || !Object.hasOwn(values, name)) {
-      run += piece;
-      continue;
-    }
-    if (run !== '') parts.push(run);
-    run = '';
-    const value = String(values[name]);
-    if (value !== '') parts.push(value);
-  }
-  if (run !== '') parts.push(run);
-  return parts;
+  const pieces = typeof template === 'string' ? [template] : template;
+  return pieces.map((piece) => fillOne(piece, values)).filter((piece) => piece !== '');
 }

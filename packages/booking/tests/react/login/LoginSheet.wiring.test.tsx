@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveBookingConfig } from '../../../src/core/config';
+import { labelText } from '../../../src/core/labels';
 import type { PortalActions } from '../../../src/react/actions';
 import { LoginSheet } from '../../../src/react/LoginSheet';
 import { TEST_LABELS } from '../../support/labels';
@@ -103,7 +104,9 @@ describe('LoginSheet wiring', () => {
     });
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
     fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
-    expect(await screen.findByText(TEST_LABELS['login.notice.badEmail'])).toBeInTheDocument();
+    expect(
+      await screen.findByText(labelText(TEST_LABELS['login.notice.badEmail']))
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
@@ -120,7 +123,9 @@ describe('LoginSheet wiring', () => {
     });
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
     fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
-    expect(await screen.findByText(TEST_LABELS['login.notice.badEmail'])).toBeInTheDocument();
+    expect(
+      await screen.findByText(labelText(TEST_LABELS['login.notice.badEmail']))
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
@@ -135,7 +140,9 @@ describe('LoginSheet wiring', () => {
     renderInline({ startLogin: vi.fn().mockResolvedValue(result) });
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
     fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
-    expect(await screen.findByText(TEST_LABELS['login.notice.unreachable'])).toBeInTheDocument();
+    expect(
+      await screen.findByText(labelText(TEST_LABELS['login.notice.unreachable']))
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
@@ -143,7 +150,9 @@ describe('LoginSheet wiring', () => {
     renderInline({ startLogin: vi.fn().mockRejectedValue(new Error('boom')) });
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
     fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
-    expect(await screen.findByText(TEST_LABELS['login.notice.unreachable'])).toBeInTheDocument();
+    expect(
+      await screen.findByText(labelText(TEST_LABELS['login.notice.unreachable']))
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 

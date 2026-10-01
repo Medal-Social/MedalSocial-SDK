@@ -1,6 +1,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import type { BookingConfig } from '../core/config';
+import { labelText } from '../core/labels';
 import { createReturnPath } from '../core/portal/return-path';
 import { stripVippsReturn, vippsConfirmFrom } from '../core/portal/vipps-return';
 import { LoginSheet, type LoginSheetProps, type VippsConfirm } from './LoginSheet';
@@ -28,7 +29,7 @@ const VIPPS_NOTICE: Record<string, keyof LoginLabels> = {
 export function vippsNotice(values: readonly string[], labels: LoginLabels): string | null {
   if (values.length !== 1) return null;
   const [value] = values;
-  return Object.hasOwn(VIPPS_NOTICE, value) ? labels[VIPPS_NOTICE[value]] : null;
+  return Object.hasOwn(VIPPS_NOTICE, value) ? labelText(labels[VIPPS_NOTICE[value]]) : null;
 }
 
 /**

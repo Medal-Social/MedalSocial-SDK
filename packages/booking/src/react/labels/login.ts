@@ -4,11 +4,13 @@
  * login page shows for each outcome a Vipps return can report (`?vipps=`).
  */
 
+import type { BookingLabel } from '../../core/labels';
+
 export type LoginLabels = {
   /** `?vipps=needs_email_login`: the Vipps login matched more than one profile. */
-  'loginPage.vipps.needsEmailLogin': string;
+  'loginPage.vipps.needsEmailLogin': BookingLabel;
   /** `?vipps=failed`: the Vipps login was cancelled or failed. */
-  'loginPage.vipps.failed': string;
+  'loginPage.vipps.failed': BookingLabel;
 };
 
 export const LOGIN_LABELS_NB: LoginLabels = {

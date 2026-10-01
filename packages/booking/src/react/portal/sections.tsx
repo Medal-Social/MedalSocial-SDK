@@ -1,6 +1,8 @@
 import { PortalShell, type PortalShellIcon } from '@medalsocial/meda/booking';
 import type { ReactNode } from 'react';
+import { labelText } from '../../core/labels';
 import type { ResolvedBooking } from '../Provider';
+import { screenLabels } from '../screen-labels';
 import {
   DEFAULT_PORTAL_TAB,
   DEFAULT_PORTAL_TAB_PARAM,
@@ -46,14 +48,14 @@ export function PortalSections({
   const { labels } = booking.kit;
   const tab = (id: PortalTab, short?: string) => ({
     id,
-    label: labels[`portal.tab.${id}`],
+    label: labelText(labels[`portal.tab.${id}`]),
     short,
     ...icons?.[id],
     content: sections[id],
   });
   return (
     <PortalShell<PortalTab>
-      labels={labels}
+      labels={screenLabels(labels)}
       classNames={booking.classNames.portalShell}
       header={header}
       account={account}
@@ -66,7 +68,7 @@ export function PortalSections({
         window.history.replaceState(null, '', url);
       }}
       tabs={[
-        tab('overview', labels['portal.tab.overviewShort']),
+        tab('overview', labelText(labels['portal.tab.overviewShort'])),
         tab('family'),
         tab('history'),
         tab('profile'),

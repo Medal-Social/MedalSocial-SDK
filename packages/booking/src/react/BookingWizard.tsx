@@ -35,13 +35,14 @@ import {
   useRef,
   useState,
 } from 'react';
-import { fill, fillParts } from '../core/labels';
+import { fill, fillParts, labelText } from '../core/labels';
 import { SELF_KEY, type WizardPerson, type WizardState, type WizardStep } from '../core/machine';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
 import { LoginSheet } from './LoginSheet';
 import type { BookingOverrides, ResolvedBooking } from './Provider';
 import { useBookingKit } from './Provider';
+import { screenLabels } from './screen-labels';
 import {
   type BookingConfirmation,
   type BookingController,
@@ -56,6 +57,7 @@ import {
   familyEntries,
   guestChoices,
   partyPeople,
+  partySizeWord,
   serviceFitsFor,
   serviceScreenBase,
   weekendNoteFor,
@@ -213,7 +215,7 @@ function BookingWizardShell(props: BookingWizardProps) {
   if (movedNow && !stepsMovedOnce) setStepsMovedOnce(true);
   const stepsMoved = stepsMovedOnce || movedNow;
 
-  const restoreSkeleton = <RestoreSkeleton text={labels['wizard.restoring']} />;
+  const restoreSkeleton = <RestoreSkeleton text={labelText(labels['wizard.restoring'])} />;
   /**
    * The root both screens share: the scroll target, and the element the
    * inline restore gate marks. The script and the hidden skeleton exist only
@@ -326,7 +328,7 @@ function BookingWizardShell(props: BookingWizardProps) {
         canAdvance={booking.derived.canAdvance}
         step={state.step}
         onNext={booking.next}
-        labels={labels}
+        labels={screenLabels(labels)}
         classNames={resolved.classNames.summary}
       />
     </div>
@@ -353,7 +355,7 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
   const guests = useMemo(() => guestChoices(kit), [kit]);
   return (
     <WhoScreen
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       people={state.people}
       family={people.family === null ? null : familyEntries(kit, people.family, people.ageDayKey)}
@@ -380,7 +382,7 @@ function ServiceStep({ booking, resolved }: StepProps) {
   const single = state.people.length === 1 ? state.people[0] : null;
   return (
     <ServiceScreen
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       services={catalogue.services}
       {...serviceScreenBase(kit)}
@@ -423,7 +425,7 @@ function WhenStep({ booking, resolved }: StepProps) {
   return (
     <>
       <StylistScreen
-        labels={labels}
+        labels={screenLabels(labels)}
         format={format}
         // Not deduplicated: a named stylist has to cover every line.
         serviceIds={items.map((item) => item.service.id)}
@@ -440,6 +442,7 @@ function WhenStep({ booking, resolved }: StepProps) {
             ? {
                 mode: state.partyMode,
                 size: items.length,
+                sizeWord: partySizeWord(labels, items.length),
                 minutes: {
                   sequential: wizard.visitMinutes(items, 'sequential'),
                   parallel: wizard.visitMinutes(items, 'parallel'),
@@ -458,7 +461,7 @@ function WhenStep({ booking, resolved }: StepProps) {
 
       {slots.ready ? (
         <TimeScreen
-          labels={labels}
+          labels={screenLabels(labels)}
           format={format}
           dayparts={kit.dayparts}
           monthView
@@ -500,7 +503,7 @@ function WhenStep({ booking, resolved }: StepProps) {
       ) : (
         // The step's own shape, so nothing below it moves when it fills in.
         <TimeScreenSkeleton
-          labels={labels}
+          labels={screenLabels(labels)}
           days={slots.days.length}
           monthView
           surchargeRow={items.some((item) => item.service.weekendSurchargePct > 0)}
@@ -508,7 +511,7 @@ function WhenStep({ booking, resolved }: StepProps) {
       )}
 
       {/* Once, outside the skeleton-or-step switch, so a re-read cannot remount it. */}
-      <TakenToast labels={labels} takenSlotTs={slots.takenSlotTs} />
+      <TakenToast labels={screenLabels(labels)} takenSlotTs={slots.takenSlotTs} />
     </>
   );
 }
@@ -535,7 +538,7 @@ function DetailsStep({ booking, resolved }: StepProps) {
       family={guardian?.family}
       guardianPhone={guardian?.phone ?? null}
       format={kit.format}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       classNames={resolved.classNames.details}
       components={
         resolved.components.FamilyChip ? { FamilyChip: resolved.components.FamilyChip } : undefined
@@ -555,7 +558,7 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
       onStartOver={booking.startOver}
       now={now}
       format={kit.format}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       classNames={resolved.classNames.confirmation}
       components={
         resolved.components.PartyLine ? { PartyLine: resolved.components.PartyLine } : undefined
@@ -592,7 +595,7 @@ function LoginRow({
     signedIn === null
       ? null
       : name === null
-        ? labels['wizard.signedIn']
+        ? labelText(labels['wizard.signedIn'])
         : fill(labels['wizard.signedInAs'], { name });
   return (
     <div>
@@ -659,7 +662,7 @@ function WizardHeader({
   onGo: (step: WizardStep) => void;
 }) {
   const { labels, wizard } = kit;
-  const stepLabel = (step: WizardStep) => labels[`wizard.step.${step}`];
+  const stepLabel = (step: WizardStep) => labelText(labels[`wizard.step.${step}`]);
   const index = STEPS.indexOf(state.step);
   const previous = index > 0 ? STEPS[index - 1] : null;
   const canGoBack = previous !== null && !submitting && wizard.canGoToStep(state, previous);
@@ -692,7 +695,10 @@ function WizardHeader({
         </p>
       </div>
 
-      <ol aria-label={labels['wizard.progressLabel']} className="flex items-center gap-1.5">
+      <ol
+        aria-label={labelText(labels['wizard.progressLabel'])}
+        className="flex items-center gap-1.5"
+      >
         {STEPS.map((step, position) => {
           const isCurrent = step === state.step;
           const reachable = !submitting && !isCurrent && wizard.canGoToStep(state, step);

@@ -7,11 +7,12 @@ import {
   VisitHistory,
 } from '@medalsocial/meda/booking';
 import { type ReactNode, useState } from 'react';
-import { fillParts } from '../../core/labels';
+import { fillParts, labelText } from '../../core/labels';
 import type { PortalBookingDto, PortalProfileDto } from '../../core/portal/dto';
 import { rebookSuggestions } from '../../core/portal/dto';
 import type { PortalActions } from '../actions';
 import { type BookingOverrides, useBookingKit } from '../Provider';
+import { screenLabels } from '../screen-labels';
 import { agePromptCookieName } from './age-prompt';
 import { createChildSummaries } from './child-summary';
 import { SessionTouch } from './SessionTouch';
@@ -121,7 +122,7 @@ export function PortalDashboard(props: PortalDashboardProps) {
                 </p>
                 <h1 className="font-sans text-3xl font-bold md:text-5xl">
                   {fillParts(labels['portal.greeting'], {
-                    name: profile.firstName ?? labels['portal.greetingFallback'],
+                    name: profile.firstName ?? labelText(labels['portal.greetingFallback']),
                   })}
                 </h1>
               </div>
@@ -160,7 +161,7 @@ export function PortalDashboard(props: PortalDashboardProps) {
               phone={phone}
               bookingHref={bookingHref}
               now={now}
-              labels={labels}
+              labels={screenLabels(labels)}
               format={kit.format}
               classNames={booking.classNames.upcoming}
               components={booking.components}
@@ -213,7 +214,7 @@ export function PortalDashboard(props: PortalDashboardProps) {
         history={
           <VisitHistory
             past={bookings.past}
-            labels={labels}
+            labels={screenLabels(labels)}
             format={kit.format}
             classNames={booking.classNames.history}
             components={booking.components}
@@ -262,7 +263,7 @@ export function PortalDashboardUnreachable(props: PortalDashboardUnreachableProp
   const { kit } = booking;
   return (
     <PortalUnreachable
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       phone={props.phone}
       retryHref={kit.config.paths.portal ?? '/'}

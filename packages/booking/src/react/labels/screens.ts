@@ -6,9 +6,15 @@
  * Kept in step with meda's `BOOKING_LABEL_KEYS` by `tests/react/labels.test.ts`.
  */
 
-import type { BookingLabels as ScreenLabels } from '@medalsocial/meda/booking';
+import type { BookingLabels as MedaBookingLabels } from '@medalsocial/meda/booking';
+import type { BookingLabel } from '../../core/labels';
 
-export type { ScreenLabels };
+/**
+ * Every meda screen key, each a `BookingLabel`: a string renders as one text
+ * node, an array one per element (meda ≥ 3.4). The built-in packs are all
+ * strings.
+ */
+export type ScreenLabels = { [K in keyof MedaBookingLabels]: BookingLabel };
 
 export const SCREEN_LABELS_NB: ScreenLabels = {
   'addChild.birthMonth': 'Fødselsmåned (valgfritt)',

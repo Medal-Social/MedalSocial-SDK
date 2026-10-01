@@ -18,6 +18,7 @@ import { createDeepLinks, type DeepLinks } from '../core/deep-link';
 import { initialsOf, stylistDisplayName } from '../core/display-name';
 import { createDraftStore, type DraftStore } from '../core/draft-store';
 import { createIcs, type Ics } from '../core/ics';
+import { labelText } from '../core/labels';
 import { createWizard, type Wizard } from '../core/machine';
 import { createMoney, type Money } from '../core/money';
 import { createPartySlots, type PartySlots } from '../core/party-slots';
@@ -149,10 +150,13 @@ function buildKit(base: Readonly<BookingConfig>, labels: Readonly<BookingLabels>
       key: part.key,
       label: core.daypartLabel(part.key),
     })),
-    categories: categoryOrder(config).map((key) => ({
-      key,
-      label: labels[`category.${key}`] ?? capitalised(key, config.locale),
-    })),
+    categories: categoryOrder(config).map((key) => {
+      const label = labels[`category.${key}`];
+      return {
+        key,
+        label: label === undefined ? capitalised(key, config.locale) : labelText(label),
+      };
+    }),
     childCategory: childCategory(config),
     possessive: possessiveFor(config.locale),
   };

@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { type ComponentProps, type MouseEvent, useEffect, useRef, useState } from 'react';
 import type { BookingConfig } from '../core/config';
 import { type BookingOverrides, useBookingKit } from './Provider';
+import { screenLabels } from './screen-labels';
 
 /**
  * Every in-site link into the booking page, so the one tap a site exists for
@@ -112,7 +113,9 @@ export function BookingPendingHost(props: BookingOverrides) {
     setVisible(false);
   }, [pathname]);
 
-  return visible ? <BookingSkeleton labels={kit.labels} classNames={classNames.skeleton} /> : null;
+  return visible ? (
+    <BookingSkeleton labels={screenLabels(kit.labels)} classNames={classNames.skeleton} />
+  ) : null;
 }
 
 export type BookingLinkProps = Omit<ComponentProps<typeof Link>, 'prefetch' | 'href'> & {

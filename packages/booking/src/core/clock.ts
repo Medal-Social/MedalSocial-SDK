@@ -18,7 +18,7 @@
  */
 
 import type { BookingConfig, BookingDaypart } from './config';
-import { type BookingLabels, fill, resolveLabels } from './labels';
+import { type BookingLabels, fill, labelText, resolveLabels } from './labels';
 
 interface Formatters {
   /** `h23` rather than `hour12: false`, which renders midnight as `24:00` on some ICU builds. */
@@ -267,7 +267,8 @@ function buildClock(config: ClockConfig): Clock {
   }
 
   function daypartLabel(key: string): string {
-    return labels[`daypart.${key}`] ?? key;
+    const label = labels[`daypart.${key}`];
+    return label === undefined ? key : labelText(label);
   }
 
   /**
@@ -279,8 +280,8 @@ function buildClock(config: ClockConfig): Clock {
    */
   function dayLabel(ts: number, now: number = Date.now()): string {
     const days = daysBetween(now, ts);
-    if (days === 0) return labels['clock.today'];
-    if (days === 1) return labels['clock.tomorrow'];
+    if (days === 0) return labelText(labels['clock.today']);
+    if (days === 1) return labelText(labels['clock.tomorrow']);
     if (days > 1 && days < 7) return f.weekdayLong.format(ts);
     return f.dayMonth.format(ts);
   }
@@ -288,8 +289,8 @@ function buildClock(config: ClockConfig): Clock {
   /** The same day, sized for a chip in the date strip: `I dag`, `lør. 5.`. */
   function dayChip(ts: number, now: number = Date.now()): string {
     const days = daysBetween(now, ts);
-    if (days === 0) return labels['clock.todayChip'];
-    if (days === 1) return labels['clock.tomorrowChip'];
+    if (days === 0) return labelText(labels['clock.todayChip']);
+    if (days === 1) return labelText(labels['clock.tomorrowChip']);
     return f.weekdayShort.format(ts);
   }
 

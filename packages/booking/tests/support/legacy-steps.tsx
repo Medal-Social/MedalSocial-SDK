@@ -32,7 +32,7 @@ import { useState } from 'react';
 import type { AgeRange } from '../../src/core/age';
 import type { BookingConfig } from '../../src/core/config';
 import { stylistDisplayName } from '../../src/core/display-name';
-import { fill } from '../../src/core/labels';
+import { fill, labelText } from '../../src/core/labels';
 import {
   initialState,
   SELF_KEY,
@@ -52,6 +52,7 @@ import type {
 } from '../../src/core/types';
 import { type BookingKit, createBookingKit } from '../../src/react/kit';
 import { type BookingLabels, mergeLabels } from '../../src/react/labels';
+import { screenLabels } from '../../src/react/screen-labels';
 import { personForChild } from '../../src/react/useBooking';
 import {
   childLine as adapterChildLine,
@@ -137,7 +138,7 @@ export function WhoStep({ people, family, dayKey, onChoose, onAddChild, loginRow
   const kit = legacyKit();
   return (
     <WhoScreen
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       people={people}
       family={family === null ? null : familyEntries(kit, family, dayKey)}
@@ -161,7 +162,7 @@ export function ageDividerLabel(name: string | null | undefined): string {
   const kit = legacyKit();
   return name
     ? fill(kit.labels['service.ageDivider.named'], { nameGenitive: kit.possessive(name), name })
-    : kit.labels['service.ageDivider.unnamed'];
+    : labelText(kit.labels['service.ageDivider.unnamed']);
 }
 
 interface ServiceSuggestion {
@@ -212,7 +213,7 @@ export function ServiceStep({
   const ages = family ? family.people.map((person) => person.age ?? null) : [age];
   return (
     <ServiceScreen
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       services={services}
       {...serviceScreenBase(kit)}
@@ -259,7 +260,7 @@ interface StylistStepProps {
 
 export function StylistStep(props: StylistStepProps) {
   const kit = legacyKit();
-  return <StylistScreen labels={kit.labels} format={kit.format} {...props} />;
+  return <StylistScreen labels={screenLabels(kit.labels)} format={kit.format} {...props} />;
 }
 
 interface TimeStepProps {
@@ -303,7 +304,7 @@ export function TimeStep({
   const items: WizardItem[] = party ? party.items : service ? [{ service }] : [];
   return (
     <TimeScreen
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       format={kit.format}
       dayparts={kit.dayparts}
       monthView={monthView}
@@ -352,7 +353,7 @@ export function TimeStepSkeleton({
   const kit = legacyKit();
   return (
     <TimeScreenSkeleton
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
       days={days}
       monthView={monthView}
       surchargeRow={surchargeRow}
@@ -361,7 +362,7 @@ export function TimeStepSkeleton({
 }
 
 export function TakenToast({ takenSlotTs }: { takenSlotTs: number | null }) {
-  return <TakenToastScreen labels={legacyKit().labels} takenSlotTs={takenSlotTs} />;
+  return <TakenToastScreen labels={screenLabels(legacyKit().labels)} takenSlotTs={takenSlotTs} />;
 }
 
 // ---------------------------------------------------------------- step 4
@@ -398,7 +399,7 @@ export function DetailsStep({
       family={family}
       guardianPhone={guardianPhone}
       format={kit.format}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
     />
   );
 }
@@ -424,7 +425,7 @@ export function SummaryBar({ state, resolveStylistName, onNext }: SummaryBarProp
       canAdvance={kit.wizard.canAdvance(state)}
       step={state.step}
       onNext={onNext}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
     />
   );
 }
@@ -472,7 +473,7 @@ export function Confirmation({
       onStartOver={onStartOver}
       now={now}
       format={kit.format}
-      labels={kit.labels}
+      labels={screenLabels(kit.labels)}
     />
   );
 }
