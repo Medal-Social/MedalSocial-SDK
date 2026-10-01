@@ -403,6 +403,9 @@ describe('expiry markers on a hit', () => {
     window: { ...PARITY_CONFIG.window, prefetchLimit: MAX },
   };
 
+  /** Lets the background delete passes of `expireBookingSeeds` finish. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+
   /** A seed over the maximum prefetch set, with every edge read counted. */
   function bigSeed() {
     const { adapter, memory } = store();
@@ -454,6 +457,7 @@ describe('expiry markers on a hit', () => {
     await warm(seed);
     // svc-21 is bookable but past the prefetch limit.
     await seed.expireBookingSeeds(['svc-21'], NOW + 1_000, 0);
+    await settle();
 
     reads.cachedAvailability.mockClear();
     get.mockClear();
@@ -476,7 +480,8 @@ describe('expiry markers on a hit', () => {
     const built = await memory.get(key);
     expect(built).toBeDefined();
     await seed.expireBookingSeeds(['svc-07'], NOW + 1_000, 0);
-    // The background delete has not reached this location yet.
+    await settle();
+    // Put back as if the background delete had not reached this location yet.
     await memory.put(key, built, 30);
 
     await seed.loadBookingSeed(undefined, NOW + 2_000);
@@ -493,10 +498,11 @@ describe('expiry markers on a hit', () => {
     await warm(seed);
     const key = seed.seedKeyAt(seed.prefetchKey(BIG_MENU.slice(0, MAX)), NOW) ?? '';
     const built = await memory.get(key);
-    // Two writes moments apart: svc-03 at NOW + 1 s, another service at
-    // NOW - 1 s whose put of the location-wide marker landed last.
+    // svc-03 written at NOW + 1 s; another service written at NOW - 20 s
+    // whose put of the location-wide marker was slow and landed last.
     await seed.expireBookingSeeds(['svc-03'], NOW + 1_000, 0);
-    await memory.put(seed.anyExpiryMarkerKey() ?? '', NOW - 1_000, 600);
+    await settle();
+    await memory.put(seed.anyExpiryMarkerKey() ?? '', NOW - 20_000, 600);
     await memory.put(key, built, 30);
 
     await seed.loadBookingSeed(undefined, NOW + 2_000);
@@ -508,20 +514,34 @@ describe('expiry markers on a hit', () => {
     );
   });
 
-  it('counts an unreadable location-wide marker as no write', async () => {
-    const { adapter, memory } = store({ getThrows: '/gen-any' });
+  /** A seed with a marker on `svc-a`, and the location-wide one set too. */
+  async function writtenAfterBuild(rules: Rules) {
+    const { adapter, memory } = store(rules);
     const { seed, timing } = seedOver(adapter);
     await seed.loadBookingSeed(undefined, NOW);
-    // A marker on one of the seed's services that the hit never gets to read.
-    await memory.put(seed.anyExpiryMarkerKey() ?? '', NOW + 1_000, 600);
+    const any = seed.anyExpiryMarkerKey();
+    if (any !== null) await memory.put(any, NOW + 1_000, 600);
     await memory.put(seed.expiryMarkerKey('svc-a') ?? '', NOW + 1_000, 600);
-
     await seed.loadBookingSeed(undefined, NOW + 2_000);
+    return { seed, timing };
+  }
 
+  it('reads the per-service markers when the location-wide one cannot be read', async () => {
+    const { timing } = await writtenAfterBuild({ getThrows: '/gen-any' });
     expect(timing).toHaveBeenLastCalledWith(
       'seed',
       expect.any(Number),
-      expect.objectContaining({ state: 'hit' })
+      expect.objectContaining({ state: 'miss' })
+    );
+  });
+
+  it('reads the per-service markers when the adapter cannot store the location-wide one', async () => {
+    const { seed, timing } = await writtenAfterBuild({ refuse: ['/gen-any'] });
+    expect(seed.anyExpiryMarkerKey()).toBeNull();
+    expect(timing).toHaveBeenLastCalledWith(
+      'seed',
+      expect.any(Number),
+      expect.objectContaining({ state: 'miss' })
     );
   });
 });

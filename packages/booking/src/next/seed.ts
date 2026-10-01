@@ -117,11 +117,19 @@ const MARKER_TTL_S = 10 * 60;
  * prefetched service (up to `window.prefetchLimit`). Only when it is at or
  * within this margin of a seed's build instant are the per-service markers
  * read, to tell a write to one of the seed's services from a write to another
- * one. The margin covers two writes racing: the edge has no compare-and-set,
- * so the location-wide marker can end on the earlier of two writes landing
- * within moments of each other; the per-service markers still hold the later.
+ * one. The margin covers writes racing: the edge has no compare-and-set, so
+ * the location-wide marker can end on an earlier write whose put landed after
+ * a later one's; the per-service markers still hold the later. One seed
+ * bucket: far longer than an edge put takes, and a hit within it of a write
+ * costs the per-service reads it always cost before.
+ *
+ * When the location-wide marker cannot be read, or the adapter cannot store
+ * it, the per-service markers are read instead. When it is simply absent (no
+ * write here within `MARKER_TTL_S`, or its put failed while a per-service put
+ * succeeded) the hit is served; as with any marker that failed, the
+ * background deletes and the 30 s bucket still bound that seed.
  */
-const MARKER_RACE_MS = 5_000;
+const MARKER_RACE_MS = SEED_BUCKET_MS;
 
 /**
  * How long after the first delete the second one runs. The first can land
@@ -329,23 +337,27 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   }
 
   /**
-   * One expiry marker, or `null` when it is not set. A marker that cannot be
-   * read counts as none: the delete passes and the 30 s bucket still bound it.
+   * One expiry marker, `null` when it is not set, or `failed` when the
+   * adapter cannot store it or the read fails.
    */
-  async function readMarker(key: string | null): Promise<number | null> {
-    if (key === null) return null;
+  async function readMarker<F>(key: string | null, failed: F): Promise<number | null | F> {
+    if (key === null) return failed;
     try {
       const hit = await edge.get<unknown>(key);
       const mark = hit === undefined ? Number.NaN : Number(hit);
       return Number.isFinite(mark) ? mark : null;
     } catch {
-      return null;
+      return failed;
     }
   }
 
-  /** The latest per-service expiry marker among `targets`, or `null`. */
+  /**
+   * The latest per-service expiry marker among `targets`, or `null`. A marker
+   * that cannot be read counts as none: the delete passes and the 30 s bucket
+   * still bound it.
+   */
   async function latestExpiry(targets: readonly { id: string }[]): Promise<number | null> {
-    const marks = await Promise.all(targets.map(({ id }) => readMarker(expiryMarkerKey(id))));
+    const marks = await Promise.all(targets.map(({ id }) => readMarker(expiryMarkerKey(id), null)));
     const valid = marks.filter((mark) => mark !== null);
     return valid.length === 0 ? null : Math.max(...valid);
   }
@@ -358,11 +370,12 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
    * not rule a write out (`MARKER_RACE_MS`), and then once for every check.
    */
   function expiryCheck(targets: readonly { id: string }[]): (since: number) => Promise<boolean> {
-    const any = readMarker(anyExpiryMarkerKey());
+    // Unreadable or unstorable: let the per-service markers decide.
+    const any = readMarker(anyExpiryMarkerKey(), 'unknown' as const);
     let perService: Promise<number | null> | undefined;
     return async (since) => {
       const anyAt = await any;
-      if (anyAt === null || anyAt < since - MARKER_RACE_MS) return false;
+      if (anyAt === null || (anyAt !== 'unknown' && anyAt < since - MARKER_RACE_MS)) return false;
       perService ??= latestExpiry(targets);
       const latest = await perService;
       return latest !== null && latest >= since;
