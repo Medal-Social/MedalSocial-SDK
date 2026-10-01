@@ -13,6 +13,7 @@ and is never published.
 | Package | Directory | Registries |
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
+| `@medalsocial/booking` | `packages/booking` | npm only, **unpublished** (`"private": true` until 0.1.0) |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
@@ -37,6 +38,19 @@ and is never published.
   script, a `build`/`test`/`typecheck` script so the fan-out picks it up, a
   `knip.json` workspace entry and a changeset for its first release. Keep the
   public-repo rule: no customer names, copy or data in any package.
+- **`@medalsocial/booking`** (plan: Vault `vault/medal/booking/plans/2026-09-30-booking-package-extraction.md`)
+  is ESM-only with entries `./core`, `./react`, `./next` and
+  `./next/cache/{workers,memory,next-data,noop}`. `/core` imports no React,
+  Next, `server-only` or meda (Biome `noRestrictedImports` +
+  `tests/core/boundary.test.ts`; `verify:paths` also imports the built
+  `dist/core` in bare Node). Its typecheck maps `@medalsocial/sdk` onto
+  `../sdk/src` so no build is needed first; the declaration build
+  (`tsconfig.build.json`) resolves the built SDK instead. Size budgets:
+  `pnpm --filter @medalsocial/booking run size:budget` (CI `build` job).
+  It stays `"private": true` — so `changeset publish` skips it — until the
+  release PR for 0.1.0 removes the flag; its changesets accumulate until then.
+  Public-repo rule: `tests/core/denylist.test.ts` fails on a customer or staff
+  name anywhere in the package (hashed list, so the test names nobody).
 - The published tarball must not change when files move around the workspace:
   compare `npm pack --dry-run --json` file lists and `package.json#exports`
   before and after, and the `jsr publish --dry-run` file set.

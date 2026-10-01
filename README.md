@@ -7,6 +7,7 @@ This repository is a pnpm workspace. Each published package lives under `package
 | Package | Directory | What it is |
 |---|---|---|
 | [`@medalsocial/sdk`](https://www.npmjs.com/package/@medalsocial/sdk) | [`packages/sdk`](packages/sdk) | The API client: posts, emails, contacts, deals, bookings, helpdesk, webhooks, GDPR and more. Also on [JSR](https://jsr.io/@medalsocial/sdk). |
+| `@medalsocial/booking` (pre-release) | [`packages/booking`](packages/booking) | The booking product on top of the SDK: wizard rules, clock, money and portal helpers (`/core`); React screens and Next.js server pieces to follow. |
 
 Start with the [`@medalsocial/sdk` README](packages/sdk/README.md) for installation and usage.
 

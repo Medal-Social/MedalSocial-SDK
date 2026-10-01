@@ -11,6 +11,9 @@
     "packages/sdk": {
       "ignore": ["src/index.ts", "vitest.integration.config.ts"]
     },
+    "packages/booking": {
+      "entry": ["src/next/cache/*.ts", "scripts/*.mjs"]
+    },
     "examples/*": {}
   },
   "ignoreExportsUsedInFile": true,

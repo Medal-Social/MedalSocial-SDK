@@ -30,8 +30,8 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           # lcov paths are package-relative (src/…); Codecov's path fixing maps
-          # them onto packages/sdk/src.
-          files: ./packages/sdk/coverage/lcov.info
+          # them onto packages/<name>/src.
+          files: ./packages/sdk/coverage/lcov.info,./packages/booking/coverage/lcov.info
           fail_ci_if_error: false
 
   # The same unit suite on the OTHER Node line `engines.node` admits, so the
@@ -99,6 +99,10 @@ jobs:
       - run: pnpm --filter @medalsocial/sdk run openapi:coverage
 
       - run: pnpm -r --filter './packages/*' run verify:paths
+
+      # Bundle-size budgets for @medalsocial/booking (built output, esbuild +
+      # gzip, peers external). Raising one needs a written reason in the PR.
+      - run: pnpm --filter @medalsocial/booking run size:budget
 
       # JSR validates the package on rules npm, tsc, tsdown and verify:paths never
       # see: it rejects "slow types" (a public-API symbol with no explicit type)

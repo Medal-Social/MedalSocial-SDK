@@ -12,5 +12,43 @@
   },
   "files": {
     "includes": ["**", "!**/dist", "!**/coverage", "!**/docs"]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/booking/**"],
+      "javascript": {
+        "formatter": {
+          "quoteStyle": "single",
+          "trailingCommas": "es5"
+        }
+      }
+    },
+    {
+      "includes": ["packages/booking/src/core/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react": "/core runs without React: import it from /react instead.",
+                  "react-dom": "/core runs without React: import it from /react instead.",
+                  "next": "/core runs without Next: import it from /next instead.",
+                  "server-only": "/core is shared with the browser: server-only code belongs in /next.",
+                  "@medalsocial/meda": "/core renders nothing: screens are composed in /react."
+                },
+                "patterns": [
+                  {
+                    "group": ["react/*", "react-dom/*", "next/*", "@medalsocial/meda/*"],
+                    "message": "/core imports no framework: see packages/booking/README.md."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
