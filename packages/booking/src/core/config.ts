@@ -236,8 +236,53 @@ const key = z.string().regex(/^[\w-]{1,64}$/, 'must be 1–64 word characters');
 const lowerKey = z.string().regex(/^[a-z0-9_-]{1,64}$/, 'must be 1–64 lower-case word characters');
 /** A prefix must end at a segment boundary, or `/flow` would also admit `/flow-evil`. */
 const prefix = path.refine((value) => value.endsWith('/'), 'a prefix must end with /');
+/** The longest cookie name the config takes. */
+const MAX_COOKIE_NAME = 128;
 /** RFC 6265 token characters, which is every name a browser keeps intact. */
 const cookieName = z.string().regex(/^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,128}$/);
+
+/**
+ * How each secondary portal cookie name derives from `portal.cookieName` when
+ * the site sets none — the prefix and suffix, so a too-long base can be
+ * reported against the name the site actually wrote.
+ */
+const DERIVED_COOKIE_NAMES = {
+  nextCookieName: { prefix: '', suffix: '_next' },
+  vippsBindingCookieName: { prefix: '__Host-', suffix: '_vipps_bind' },
+  vippsLinkCookieName: { prefix: '', suffix: '_vipps_link' },
+} as const;
+
+type DerivedCookieName = keyof typeof DERIVED_COOKIE_NAMES;
+
+/**
+ * A derived name that would be too long, said about `portal.cookieName`
+ * (which the site wrote) rather than a name it never set. `null` when every
+ * derived name fits — the schema then judges the characters as usual.
+ */
+function derivedCookieNameIssue(
+  session: string,
+  derived: readonly DerivedCookieName[]
+): { path: string; message: string } | null {
+  const tooLong = derived.filter((name) => {
+    const { prefix, suffix } = DERIVED_COOKIE_NAMES[name];
+    return prefix.length + session.length + suffix.length > MAX_COOKIE_NAME;
+  });
+  if (tooLong.length === 0) return null;
+  const room = Math.min(
+    ...tooLong.map((name) => {
+      const { prefix, suffix } = DERIVED_COOKIE_NAMES[name];
+      return MAX_COOKIE_NAME - prefix.length - suffix.length;
+    })
+  );
+  return {
+    path: 'portal.cookieName',
+    message: `must be at most ${room} characters, or the derived ${tooLong
+      .map((name) => `portal.${name}`)
+      .join(', ')} would exceed ${MAX_COOKIE_NAME}; shorten it or set ${
+      tooLong.length === 1 ? 'that name' : 'those names'
+    } explicitly`,
+  };
+}
 
 const schema = z
   .object({
@@ -442,11 +487,19 @@ export function resolveBookingConfig(input: BookingConfigInput): Readonly<Bookin
       },
     },
   };
+  const derived = (Object.keys(DERIVED_COOKIE_NAMES) as DerivedCookieName[]).filter(
+    (name) => merged.portal[name] === undefined
+  );
   const result = schema.safeParse(candidate);
   if (!result.success) {
-    throw new BookingConfigError(
-      result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }))
-    );
+    const lengthIssue = derivedCookieNameIssue(session, derived);
+    const issues = result.error.issues
+      .map((issue) => ({ path: issue.path.join('.'), message: issue.message }))
+      // The derived names' own complaints are the base name's, said once.
+      .filter(
+        (issue) => lengthIssue === null || !derived.some((name) => issue.path === `portal.${name}`)
+      );
+    throw new BookingConfigError(lengthIssue === null ? issues : [lengthIssue, ...issues]);
   }
   return deepFreeze(result.data as BookingConfig);
 }
