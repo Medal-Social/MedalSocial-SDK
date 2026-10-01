@@ -1,0 +1,8 @@
+{
+  // Declaration build for tsdown: the same settings without the source
+  // mapping, so the SDK stays an external import in the published types.
+  // `pnpm -r build` builds packages/sdk first (it is a dependency), and
+  // scripts/ensure-sdk-types.mjs does it for a lone booking build.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "paths": {}, "rootDir": "." }
+}

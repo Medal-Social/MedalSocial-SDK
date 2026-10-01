@@ -1,5 +1,5 @@
 packages:
-  - "."
+  - "packages/*"
   - "examples/*"
 
 # Only one override survives. Everything else this file used to pin now
@@ -12,3 +12,11 @@ overrides:
 allowBuilds:
   '@medalsocial/sdk': false
   esbuild: false
+  # Miniflare's runtime (booking's Workers cache-adapter test). Its binary
+  # arrives as an optional dependency; the install script is not needed.
+  workerd: false
+
+# First-party: meda is released from Medal-Social/meda; the booking package
+# tracks its booking screens release by release, inside the age window.
+minimumReleaseAgeExclude:
+  - '@medalsocial/meda@3.3.0'
