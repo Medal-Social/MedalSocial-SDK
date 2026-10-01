@@ -235,6 +235,15 @@ describe('GET /min-side/vipps?vipps=confirm_email', () => {
     await expectRedirect(response, '/min-side/logg-inn?vipps=failed');
   });
 
+  it('spends the binding on a grant only after reading it', async () => {
+    await get(`?grant=${GRANT}`);
+    const read = vi.mocked(readBrowserBinding).mock.invocationCallOrder[0];
+    const cleared = vi.mocked(clearBrowserBinding).mock.invocationCallOrder[0];
+    const exchanged = vi.mocked(exchangeVippsGrant).mock.invocationCallOrder[0];
+    expect(read).toBeLessThan(cleared);
+    expect(read).toBeLessThan(exchanged);
+  });
+
   it('spends the binding on a grant, which needs no pending link', async () => {
     await get(`?grant=${GRANT}`);
     expect(clearBrowserBinding).toHaveBeenCalledTimes(1);
@@ -245,5 +254,34 @@ describe('GET /min-side/vipps?vipps=confirm_email', () => {
 
     expect(writePendingLink).not.toHaveBeenCalled();
     await expectRedirect(response, '/min-side/logg-inn?vipps=failed');
+  });
+});
+
+/**
+ * Login CSRF. A grant is a session for whichever Vipps account finished the
+ * login. One lifted from an attacker's own callback and sent to a parent as a
+ * link must not sign the parent into the attacker's account, so a grant is
+ * exchanged only in the browser that started the login — the one holding
+ * its binding cookie.
+ */
+describe('GET /min-side/vipps?grant= — the browser binding', () => {
+  it('exchanges nothing, writes no cookie and keeps no binding state when the browser holds none', async () => {
+    vi.mocked(readBrowserBinding).mockResolvedValue(null);
+
+    const response = await get(`?grant=${GRANT}`);
+
+    expect(exchangeVippsGrant).not.toHaveBeenCalled();
+    expect(writePortalSession).not.toHaveBeenCalled();
+    expect(clearBrowserBinding).not.toHaveBeenCalled();
+    await expectRedirect(response, '/min-side/logg-inn?vipps=failed');
+    expect(response.headers.get('location')).not.toContain(GRANT);
+  });
+
+  it('sends a grant with no binding back where the login started, still unexchanged', async () => {
+    vi.mocked(readBrowserBinding).mockResolvedValue(null);
+    vi.mocked(takePortalNextPath).mockResolvedValue('/bestill');
+
+    await expectRedirect(await get(`?grant=${GRANT}`), '/bestill');
+    expect(exchangeVippsGrant).not.toHaveBeenCalled();
   });
 });

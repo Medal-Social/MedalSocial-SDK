@@ -29,7 +29,7 @@ const rt = testRuntime(
 const STYLIST = {
   id: 'r1',
   name: 'Stylist',
-  photo_url: 'https://r2.example.com/bucket/r1.png?sig=1',
+  photo_url: 'https://acct.r2.cloudflarestorage.com/bucket/r1.png?sig=1',
   bio: null,
   service_ids: ['a'],
   sort_order: 1,
@@ -147,7 +147,7 @@ describe('avatarRoute — the edges', () => {
   });
 
   it('is 404 for a photo that is not on https, or not a URL at all', async () => {
-    for (const photo_url of ['http://r2.example.com/r1.png', 'not a url']) {
+    for (const photo_url of ['http://acct.r2.cloudflarestorage.com/r1.png', 'not a url']) {
       cachedResources.mockResolvedValue([{ ...STYLIST, photo_url }]);
       const response = await call();
       expect(response.status).toBe(404);
