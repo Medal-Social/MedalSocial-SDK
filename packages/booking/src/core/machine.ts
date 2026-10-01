@@ -35,7 +35,7 @@ import { createMoney } from './money';
  * There is no `login` step, and there was one. It sat between the hour and
  * «Bekreft» and asked who the parent was — Vipps, an e-mail code, or neither —
  * at the one moment a walk-in parent least wants a decision. The login is an
- * offer in a sheet now (`components/login/LoginSheet.tsx`), opened from a row
+ * offer in a sheet now (the login sheet), opened from a row
  * on `service` and `details`, and the machine knows nothing about it: a login
  * changes who the contact fields are filled from, never which step is next.
  */
