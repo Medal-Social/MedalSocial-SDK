@@ -278,4 +278,19 @@ describe('resolveBookingConfig — derived portal cookie names', () => {
     const issues = issuesOf(withCookie({ cookieName: 'bad name' }));
     expect(issues.some((issue) => issue.startsWith('portal.cookieName:'))).toBe(true);
   });
+
+  /**
+   * Pre-release review: the derived-length check runs only once the schema
+   * has refused the input, so it must not assume the base is a string. A
+   * runtime `null` (or any non-string) is the schema's issue, not a TypeError.
+   */
+  for (const bad of [null, 42, { name: 'x' }]) {
+    it(`refuses a non-string base name (${JSON.stringify(bad)}) with a BookingConfigError`, () => {
+      const input = withCookie({ cookieName: bad as never });
+      expect(() => resolveBookingConfig(input)).toThrow(BookingConfigError);
+      const issues = issuesOf(input);
+      expect(issues.some((issue) => issue.startsWith('portal.cookieName:'))).toBe(true);
+      expect(issues.some((issue) => issue.includes('characters'))).toBe(false);
+    });
+  }
 });
