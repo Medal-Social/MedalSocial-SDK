@@ -12,3 +12,6 @@ overrides:
 allowBuilds:
   '@medalsocial/sdk': false
   esbuild: false
+  # Miniflare's runtime (booking's Workers cache-adapter test). Its binary
+  # arrives as an optional dependency; the install script is not needed.
+  workerd: false
