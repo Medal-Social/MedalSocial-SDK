@@ -9,7 +9,7 @@
     "build": "next build",
     "start": "next start --port 3100",
     "mock:medal": "node mock-medal/server.mjs",
-    "check:client": "node scripts/check-client-bundle.mjs",
+    "check:client": "node scripts/check-client-bundle.mjs --self-test && node scripts/check-client-bundle.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

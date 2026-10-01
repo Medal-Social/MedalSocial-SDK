@@ -136,7 +136,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The key is in the build environment, so a key that leaked into a
+      # client chunk (inlined at build time) would be caught by check:client.
       - run: pnpm --filter medalsocial-example-next-booking run build
+        env:
+          MEDAL_API_KEY: sk_example
+          MEDAL_API_ENDPOINT: http://localhost:3101
 
       - run: pnpm --filter medalsocial-example-next-booking run check:client
 

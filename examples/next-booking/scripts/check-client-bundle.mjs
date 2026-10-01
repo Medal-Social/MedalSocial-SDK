@@ -4,7 +4,8 @@
  * searched for strings only the server half contains — and for the API key.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const STATIC = new URL("../.next/static", import.meta.url).pathname;
@@ -26,14 +27,49 @@ async function* files(dir) {
   }
 }
 
-let checked = 0;
-const leaks = [];
-for await (const file of files(STATIC)) {
-  checked += 1;
-  const source = await readFile(file, "utf8");
-  for (const marker of SERVER_ONLY) if (source.includes(marker)) leaks.push(`${file}: ${marker}`);
+/** Every chunk under `dir`, and the server-only strings found in each. */
+async function scan(dir) {
+  let checked = 0;
+  const leaks = [];
+  for await (const file of files(dir)) {
+    checked += 1;
+    const source = await readFile(file, "utf8");
+    for (const marker of SERVER_ONLY) if (source.includes(marker)) leaks.push(`${file}: ${marker}`);
+  }
+  return { checked, leaks };
 }
 
+/**
+ * `--self-test`: prove the gate can fail — a clean chunk passes, a chunk
+ * carrying each marker is caught, and an empty directory is refused.
+ */
+async function selfTest() {
+  const dir = await mkdtemp(join(tmpdir(), "check-client-bundle-"));
+  try {
+    await writeFile(join(dir, "clean.js"), 'console.log("hello");');
+    const clean = await scan(dir);
+    if (clean.checked !== 1 || clean.leaks.length !== 0) throw new Error("clean chunk flagged");
+    for (const [index, marker] of SERVER_ONLY.entries()) {
+      await writeFile(join(dir, `leak-${index}.js`), `const x = ${JSON.stringify(marker)};`);
+    }
+    const leaky = await scan(dir);
+    if (leaky.leaks.length !== SERVER_ONLY.length) throw new Error("a marker went undetected");
+    await rm(dir, { recursive: true });
+    const empty = await mkdtemp(join(tmpdir(), "check-client-bundle-"));
+    if ((await scan(empty)).checked !== 0) throw new Error("empty directory had chunks");
+    await rm(empty, { recursive: true });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+  console.log(`[check-client-bundle] self-test OK — ${SERVER_ONLY.length} markers detected.`);
+}
+
+if (process.argv.includes("--self-test")) {
+  await selfTest();
+  process.exit(0);
+}
+
+const { checked, leaks } = await scan(STATIC);
 if (checked === 0) {
   console.error("[check-client-bundle] no client chunks found — run `next build` first");
   process.exit(1);

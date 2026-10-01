@@ -98,28 +98,44 @@ function decoded(segment: string): string | null {
   }
 }
 
-function match(rt: BookingRuntime, pathname: string): Match | 'malformed' | null {
-  const booking = under(pathname, rt.config.paths.api);
-  if (booking !== null) {
-    const fixed = BOOKING_ROUTES[booking];
-    if (fixed) return { scope: `booking/${booking}`, routes: fixed, segment: '' };
-    const slash = booking.indexOf('/');
-    if (slash > 0) {
-      const head = booking.slice(0, slash);
-      const tail = booking.slice(slash + 1);
-      const routes = BOOKING_PARAM_ROUTES[head];
-      if (routes && tail !== '' && !tail.includes('/')) {
-        const segment = decoded(tail);
-        if (segment === null) return 'malformed';
-        return { scope: `booking/${head}`, routes, segment };
-      }
+function matchBooking(rest: string): Match | 'malformed' | null {
+  const fixed = BOOKING_ROUTES[rest];
+  if (fixed) return { scope: `booking/${rest}`, routes: fixed, segment: '' };
+  const slash = rest.indexOf('/');
+  if (slash > 0) {
+    const head = rest.slice(0, slash);
+    const tail = rest.slice(slash + 1);
+    const routes = BOOKING_PARAM_ROUTES[head];
+    if (routes && tail !== '' && !tail.includes('/')) {
+      const segment = decoded(tail);
+      if (segment === null) return 'malformed';
+      return { scope: `booking/${head}`, routes, segment };
     }
-    return null;
   }
-  const portal = under(pathname, rt.config.paths.portalApi);
-  if (portal !== null) {
-    const routes = PORTAL_ROUTES[portal];
-    return routes ? { scope: `portal/${portal}`, routes, segment: '' } : null;
+  return null;
+}
+
+function matchPortal(rest: string): Match | null {
+  const routes = PORTAL_ROUTES[rest];
+  return routes ? { scope: `portal/${rest}`, routes, segment: '' } : null;
+}
+
+/**
+ * The route a path names. The LONGER prefix is tried first, so a portal API
+ * nested under the booking API (`/api` and `/api/portal`) still reaches the
+ * portal routes, and the other way round.
+ */
+function match(rt: BookingRuntime, pathname: string): Match | 'malformed' | null {
+  const { api, portalApi } = rt.config.paths;
+  const prefixes = [
+    { prefix: api, find: matchBooking },
+    { prefix: portalApi, find: matchPortal },
+  ].sort((a, b) => b.prefix.replace(/\/+$/, '').length - a.prefix.replace(/\/+$/, '').length);
+  for (const { prefix, find } of prefixes) {
+    const rest = under(pathname, prefix);
+    if (rest === null) continue;
+    const found = find(rest);
+    if (found !== null) return found;
   }
   return null;
 }

@@ -190,4 +190,20 @@ describe('createBookingHandler — everything else', () => {
     expect((await handler.GET(get('/api/booking/services'))).status).toBe(404);
     expect((await handler.POST(post('/account-api/session/touch'))).status).toBe(401);
   });
+
+  it('reaches portal routes nested under the booking prefix, and booking routes under the portal one', async () => {
+    const base = testRuntime().config;
+    const nested = { ...base, paths: { ...base.paths, api: '/api', portalApi: '/api/portal' } };
+    const { handler } = handlerWith({ config: nested });
+    expect((await handler.POST(post('/api/portal/session/touch'))).status).toBe(401);
+    expect((await handler.GET(get('/api/services'))).status).toBe(200);
+    expect((await handler.GET(get('/api/portal/services'))).status).toBe(404);
+    const inverted = {
+      ...base,
+      paths: { ...base.paths, api: '/portal/booking', portalApi: '/portal' },
+    };
+    const other = handlerWith({ config: inverted }).handler;
+    expect((await other.GET(get('/portal/booking/services'))).status).toBe(200);
+    expect((await other.POST(post('/portal/session/touch'))).status).toBe(401);
+  });
 });
