@@ -1,7 +1,6 @@
 {
   "name": "@medalsocial/booking",
   "version": "0.0.0",
-  "private": true,
   "description": "Medal Social booking: the wizard rules, clock, money and portal helpers behind a Medal booking site",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.24.0",
