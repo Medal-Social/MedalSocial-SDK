@@ -35,6 +35,7 @@ import { createDraftStore } from '../../../src/core/draft-store';
 import type { BookingDayDto, BookingServiceDto, BookingSlotDto } from '../../../src/core/types';
 import { BookingWizard, setLegacyWizardActions } from '../../support/legacy-wizard';
 import { PARITY_CONFIG } from '../../support/parity-config';
+import { textNodesOf } from '../../support/text-nodes';
 
 setLegacyWizardActions({
   startLogin: (input) => actions.startLoginAction(input),
@@ -368,6 +369,16 @@ describe('BookingWizard', () => {
 
     expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
     expect(screen.getByText('Steg 1 av 4 · Hvem')).toBeInTheDocument();
+    // One text node per literal run and per hole, as a JSX `{a}{b}` sentence
+    // renders: a single filled string lays its glyphs out sub-pixel apart.
+    expect(textNodesOf(screen.getByText('Steg 1 av 4 · Hvem'))).toEqual([
+      'Steg ',
+      '1',
+      ' av ',
+      '4',
+      ' · ',
+      'Hvem',
+    ]);
     for (const chip of ['1 barn', '2 barn', '3 barn', 'Voksen']) {
       expect(screen.getByRole('radio', { name: chip })).toHaveAttribute('aria-checked', 'false');
     }
@@ -760,6 +771,9 @@ describe('BookingWizard', () => {
 
     expect(await screen.findByText(/Vi får ikke hentet ledige tider/)).toBeInTheDocument();
     expect(screen.queryByText(/Fullt|Stengt|Ingenting ledig/)).toBeNull();
+    // The link's sentence keeps its hole as its own text node.
+    const call = screen.getByRole('link', { name: 'Ring oss på 22 33 44 55' });
+    expect(textNodesOf(call)).toEqual(['ring oss på ', '22 33 44 55']);
   });
 
   it('runs the party search, so a family gets one chip for the whole visit', async () => {

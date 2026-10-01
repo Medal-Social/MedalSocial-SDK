@@ -34,6 +34,7 @@ import {
 import { leavePortal } from '../../../src/react/portal/leave';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
+import { textNodesOf } from '../../support/text-nodes';
 
 const NOW = Date.parse('2026-10-05T15:00:00+02:00');
 
@@ -142,7 +143,9 @@ describe('PortalDashboard', () => {
   it('greets the visitor and books from the header', () => {
     dashboard();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Hei Kari!' })).toBeInTheDocument();
+    const greeting = screen.getByRole('heading', { level: 1, name: 'Hei Kari!' });
+    // One text node per literal run and per hole, as a JSX sentence renders.
+    expect(textNodesOf(greeting)).toEqual(['Hei ', 'Kari', '!']);
     expect(screen.getByText('MIN SIDE')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Bestill ny time' })).toHaveAttribute(
       'href',

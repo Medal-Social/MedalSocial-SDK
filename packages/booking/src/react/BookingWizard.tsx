@@ -35,7 +35,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { fill } from '../core/labels';
+import { fill, fillParts } from '../core/labels';
 import { SELF_KEY, type WizardPerson, type WizardState, type WizardStep } from '../core/machine';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
@@ -683,7 +683,7 @@ function WizardHeader({
         <p className="min-w-0">
           <span className="block font-sans text-sm font-bold">{labels['wizard.title']}</span>
           <span className="block truncate text-xs text-muted-foreground">
-            {fill(labels['wizard.progress'], {
+            {fillParts(labels['wizard.progress'], {
               step: index + 1,
               total: STEPS.length,
               label: stepLabel(state.step),
@@ -734,7 +734,7 @@ function SlotsUnavailable({ kit, onRetry }: { kit: BookingKit; onRetry: () => vo
             aria-label={fill(labels['wizard.slotsUnavailable.callAria'], { phone })}
             className="font-semibold text-primary underline underline-offset-4"
           >
-            {fill(labels['wizard.slotsUnavailable.call'], { phone })}
+            {fillParts(labels['wizard.slotsUnavailable.call'], { phone })}
           </a>
         ) : (
           labels['wizard.slotsUnavailable.callPlain']
