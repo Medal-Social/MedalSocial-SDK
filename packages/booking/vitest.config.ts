@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -11,10 +12,16 @@ import { defineConfig } from 'vitest/config';
  */
 const env = { TZ: 'Europe/Oslo' };
 
+/** `/next` imports `server-only`, which throws outside an RSC build. */
+const resolve = {
+  alias: { 'server-only': join(__dirname, 'tests/support/server-only.ts') },
+};
+
 export default defineConfig({
   test: {
     projects: [
       {
+        resolve,
         test: {
           name: 'node',
           environment: 'node',
@@ -24,6 +31,7 @@ export default defineConfig({
         },
       },
       {
+        resolve,
         test: {
           name: 'jsdom',
           environment: 'jsdom',

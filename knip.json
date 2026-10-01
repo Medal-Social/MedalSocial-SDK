@@ -12,7 +12,7 @@
       "ignore": ["src/index.ts", "vitest.integration.config.ts"]
     },
     "packages/booking": {
-      "entry": ["src/next/cache/*.ts", "scripts/*.mjs"]
+      "entry": ["src/next/cache/*.ts", "scripts/*.mjs", "tests/support/server-only.ts"]
     },
     "examples/*": {}
   },

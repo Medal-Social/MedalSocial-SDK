@@ -12,6 +12,7 @@ export interface CookieAttributes {
   sameSite?: 'lax' | 'strict' | 'none';
   path?: string;
   maxAge?: number;
+  expires?: Date;
 }
 
 export interface CookieJar {

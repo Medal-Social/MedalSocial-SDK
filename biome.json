@@ -11,7 +11,15 @@
     }
   },
   "files": {
-    "includes": ["**", "!**/dist", "!**/coverage", "!**/docs"]
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/coverage",
+      "!**/docs",
+      "!**/.next",
+      "!**/test-results",
+      "!**/playwright-report"
+    ]
   },
   "overrides": [
     {

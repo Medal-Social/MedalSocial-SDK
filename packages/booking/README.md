@@ -17,8 +17,8 @@ and the customer-portal helpers — built on [`@medalsocial/sdk`](../sdk).
 |---|---|---|
 | `@medalsocial/booking/core` | Config, wizard state machine, clock, money, phone, categories, age, party seating, deep links, DTO mapping, ICS, browser stores, portal pure helpers | Browser, Node, Workers — no React, no Next, no DOM at import time |
 | `@medalsocial/booking/react` | Reserved (0.1.0): `<BookingWizard>`, `<ManageBooking>`, `<PortalDashboard>`, `<LoginSheet>`, `useBooking()` | Client components (`'use client'`) |
-| `@medalsocial/booking/next` | Reserved (0.1.0): `loadBookingPage`, `createBookingHandler`, portal actions | Server only (`server-only`) |
-| `@medalsocial/booking/next/cache/{workers,memory,next-data,noop}` | Reserved (0.1.0): cache adapters | Server only |
+| `@medalsocial/booking/next` | `createBookingServer`: one handler for every booking and portal API route, the page loaders (`loadBookingPage`, `loadManagePage`, `loadPortalPage`), portal session and action functions, the Medal seam | Server only (`server-only`), Next ≥ 16.3 |
+| `@medalsocial/booking/next/cache/{workers,memory,next-data,noop}` | Cache adapters: Workers Cache API, in-process LRU, Next's data cache, none | Server only |
 
 ESM only. Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
 and optionally `next` ≥ 16.3 and `@medalsocial/meda` ^3.2.
@@ -77,6 +77,42 @@ its own values in.
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
 uses.
+
+## Server (`/next`)
+
+```ts
+// lib/booking/server.ts
+import 'server-only';
+import { createBookingServer } from '@medalsocial/booking/next';
+import { nextDataCacheAdapter } from '@medalsocial/booking/next/cache/next-data';
+import { workersCacheAdapter } from '@medalsocial/booking/next/cache/workers';
+
+export const booking = createBookingServer({
+  config: bookingConfig,
+  // Functions, so the key is read per request (OpenNext fills process.env late).
+  medal: { apiKey: () => process.env.MEDAL_API_KEY, baseUrl: () => process.env.MEDAL_API_ENDPOINT },
+  cache: {
+    edge: workersCacheAdapter({ origin: () => process.env.NEXT_PUBLIC_BASE_URL }),
+    data: nextDataCacheAdapter(),
+    prefix: 'my-site-booking',
+    environment: 'production',
+  },
+});
+
+// app/api/booking/[...path]/route.ts and app/api/portal/[...path]/route.ts
+export const { GET, POST, DELETE } = booking.handler;
+```
+
+- **Pages** call `booking.loadBookingPage({ searchParams })`,
+  `booking.loadManagePage(token)` and `booking.loadPortalPage()`; each answers
+  a tagged result (`redirect`, `unavailable`, `ready`, …) and the page renders it.
+- **Server actions stay in the app.** `booking.portal.actions.*` are plain async
+  functions; wrap each in a `'use server'` export and pass it to the components.
+- **Caches.** `edge` holds the booking seed (per location, a few ms); `data`
+  holds services, stylists, hours and free slots. On Node use
+  `memoryCacheAdapter()` for both. Every adapter keeps one contract
+  (`tests/next/cache/contract.test.ts`).
+- `examples/next-booking` is a runnable site on plain `next start`.
 
 ## Development
 
