@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  createMedalSeam,
-  MedalApiError,
-  MedalConfigError,
-  scrubSecret,
-} from '../../src/next/medal';
+import { createMedalSeam, MedalApiError, MedalConfigError } from '../../src/next/medal';
+import { redactSession } from '../../src/next/redact';
 
 /**
  * The seam reads its key and origin per call; read from the environment here,
@@ -308,37 +304,36 @@ describe('medal-client', () => {
   });
 });
 
-describe('scrubSecret', () => {
+describe("redactSession (the create route's forwarded session)", () => {
   const SECRET = 'x'.repeat(43);
 
   it('cuts the secret out of message, stack and the cause chain, in place', () => {
     const inner = new Error(`inner ${SECRET}`);
     const error = new Error(`outer ${SECRET}`, { cause: inner });
 
-    expect(scrubSecret(error, SECRET)).toBe(error);
+    expect(redactSession(error, SECRET)).toBe(error);
     expect(error.message).toBe('outer <session>');
     expect(error.stack).not.toContain(SECRET);
     expect(inner.message).toBe('inner <session>');
   });
 
-  it('replaces a string cause that holds the secret and keeps one that does not', () => {
+  it('rewrites a string cause that holds the secret and keeps one that does not', () => {
     const leaking = new Error('x', { cause: `cause ${SECRET}` });
-    scrubSecret(leaking, SECRET);
-    expect(leaking.cause).toBeInstanceOf(Error);
-    expect((leaking.cause as Error).message).toBe('cause <session>');
+    redactSession(leaking, SECRET);
+    expect(leaking.cause).toBe('cause <session>');
 
     const clean = new Error('x', { cause: 'harmless' });
-    scrubSecret(clean, SECRET);
+    redactSession(clean, SECRET);
     expect(clean.cause).toBe('harmless');
   });
 
   it('replaces a bare string throw holding the secret, and passes anything else through', () => {
-    const replaced = scrubSecret(`thrown ${SECRET}`, SECRET);
+    const replaced = redactSession(`thrown ${SECRET}`, SECRET);
     expect(replaced).toBeInstanceOf(Error);
     expect((replaced as Error).message).toBe('thrown <session>');
-    expect(scrubSecret('harmless', SECRET)).toBe('harmless');
+    expect(redactSession('harmless', SECRET)).toBe('harmless');
     const other = { code: 1 };
-    expect(scrubSecret(other, SECRET)).toBe(other);
+    expect(redactSession(other, SECRET)).toBe(other);
   });
 
   it('stops following a cause chain after three links', () => {
@@ -346,7 +341,7 @@ describe('scrubSecret', () => {
     let error: Error = deepest;
     for (let i = 0; i < 4; i++) error = new Error('link', { cause: error });
 
-    scrubSecret(error, SECRET);
+    redactSession(error, SECRET);
 
     expect(deepest.message).toContain(SECRET);
   });

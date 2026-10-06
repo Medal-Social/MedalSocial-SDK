@@ -29,6 +29,7 @@ import type {
   MedalService,
   MedalSlot,
 } from '../core/wire';
+import { redactSession } from './redact';
 
 export { MedalApiError };
 
@@ -75,36 +76,6 @@ export function looksLikePlaceholderKey(key: string): boolean {
  * file with nothing wrong in it. The reachable trigger is an endpoint aimed at
  * a host that answers with an HTML page (the dashboard does).
  */
-/**
- * `secret` cut out of a throw's `message` and `stack` (and its `cause`'s), in
- * place so `instanceof` and `status` / `code` survive — the portal session is
- * never logged, and the create route logs what Medal threw.
- */
-export function scrubSecret(error: unknown, secret: string, depth = 0): unknown {
-  if (!(error instanceof Error)) {
-    return typeof error === 'string' && error.includes(secret)
-      ? new Error(error.split(secret).join('<session>'))
-      : error;
-  }
-  for (const field of ['message', 'stack'] as const) {
-    const text = error[field];
-    if (typeof text === 'string' && text.includes(secret)) {
-      Object.defineProperty(error, field, {
-        value: text.split(secret).join('<session>'),
-        configurable: true,
-        writable: true,
-      });
-    }
-  }
-  if (depth < 3 && error.cause !== undefined) {
-    const cause = scrubSecret(error.cause, secret, depth + 1);
-    if (cause !== error.cause) {
-      Object.defineProperty(error, 'cause', { value: cause, configurable: true, writable: true });
-    }
-  }
-  return error;
-}
-
 export function unwrap<T>(response: { data: T } | undefined, path: string): T {
   const data = response?.data;
   if (data === undefined) {
@@ -311,7 +282,8 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
           portalSession ? { idempotencyKey, portalSession } : { idempotencyKey }
         );
       } catch (error) {
-        throw portalSession ? scrubSecret(error, portalSession) : error;
+        // The session is never logged, and the create route logs what Medal threw.
+        throw portalSession ? redactSession(error, portalSession) : error;
       }
       const result = unwrap(response, '/api/v1/bookings');
       return { bookings: result.bookings };
