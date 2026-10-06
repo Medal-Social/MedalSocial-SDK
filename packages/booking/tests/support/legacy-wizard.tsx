@@ -33,18 +33,25 @@ export interface LegacyWizardProps {
   rangeStart?: number;
   rangeDays?: number;
   guardian?: BookingGuardian | null;
+  /** `config.account.required` — a booking only for a logged-in parent. */
+  accountRequired?: boolean;
 }
 
 const CONFIGS = new Map<string, ReturnType<typeof resolveBookingConfig>>();
 
 /** The parity config with this contact. */
-export function parityConfigWith(phone: string | null, address: string | null) {
-  const key = JSON.stringify([phone, address]);
+export function parityConfigWith(
+  phone: string | null,
+  address: string | null,
+  accountRequired = false
+) {
+  const key = JSON.stringify([phone, address, accountRequired]);
   let config = CONFIGS.get(key);
   if (config === undefined) {
     config = resolveBookingConfig({
       ...PARITY_CONFIG,
       contact: { ...PARITY_CONFIG.contact, phone, address },
+      account: { required: accountRequired },
     });
     CONFIGS.set(key, config);
   }
@@ -71,10 +78,11 @@ export function BookingWizard({
   rangeStart,
   rangeDays,
   guardian,
+  accountRequired = false,
 }: LegacyWizardProps) {
   return (
     <PackageWizard
-      config={parityConfigWith(phone, address)}
+      config={parityConfigWith(phone, address, accountRequired)}
       labels={TEST_LABELS}
       actions={ACTIONS}
       seed={{

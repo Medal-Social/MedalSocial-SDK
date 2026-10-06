@@ -3406,3 +3406,216 @@ describe('step motion', () => {
     expect(restored).not.toHaveAttribute('data-animate');
   });
 });
+
+/**
+ * `config.account.required`: every booking is made by a logged-in
+ * parent. «Bekreft» for a parent who is not logged in is the login — Vipps or
+ * e-mail, two equal buttons — and the form only once they are, with the
+ * address they logged in with locked.
+ */
+describe('BookingWizard with account.required', () => {
+  const KARI = {
+    firstName: 'Kari',
+    lastName: 'Nordmann',
+    email: 'kari@example.com',
+    phone: '+47 400 00 000',
+    family: [{ name: 'Jonas', birthYear: 2018 }],
+  };
+  const OPEN_AT_ONE = {
+    slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id)] },
+    verify: { status: 200, body: { ok: true, guardian: KARI } },
+  };
+
+  beforeEach(() => {
+    actions.startLoginAction.mockReset().mockResolvedValue({ data: { status: 'sent' } });
+    actions.startVippsLoginAction.mockReset().mockResolvedValue(null);
+    router.refresh.mockClear();
+    router.push.mockClear();
+  });
+
+  /** «Bekreft» as a guest: the gate, not the form. */
+  async function onGate(user: ReturnType<typeof userEvent.setup>) {
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+  }
+
+  /** The gate's second button, an address, «Send kode», and the code. */
+  async function logInByEmail(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Fortsett med e-post' }));
+    await user.type(screen.getByLabelText('E-post'), 'kari@example.com');
+    await user.click(screen.getByRole('button', { name: 'Send kode' }));
+    const code = await screen.findByLabelText('Engangskode');
+    await user.click(code);
+    await user.paste('492155');
+    await onDetails();
+  }
+
+  /** Step 1 for a known parent: tick the child's card, then «Neste». */
+  async function tickJonas(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('checkbox', { name: /Jonas/ }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+  }
+
+  it('turns «Bekreft» into Vipps or e-mail for a parent who is not logged in', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true });
+
+    // No «Har du konto?» on the first screen: the login comes at the end.
+    expect(screen.queryByText(/Har du konto\?/)).toBeNull();
+    await onGate(user);
+
+    expect(
+      screen.getByText(
+        'Logg inn for å bekrefte — vi lager kontoen hvis du er ny. Timen holdes for deg mens du logger inn.'
+      )
+    ).toBeInTheDocument();
+    const buttons = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+      .filter((text) => text === 'Fortsett med Vipps' || text === 'Fortsett med e-post');
+    expect(buttons).toEqual(['Fortsett med Vipps', 'Fortsett med e-post']);
+    // Not the form, not its button, and no other login row.
+    expect(screen.queryByLabelText('Mobilnummer')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Bekreft time/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Neste' })).toBeNull();
+    expect(screen.queryByText(/Har du konto\?/)).toBeNull();
+    // Still on «Bekreft», holding the hour.
+    expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
+  });
+
+  it('sends a Vipps login from the gate back to «Bekreft»', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    const { container } = renderWizard({ accountRequired: true });
+    await onGate(user);
+
+    expect(container.querySelector('input[name="next"]')).toHaveValue('/bestill?resume=1');
+  });
+
+  it('logs in by e-mail in place and shows the form, filled in, with the address locked', async () => {
+    const { verifyBodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true });
+    await onGate(user);
+
+    await logInByEmail(user);
+
+    expect(actions.startLoginAction).toHaveBeenCalledWith({ email: 'kari@example.com' });
+    expect(verifyBodies).toEqual([{ email: 'kari@example.com', code: '492155' }]);
+    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    const email = screen.getByLabelText('E-post');
+    expect(email).toHaveValue('kari@example.com');
+    expect(email).toHaveAttribute('readonly');
+    expect(screen.getByText('E-posten du logget inn med')).toBeInTheDocument();
+    expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Nesten ferdig' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Nesten ferdig!' })).toHaveFocus();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.refresh).not.toHaveBeenCalled();
+  });
+
+  it('shows a parent who arrived logged in the form straight away, the address locked', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true, guardian: KARI });
+
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+
+    expect(screen.queryByRole('button', { name: 'Fortsett med e-post' })).toBeNull();
+    expect(screen.getByLabelText('E-post')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+  });
+
+  it('leaves the address editable without account.required', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ guardian: KARI });
+
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+
+    expect(screen.getByLabelText('E-post')).not.toHaveAttribute('readonly');
+    expect(screen.queryByText('E-posten du logget inn med')).toBeNull();
+  });
+
+  it('comes back from Vipps on the form, the booking rebuilt', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    const { unmount } = renderWizard({ accountRequired: true });
+    await onGate(user);
+    unmount();
+
+    location.search = '?resume=1';
+    renderWizard({ accountRequired: true, guardian: KARI });
+
+    await onDetails();
+    expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
+    expect(screen.getByLabelText('E-post')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+  });
+
+  it('takes a Vipps confirm code in the gate itself, not in a sheet over it', async () => {
+    const { verifyBodies } = stubApi({
+      ...OPEN_AT_ONE,
+      vippsVerify: { status: 200, body: { ok: true, guardian: KARI } },
+    });
+    const user = userEvent.setup();
+    const { unmount } = renderWizard({ accountRequired: true });
+    await onGate(user);
+    unmount();
+
+    const back = `?resume=1&vipps=confirm_email&to=${encodeURIComponent('k•••@g•••.com')}`;
+    location.search = back;
+    window.history.replaceState(null, '', `/bestill${back}`);
+    renderWizard({ accountRequired: true });
+
+    expect(await screen.findByText('Vi sendte en kode til k•••@g•••.com.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByLabelText('Engangskode'));
+    await user.paste('492155');
+
+    await onDetails();
+    expect(verifyBodies).toEqual([{ code: '492155' }]);
+    expect(screen.getByLabelText('E-post')).toHaveAttribute('readonly');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('shows the gate again, the hour kept, when the session ran out before «Bekreft time»', async () => {
+    stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true, guardian: KARI });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    // No error over it: the gate is the whole answer.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
+
+    // Logged in again, the same booking goes through.
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const submitted = bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+    };
+    expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+  });
+});

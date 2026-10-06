@@ -7,6 +7,7 @@ import {
   type VippsConfirm,
 } from '@medalsocial/meda/booking';
 import { useRouter } from 'next/navigation';
+import { labelText } from '../core/labels';
 import type { BookingGuardian } from '../core/types';
 import { type PortalActions, readStartLogin } from './actions';
 import { type BookingOverrides, useBookingKit } from './Provider';
@@ -15,7 +16,7 @@ import { screenLabels } from './screen-labels';
 export type { VippsConfirm };
 
 /**
- * The site's one login — Vipps, or a six-digit code by e-mail — in the two
+ * The site's one login — Vipps, or a six-digit code by e-mail — in the three
  * places a visitor takes it, over meda's `LoginSheet` / `LoginPanel`.
  *
  * - `presentation="sheet"` is the booking wizard's: an offer the wizard never
@@ -25,6 +26,16 @@ export type { VippsConfirm };
  *   `router.replace` to `returnPath` or the portal — the destination is a
  *   server page that reads the fresh cookie on the way in, and Back should not
  *   land on a login whose job is done.
+ * - `presentation="gate"` is the wizard's «Bekreft» under `account.required`:
+ *   the panel in place of the form, never navigating. Vipps lands on the
+ *   wizard's resume URL; a good code hands the parent back through
+ *   `onSignedIn`, like the sheet.
+ *
+ * Where Vipps is offered, the page and the gate draw e-mail as a second button
+ * under it («Fortsett med Vipps» / «Fortsett med e-post») that opens the form.
+ * The sheet keeps its form open under Vipps: meda's `LoginSheet` does not take
+ * `emailCollapsed` (and under `account.required` the wizard draws no sheet but
+ * a Vipps confirm, which opens on the code).
  *
  * THE CODE IS CHECKED BY `fetch`, NOT BY A SERVER ACTION
  * (`POST <portalApi>/login/verify`): in Next 16 an action that sets a cookie
@@ -49,6 +60,15 @@ export type LoginSheetProps = BookingOverrides & {
         vippsConfirm?: VippsConfirm | null;
         /** Draw the «have an account? Log in» row. Default `true`. */
         trigger?: boolean;
+      }
+    | {
+        presentation: 'gate';
+        /** Where a Vipps login should land: the wizard's resume URL. */
+        resumePath: string;
+        /** A good code; `guardian` is `null` when the read after it failed. */
+        onSignedIn: (guardian: BookingGuardian | null) => void;
+        /** A Vipps return asking for the e-mailed code: the gate opens on it. */
+        vippsConfirm?: VippsConfirm | null;
       }
     | {
         presentation: 'inline';
@@ -119,10 +139,23 @@ export function LoginSheet(props: LoginSheetProps) {
     otpClassNames: classNames.otp,
     vippsClassNames: classNames.vipps,
   };
+  const vippsLabel = labelText(labels['login.continueVipps']);
+  if (props.presentation === 'gate') {
+    return (
+      <LoginPanel
+        {...screen}
+        emailCollapsed
+        vippsLabel={vippsLabel}
+        vippsNext={props.resumePath}
+        classNames={classNames.loginPanel}
+        onSignedIn={props.onSignedIn}
+      />
+    );
+  }
   if (props.presentation === 'inline') {
     return (
       <InlineLogin
-        screen={screen}
+        screen={{ ...screen, emailCollapsed: true, vippsLabel }}
         classNames={classNames.loginPanel}
         target={props.returnPath ?? null}
         fallback={config.paths.portal ?? '/'}

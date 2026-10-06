@@ -267,14 +267,21 @@ function BookingWizardShell(props: BookingWizardProps) {
   // The multi-select service step carries its own total bar and refusal notice.
   const multiSelect = state.step === 'service' && kit.config.party.maxServicesPerPerson > 1;
   const loginOffered = props.actions !== undefined && kit.config.portal.enabled;
-  const loginRow = loginOffered ? (
-    <LoginRow
-      booking={booking}
-      actions={props.actions as NonNullable<BookingWizardProps['actions']>}
-      overrides={props}
-      onSignedIn={onSignedIn}
-    />
-  ) : null;
+  /**
+   * `account.required`: every booking is a logged-in parent's. The login is
+   * not offered along the way — it IS «Bekreft», for a parent not logged in.
+   */
+  const accountRequired = kit.config.account.required && loginOffered;
+  const gated = accountRequired && state.step === 'details' && !booking.login.loggedIn;
+  const loginRow =
+    loginOffered && !accountRequired ? (
+      <LoginRow
+        booking={booking}
+        actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+        overrides={props}
+        onSignedIn={onSignedIn}
+      />
+    ) : null;
 
   return shell(
     <div className="space-y-8">
@@ -303,7 +310,8 @@ function BookingWizardShell(props: BookingWizardProps) {
 
       {state.step === 'details' && loginRow}
 
-      {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && (
+      {/* The gate takes a Vipps confirm code itself, in place of the form. */}
+      {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && !gated && (
         <LoginSheet
           {...overridesOf(props)}
           actions={props.actions as NonNullable<BookingWizardProps['actions']>}
@@ -329,13 +337,24 @@ function BookingWizardShell(props: BookingWizardProps) {
           <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
         )}
         {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
-        {state.step === 'details' && <DetailsStep booking={booking} resolved={resolved} />}
+        {state.step === 'details' &&
+          (gated ? (
+            <AccountGate
+              booking={booking}
+              resolved={resolved}
+              actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+              overrides={props}
+              onSignedIn={onSignedIn}
+            />
+          ) : (
+            <DetailsStep booking={booking} resolved={resolved} />
+          ))}
       </div>
 
       {!multiSelect && (
         <SummaryBar
           line={booking.derived.summary}
-          canAdvance={booking.derived.canAdvance}
+          canAdvance={booking.derived.canAdvance && !gated}
           step={state.step}
           onNext={booking.next}
           labels={screenLabels(labels)}
@@ -596,6 +615,8 @@ function DetailsStep({ booking, resolved }: StepProps) {
       submissionNonce={booking.submissionNonce}
       family={guardian?.family}
       guardianPhone={guardian?.phone ?? null}
+      // The address they logged in with: the booking is theirs, by that address.
+      emailReadOnly={kit.config.account.required && guardian !== null}
       format={kit.format}
       labels={screenLabels(kit.labels)}
       classNames={resolved.classNames.details}
@@ -603,6 +624,49 @@ function DetailsStep({ booking, resolved }: StepProps) {
         resolved.components.FamilyChip ? { FamilyChip: resolved.components.FamilyChip } : undefined
       }
     />
+  );
+}
+
+/**
+ * «Bekreft» under `account.required` for a parent not logged in: «Nesten
+ * ferdig», a line, and the login — Vipps, or e-mail — in place of the form.
+ * The heading carries the details step's id, so the focus a step change moves
+ * lands here, and the form's heading takes it over once the parent is in.
+ */
+function AccountGate({
+  booking,
+  resolved,
+  actions,
+  overrides,
+  onSignedIn,
+}: StepProps & {
+  actions: NonNullable<BookingWizardProps['actions']>;
+  overrides: BookingOverrides;
+  onSignedIn: (guardian: Parameters<BookingController['login']['signIn']>[0]) => void;
+}) {
+  const { labels } = booking.kit;
+  // The details screen's own root and heading slots, after the same defaults.
+  const slot = (name: 'root' | 'heading', base: string) =>
+    [base, resolved.classNames.details?.[name]].filter(Boolean).join(' ');
+  return (
+    <section aria-labelledby={STEP_HEADINGS.details} className={slot('root', 'space-y-6')}>
+      <h2
+        id={STEP_HEADINGS.details}
+        tabIndex={-1}
+        className={slot('heading', 'font-sans text-2xl font-bold outline-none md:text-3xl')}
+      >
+        {labelText(labels['wizard.account.heading'])}
+      </h2>
+      <p className="text-muted-foreground">{labelText(labels['wizard.account.intro'])}</p>
+      <LoginSheet
+        {...overridesOf(overrides)}
+        actions={actions}
+        presentation="gate"
+        resumePath={booking.login.resumePath}
+        vippsConfirm={booking.login.vippsConfirm}
+        onSignedIn={onSignedIn}
+      />
+    </section>
   );
 }
 

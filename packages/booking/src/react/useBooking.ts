@@ -403,7 +403,14 @@ export function useBooking(options: UseBookingOptions) {
    * logged-in parent, who must not be offered the login again.
    */
   const [signedIn, setSignedIn] = useState<{ guardian: BookingGuardian | null } | null>(null);
-  const guardian = signedIn?.guardian ?? arrivedAs;
+  /**
+   * The create route said nobody is logged in (`accountRequired`): the session
+   * the page arrived with — or the one taken here — has run out. From then on
+   * the parent the page found is not trusted; only a fresh login is.
+   */
+  const [sessionLost, setSessionLost] = useState(false);
+  const arrivedAsNow = sessionLost ? null : arrivedAs;
+  const guardian = signedIn?.guardian ?? arrivedAsNow;
 
   // The link, read ONCE, in the initialisers: a prefill that re-applied later
   // would answer questions the visitor has since changed their mind about.
@@ -1309,6 +1316,14 @@ export function useBooking(options: UseBookingOptions) {
           kit.attempts.clearAttempt();
           setPendingAttempt(null);
         }
+        // `account.required` and the session gone: the login again, not an
+        // error. Nothing else moves — the wizard keeps the hour, and «Bekreft»
+        // turns back into the login over it.
+        const sessionGone = payload?.error === 'accountRequired';
+        if (sessionGone) {
+          setSignedIn(null);
+          setSessionLost(true);
+        }
         // A RESUMED replay (or the resend of one while a link waits) has no
         // basket to rescue: a clean wizard, or the link it came by.
         const wasResumed =
@@ -1321,6 +1336,7 @@ export function useBooking(options: UseBookingOptions) {
           } else dispatch({ type: 'submitFailed', error: 'upstreamError' });
           return;
         }
+        if (sessionGone) return;
         if (payload?.error === 'slotTaken') {
           // From the SUBMITTED visit: after a reload there is no live basket.
           setTakenSlotTs(submitted.startTs);
@@ -1499,11 +1515,16 @@ export function useBooking(options: UseBookingOptions) {
     kit,
     state,
     dispatch: action,
-    /** The parent: who arrived, who logged in from the sheet, and the merged answer. */
+    /**
+     * The parent: who arrived (`null` once the create route said the session
+     * ran out), who logged in from the sheet, the merged answer, and whether
+     * anybody is logged in at all (a good code whose profile read failed is).
+     */
     login: {
-      arrivedAs,
+      arrivedAs: arrivedAsNow,
       signedIn,
       guardian,
+      loggedIn: signedIn !== null || arrivedAsNow !== null,
       signIn: (who: BookingGuardian | null) => setSignedIn({ guardian: who }),
       vippsConfirm,
       resumePath: vippsResumePath,
