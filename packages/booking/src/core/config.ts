@@ -122,6 +122,11 @@ export interface BookingConfig {
      */
     returnPaths: { exact: string[]; prefixes: string[] };
   };
+  /**
+   * Booking only for a logged-in parent: the details step becomes the login
+   * until there is a session, and `/create` refuses without one.
+   */
+  account: { required: boolean };
   consent: {
     termsUrl: string | null;
     /** `null` = no marketing box. */
@@ -201,6 +206,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
     handoffUrl: null,
     contact: { phone: null, address: null, name: '' },
     portal: { enabled: false, methods: ['email_code'], cookieName: 'booking_portal' },
+    account: { required: false },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
     ics: { prodId: '-//Medal Social//Booking//EN', uidDomain: 'booking.invalid' },
@@ -381,6 +387,7 @@ const schema = z
       vippsLinkCookieName: cookieName,
       returnPaths: z.object({ exact: z.array(path), prefixes: z.array(prefix) }),
     }),
+    account: z.object({ required: z.boolean() }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),
       marketing: z.object({ text: z.string().min(1), version: z.string().min(1) }).nullable(),
@@ -451,6 +458,13 @@ const schema = z
         code: 'custom',
         path: ['portal', 'methods'],
         message: 'an enabled portal needs a login method',
+      });
+    }
+    if (config.account.required && !config.portal.enabled) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['account', 'required'],
+        message: 'account.required needs portal.enabled',
       });
     }
   });
