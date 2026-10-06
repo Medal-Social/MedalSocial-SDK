@@ -24,6 +24,7 @@ export type {
   ProfileActionResult,
   SafeActionEnvelope,
   SessionFailure,
+  ThrottledFailure,
 } from '../actions';
 export * from '../BookingWizard';
 export type { BookingKit } from '../kit';

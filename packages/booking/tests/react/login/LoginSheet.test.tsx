@@ -414,6 +414,21 @@ describe('LoginSheet inline, on Min side', () => {
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
+  it('says «for mange forsøk» when the action answers throttled, staying on the e-mail step', async () => {
+    actions.startLoginAction.mockResolvedValue({ ok: false, reason: 'throttled' });
+    render(<LoginSheet presentation="inline" returnPath={null} />);
+    openEmailForm();
+
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+
+    expect(
+      await screen.findByText('For mange forsøk. Vent litt før du prøver igjen.')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('E-post')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
   it('asks again for a valid address when the action refuses the one typed', async () => {
     actions.startLoginAction.mockResolvedValue({ validationErrors: { email: ['bad'] } });
     render(<LoginSheet presentation="inline" returnPath={null} />);

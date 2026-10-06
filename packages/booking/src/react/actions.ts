@@ -21,6 +21,14 @@ export type SessionFailure = { ok: false; reason: 'session' };
 /** The backend refused the input, with a sentence to show. */
 export type InvalidFailure = { ok: false; reason: 'invalid'; message: string };
 
+/**
+ * The app itself is limiting how often a code may be asked for (the site's
+ * per-IP limiter). Never the package's own answer for MEDAL's per-address
+ * throttle: `next/portal` still answers «sent» for that one, because telling
+ * the two apart would let anyone confirm which parents are customers.
+ */
+export type ThrottledFailure = { ok: false; reason: 'throttled' };
+
 /** next-safe-action's envelope. */
 export interface SafeActionEnvelope<T> {
   data?: T;
@@ -59,9 +67,12 @@ export interface PersonActionTarget {
 export interface PortalActions {
   /**
    * Ask for a login code. Answers «sent» whether or not the address is known;
-   * `invalid` only for an address that cannot be one.
+   * `invalid` only for an address that cannot be one, `throttled` only when
+   * the app's own limiter refused.
    */
-  startLogin(input: { email: string }): Promise<ActionAnswer<{ status: 'sent' } | InvalidFailure>>;
+  startLogin(input: {
+    email: string;
+  }): Promise<ActionAnswer<{ status: 'sent' } | InvalidFailure | ThrottledFailure>>;
   /** Start a Vipps login: a form action that redirects to Vipps, or answers why not. */
   startVipps?: VippsStartAction;
   /**
@@ -126,12 +137,12 @@ function isEnvelope<T>(answer: ActionAnswer<T> | undefined): answer is SafeActio
  * `startLogin`'s answer, read for the login form: `sent` only for a result
  * that says so — plain or inside the envelope. The action's own refusal of
  * the address (or zod's) is a bad address; a server error, an empty envelope,
- * an answer that is neither, or no answer at all is `unreachable`, so the
+ * an app-level `throttled` stays `throttled`; an answer that is neither, or no answer at all is `unreachable`, so the
  * form never moves on to a code that was not sent.
  */
 export function readStartLogin(
-  answer: ActionAnswer<{ status: 'sent' } | InvalidFailure> | undefined
-): { ok: true } | { ok: false; reason: 'unreachable' | 'invalidEmail' } {
+  answer: ActionAnswer<{ status: 'sent' } | InvalidFailure | ThrottledFailure> | undefined
+): { ok: true } | { ok: false; reason: 'unreachable' | 'invalidEmail' | 'throttled' } {
   const envelope = isEnvelope(answer) ? answer : undefined;
   const data = (envelope ? envelope.data : answer) as
     | { status?: unknown; ok?: unknown; reason?: unknown }
@@ -141,6 +152,7 @@ export function readStartLogin(
     if (data.status === 'sent') return { ok: true };
     if (data.ok === false && data.reason === 'invalid')
       return { ok: false, reason: 'invalidEmail' };
+    if (data.ok === false && data.reason === 'throttled') return { ok: false, reason: 'throttled' };
   }
   if (envelope?.validationErrors && !envelope.serverError) {
     return { ok: false, reason: 'invalidEmail' };
