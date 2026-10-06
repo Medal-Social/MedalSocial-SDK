@@ -645,19 +645,34 @@ function AccountGate({
   onSignedIn: (guardian: Parameters<BookingController['login']['signIn']>[0]) => void;
 }) {
   const { labels } = booking.kit;
+  const { classNames } = resolved;
   // The details screen's own root and heading slots, after the same defaults.
-  const slot = (name: 'root' | 'heading', base: string) =>
-    [base, resolved.classNames.details?.[name]].filter(Boolean).join(' ');
+  const slot = (base: string, extra: string | undefined) => [base, extra].filter(Boolean).join(' ');
   return (
-    <section aria-labelledby={STEP_HEADINGS.details} className={slot('root', 'space-y-6')}>
+    <section
+      aria-labelledby={STEP_HEADINGS.details}
+      className={slot('space-y-6', classNames.details?.root)}
+    >
       <h2
         id={STEP_HEADINGS.details}
         tabIndex={-1}
-        className={slot('heading', 'font-sans text-2xl font-bold outline-none md:text-3xl')}
+        className={slot(
+          'font-sans text-2xl font-bold outline-none md:text-3xl',
+          classNames.details?.heading
+        )}
       >
         {labelText(labels['wizard.account.heading'])}
       </h2>
       <p className="text-muted-foreground">{labelText(labels['wizard.account.intro'])}</p>
+      {/* What the login is for: the hour held, in the summary bar's own words and slot. */}
+      <p
+        className={slot(
+          'rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium',
+          classNames.summary?.line
+        )}
+      >
+        {booking.derived.summary}
+      </p>
       <LoginSheet
         {...overridesOf(overrides)}
         actions={actions}

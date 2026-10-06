@@ -3486,6 +3486,17 @@ describe('BookingWizard with account.required', () => {
     expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
   });
 
+  it('shows the booking the login is for on the gate', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true });
+    await onGate(user);
+
+    const gate = screen.getByRole('region', { name: 'Nesten ferdig' });
+    expect(within(gate).getByText(/Gutteklipp/)).toBeInTheDocument();
+    expect(within(gate).getByText(/13:00/)).toBeInTheDocument();
+  });
+
   it('sends a Vipps login from the gate back to «Bekreft»', async () => {
     stubApi(OPEN_AT_ONE);
     const user = userEvent.setup();
