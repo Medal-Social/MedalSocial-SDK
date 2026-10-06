@@ -170,6 +170,12 @@ data.bookings[0].manage_token;  // SHOW-ONCE
 data.contact_id;
 ```
 
+**Booking for a logged-in portal customer.** Pass the customer's portal session token as `portalSession` (sent as `X-Portal-Session`) and Medal books on THAT session's contact instead of matching or creating one from `contact`:
+
+```ts
+await medal.bookings.create(body, { idempotencyKey, portalSession: session.session_token });
+```
+
 `created_via` is optional and defaults to `api`. Send `web` **only** from the workspace's own website, so its bookings can be told apart from integrations'. `dashboard` and `walk_in` are staff-only and the API rejects them with 400 — an API key proves which workspace is calling, not that a member typed the booking in.
 
 `manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.

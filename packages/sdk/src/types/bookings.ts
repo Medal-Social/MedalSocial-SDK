@@ -1,3 +1,4 @@
+import type { RequestOptions } from "../client";
 import type { PaginationOptions } from "./common";
 
 /**
@@ -237,6 +238,16 @@ export interface BookingContactInput {
  */
 /** Provenance an API caller may claim. `dashboard` and `walk_in` are staff-only and rejected. */
 export type BookingClaimableCreatedVia = "web" | "api";
+
+/** Options for `bookings.create` — the usual request options plus a portal session. */
+export interface CreateBookingOptions extends RequestOptions {
+  /**
+   * A customer-portal session token, sent as `X-Portal-Session`. Medal then
+   * books on THAT session's contact — the logged-in customer — instead of
+   * finding or creating one from `contact`. Omit it for an anonymous booking.
+   */
+  portalSession?: string;
+}
 
 export interface CreateBookingInput {
   items: CreateBookingItemInput[];
