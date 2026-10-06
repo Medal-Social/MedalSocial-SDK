@@ -152,9 +152,7 @@ function BookingWizardShell(props: BookingWizardProps) {
       typeof process !== 'undefined' &&
       process.env.NODE_ENV !== 'production'
     ) {
-      console.warn(
-        '[@medalsocial/booking] config.account.required is on but <BookingWizard> has no login `actions` (or config.portal.enabled is off): a visitor who is not logged in cannot book.'
-      );
+      console.warn('[booking] account.required without login actions: nobody can log in to book.');
     }
   }, [unreachableLogin]);
   const { state, restore, confirmed, onEvent } = { ...booking, onEvent: props.onEvent };
@@ -389,7 +387,7 @@ function BookingWizardShell(props: BookingWizardProps) {
       {!multiSelect && (
         <SummaryBar
           line={booking.derived.summary}
-          canAdvance={booking.derived.canAdvance && !gated}
+          canAdvance={booking.derived.canAdvance}
           step={state.step}
           onNext={booking.next}
           labels={screenLabels(labels)}

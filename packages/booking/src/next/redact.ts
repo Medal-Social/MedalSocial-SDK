@@ -35,7 +35,12 @@ function scrub(text: string, session: string, label = REDACTED): string {
  * logger prints verbatim and is left alone.
  */
 function redactError(error: Error, session: string, depth: number, label = REDACTED): void {
-  if (error.message.includes(session)) error.message = scrub(error.message, session, label);
+  if (error.message.includes(session)) {
+    // A getter-only `message` cannot be rewritten: leave it, scrub the rest.
+    try {
+      error.message = scrub(error.message, session, label);
+    } catch {}
+  }
   if (typeof error.stack === 'string' && error.stack.includes(session)) {
     error.stack = scrub(error.stack, session, label);
   }

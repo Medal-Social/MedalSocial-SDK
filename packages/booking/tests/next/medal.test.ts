@@ -336,6 +336,17 @@ describe("redactSession (the create route's forwarded session)", () => {
     expect(redactSession(other, SECRET)).toBe(other);
   });
 
+  it('leaves a getter-only message alone and still scrubs the rest', () => {
+    const inner = new Error(`inner ${SECRET}`);
+    const error = new Error('outer', { cause: inner });
+    Object.defineProperty(error, 'message', { get: () => `fixed ${SECRET}` });
+    error.stack = `Error: at ${SECRET}`;
+
+    expect(() => redactSession(error, SECRET)).not.toThrow();
+    expect(error.stack).toBe('Error: at <session>');
+    expect(inner.message).toBe('inner <session>');
+  });
+
   it('stops following a cause chain after three links', () => {
     const deepest = new Error(`deepest ${SECRET}`);
     let error: Error = deepest;

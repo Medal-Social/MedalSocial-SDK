@@ -3528,6 +3528,22 @@ describe('BookingWizard with account.required', () => {
     expect(router.refresh).not.toHaveBeenCalled();
   });
 
+  it('shows the form after a good code whose profile read failed, the address editable', async () => {
+    stubApi({ ...OPEN_AT_ONE, verify: { status: 200, body: { ok: true, guardian: null } } });
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true });
+    await onGate(user);
+
+    await logInByEmail(user);
+
+    // Logged in, so no gate — but with no profile there is no address to lock.
+    expect(screen.queryByRole('button', { name: 'Fortsett med e-post' })).toBeNull();
+    const email = screen.getByLabelText('E-post');
+    expect(email).not.toHaveAttribute('readonly');
+    await user.type(email, 'kari@example.com');
+    expect(email).toHaveValue('kari@example.com');
+  });
+
   it('shows a parent who arrived logged in the form straight away, the address locked', async () => {
     stubApi(OPEN_AT_ONE);
     const user = userEvent.setup();
