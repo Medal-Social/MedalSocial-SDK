@@ -3635,4 +3635,32 @@ describe('BookingWizard with account.required', () => {
     };
     expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
   });
+
+  it('says something when the session ran out and there is no login to offer', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { bodies } = stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true, guardian: KARI, noActions: true });
+    // The site wired no login actions: said once, in development.
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/account\.required/);
+
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    // Not a «Bekreft» that does nothing: the generic upstream error, on the form.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/timeboken svarte ikke/);
+    expect(screen.queryByRole('heading', { name: 'Nesten ferdig' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Bekreft time/ })).toBeInTheDocument();
+    expect(bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
 });

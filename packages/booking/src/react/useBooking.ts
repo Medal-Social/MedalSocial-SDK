@@ -78,6 +78,13 @@ export interface UseBookingOptions extends BookingOverrides {
   guardian?: BookingGuardian | null;
   /** How many days the window covers. Default `config.window.rangeDays`. */
   rangeDays?: number;
+  /**
+   * Whether the shell can put a login in front of the visitor again. Under
+   * `account.required` a lost session (`/create` → `accountRequired`) is a
+   * login when it can — `login.sessionLost` — and an ordinary submit error
+   * when it cannot. Default `true`: a headless shell reads `sessionLost`.
+   */
+  loginOffered?: boolean;
 }
 
 /** A person's «same as last time», and the note when it was swapped for their age. */
@@ -1340,7 +1347,13 @@ export function useBooking(options: UseBookingOptions) {
           } else dispatch({ type: 'submitFailed', error: 'upstreamError' });
           return;
         }
-        if (sessionGone) return;
+        if (sessionGone) {
+          // Nowhere to log in again (no login actions): an error, not a dead «Bekreft».
+          if (options.loginOffered === false) {
+            dispatch({ type: 'submitFailed', error: 'upstreamError' });
+          }
+          return;
+        }
         if (payload?.error === 'slotTaken') {
           // From the SUBMITTED visit: after a reload there is no live basket.
           setTakenSlotTs(submitted.startTs);

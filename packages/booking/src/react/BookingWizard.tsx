@@ -95,6 +95,9 @@ export type BookingWizardEvent =
   | { type: 'submit_ok'; bookings: number }
   | { type: 'submit_error'; code: NonNullable<WizardState['error']> };
 
+/** The bundler's build mode, which it inlines; absent outside a bundler. */
+declare const process: { env: { NODE_ENV?: string } } | undefined;
+
 /** The wizard's root, for the inline restore gate to find before hydration. */
 const WIZARD_ROOT_ID = 'booking-wizard';
 
@@ -136,9 +139,24 @@ export function BookingWizard(props: BookingWizardProps) {
 
 function BookingWizardShell(props: BookingWizardProps) {
   const resolved = useBookingKit(props, props.contact);
-  const booking = useBooking(props);
+  const loginOffered = props.actions !== undefined && resolved.kit.config.portal.enabled;
+  const booking = useBooking({ ...props, loginOffered });
   const { kit } = booking;
   const { labels } = kit;
+
+  // `account.required` with no way to log in: every «Bekreft» would be refused.
+  const unreachableLogin = kit.config.account.required && !loginOffered;
+  useEffect(() => {
+    if (
+      unreachableLogin &&
+      typeof process !== 'undefined' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      console.warn(
+        '[@medalsocial/booking] config.account.required is on but <BookingWizard> has no login `actions` (or config.portal.enabled is off): a visitor who is not logged in cannot book.'
+      );
+    }
+  }, [unreachableLogin]);
   const { state, restore, confirmed, onEvent } = { ...booking, onEvent: props.onEvent };
 
   /**
@@ -284,7 +302,6 @@ function BookingWizardShell(props: BookingWizardProps) {
   };
   // The multi-select service step carries its own total bar and refusal notice.
   const multiSelect = state.step === 'service' && kit.config.party.maxServicesPerPerson > 1;
-  const loginOffered = props.actions !== undefined && kit.config.portal.enabled;
   /**
    * `account.required`: every booking is a logged-in parent's. The login is
    * not offered along the way — it IS «Bekreft», for a parent not logged in.

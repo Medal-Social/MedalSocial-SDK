@@ -35,6 +35,8 @@ export interface LegacyWizardProps {
   guardian?: BookingGuardian | null;
   /** `config.account.required` — a booking only for a logged-in parent. */
   accountRequired?: boolean;
+  /** Render without the login actions — a site that wired none. */
+  noActions?: boolean;
 }
 
 const CONFIGS = new Map<string, ReturnType<typeof resolveBookingConfig>>();
@@ -79,12 +81,13 @@ export function BookingWizard({
   rangeDays,
   guardian,
   accountRequired = false,
+  noActions = false,
 }: LegacyWizardProps) {
   return (
     <PackageWizard
       config={parityConfigWith(phone, address, accountRequired)}
       labels={TEST_LABELS}
-      actions={ACTIONS}
+      actions={noActions ? undefined : ACTIONS}
       seed={{
         services,
         resources: initialResources,
