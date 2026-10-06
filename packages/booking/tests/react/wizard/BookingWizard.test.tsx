@@ -3614,14 +3614,20 @@ describe('BookingWizard with account.required', () => {
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
-    await screen.findByRole('heading', { name: 'Nesten ferdig' });
-    // No error over it: the gate is the whole answer.
+    const heading = await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    // No error over it: the gate is the whole answer, focused, and saying why.
     expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Du ble logget ut. Logg inn igjen — timen din er holdt.'
+    );
     expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
 
     // Logged in again, the same booking goes through.
     const { bodies } = stubApi(OPEN_AT_ONE);
     await logInByEmail(user);
+    // The notice went with the gate; nothing says «signed out» over the form.
+    expect(screen.queryByText(/Du ble logget ut/)).toBeNull();
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
     const submitted = bodies.find((body) => 'items' in (body as object)) as {

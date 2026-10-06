@@ -406,10 +406,13 @@ export function useBooking(options: UseBookingOptions) {
   /**
    * The create route said nobody is logged in (`accountRequired`): the session
    * the page arrived with — or the one taken here — has run out. From then on
-   * the parent the page found is not trusted; only a fresh login is.
+   * the parent the page found is not trusted; only a fresh login is. Sticky:
+   * a fresh login clears `sessionLost` (the notice), never this.
    */
+  const [arrivalExpired, setArrivalExpired] = useState(false);
+  /** The gate is back because the session ran out — until the next login. */
   const [sessionLost, setSessionLost] = useState(false);
-  const arrivedAsNow = sessionLost ? null : arrivedAs;
+  const arrivedAsNow = arrivalExpired ? null : arrivedAs;
   const guardian = signedIn?.guardian ?? arrivedAsNow;
 
   // The link, read ONCE, in the initialisers: a prefill that re-applied later
@@ -1322,6 +1325,7 @@ export function useBooking(options: UseBookingOptions) {
         const sessionGone = payload?.error === 'accountRequired';
         if (sessionGone) {
           setSignedIn(null);
+          setArrivalExpired(true);
           setSessionLost(true);
         }
         // A RESUMED replay (or the resend of one while a link waits) has no
@@ -1525,7 +1529,12 @@ export function useBooking(options: UseBookingOptions) {
       signedIn,
       guardian,
       loggedIn: signedIn !== null || arrivedAsNow !== null,
-      signIn: (who: BookingGuardian | null) => setSignedIn({ guardian: who }),
+      /** `/create` said the session ran out, and no login has happened since. */
+      sessionLost,
+      signIn: (who: BookingGuardian | null) => {
+        setSessionLost(false);
+        setSignedIn({ guardian: who });
+      },
       vippsConfirm,
       resumePath: vippsResumePath,
     },

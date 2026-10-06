@@ -177,6 +177,24 @@ function BookingWizardShell(props: BookingWizardProps) {
     focusAfterSignIn.current = false;
     document.getElementById(STEP_HEADINGS[state.step])?.focus({ preventScroll: true });
   }, [signedIn, state.step]);
+  /**
+   * A 401 put the gate back over the form: focus its heading (the details
+   * step's id), where the notice beside it says why. Once per loss, and only
+   * once the gate is actually on screen — a replay answers behind the skeleton.
+   */
+  const sessionLost = booking.login.sessionLost;
+  const sessionLossFocused = useRef(false);
+  useEffect(() => {
+    if (!sessionLost) {
+      sessionLossFocused.current = false;
+      return;
+    }
+    if (sessionLossFocused.current || restore.restoring || state.step !== 'details') return;
+    sessionLossFocused.current = true;
+    const heading = document.getElementById(STEP_HEADINGS.details);
+    scrollToTop(rootRef.current);
+    heading?.focus({ preventScroll: true });
+  }, [sessionLost, restore.restoring, state.step]);
   useEffect(() => {
     if (!timeStepReady || !focusTimeWhenReady.current) return;
     focusTimeWhenReady.current = false;
@@ -663,6 +681,10 @@ function AccountGate({
       >
         {labelText(labels['wizard.account.heading'])}
       </h2>
+      <LiveStatus
+        text={booking.login.sessionLost ? labelText(labels['wizard.account.sessionLost']) : null}
+        className="text-sm font-medium empty:hidden"
+      />
       <p className="text-muted-foreground">{labelText(labels['wizard.account.intro'])}</p>
       {/* What the login is for: the hour held, in the summary bar's own words and slot. */}
       <p

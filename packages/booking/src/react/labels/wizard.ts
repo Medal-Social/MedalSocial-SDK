@@ -51,6 +51,8 @@ export interface WizardLabels {
    */
   'wizard.account.heading': BookingLabel;
   'wizard.account.intro': BookingLabel;
+  /** Said when `/create` found the session gone and the gate came back over the form. */
+  'wizard.account.sessionLost': BookingLabel;
   /** Why «+ add child» could not save a logged-in parent's child. */
   'wizard.addChild.invalid': BookingLabel;
   'wizard.addChild.session': BookingLabel;
@@ -111,6 +113,7 @@ export const WIZARD_LABELS_NB: WizardLabels = {
   'wizard.account.heading': 'Nesten ferdig',
   'wizard.account.intro':
     'Logg inn for å bekrefte — vi lager kontoen hvis du er ny. Timen holdes for deg mens du logger inn.',
+  'wizard.account.sessionLost': 'Du ble logget ut. Logg inn igjen — timen din er holdt.',
   'wizard.addChild.invalid': 'Sjekk navn og fødselsår.',
   'wizard.addChild.session': 'Du er ikke lenger logget inn. Last siden på nytt og logg inn igjen.',
   'wizard.addChild.throttled': 'For mange forsøk. Vent litt før du prøver igjen.',
@@ -156,6 +159,7 @@ export const WIZARD_LABELS_EN: WizardLabels = {
   'wizard.account.heading': 'Almost done',
   'wizard.account.intro':
     'Sign in to confirm — we create your account if you are new. Your time is held while you sign in.',
+  'wizard.account.sessionLost': 'You were signed out. Sign in again — your time is held.',
   'wizard.addChild.invalid': 'Check the name and the year of birth.',
   'wizard.addChild.session': 'You are no longer logged in. Reload the page and log in again.',
   'wizard.addChild.throttled': 'Too many attempts. Wait a moment before you try again.',
