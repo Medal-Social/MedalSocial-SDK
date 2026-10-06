@@ -3636,6 +3636,54 @@ describe('BookingWizard with account.required', () => {
     expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
   });
 
+  it('re-gates a REPLAY that finds the session gone, the hour kept', async () => {
+    // A resumed page replays the pending attempt; the session has run out
+    // meanwhile. A clean wizard would drop the hour the gate promises to hold.
+    window.sessionStorage.clear();
+    stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    const view = renderWizard({ accountRequired: true, guardian: KARI });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+
+    view.unmount();
+    const second = stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    renderWizard({ accountRequired: true, guardian: KARI });
+
+    const heading = await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
+    const gate = screen.getByRole('region', { name: 'Nesten ferdig' });
+    expect(within(gate).getByText(/Gutteklipp/)).toBeInTheDocument();
+    expect(within(gate).getByText(/13:00/)).toBeInTheDocument();
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Du ble logget ut. Logg inn igjen — timen din er holdt.'
+    );
+    // Answered, so not replayed again on the next load.
+    expect(second.bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
+    expect(window.sessionStorage.getItem('demo:booking:attempt')).toBeNull();
+
+    // Logged in again, the same hour goes through.
+    const third = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const submitted = third.bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+    };
+    expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+  });
+
   it('says something when the session ran out and there is no login to offer', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { bodies } = stubApi({

@@ -22,10 +22,11 @@ import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
 import { stylistDisplayName } from '../core/display-name';
-import { DRAFT_MAX_AGE_MS, type WizardDraft } from '../core/draft-store';
+import { DRAFT_MAX_AGE_MS, type WizardDraft, type WizardDraftItem } from '../core/draft-store';
 import { fill, labelText } from '../core/labels';
 import type {
   WizardAction,
+  WizardItem,
   WizardPerson,
   WizardPrefill,
   WizardService,
@@ -105,6 +106,21 @@ export interface ConfirmedLine {
 export interface BookingConfirmation {
   bookings: Array<{ id: string; manageHref: string | null }>;
   submitted: SubmittedVisit;
+}
+
+/** A line item as a draft keeps it. */
+function draftItem(item: WizardItem): WizardDraftItem {
+  return {
+    serviceId: item.service.id,
+    // Only when there are some: a one-service line is stored as it always was.
+    ...(item.extraServices?.length
+      ? { extraServiceIds: item.extraServices.map((service) => service.id) }
+      : {}),
+    bookedForName: item.bookedForName ?? null,
+    bookedForBirthYear: item.bookedForBirthYear ?? null,
+    adult: item.adult === true,
+    personId: item.bookedForPersonId ?? null,
+  };
 }
 
 /** How long a replayed submission may take before the restore gate gives up. */
@@ -820,17 +836,7 @@ export function useBooking(options: UseBookingOptions) {
       return;
     }
     kit.drafts.stashDraft({
-      items: state.items.map((item) => ({
-        serviceId: item.service.id,
-        // Only when there are some: a one-service line is stored as it always was.
-        ...(item.extraServices?.length
-          ? { extraServiceIds: item.extraServices.map((service) => service.id) }
-          : {}),
-        bookedForName: item.bookedForName ?? null,
-        bookedForBirthYear: item.bookedForBirthYear ?? null,
-        adult: item.adult === true,
-        personId: item.bookedForPersonId ?? null,
-      })),
+      items: state.items.map(draftItem),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       startTs: state.startTs,
@@ -1334,6 +1340,13 @@ export function useBooking(options: UseBookingOptions) {
           setSignedIn(null);
           setArrivalExpired(true);
           setSessionLost(true);
+          // Before the resumed reset below: the gate holds the slot, a clean
+          // wizard would drop it. A replay's machine was never hydrated, so
+          // the visit it sent is rebuilt under the gate.
+          if (options.loginOffered !== false) {
+            if (sendOptions?.replay === true) rebuildSubmitted(submitted);
+            return;
+          }
         }
         // A RESUMED replay (or the resend of one while a link waits) has no
         // basket to rescue: a clean wizard, or the link it came by.
@@ -1349,9 +1362,7 @@ export function useBooking(options: UseBookingOptions) {
         }
         if (sessionGone) {
           // Nowhere to log in again (no login actions): an error, not a dead «Bekreft».
-          if (options.loginOffered === false) {
-            dispatch({ type: 'submitFailed', error: 'upstreamError' });
-          }
+          dispatch({ type: 'submitFailed', error: 'upstreamError' });
           return;
         }
         if (payload?.error === 'slotTaken') {
@@ -1415,6 +1426,27 @@ export function useBooking(options: UseBookingOptions) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  /**
+   * The visit a refused replay sent, back in the machine as a draft would be
+   * — the hour on «Bekreft» — in place of the link that was waiting on it.
+   */
+  function rebuildSubmitted(submitted: SubmittedVisit) {
+    rebookLink.current = null;
+    const { items, resourceIds } = submitted;
+    restoreDraft({
+      items: items.map(draftItem),
+      resourceId: null,
+      partyMode: submitted.partyMode,
+      startTs: submitted.startTs,
+      resolvedResourceId: resourceIds[0] ?? null,
+      partyResourceIds:
+        items.length > 1 && resourceIds.every((id) => id !== null)
+          ? (resourceIds as string[])
+          : null,
+      savedAt: Date.now(),
+    });
   }
 
   /** «Book again» on the confirmation: a clean wizard with a fresh attempt. */
