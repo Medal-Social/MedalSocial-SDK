@@ -6,6 +6,9 @@
  * 'unconfigured' | 'upstreamError'` — so the spelling here is load-bearing
  * rather than descriptive.
  *
+ * The create route also answers `'inProgress'` (409, a key Medal already holds)
+ * and `'accountRequired'` (401, `account.required` with nobody logged in).
+ *
  * `upstreamError` is the catch-all. Something has to be in the field either
  * way, because `NextResponse.json({ error: undefined })` serialises to `{}`
  * and reads as a failure with no reason at all.

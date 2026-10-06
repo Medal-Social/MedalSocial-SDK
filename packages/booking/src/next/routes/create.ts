@@ -319,12 +319,18 @@ function toMedalBody(body: CreateRequest): { body: CreateBookingBody } | { error
  * still book — a per-request UUID, exactly as before — they simply do not get
  * the guarantee. Refusing them would turn a missing nicety into an outage.
  */
-async function idempotencyKeyFor(nonce: unknown, body: CreateBookingBody): Promise<string> {
+async function idempotencyKeyFor(
+  nonce: unknown,
+  body: CreateBookingBody,
+  session: string | null
+): Promise<string> {
   if (typeof nonce !== 'string' || nonce.trim().length === 0) return crypto.randomUUID();
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(`${nonce}${JSON.stringify(body)}`)
-  );
+  // The session too, when there is one: Medal binds a replay to the session it
+  // was made under, and two parents must never share a key — the same
+  // submission from two accounts is two bookings. Hashed, so the key carries
+  // nothing of the token; and a logged-out submission's key is unchanged.
+  const material = `${nonce}${JSON.stringify(body)}${session === null ? '' : `\u0000portal:${session}`}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -469,6 +475,21 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
 
   const mapped = toMedalBody(parsed as CreateRequest);
   if ('error' in mapped) return mapped.error;
+
+  // THE PARENT'S SESSION, read once: it decides who the booking is for
+  // (`X-Portal-Session` makes Medal book on that parent's contact), whether
+  // `account.required` lets it through at all, and the phone rule's ids. A
+  // cookie read that FAILS is not «nobody is logged in» — the retry, whose read
+  // succeeds, would derive a different key and could book twice — so it is a
+  // 503 before anything is booked, like the profile read below.
+  let session: string | null;
+  try {
+    session = await rt.session.readPortalSession();
+  } catch (error) {
+    rt.logger.warn({ err: error }, 'Could not read the portal session; asking for a retry');
+    return NextResponse.json({ error: 'upstreamError', retryable: true }, { status: 503 });
+  }
+  if (session === null && rt.config.account.required) return accountRequired();
   // ONE SUBMISSION, ONE KEY, ONE BODY. The key is derived from what the
   // CLIENT asked for — ids included, before the server checks them — and the
   // body Medal is sent is a pure function of that request and the profile.
@@ -482,11 +503,17 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   /* v8 ignore next */
   const requestedIds = requestedPersonIds((parsed as CreateRequest).items ?? []);
   const keyBody = withIds(mapped.body, requestedIds, null);
-  const checked = await withPersons(rt, mapped.body, requestedIds);
+  const checked = await withPersons(rt, mapped.body, requestedIds, session);
   if (checked === null) {
     return NextResponse.json({ error: 'upstreamError', retryable: true }, { status: 503 });
   }
-  mapped.body = checked;
+  mapped.body = checked.body;
+  // Medal said the session is dead: nobody is logged in after all.
+  if (checked.sessionExpired) {
+    session = null;
+    if (rt.config.account.required) return accountRequired();
+  }
+  const nonce = (parsed as CreateRequest).submissionNonce;
 
   try {
     // Inside the try, though nothing about a SHA-256 of a string this route
@@ -494,11 +521,27 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     // «timen ble ikke satt opp» is true — nothing was booked — where an
     // unhandled rejection would be a bare 500 with no line in the log saying
     // which booking it was.
-    const idempotencyKey = await idempotencyKeyFor(
-      (parsed as CreateRequest).submissionNonce,
-      keyBody
-    );
-    const result = await rt.medal.createBooking(mapped.body, idempotencyKey);
+    const idempotencyKey = await idempotencyKeyFor(nonce, keyBody, session);
+    let result: Awaited<ReturnType<BookingRuntime['medal']['createBooking']>>;
+    try {
+      result =
+        session === null
+          ? await rt.medal.createBooking(mapped.body, idempotencyKey)
+          : await rt.medal.createBooking(mapped.body, idempotencyKey, { portalSession: session });
+    } catch (error) {
+      if (session === null || !isDeadPortalSession(error)) throw error;
+      // The cookie outlived the session upstream. Medal refuses on the session
+      // before it books anything, so nothing exists under the first key. Under
+      // `account.required` that is a parent to send to the login; otherwise the
+      // booking goes as a logged-out visitor's would — under the key a
+      // logged-out visitor's submission derives, so a retry without the cookie
+      // replays it rather than booking again.
+      if (rt.config.account.required) return accountRequired();
+      result = await rt.medal.createBooking(
+        mapped.body,
+        await idempotencyKeyFor(nonce, keyBody, null)
+      );
+    }
     const booked = Array.isArray(result.bookings) ? result.bookings : [];
     // A null entry is a short answer, not a throw: the caches below must still go.
     const ids = booked.map((booking) => (booking as { id?: unknown } | null)?.id);
@@ -568,6 +611,20 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   }
 }
 
+/** Under `account.required`, the answer to a submission nobody is logged in for. */
+function accountRequired(): NextResponse {
+  return bookingErrorResponse('accountRequired', 401, 'Log in to book');
+}
+
+/** Medal's 401 for a portal session it no longer honours (or never issued). */
+function isDeadPortalSession(error: unknown): boolean {
+  return (
+    error instanceof MedalApiError &&
+    error.status === 401 &&
+    (error.code === 'PORTAL_SESSION_REQUIRED' || error.code === 'PORTAL_SESSION_INVALID')
+  );
+}
+
 /** Every service a submission books — each visit's extras too, since a
  * visit's slot entry is tagged with all of its services and a write to any of
  * them must retire it. */
@@ -610,13 +667,14 @@ const PERSON_ID_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 async function withPersons(
   rt: BookingRuntime,
   body: CreateBookingBody,
-  ids: ReadonlyArray<string | null>
-): Promise<CreateBookingBody | null> {
-  if (ids.every((id) => id === null)) return body;
-  const owned = await ownedPersonIds(rt, body.contact.phone);
-  if (owned === null) return null;
-  if (owned.size === 0) return body;
-  return withIds(body, ids, owned);
+  ids: ReadonlyArray<string | null>,
+  session: string | null
+): Promise<{ body: CreateBookingBody; sessionExpired: boolean } | null> {
+  if (ids.every((id) => id === null)) return { body, sessionExpired: false };
+  const check = await ownedPersonIds(rt, body.contact.phone, session);
+  if (check === null) return null;
+  const { owned, sessionExpired } = check;
+  return { body: owned.size === 0 ? body : withIds(body, ids, owned), sessionExpired };
 }
 
 /** The ids the client sent, one per line, `null` where none (or not an id). */
@@ -648,22 +706,32 @@ function withIds(
 /**
  * The logged-in parent's children's ids — empty unless their phone is `phone`,
  * `null` when Medal could not be asked (an outage, a throttle): not an answer.
+ * `sessionExpired` says Medal no longer honours `session`.
  */
-async function ownedPersonIds(rt: BookingRuntime, phone: string): Promise<Set<string> | null> {
+async function ownedPersonIds(
+  rt: BookingRuntime,
+  phone: string,
+  session: string | null
+): Promise<{ owned: Set<string>; sessionExpired: boolean } | null> {
   const { nationalDigits } = rt.phone;
+  const none = { owned: new Set<string>(), sessionExpired: false };
   try {
-    const session = await rt.session.readPortalSession();
-    if (session === null) return new Set();
+    if (session === null) return none;
     const profile = await rt.portal.getMe(session);
-    if (profile.phone === null) return new Set();
-    if (nationalDigits(profile.phone) !== nationalDigits(phone)) return new Set();
-    return new Set(
-      profile.family.flatMap((member) => (member.personId === null ? [] : [member.personId]))
-    );
+    if (profile.phone === null) return none;
+    if (nationalDigits(profile.phone) !== nationalDigits(phone)) return none;
+    return {
+      owned: new Set(
+        profile.family.flatMap((member) => (member.personId === null ? [] : [member.personId]))
+      ),
+      sessionExpired: false,
+    };
   } catch (error) {
     // A session Medal no longer honours is an answer, and the same one on a
     // retry: nobody is logged in, so the booking goes by names.
-    if (error instanceof PortalSessionExpiredError) return new Set();
+    if (error instanceof PortalSessionExpiredError) {
+      return { owned: new Set<string>(), sessionExpired: true };
+    }
     // The seam scrubs the session.
     rt.logger.warn({ err: error }, 'Could not check the booking’s person ids; asking for a retry');
     return null;
