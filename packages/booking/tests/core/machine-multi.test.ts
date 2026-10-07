@@ -130,6 +130,25 @@ describe('toggleServiceFor', () => {
     expect(toggle(state, 3, KLIPP)).toBe(state);
   });
 
+  it('clears the slot on the way off and on the way back on', () => {
+    const withSlot = (state: WizardState) =>
+      reduce(reduce(state, { type: 'pickSlot', startTs: THURSDAY_15, resourceId: 'res-1' }), {
+        type: 'goToStep',
+        step: 'service',
+      });
+
+    const off = toggle(withSlot(klippOgVask()), 0, VASK);
+    expect(off.startTs).toBeNull();
+    const backOn = toggle(off, 0, VASK);
+    expect(backOn.items).toEqual([{ service: KLIPP, extraServices: [VASK] }]);
+    expect(backOn.startTs).toBeNull();
+
+    // A slot chosen for the shorter visit is not one for the longer one.
+    const reOn = toggle(withSlot(off), 0, VASK);
+    expect(reOn.startTs).toBeNull();
+    expect(reOn.partyResourceIds).toBeNull();
+  });
+
   it('removes an extra', () => {
     const next = toggle(klippOgVask(), 0, VASK);
     expect(next.items).toEqual([{ service: KLIPP }]);
@@ -262,6 +281,32 @@ describe('one-tap compatibility', () => {
     expect(next.items).toEqual([{ service: FARGE, extraServices: [VASK] }]);
   });
 
+  it('carries extras by key when step 1 reorders the party', () => {
+    let state = seated([KID_1, KID_2]);
+    state = toggle(toggle(state, 0, KLIPP), 0, VASK);
+    state = toggle(state, 1, FARGE);
+
+    const next = reduce(state, { type: 'choosePeople', people: [KID_2, KID_1] });
+
+    expect(next.extras).toEqual([[], [VASK]]);
+    expect(next.items).toEqual([{ service: FARGE }, { service: KLIPP, extraServices: [VASK] }]);
+  });
+
+  it('keeps extras aligned when the family takes over the guest seats', () => {
+    const child: WizardPerson = { key: 'p:p-1', personId: 'p-1', name: 'Kari' };
+    let state = seated([{ key: 'adult', adult: true }, KID_1, child]);
+    state = toggle(toggle(state, 0, SKJEGG), 0, KLIPP);
+    state = toggle(state, 1, KLIPP);
+    state = toggle(toggle(state, 2, FARGE), 2, VASK);
+
+    const next = reduce(state, { type: 'seatFamily' });
+
+    expect(next.people.map((person) => person.key)).toEqual(['self', 'p:p-1']);
+    expect(next.choices).toEqual([SKJEGG, FARGE]);
+    expect(next.extras).toEqual([[KLIPP], [VASK]]);
+    expect(next.items.map((item) => item.extraServices)).toEqual([[KLIPP], [VASK]]);
+  });
+
   it('starts a person added to the party with no extras', () => {
     const state = toggle(toggle(seated([KID_1]), 0, KLIPP), 0, VASK);
     const next = reduce(state, { type: 'addPerson', person: KID_2 });
@@ -322,5 +367,20 @@ describe('pricing a visit of several services', () => {
 describe('the summary line for one person with several services', () => {
   it('names both services', () => {
     expect(summaryLine(klippOgVask(), () => null, THURSDAY_15)).toContain('Klipp + Vask');
+  });
+});
+
+describe('a family link at a site that seats fewer than the service allows', () => {
+  it('stops at the party ceiling, without an error', () => {
+    const two = createWizard({ ...PARITY_CONFIG, party: { ...PARITY_CONFIG.party, maxPeople: 2 } });
+    const state = two.applyPrefill(
+      two.initialState(),
+      { serviceId: KLIPP.id, party: 3 },
+      { services: [KLIPP], resources: [] }
+    );
+    // Klipp takes three; the site seats two.
+    expect(KLIPP.maxPerBooking).toBe(3);
+    expect(state.items).toHaveLength(2);
+    expect(state.error).toBeNull();
   });
 });

@@ -973,11 +973,13 @@ export function visitMinutes(items: WizardItem[], partyMode: WizardState['partyM
 /**
  * How much EARLIER a family has to start than a single first child would.
  *
- * The schedule endpoint answers for one service, so `lastStartTs` is «the last
- * start a Gutteklipp fits» — the last minute at which that service's prep,
- * duration and cleanup all land inside the day's window. A family needs its
- * whole chain to fit, so its own last start is earlier by exactly the part of
- * the chain that hangs off the end of the first child's busy span.
+ * The schedule endpoint is asked for the FIRST person's whole visit — their
+ * service plus its extras — so `lastStartTs` is «the last start that visit
+ * fits»: the last minute at which its prep, every service's minutes and its
+ * cleanup all land inside the day's window. A family needs its whole chain to
+ * fit, so its own last start is earlier by exactly the part of the chain that
+ * hangs off the end of the first person's whole busy span — everybody after
+ * them.
  *
  * NOT `visitMinutes - firstDuration`, which was the first attempt and is wrong
  * in a way that only shows on a mixed basket: `visitMinutes` deliberately
@@ -1507,8 +1509,10 @@ export function createWizard(config: WizardConfig): Wizard {
     let next = state;
     while (next.items.length < wanted) {
       const after = reduce(next, { type: 'addService', service });
-      // A refusal leaves the basket as it was; stop rather than spin.
-      /* v8 ignore next -- defensive: `wanted` never exceeds the service's own limit */
+      // A refusal leaves the basket as it was; stop rather than spin. The
+      // service's own limit is already in `wanted`, but the site's party ceiling
+      // (`party.maxPeople`) is not: «?antall=3» at a site that seats two stops
+      // at two, without an error, because the link asked and nobody tapped.
       if (after.items.length === next.items.length) break;
       next = after;
     }
@@ -1638,12 +1642,9 @@ export function createWizard(config: WizardConfig): Wizard {
   }
 
   /**
-   * What the visit costs, in øre, at the time it was booked for.
-   *
-   * Here rather than in either component that shows it, because both of them show
-   * it: step 4's «Bekreft time – 539 kr betales i salongen» and the confirmation
-   * card's «Totalt» have to be the same number, and the surcharge is exactly the
-   * sort of rule that gets applied in one of two places.
+   * What ONE person's whole visit costs — every service they chose, each priced
+   * by `itemPriceOre`. The line the confirmation card prints per person, and
+   * the unit `totalPriceOre` sums, so a line and the total cannot disagree.
    */
   function visitItemPriceOre(item: WizardItem, startTs: number | null): number {
     // Each service on its own, surcharge included, then summed — never one
@@ -1651,6 +1652,14 @@ export function createWizard(config: WizardConfig): Wizard {
     return visitPriceOre(visitServicesOf(item), (service) => itemPriceOre(service, startTs));
   }
 
+  /**
+   * What the visit costs, in øre, at the time it was booked for.
+   *
+   * Here rather than in either component that shows it, because both of them show
+   * it: step 4's «Bekreft time – 539 kr betales i salongen» and the confirmation
+   * card's «Totalt» have to be the same number, and the surcharge is exactly the
+   * sort of rule that gets applied in one of two places.
+   */
   function totalPriceOre(items: WizardItem[], startTs: number | null): number {
     return items.reduce((sum, item) => sum + visitItemPriceOre(item, startTs), 0);
   }
