@@ -35,6 +35,13 @@ export interface WizardLabels {
   'wizard.retry': BookingLabel;
   /** A restored stylist who cannot take this basket, replaced by «first available». */
   'wizard.stylistGone': BookingLabel;
+  /**
+   * The machine's `maxServices` refusal: `{count}` is the site's
+   * `party.maxServicesPerPerson`. Keyed beside meda's `details.error.*` so the
+   * map from code to sentence stays one family; it lives here until meda's
+   * screens carry the code themselves, and then moves to `screens.ts`.
+   */
+  'details.error.maxServices': BookingLabel;
   /** After a login from the sheet: «Du er logget inn.» / «… som {name}.» */
   'wizard.signedIn': BookingLabel;
   'wizard.signedInAs': BookingLabel;
@@ -92,6 +99,7 @@ export const WIZARD_LABELS_NB: WizardLabels = {
   'wizard.retry': 'Prøv igjen',
   'wizard.stylistGone':
     'Den du valgte er ikke ledig for denne bestillingen. Vi viser første ledige.',
+  'details.error.maxServices': 'Du kan velge opptil {count} tjenester per person.',
   'wizard.signedIn': 'Du er logget inn.',
   'wizard.signedInAs': 'Du er logget inn som {name}.',
   'wizard.addChild.invalid': 'Sjekk navn og fødselsår.',
@@ -133,6 +141,7 @@ export const WIZARD_LABELS_EN: WizardLabels = {
   'wizard.retry': 'Try again',
   'wizard.stylistGone':
     'The person you chose is not free for this booking. Showing the first available instead.',
+  'details.error.maxServices': 'You can choose up to {count} services per person.',
   'wizard.signedIn': 'You are logged in.',
   'wizard.signedInAs': 'You are logged in as {name}.',
   'wizard.addChild.invalid': 'Check the name and the year of birth.',

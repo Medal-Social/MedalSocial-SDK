@@ -14,7 +14,6 @@
 import {
   BookingButton,
   Confirmation,
-  DETAILS_ERROR_LABEL_KEYS,
   DetailsScreen,
   LiveStatus,
   ServiceScreen,
@@ -62,6 +61,7 @@ import {
   serviceScreenBase,
   weekendNoteFor,
 } from './wizard/adapters';
+import { forMedaScreen, wizardErrorText } from './wizard-error';
 
 export interface BookingWizardProps extends BookingOverrides {
   /** What the page prefetched (the `/next` loader's seed). */
@@ -290,7 +290,7 @@ function BookingWizardShell(props: BookingWizardProps) {
             'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
           }
         >
-          {labels[DETAILS_ERROR_LABEL_KEYS[state.error]]}
+          {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
         </p>
       )}
 
@@ -527,7 +527,7 @@ function DetailsStep({ booking, resolved }: StepProps) {
   const lines = useMemo(() => detailsLines(kit, state), [kit, state]);
   return (
     <DetailsScreen
-      state={state}
+      state={forMedaScreen(state)}
       onChange={booking.dispatch}
       onSubmit={booking.submit}
       lines={lines}
