@@ -755,6 +755,42 @@ describe("bookings", () => {
     expect(data[0].resource_id).toBe("res_1");
   });
 
+  it("asks availability and schedule about a whole multi-service visit", async () => {
+    const seen: Array<string | null> = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      seen.push(new URL(url as string).searchParams.get("extra_service_ids"));
+      return mockJson({ data: [] });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const window = { from_ts: 1780000000000, to_ts: 1780086400000 };
+    await medal.bookings.availability({
+      service_id: "svc_1",
+      extra_service_ids: ["svc_2", "svc_3"],
+      ...window,
+    });
+    await medal.bookings.schedule({ service_id: "svc_1", extra_service_ids: ["svc_2"], ...window });
+    // An empty list is the same request as none at all.
+    await medal.bookings.availability({ service_id: "svc_1", extra_service_ids: [], ...window });
+    expect(seen).toEqual(["svc_2,svc_3", "svc_2", null]);
+  });
+
+  it("books one person several services as one item (extra_service_ids)", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.items[0]).toEqual({
+        service_id: "svc_1",
+        extra_service_ids: ["svc_2"],
+        start_ts: 1780000000000,
+      });
+      return mockJson({ data: { bookings: [] } }, 201);
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create({
+      items: [{ service_id: "svc_1", extra_service_ids: ["svc_2"], start_ts: 1780000000000 }],
+      contact: { phone: "+4790000001" },
+    });
+  });
+
   it("narrows availability to one resource", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);

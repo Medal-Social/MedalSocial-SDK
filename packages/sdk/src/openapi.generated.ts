@@ -2102,6 +2102,8 @@ export interface components {
       payment_mode: components["schemas"]["BookingPaymentMode"];
       /** @description Price in integer øre. Never a float and never kroner. */
       amount_ore: number | null;
+      /** @description Every service of a multi-service visit, in the order performed; null for an ordinary one-service booking. */
+      services: components["schemas"]["BookingVisitService"][] | null;
       /** @description Customer-visible note. */
       notes: string | null;
       /** @description Staff-only note; never shown to the customer. */
@@ -2185,9 +2187,19 @@ export interface components {
       email?: string;
       name?: string;
     };
-    /** @description One line of a party — a single service on a single slot. */
+    /** @description One service of a multi-service visit, frozen when it was booked. */
+    BookingVisitService: {
+      service_id: string;
+      name: string;
+      duration_minutes: number;
+      /** @description This service's share of the booking's amount, surcharge included. */
+      amount_ore: number;
+    };
+    /** @description One line of a party — one PERSON on one slot, with one service or a visit of several. */
     CreateBookingItemInput: {
       service_id: string;
+      /** @description The rest of this person's visit after `service_id`, performed back to back by the same resource. One booking whose duration and amount are the sums; the lines come back in `services`. */
+      extra_service_ids?: string[];
       /** @description Omit to let the engine pick a free resource. */
       resource_id?: string;
       start_ts: components["schemas"]["BookingTimestampInput"];
@@ -4518,6 +4530,8 @@ export interface operations {
     parameters: {
       query: {
         service_id: string;
+        /** @description Comma-separated: the rest of ONE person's visit after `service_id`, performed back to back by the same resource (at most 4 services in all, each once). Slots then span the whole visit. */
+        extra_service_ids?: string;
         /** @description Start of the window. */
         from_ts: components["schemas"]["BookingTimestampInput"];
         /** @description End of the window; must be after `from_ts`. */
@@ -4547,6 +4561,8 @@ export interface operations {
     parameters: {
       query: {
         service_id: string;
+        /** @description Comma-separated: the rest of ONE person's visit after `service_id`, performed back to back by the same resource (at most 4 services in all, each once). Slots then span the whole visit. */
+        extra_service_ids?: string;
         /** @description Start of the window. */
         from_ts: components["schemas"]["BookingTimestampInput"];
         /** @description End of the window; must be after `from_ts`. */

@@ -735,6 +735,14 @@ paths:
           required: true
           schema:
             type: string
+        - name: extra_service_ids
+          in: query
+          description: >-
+            Comma-separated: the rest of ONE person's visit after `service_id`,
+            performed back to back by the same resource (at most 4 services in
+            all, each once). Slots then span the whole visit.
+          schema:
+            type: string
         - name: from_ts
           in: query
           required: true
@@ -779,6 +787,14 @@ paths:
         - name: service_id
           in: query
           required: true
+          schema:
+            type: string
+        - name: extra_service_ids
+          in: query
+          description: >-
+            Comma-separated: the rest of ONE person's visit after `service_id`,
+            performed back to back by the same resource (at most 4 services in
+            all, each once). Slots then span the whole visit.
           schema:
             type: string
         - name: from_ts
@@ -3597,6 +3613,7 @@ components:
         - cancelled_by
         - cancel_reason
         - rescheduled_from_id
+        - services
         - payment_status
         - payment_mode
         - amount_ore
@@ -3666,6 +3683,15 @@ components:
         amount_ore:
           description: Price in integer øre. Never a float and never kroner.
           type: [integer, "null"]
+        services:
+          description: >-
+            Every service of a multi-service visit, in the order performed;
+            null for an ordinary one-service booking.
+          oneOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/BookingVisitService"
+            - type: "null"
         notes:
           description: Customer-visible note.
           type: [string, "null"]
@@ -3857,13 +3883,38 @@ components:
         name:
           type: string
           maxLength: 200
+    BookingVisitService:
+      description: One service of a multi-service visit, frozen when it was booked.
+      type: object
+      required: [service_id, name, duration_minutes, amount_ore]
+      properties:
+        service_id:
+          type: string
+        name:
+          type: string
+        duration_minutes:
+          type: integer
+        amount_ore:
+          description: This service's share of the booking's amount, surcharge included.
+          type: integer
     CreateBookingItemInput:
-      description: One line of a party — a single service on a single slot.
+      description: >-
+        One line of a party — one PERSON on one slot, with one service or a
+        visit of several.
       type: object
       required: [service_id, start_ts]
       properties:
         service_id:
           type: string
+        extra_service_ids:
+          description: >-
+            The rest of this person's visit after `service_id`, performed back
+            to back by the same resource. One booking whose duration and amount
+            are the sums; the lines come back in `services`.
+          type: array
+          maxItems: 3
+          items:
+            type: string
         resource_id:
           description: Omit to let the engine pick a free resource.
           type: string
