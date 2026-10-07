@@ -116,7 +116,13 @@ export interface WizardService {
 }
 
 export interface WizardItem {
+  /** The person's FIRST service. */
   service: WizardService;
+  /**
+   * The person's further services, performed back to back after `service` as
+   * ONE visit. Absent means one service — never `[]`.
+   */
+  extraServices?: WizardService[];
   /** The child this line is for. Asked inline in step 4. */
   bookedForName?: string;
   /** Optional fødselsår — powers "Jonas (9)" in the CRM later. */
