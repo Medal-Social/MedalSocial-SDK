@@ -46,6 +46,15 @@ export function visitOf(
   );
 }
 
+/**
+ * A visit's ids joined with `+`, in order; a single service is its id
+ * unchanged. The server keys its slot cache and its `freshSlots` answer with
+ * this too, so the wizard and the server can never disagree on a visit's name.
+ */
+export function visitKeyOfIds(serviceIds: readonly string[]): string {
+  return serviceIds.join('+');
+}
+
 /** The service ids joined with `+`, in order; a single service is its id unchanged. */
 export function visitKey(
   itemOrServices: Pick<WizardItem, 'service' | 'extraServices'> | readonly WizardService[]
@@ -53,7 +62,7 @@ export function visitKey(
   const services = Array.isArray(itemOrServices)
     ? (itemOrServices as readonly WizardService[])
     : visitServicesOf(itemOrServices as Pick<WizardItem, 'service' | 'extraServices'>);
-  return services.map((s) => s.id).join('+');
+  return visitKeyOfIds(services.map((s) => s.id));
 }
 
 /** The visit's price: each service priced on its own, then summed. */

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { WizardService } from '../../src/core';
-import { visitKey, visitOf, visitOfServices, visitPriceOre, visitServicesOf } from '../../src/core';
+import {
+  visitKey,
+  visitKeyOfIds,
+  visitOf,
+  visitOfServices,
+  visitPriceOre,
+  visitServicesOf,
+} from '../../src/core';
 
 function svc(id: string, durationMinutes: number, before = 0, after = 0): WizardService {
   return {
@@ -43,6 +50,15 @@ describe('visit helpers', () => {
     expect(visitKey([vask, klipp])).toBe('vask+klipp');
     expect(visitKey([klipp, vask])).not.toBe(visitKey([vask, klipp]));
     expect(visitKey([klipp])).toBe('klipp');
+  });
+
+  it('times a plain list of services as it times a line item', () => {
+    expect(visitOf([klipp, vask])).toEqual(visitOf({ service: klipp, extraServices: [vask] }));
+  });
+
+  it('names a visit from its ids exactly as from its services — the server’s key', () => {
+    expect(visitKeyOfIds(['klipp', 'vask'])).toBe(visitKey([klipp, vask]));
+    expect(visitKeyOfIds(['klipp'])).toBe('klipp');
   });
 
   it('an empty list throws', () => {

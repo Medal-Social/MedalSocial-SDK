@@ -5,6 +5,7 @@ import {
   avatarRoute,
   nextFreeRoute,
   resourcesRoute,
+  scheduleRoute,
 } from '../../../src/next/routes/catalogue-routes';
 import { testLogger, testRuntime } from '../../support/next-runtime';
 
@@ -16,11 +17,12 @@ import { testLogger, testRuntime } from '../../support/next-runtime';
 const cachedServices = vi.fn();
 const cachedResources = vi.fn();
 const cachedAvailability = vi.fn();
+const cachedSchedule = vi.fn();
 const loadBookingSeed = vi.fn();
 const logger = testLogger();
 const rt = testRuntime(
   {
-    catalogue: { cachedServices, cachedResources, cachedAvailability } as never,
+    catalogue: { cachedServices, cachedResources, cachedAvailability, cachedSchedule } as never,
     seed: { loadBookingSeed } as never,
   },
   { logger }
@@ -108,6 +110,138 @@ describe('availabilityRoute — guards', () => {
 
     expect(response.status).toBe(418);
     expect(await response.json()).toEqual({ error: 'upstreamError' });
+  });
+});
+
+describe('extra_service_ids — one person, several services', () => {
+  const RANGE = `from_ts=${FROM}&to_ts=${TO}`;
+
+  beforeEach(() => {
+    cachedServices.mockResolvedValue([
+      { id: 'a' },
+      { id: 'b' },
+      { id: 'c' },
+      { id: 'd' },
+      { id: 'e' },
+    ]);
+    cachedAvailability.mockResolvedValue([]);
+    cachedSchedule.mockResolvedValue([]);
+  });
+
+  it('asks availability for the whole visit, trimmed and with blanks dropped', async () => {
+    const response = await availabilityRoute(
+      rt,
+      new Request(
+        `https://salong.example/api/booking/availability?service_id=a&extra_service_ids=%20b,,c%20,&${RANGE}`
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(cachedAvailability).toHaveBeenCalledWith({
+      serviceId: 'a',
+      extraServiceIds: ['b', 'c'],
+      fromTs: FROM,
+      toTs: TO,
+    });
+  });
+
+  it('asks the schedule for the whole visit, still narrowed to the stylist', async () => {
+    const response = await scheduleRoute(
+      rt,
+      new Request(
+        `https://salong.example/api/booking/schedule?service_id=a&extra_service_ids=b&resource_id=r1&${RANGE}`
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(cachedSchedule).toHaveBeenCalledWith({
+      resourceId: 'r1',
+      serviceId: 'a',
+      extraServiceIds: ['b'],
+      fromTs: FROM,
+      toTs: TO,
+    });
+  });
+
+  it('reads step 2’s next openings for the whole visit', async () => {
+    await resourcesRoute(
+      rt,
+      new Request(
+        `https://salong.example/api/booking/resources?service_id=a&extra_service_ids=b,c&${RANGE}`
+      )
+    );
+
+    expect(cachedAvailability).toHaveBeenCalledWith({
+      serviceId: 'a',
+      extraServiceIds: ['b', 'c'],
+      fromTs: FROM,
+      toTs: TO,
+    });
+  });
+
+  it('reads a one-service visit exactly as before: no extras key at all', async () => {
+    for (const extras of ['', '&extra_service_ids=', '&extra_service_ids=%20,%20']) {
+      cachedAvailability.mockClear();
+      cachedSchedule.mockClear();
+      await availabilityRoute(
+        rt,
+        new Request(
+          `https://salong.example/api/booking/availability?service_id=a${extras}&${RANGE}`
+        )
+      );
+      await scheduleRoute(
+        rt,
+        new Request(`https://salong.example/api/booking/schedule?service_id=a${extras}&${RANGE}`)
+      );
+      await resourcesRoute(
+        rt,
+        new Request(`https://salong.example/api/booking/resources?service_id=a${extras}&${RANGE}`)
+      );
+      for (const call of [...cachedAvailability.mock.calls, ...cachedSchedule.mock.calls]) {
+        expect(Object.keys(call[0])).not.toContain('extraServiceIds');
+      }
+      expect(cachedAvailability).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it('refuses an unknown, repeated, malformed or too-long visit before Medal is asked', async () => {
+    const cases: Array<[string, string]> = [
+      ['zz', 'Unknown service in extra_service_ids'],
+      ['b,b', 'extra_service_ids names a service twice'],
+      ['b,a', 'extra_service_ids repeats service_id'],
+      ['b,c,d,e', 'extra_service_ids must name at most 3 services'],
+      ['b,no%20spaces', 'extra_service_ids is malformed'],
+    ];
+    for (const route of [availabilityRoute, scheduleRoute, resourcesRoute]) {
+      for (const [extras, message] of cases) {
+        const response = await route(
+          rt,
+          new Request(
+            `https://salong.example/api/booking/x?service_id=a&extra_service_ids=${extras}&${RANGE}`
+          )
+        );
+        expect(response.status).toBe(400);
+        expect(await response.json()).toEqual({ error: 'invalidInput', message });
+      }
+    }
+    expect(cachedAvailability).not.toHaveBeenCalled();
+    expect(cachedSchedule).not.toHaveBeenCalled();
+  });
+
+  it('relays a catalogue that cannot be read while checking the extras', async () => {
+    cachedServices
+      .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }])
+      .mockRejectedValueOnce(new MedalApiError(503, 'UNAVAILABLE', 'down'));
+
+    const response = await availabilityRoute(
+      rt,
+      new Request(
+        `https://salong.example/api/booking/availability?service_id=a&extra_service_ids=b&${RANGE}`
+      )
+    );
+
+    expect(response.status).toBe(503);
+    expect(cachedAvailability).not.toHaveBeenCalled();
   });
 });
 
