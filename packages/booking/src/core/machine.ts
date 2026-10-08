@@ -550,10 +550,20 @@ function overServiceCap(lists: ReadonlyArray<readonly WizardService[]>): WizardS
   return null;
 }
 
+/**
+ * A person's extra services, tolerating a state that predates them. This
+ * package's own state always carries `extras` (`initialState`), but meda types
+ * the field optional and a custom shell may hold a state saved before 0.3 —
+ * reading `state.extras[i]` off that would throw at the first tap.
+ */
+function extrasAt(state: Pick<WizardState, 'extras'>, index: number): WizardService[] {
+  return state.extras?.[index] ?? [];
+}
+
 /** Person `index`'s services in order: their first, then their extras. */
 function servicesOf(state: WizardState, index: number): WizardService[] {
   const first = state.choices[index] ?? null;
-  return first === null ? [] : [first, ...state.extras[index]];
+  return first === null ? [] : [first, ...extrasAt(state, index)];
 }
 
 /** Whether a named stylist can do every service in a list. Absent ids are
@@ -775,7 +785,7 @@ function seatFamily(state: WizardState): WizardState {
     if (isGuestSeat(seat) || people.some((other) => other.key === seat.key)) return;
     people.push(seat);
     choices.push(state.choices[index] ?? null);
-    extras.push(state.extras[index]);
+    extras.push(extrasAt(state, index));
   });
   return {
     ...withParty(state, people, choices, extras),
@@ -817,7 +827,7 @@ function pickServiceFor(
   // A one-tap card is «this, and only this»: the person's extras go with the
   // service they followed.
   const extras = state.people.map((_, index) =>
-    index === action.index ? [] : state.extras[index]
+    index === action.index ? [] : extrasAt(state, index)
   );
   const canServe = canServeAll(action.resourceServiceIds, [action.service]);
   return {
@@ -1141,7 +1151,7 @@ export function createWizard(config: WizardConfig): Wizard {
     // held link and «Samme som sist» are one service each.
     const extras = action.people.map((person) => {
       const index = before(person);
-      return index === -1 ? [] : state.extras[index];
+      return index === -1 ? [] : extrasAt(state, index);
     });
     // A guest chair that stays keeps what «Bekreft» was told about it: going
     // back and tapping «2 barn» again must not forget the names typed.
@@ -1208,7 +1218,7 @@ export function createWizard(config: WizardConfig): Wizard {
       index === action.index ? (next[0] ?? null) : (state.choices[index] ?? null)
     );
     const extras = people.map((_, index) =>
-      index === action.index ? next.slice(1) : state.extras[index]
+      index === action.index ? next.slice(1) : extrasAt(state, index)
     );
     // The named stylist has to do the person's whole list, as `addService` has
     // it for a whole basket; absent ids keep the preference.
