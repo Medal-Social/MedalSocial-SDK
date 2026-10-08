@@ -96,7 +96,8 @@ const attempts = createAttemptStore(NS);
 const drafts = createDraftStore(NS);
 const rebook = createRebookStore(NS);
 
-type Answer = { status: number; body: unknown } | (() => Promise<never>);
+type StubResponse = { ok: boolean; status: number; json: () => Promise<unknown> };
+type Answer = { status: number; body: unknown } | (() => Promise<StubResponse>);
 
 interface Stub {
   resources?: Answer;
@@ -1132,7 +1133,7 @@ describe('useBooking — the corners', () => {
         if (calls === 1) {
           return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
         }
-        return new Promise(() => undefined);
+        return new Promise<StubResponse>(() => undefined);
       },
     });
     const { result } = renderHook(() =>
