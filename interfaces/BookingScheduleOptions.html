@@ -16,9 +16,9 @@ the same reason: the last bookable start depends on the service's duration
 and buffers, so a 30-minute cut and a 90-minute colour run out at different
 hours of the same afternoon.</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">BookingScheduleOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#from_ts">from_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_id">resource_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_id">service_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#to_ts">to_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">BookingScheduleOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#extra_service_ids">extra_service_ids</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#from_ts">from_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_id">resource_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_id">service_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#to_ts">to_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L462">packages/sdk/src/types/bookings.ts:462</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L488">packages/sdk/src/types/bookings.ts:488</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -26,7 +26,8 @@ hours of the same afternoon.</p>
 <div class="tsd-accordion-details">
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-index-list"><a href="#from_ts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>from_<wbr/>ts</span></a>
+<div class="tsd-index-list"><a href="#extra_service_ids" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>extra_<wbr/>service_<wbr/>ids?</span></a>
+<a href="#from_ts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>from_<wbr/>ts</span></a>
 <a href="#resource_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id?</span></a>
 <a href="#service_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a>
 <a href="#to_ts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>to_<wbr/>ts</span></a>
@@ -35,29 +36,38 @@ hours of the same afternoon.</p>
 <h2 class="tsd-anchor-link" id="properties-1">Properties<a href="#properties-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
 <section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="extra_service_ids"><code class="tsd-tag">Optional</code><span>extra_<wbr/>service_<wbr/>ids</span><a href="#extra_service_ids" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">extra_service_ids</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
+<div class="tsd-comment tsd-typography"><p>The rest of ONE person's visit after <code>service_id</code>, performed back to back
+by the same resource (at most 4 services in all, each once). Slots then
+span the whole visit and only resources performing every service count.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L495">packages/sdk/src/types/bookings.ts:495</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="from_ts"><span>from_<wbr/>ts</span><a href="#from_ts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">from_ts</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L464">packages/sdk/src/types/bookings.ts:464</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L496">packages/sdk/src/types/bookings.ts:496</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resource_id"><code class="tsd-tag">Optional</code><span>resource_<wbr/>id</span><a href="#resource_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">resource_id</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Restrict to one resource's hours.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L468">packages/sdk/src/types/bookings.ts:468</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L500">packages/sdk/src/types/bookings.ts:500</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="service_id"><span>service_<wbr/>id</span><a href="#service_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">service_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L463">packages/sdk/src/types/bookings.ts:463</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L489">packages/sdk/src/types/bookings.ts:489</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="to_ts"><span>to_<wbr/>ts</span><a href="#to_ts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">to_ts</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a></div>
 <div class="tsd-comment tsd-typography"><p>Must be after <code>from_ts</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L466">packages/sdk/src/types/bookings.ts:466</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L498">packages/sdk/src/types/bookings.ts:498</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -73,7 +83,7 @@ hours of the same afternoon.</p>
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#from_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>from_<wbr/>ts</span></a><a href="#resource_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id</span></a><a href="#service_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a><a href="#to_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>to_<wbr/>ts</span></a></div></details></div></details></div>
+<div><a href="#extra_service_ids"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>extra_<wbr/>service_<wbr/>ids</span></a><a href="#from_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>from_<wbr/>ts</span></a><a href="#resource_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id</span></a><a href="#service_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a><a href="#to_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>to_<wbr/>ts</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">Medal Social SDK</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">

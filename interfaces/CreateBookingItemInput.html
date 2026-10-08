@@ -11,11 +11,12 @@
 <li><a href="" aria-current="page">CreateBookingItemInput</a></li></ul>
 <h1>Interface CreateBookingItemInput</h1></div>
 <section class="tsd-panel tsd-comment">
-<div class="tsd-comment tsd-typography"><p>One line of a party booking — a single service on a single slot.</p>
+<div class="tsd-comment tsd-typography"><p>One line of a party booking — one PERSON on one slot, with one service or
+a visit of several.</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">CreateBookingItemInput</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#booked_for_birth_year">booked_for_birth_year</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booked_for_name">booked_for_name</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booked_for_person_id">booked_for_person_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_id">resource_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_id">service_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#start_ts">start_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">CreateBookingItemInput</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#booked_for_birth_year">booked_for_birth_year</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booked_for_name">booked_for_name</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#booked_for_person_id">booked_for_person_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#extra_service_ids">extra_service_ids</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#resource_id">resource_id</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#service_id">service_id</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#start_ts">start_ts</a><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L189">packages/sdk/src/types/bookings.ts:189</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L207">packages/sdk/src/types/bookings.ts:207</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -26,6 +27,7 @@
 <div class="tsd-index-list"><a href="#booked_for_birth_year" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>birth_<wbr/>year?</span></a>
 <a href="#booked_for_name" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>name?</span></a>
 <a href="#booked_for_person_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>person_<wbr/>id?</span></a>
+<a href="#extra_service_ids" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>extra_<wbr/>service_<wbr/>ids?</span></a>
 <a href="#resource_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id?</span></a>
 <a href="#service_id" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a>
 <a href="#start_ts" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>start_<wbr/>ts</span></a>
@@ -39,36 +41,47 @@
 <div class="tsd-comment tsd-typography"><p>Birth year (not a birthdate) of whoever the appointment is for.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L196">packages/sdk/src/types/bookings.ts:196</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L222">packages/sdk/src/types/bookings.ts:222</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="booked_for_name"><code class="tsd-tag">Optional</code><span>booked_<wbr/>for_<wbr/>name</span><a href="#booked_for_name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">booked_for_name</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L194">packages/sdk/src/types/bookings.ts:194</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L220">packages/sdk/src/types/bookings.ts:220</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="booked_for_person_id"><code class="tsd-tag">Optional</code><span>booked_<wbr/>for_<wbr/>person_<wbr/>id</span><a href="#booked_for_person_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">booked_for_person_id</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Book this line on behalf of a <a href="ContactPerson.html" class="tsd-kind-interface">ContactPerson</a> rather than the contact.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L198">packages/sdk/src/types/bookings.ts:198</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L224">packages/sdk/src/types/bookings.ts:224</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="extra_service_ids"><code class="tsd-tag">Optional</code><span>extra_<wbr/>service_<wbr/>ids</span><a href="#extra_service_ids" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">extra_service_ids</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></div>
+<div class="tsd-comment tsd-typography"><p>The rest of this person's visit after <code>service_id</code> (at most 3 more, each
+once), performed back to back by the same resource. It is ONE booking
+whose duration and amount are the sums, with the lines in
+<a href="Booking.html#services" class="tsd-kind-property">Booking.services</a>. Ask <code>availability</code> with the same ids for its
+slots.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L216">packages/sdk/src/types/bookings.ts:216</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resource_id"><code class="tsd-tag">Optional</code><span>resource_<wbr/>id</span><a href="#resource_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">resource_id</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Leave unset to let the engine pick a free resource.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L192">packages/sdk/src/types/bookings.ts:192</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L218">packages/sdk/src/types/bookings.ts:218</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="service_id"><span>service_<wbr/>id</span><a href="#service_id" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">service_id</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L190">packages/sdk/src/types/bookings.ts:190</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L208">packages/sdk/src/types/bookings.ts:208</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="start_ts"><span>start_<wbr/>ts</span><a href="#start_ts" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">start_ts</span><span class="tsd-signature-symbol">:</span> <a href="../types/BookingTimestampInput.html" class="tsd-signature-type tsd-kind-type-alias">BookingTimestampInput</a></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/d8d85d6798dfe59b4346bd8262260a80773ac949/packages/sdk/src/types/bookings.ts#L193">packages/sdk/src/types/bookings.ts:193</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1/packages/sdk/src/types/bookings.ts#L219">packages/sdk/src/types/bookings.ts:219</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -84,7 +97,7 @@
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#booked_for_birth_year"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>birth_<wbr/>year</span></a><a href="#booked_for_name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>name</span></a><a href="#booked_for_person_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>person_<wbr/>id</span></a><a href="#resource_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id</span></a><a href="#service_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a><a href="#start_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>start_<wbr/>ts</span></a></div></details></div></details></div>
+<div><a href="#booked_for_birth_year"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>birth_<wbr/>year</span></a><a href="#booked_for_name"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>name</span></a><a href="#booked_for_person_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>booked_<wbr/>for_<wbr/>person_<wbr/>id</span></a><a href="#extra_service_ids"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>extra_<wbr/>service_<wbr/>ids</span></a><a href="#resource_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>resource_<wbr/>id</span></a><a href="#service_id"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>service_<wbr/>id</span></a><a href="#start_ts"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>start_<wbr/>ts</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">Medal Social SDK</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
