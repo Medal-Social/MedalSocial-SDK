@@ -1,5 +1,11 @@
 # @medalsocial/booking
 
+## 0.2.1
+
+### Patch Changes
+
+- [#189](https://github.com/Medal-Social/MedalSocial-SDK/pull/189) [`352b030`](https://github.com/Medal-Social/MedalSocial-SDK/commit/352b030d1fbae39a8fdb82bc454b967f6821ac58) Thanks [@alioftech](https://github.com/alioftech)! - A named stylist's calendar follows that stylist's open days. «First available» keeps the salon's. The seeded schedule is the salon's week and no longer answers once a stylist is chosen; the wizard refetches `/schedule` with `resource_id`.
+
 ## 0.2.0
 
 ### Minor Changes
