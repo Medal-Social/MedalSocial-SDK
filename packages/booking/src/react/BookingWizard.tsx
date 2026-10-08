@@ -36,6 +36,7 @@ import {
 } from 'react';
 import { fill, fillParts, labelText } from '../core/labels';
 import { SELF_KEY, type WizardPerson, type WizardState, type WizardStep } from '../core/machine';
+import type { BookingServiceDto } from '../core/types';
 import { visitServicesOf } from '../core/visit';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
@@ -390,6 +391,19 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
   const { kit, state, people, catalogue } = booking;
   const ageOf = (person: WizardPerson) => people.personAge(person, people.ageDayKey);
   const single = state.people.length === 1 ? state.people[0] : null;
+  // «Samme som sist» stays a one-tap shortcut while the person's visit is
+  // nothing, or just that service (a returning child is seated with it already
+  // ticked). Once they have ticked something else, a one-tap pick would REPLACE
+  // their visit — and, alone, jump to the time step — so the suggestion joins
+  // the visit instead, and never unticks a service already in it.
+  const pickFor = (index: number, service: BookingServiceDto, oneTap: () => void) => {
+    const visit = state.choices[index] ? [state.choices[index], ...state.extras[index]] : [];
+    if (!multiSelect || visit.length === 0 || (visit.length === 1 && visit[0].id === service.id)) {
+      oneTap();
+    } else if (!visit.some((ticked) => ticked.id === service.id)) {
+      booking.toggleServiceFor(index, service);
+    }
+  };
   return (
     <ServiceScreen
       labels={screenLabels(kit.labels)}
@@ -398,7 +412,7 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
       {...serviceScreenBase(kit)}
       serviceFits={serviceFitsFor(kit, state.people.map(ageOf))}
       initialCategory={catalogue.deepLinkCategory}
-      onPick={booking.pickService}
+      onPick={(service) => pickFor(0, service, () => booking.pickService(service))}
       suggestion={single ? people.suggestionFor(single) : null}
       chosenId={state.choices[0]?.id ?? null}
       childName={single ? (single.name ?? null) : null}
@@ -407,7 +421,8 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
           ? {
               people: partyPeople(kit, state.people, ageOf, people.suggestionFor),
               choices: state.choices,
-              onPickFor: booking.pickServiceFor,
+              onPickFor: (index, service) =>
+                pickFor(index, service, () => booking.pickServiceFor(index, service)),
               onRemove: (index) =>
                 booking.dispatch({
                   type: 'choosePeople',

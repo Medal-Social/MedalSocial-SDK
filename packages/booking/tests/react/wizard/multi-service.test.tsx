@@ -468,17 +468,18 @@ describe('the shell around a visit', () => {
 });
 
 describe('<BookingWizard> — the multi-select service step', () => {
-  const KARI = {
-    firstName: 'Kari',
-    lastName: 'Nordmann',
-    email: 'kari@example.com',
+  // Synthetic on purpose: a public repository carries no real-looking person.
+  const GUARDIAN = {
+    firstName: 'Test',
+    lastName: 'Forelder',
+    email: 'forelder@example.com',
     phone: '+47 400 00 000',
     family: [{ name: 'Jonas', birthYear: 2018 }],
   };
 
   function renderStep(
     config: typeof PARITY_CONFIG = MULTI_SERVICE_CONFIG,
-    guardian: typeof KARI | null = null
+    guardian: typeof GUARDIAN | null = null
   ) {
     return render(
       <BookingWizard
@@ -563,7 +564,7 @@ describe('<BookingWizard> — the multi-select service step', () => {
   it('gives a family one tab per person, and moves on once everyone has something', async () => {
     stubApi();
     const user = userEvent.setup();
-    renderStep(MULTI_SERVICE_CONFIG, KARI);
+    renderStep(MULTI_SERVICE_CONFIG, GUARDIAN);
     await user.click(screen.getByRole('checkbox', { name: /Jonas/ }));
     await user.click(screen.getByRole('checkbox', { name: /Meg selv \(voksen\)/ }));
     await user.click(screen.getByRole('button', { name: 'Neste' }));
@@ -591,6 +592,60 @@ describe('<BookingWizard> — the multi-select service step', () => {
 
     await user.click(screen.getByRole('button', { name: 'Neste' }));
     await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+  });
+
+  /** A guardian whose one child last had a children's cut — «Samme som sist». */
+  const RETURNING = {
+    ...GUARDIAN,
+    family: [
+      {
+        name: 'Jonas',
+        birthYear: 2018,
+        personId: 'p-1',
+        lastVisit: {
+          serviceId: KIDS_CUT.id,
+          serviceName: KIDS_CUT.name,
+          resourceId: null,
+          startTs: NOW - 86_400_000,
+        },
+      },
+    ],
+  };
+
+  async function asReturningChild(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('checkbox', { name: /Jonas/ }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+  }
+
+  it('keeps «Samme som sist» one tap while the visit is just that service', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep(MULTI_SERVICE_CONFIG, RETURNING);
+    await asReturningChild(user);
+    // A returning child is seated with the last service already ticked.
+    expect(screen.getByRole('checkbox', { name: /Barneklipp/ })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /Samme som sist/ }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+  });
+
+  it('adds «Samme som sist» to a bigger visit and never unticks anything', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep(MULTI_SERVICE_CONFIG, RETURNING);
+    await asReturningChild(user);
+    // Untick the seeded cut and take a wash instead, then ask for «the same».
+    await user.click(screen.getByRole('checkbox', { name: /Barneklipp/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Vask/ }));
+    await user.click(screen.getByRole('button', { name: /Samme som sist/ }));
+    expect(screen.getByRole('checkbox', { name: /Vask/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Barneklipp/ })).toBeChecked();
+    // Joined, not replaced — and still on the service step.
+    expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    // Already in the visit: a second tap changes nothing.
+    await user.click(screen.getByRole('button', { name: /Samme som sist/ }));
+    expect(screen.getByRole('checkbox', { name: /Barneklipp/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Vask/ })).toBeChecked();
   });
 
   it('keeps the one-tap step, and the wizard’s bar, with the default of one service', async () => {
