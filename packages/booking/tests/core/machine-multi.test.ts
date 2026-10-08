@@ -5,7 +5,7 @@ import {
   type WizardService,
   type WizardState,
 } from '../../src/core/machine';
-import { PARITY_CONFIG } from '../support/parity-config';
+import { MULTI_SERVICE_CONFIG } from '../support/parity-config';
 import { pinAForeignViewerClock } from '../support/viewer-clock';
 
 /**
@@ -14,7 +14,7 @@ import { pinAForeignViewerClock } from '../support/viewer-clock';
  * that service, rather than the strictest service capping the whole party.
  */
 
-const wizard = createWizard(PARITY_CONFIG);
+const wizard = createWizard(MULTI_SERVICE_CONFIG);
 const {
   canAdvance,
   initialState,
@@ -173,8 +173,8 @@ describe('toggleServiceFor', () => {
 
   it('refuses a service past maxServicesPerPerson and changes nothing else', () => {
     const two = createWizard({
-      ...PARITY_CONFIG,
-      party: { ...PARITY_CONFIG.party, maxServicesPerPerson: 2 },
+      ...MULTI_SERVICE_CONFIG,
+      party: { ...MULTI_SERVICE_CONFIG.party, maxServicesPerPerson: 2 },
     });
     let state = two.reduce(initialState(), { type: 'choosePeople', people: [KID_1] });
     state = two.reduce(state, { type: 'toggleServiceFor', index: 0, service: KLIPP });
@@ -372,7 +372,10 @@ describe('the summary line for one person with several services', () => {
 
 describe('a family link at a site that seats fewer than the service allows', () => {
   it('stops at the party ceiling, without an error', () => {
-    const two = createWizard({ ...PARITY_CONFIG, party: { ...PARITY_CONFIG.party, maxPeople: 2 } });
+    const two = createWizard({
+      ...MULTI_SERVICE_CONFIG,
+      party: { ...MULTI_SERVICE_CONFIG.party, maxPeople: 2 },
+    });
     const state = two.applyPrefill(
       two.initialState(),
       { serviceId: KLIPP.id, party: 3 },

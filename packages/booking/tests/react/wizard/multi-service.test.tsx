@@ -5,7 +5,8 @@
  * always did.
  */
 
-import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const location = vi.hoisted(() => ({ search: '' }));
@@ -27,7 +28,7 @@ import { createBookingKit } from '../../../src/react/kit';
 import { useBooking } from '../../../src/react/useBooking';
 import { confirmationProps, weekendNoteFor } from '../../../src/react/wizard/adapters';
 import { TEST_LABELS } from '../../support/labels';
-import { PARITY_CONFIG } from '../../support/parity-config';
+import { MULTI_SERVICE_CONFIG, PARITY_CONFIG } from '../../support/parity-config';
 import { pinAForeignViewerClock } from '../../support/viewer-clock';
 
 pinAForeignViewerClock();
@@ -63,7 +64,14 @@ const COLOUR: BookingServiceDto = { ...CUT, id: 'svc-colour', name: 'Farge', dur
 const STYLE: BookingServiceDto = { ...CUT, id: 'svc-style', name: 'Føn', durationMinutes: 10 };
 /** Only one person per booking may have it. */
 const SOLO: BookingServiceDto = { ...CUT, id: 'svc-solo', name: 'Behandling', maxPerBooking: 1 };
-const SERVICES = [CUT, WASH, COLOUR, STYLE, SOLO];
+/** On the children's menu. */
+const KIDS_CUT: BookingServiceDto = {
+  ...CUT,
+  id: 'svc-kids',
+  name: 'Barneklipp',
+  category: 'barn',
+};
+const SERVICES = [CUT, WASH, COLOUR, STYLE, SOLO, KIDS_CUT];
 
 const CUTS_ONLY: BookingResourceDto = {
   id: 'res-cuts',
@@ -97,7 +105,7 @@ const slot = (day: number, hour: number, resourceId: string): BookingSlotDto => 
 const CUT_SLOTS = [slot(2, 13, CUTS_ONLY.id)];
 const VISIT_SLOTS = [slot(3, 11, DOES_BOTH.id)];
 
-const drafts = createDraftStore(PARITY_CONFIG.storageNamespace);
+const drafts = createDraftStore(MULTI_SERVICE_CONFIG.storageNamespace);
 
 type Answer = { status: number; body: unknown };
 
@@ -146,7 +154,7 @@ function stubApi(stub: { create?: Answer } = {}) {
 }
 
 const options = (extra: Partial<Parameters<typeof useBooking>[0]> = {}) => ({
-  config: PARITY_CONFIG,
+  config: MULTI_SERVICE_CONFIG,
   labels: TEST_LABELS,
   seed: { services: SERVICES, resources: RESOURCES, fromTs: NOW },
   ...extra,
@@ -396,7 +404,7 @@ describe('useBooking — a visit through the Vipps round trip', () => {
 });
 
 describe('the shell around a visit', () => {
-  const kit = createBookingKit(PARITY_CONFIG, TEST_LABELS);
+  const kit = createBookingKit(MULTI_SERVICE_CONFIG, TEST_LABELS);
   const visit = { service: CUT, extraServices: [WASH] };
   const confirmation = {
     bookings: [{ id: 'bk-1', manageHref: null }],
@@ -449,12 +457,156 @@ describe('the shell around a visit', () => {
     });
     render(
       <BookingWizard
-        config={PARITY_CONFIG}
+        config={MULTI_SERVICE_CONFIG}
         labels={TEST_LABELS}
         seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
       />
     );
     expect((await screen.findAllByText('Ola')).length).toBeGreaterThan(0);
     expect(screen.queryAllByText('Bjarne')).toEqual([]);
+  });
+});
+
+describe('<BookingWizard> — the multi-select service step', () => {
+  const KARI = {
+    firstName: 'Kari',
+    lastName: 'Nordmann',
+    email: 'kari@example.com',
+    phone: '+47 400 00 000',
+    family: [{ name: 'Jonas', birthYear: 2018 }],
+  };
+
+  function renderStep(
+    config: typeof PARITY_CONFIG = MULTI_SERVICE_CONFIG,
+    guardian: typeof KARI | null = null
+  ) {
+    return render(
+      <BookingWizard
+        config={config}
+        labels={TEST_LABELS}
+        guardian={guardian}
+        classNames={{ summary: { root: 'summary-bar' } }}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+  }
+
+  /** A lone adult guest, on the service step. */
+  async function asAdultGuest(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+  }
+
+  const summaryBar = (container: HTMLElement) => container.querySelector('.summary-bar');
+
+  it('ticks two services for one person, totals the visit and asks for it as one', async () => {
+    const { urls } = stubApi();
+    const user = userEvent.setup();
+    const { container } = renderStep();
+    await asAdultGuest(user);
+
+    // Its own bar, not the wizard's.
+    expect(summaryBar(container)).toBeNull();
+    expect(screen.getByText('Velg minst én tjeneste')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /Klipp/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Vask/ }));
+    expect(screen.getByRole('checkbox', { name: /Klipp/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Vask/ })).toBeChecked();
+    // 30 + 15 minutes, 400 + 200 kr: the number the summary bar would show.
+    expect(screen.getByText(/^45 min · 600/)).toBeInTheDocument();
+    expect(screen.queryByText('Velg minst én tjeneste')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    await waitFor(() =>
+      expect(
+        urls.some(
+          (url) =>
+            url.startsWith('/api/booking/availability?') &&
+            url.includes('service_id=svc-cut&extra_service_ids=svc-wash')
+        )
+      ).toBe(true)
+    );
+    // Past the service step the wizard's bar is back.
+    expect(summaryBar(container)).not.toBeNull();
+  });
+
+  it('stays on the step when «Neste» is pressed with nothing ticked', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep();
+    await asAdultGuest(user);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+  });
+
+  it('refuses a fourth service politely, and forgets the refusal on the next tick', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep();
+    await asAdultGuest(user);
+    for (const name of [/Klipp/, /Vask/, /Farge/, /Føn/]) {
+      await user.click(screen.getByRole('checkbox', { name }));
+    }
+    const refusal = 'Du kan velge opptil 3 tjenester per person.';
+    expect(screen.getByText(refusal)).toBeInTheDocument();
+    // Said once, in the step's own live region — not again as the wizard's alert.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: /Føn/ })).not.toBeChecked();
+
+    await user.click(screen.getByRole('checkbox', { name: /Farge/ }));
+    expect(screen.queryByText(refusal)).toBeNull();
+    // 30 + 15 minutes once the colour is off again.
+    expect(screen.getByText(/^45 min · 600/)).toBeInTheDocument();
+  });
+
+  it('gives a family one tab per person, and moves on once everyone has something', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep(MULTI_SERVICE_CONFIG, KARI);
+    await user.click(screen.getByRole('checkbox', { name: /Jonas/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Meg selv \(voksen\)/ }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    const [jonas, adult] = tabs;
+    expect(jonas).toHaveAccessibleName(/Jonas/);
+
+    // The child's menu is the children's category only.
+    await user.click(jonas);
+    expect(screen.queryByRole('checkbox', { name: /Behandling/ })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: /Barneklipp/ }));
+    expect(jonas).toHaveAccessibleName(/Jonas.*ferdig/);
+    expect(screen.getByText('Velg minst én tjeneste')).toBeInTheDocument();
+
+    // The grown-up takes the one-taker service, and a wash with it.
+    await user.click(adult);
+    await user.click(screen.getByRole('checkbox', { name: /Behandling/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Vask/ }));
+    expect(screen.queryByText('Velg minst én tjeneste')).toBeNull();
+    // Back to back: 30 (Jonas) + 30 + 15 (the adult).
+    expect(screen.getByText(/^75 min · 1/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+  });
+
+  it('keeps the one-tap step, and the wizard’s bar, with the default of one service', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    const { container } = renderStep(PARITY_CONFIG);
+    expect(PARITY_CONFIG.party.maxServicesPerPerson).toBe(1);
+    await asAdultGuest(user);
+
+    expect(summaryBar(container)).not.toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.queryByText('Velg én eller flere')).toBeNull();
+    // A tap answers the step.
+    await user.click(screen.getByRole('button', { name: /Klipp/ }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    expect(within(summaryBar(container) as HTMLElement).getByText(/Klipp/)).toBeInTheDocument();
   });
 });

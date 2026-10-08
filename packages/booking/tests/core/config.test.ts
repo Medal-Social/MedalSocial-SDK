@@ -25,7 +25,7 @@ describe('resolveBookingConfig', () => {
       phone: { country: 'NO', validate: 'strict' },
       paths: { booking: '/bestill', manage: '/bestill/administrer', portal: '/min-side' },
       fallbackCategory: 'annet',
-      party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 3 },
+      party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
       window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
       handoffUrl: null,
       portal: {
@@ -296,10 +296,16 @@ describe('resolveBookingConfig — derived portal cookie names', () => {
 });
 
 describe('party.maxServicesPerPerson', () => {
-  it('defaults to 3 and refuses 5', () => {
-    expect(resolveBookingConfig({ timeZone: 'Europe/Oslo' }).party.maxServicesPerPerson).toBe(3);
-    expect(() =>
-      resolveBookingConfig({ timeZone: 'Europe/Oslo', party: { maxServicesPerPerson: 5 } })
-    ).toThrow();
+  it('defaults to 1 (the one-tap step), takes up to 4 and refuses 0 and 5', () => {
+    expect(resolveBookingConfig({ timeZone: 'Europe/Oslo' }).party.maxServicesPerPerson).toBe(1);
+    expect(
+      resolveBookingConfig({ timeZone: 'Europe/Oslo', party: { maxServicesPerPerson: 4 } }).party
+        .maxServicesPerPerson
+    ).toBe(4);
+    for (const maxServicesPerPerson of [0, 5]) {
+      expect(() =>
+        resolveBookingConfig({ timeZone: 'Europe/Oslo', party: { maxServicesPerPerson } })
+      ).toThrow();
+    }
   });
 });

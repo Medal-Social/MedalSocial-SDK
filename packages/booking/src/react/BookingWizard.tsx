@@ -263,6 +263,8 @@ function BookingWizardShell(props: BookingWizardProps) {
     focusAfterSignIn.current = true;
     booking.login.signIn(who);
   };
+  // The multi-select service step carries its own total bar and refusal notice.
+  const multiSelect = state.step === 'service' && kit.config.party.maxServicesPerPerson > 1;
   const loginOffered = props.actions !== undefined && kit.config.portal.enabled;
   const loginRow = loginOffered ? (
     <LoginRow
@@ -283,17 +285,20 @@ function BookingWizardShell(props: BookingWizardProps) {
       />
 
       {/* The machine's error, on the steps that have nowhere else to put it. */}
-      {state.error !== null && state.step !== 'details' && state.step !== 'when' && (
-        <p
-          role="alert"
-          className={
-            resolved.classNames.wizard?.alert ??
-            'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
-          }
-        >
-          {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
-        </p>
-      )}
+      {state.error !== null &&
+        state.step !== 'details' &&
+        state.step !== 'when' &&
+        !multiSelect && (
+          <p
+            role="alert"
+            className={
+              resolved.classNames.wizard?.alert ??
+              'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
+            }
+          >
+            {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
+          </p>
+        )}
 
       {state.step === 'details' && loginRow}
 
@@ -319,19 +324,23 @@ function BookingWizardShell(props: BookingWizardProps) {
         {state.step === 'who' && (
           <WhoStep booking={booking} resolved={resolved} loginRow={loginRow} />
         )}
-        {state.step === 'service' && <ServiceStep booking={booking} resolved={resolved} />}
+        {state.step === 'service' && (
+          <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+        )}
         {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
         {state.step === 'details' && <DetailsStep booking={booking} resolved={resolved} />}
       </div>
 
-      <SummaryBar
-        line={booking.derived.summary}
-        canAdvance={booking.derived.canAdvance}
-        step={state.step}
-        onNext={booking.next}
-        labels={screenLabels(labels)}
-        classNames={resolved.classNames.summary}
-      />
+      {!multiSelect && (
+        <SummaryBar
+          line={booking.derived.summary}
+          canAdvance={booking.derived.canAdvance}
+          step={state.step}
+          onNext={booking.next}
+          labels={screenLabels(labels)}
+          classNames={resolved.classNames.summary}
+        />
+      )}
     </div>
   );
 }
@@ -377,7 +386,7 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
   );
 }
 
-function ServiceStep({ booking, resolved }: StepProps) {
+function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSelect: boolean }) {
   const { kit, state, people, catalogue } = booking;
   const ageOf = (person: WizardPerson) => people.personAge(person, people.ageDayKey);
   const single = state.people.length === 1 ? state.people[0] : null;
@@ -404,6 +413,37 @@ function ServiceStep({ booking, resolved }: StepProps) {
                   type: 'choosePeople',
                   people: state.people.filter((_, position) => position !== index),
                 }),
+            }
+          : undefined
+      }
+      selection={
+        multiSelect
+          ? {
+              // Index = seated person; meda reads a missing list (nobody seated) as empty.
+              lists: state.choices.map((first, index) =>
+                first ? [first, ...state.extras[index]] : []
+              ),
+              onToggle: booking.toggleServiceFor,
+              onContinue: booking.continueFromService,
+              total:
+                state.items.length === 0
+                  ? null
+                  : {
+                      minutes: kit.wizard.visitMinutes(state.items, state.partyMode),
+                      priceOre: booking.derived.total,
+                    },
+              canContinue: booking.derived.canAdvance,
+              notice:
+                state.error === null
+                  ? null
+                  : labelText(
+                      wizardErrorText(
+                        kit.labels,
+                        state.error,
+                        kit.config.party.maxServicesPerPerson
+                      )
+                    ),
+              labels: kit.labels,
             }
           : undefined
       }
