@@ -59,8 +59,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/booking
       '@medalsocial/meda':
-        specifier: ^3.5.0
-        version: 3.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^3.6.0
+        version: 3.6.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       lucide-react:
         specifier: ^1.49.0
         version: 1.49.0(@types/react@19.3.0)(react@19.2.8)
@@ -103,8 +103,8 @@ importers:
         version: 0.0.1
     devDependencies:
       '@medalsocial/meda':
-        specifier: ^3.5.0
-        version: 3.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^3.6.0
+        version: 3.6.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.2)
@@ -1115,8 +1115,8 @@ packages:
     resolution: {integrity: sha512-6QEf6yqFbETdwGITKq57aYoPfX/3K8XFNwsAlx0C1M7o8cb79sv1M3w+tWuWvIcSbNqrLF7OD7YpZMVVz335hQ==}
     engines: {node: '>=20.0.0'}
 
-  '@medalsocial/meda@3.5.0':
-    resolution: {integrity: sha512-oWstgVU6OG/IR8GV78BoIWpQuqBmjIQTR1YCJMnE4HiHzmaGENjGUWdqhARo/ItKMtTddWgFoCgwtr1uzDRs4w==}
+  '@medalsocial/meda@3.6.0':
+    resolution: {integrity: sha512-BH5fFC4e22IOMy8YkyNlLtjNorUMT0Gz/hnLzuegSljwzw4Ycds/rKtpEBta3GFv1fmre1JKlr8hva8N5795bA==}
     engines: {node: '>=22'}
     peerDependencies:
       '@dnd-kit/core': ^6.3.1
@@ -4373,7 +4373,7 @@ snapshots:
       tinyglobby: 0.2.17
       yaml: 2.9.1
 
-  '@medalsocial/meda@3.5.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@medalsocial/meda@3.6.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@base-ui/react': 1.8.0(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       class-variance-authority: 0.7.1
