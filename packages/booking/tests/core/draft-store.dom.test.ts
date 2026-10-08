@@ -136,4 +136,35 @@ describe('draft-store', () => {
       null,
     ]);
   });
+
+  it('keeps a line’s extras, and leaves a one-service line without the field', () => {
+    const line = { serviceId: 'svc-gutt', bookedForName: null, bookedForBirthYear: null };
+    stashDraft(
+      draft({ items: [{ ...line, extraServiceIds: ['svc-vask', 'svc-fon'] }, line] }),
+      NOW
+    );
+    const taken = takeDraft(NOW + MINUTE);
+    expect(taken?.items[0].extraServiceIds).toEqual(['svc-vask', 'svc-fon']);
+    expect(taken?.items[1]).not.toHaveProperty('extraServiceIds');
+    // Whole visits: the hour they were chosen for still stands.
+    expect(taken?.startTs).toBe(NOW + 2 * 60 * MINUTE);
+  });
+
+  it.each([
+    ['not a list', 'svc-vask'],
+    ['an empty list', []],
+    ['more than the engine takes', ['a', 'b', 'c', 'd']],
+    ['an empty id', ['svc-vask', '']],
+    ['an id that is not a string', [7]],
+  ])('drops extras that are %s, and the hour chosen for the longer visit', (_name, extras) => {
+    const line = { serviceId: 'svc-gutt', bookedForName: null, bookedForBirthYear: null };
+    stashDraft(
+      draft({ items: [{ ...line, extraServiceIds: extras as unknown as string[] }] }),
+      NOW
+    );
+    const taken = takeDraft(NOW + MINUTE);
+    expect(taken?.items[0]).not.toHaveProperty('extraServiceIds');
+    expect(taken?.items[0].serviceId).toBe('svc-gutt');
+    expect(taken?.startTs).toBeNull();
+  });
 });

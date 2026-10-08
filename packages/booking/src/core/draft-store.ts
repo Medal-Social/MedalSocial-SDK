@@ -45,6 +45,12 @@ export const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
 /** One line item, as little of it as a rebuild needs. */
 export interface WizardDraftItem {
   serviceId: string;
+  /**
+   * The rest of the person's visit after `serviceId`, in order. Absent for a
+   * one-service line (and in a draft written before visits had extras), never
+   * `[]`. Ids only, like `serviceId`: a restore looks each one up again.
+   */
+  extraServiceIds?: string[];
   bookedForName: string | null;
   bookedForBirthYear: number | null;
   /**
@@ -77,6 +83,20 @@ export interface WizardDraft {
   savedAt: number;
 }
 
+/** The most extras a line can carry — the engine's own ceiling. */
+const MAX_DRAFT_EXTRAS = 3;
+
+/**
+ * A line's extras, or `null` to drop the field: anything but a short list of
+ * non-empty strings is a jar somebody edited, and the line is still worth
+ * restoring as its one service — without the hour, which was chosen for the
+ * longer visit (see `asDraft`).
+ */
+function asExtraServiceIds(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_DRAFT_EXTRAS) return null;
+  return value.every((id) => typeof id === 'string' && id.length > 0) ? [...value] : null;
+}
+
 /** The shape check, done here so nothing downstream has to trust the jar. */
 function asDraft(value: unknown, now: number): WizardDraft | null {
   if (typeof value !== 'object' || value === null) return null;
@@ -90,10 +110,16 @@ function asDraft(value: unknown, now: number): WizardDraft | null {
   if (age < 0 || age > DRAFT_MAX_AGE_MS) return null;
   if (!Array.isArray(draft.items) || draft.items.length === 0) return null;
   const items: WizardDraftItem[] = [];
+  // Whether every line's visit survived the check whole. A dropped extra makes
+  // the visit shorter than the one the stored hour was chosen for.
+  let visitsWhole = true;
   for (const item of draft.items) {
     if (typeof item?.serviceId !== 'string' || item.serviceId.length === 0) return null;
+    const extraServiceIds = asExtraServiceIds(item.extraServiceIds);
+    if (item.extraServiceIds !== undefined && extraServiceIds === null) visitsWhole = false;
     items.push({
       serviceId: item.serviceId,
+      ...(extraServiceIds === null ? {} : { extraServiceIds }),
       bookedForName: typeof item.bookedForName === 'string' ? item.bookedForName : null,
       bookedForBirthYear:
         typeof item.bookedForBirthYear === 'number' && Number.isFinite(item.bookedForBirthYear)
@@ -113,7 +139,7 @@ function asDraft(value: unknown, now: number): WizardDraft | null {
     items,
     resourceId: typeof draft.resourceId === 'string' ? draft.resourceId : null,
     partyMode: draft.partyMode === 'parallel' ? 'parallel' : 'sequential',
-    startTs: typeof draft.startTs === 'number' ? draft.startTs : null,
+    startTs: visitsWhole && typeof draft.startTs === 'number' ? draft.startTs : null,
     resolvedResourceId:
       typeof draft.resolvedResourceId === 'string' ? draft.resolvedResourceId : null,
     partyResourceIds,

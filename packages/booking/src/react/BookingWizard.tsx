@@ -36,6 +36,7 @@ import {
 } from 'react';
 import { fill, fillParts, labelText } from '../core/labels';
 import { SELF_KEY, type WizardPerson, type WizardState, type WizardStep } from '../core/machine';
+import { visitServicesOf } from '../core/visit';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
 import { LoginSheet } from './LoginSheet';
@@ -427,8 +428,9 @@ function WhenStep({ booking, resolved }: StepProps) {
       <StylistScreen
         labels={screenLabels(labels)}
         format={format}
-        // Not deduplicated: a named stylist has to cover every line.
-        serviceIds={items.map((item) => item.service.id)}
+        // Not deduplicated: a named stylist has to cover every service of every
+        // line — a person's extras included, as their visit is one stylist's.
+        serviceIds={items.flatMap((item) => visitServicesOf(item).map((service) => service.id))}
         resources={catalogue.resources}
         loading={!catalogue.resourcesKnown}
         nextAvailableLoading={slots.nextAvailableLoading}
@@ -506,7 +508,9 @@ function WhenStep({ booking, resolved }: StepProps) {
           labels={screenLabels(labels)}
           days={slots.days.length}
           monthView
-          surchargeRow={items.some((item) => item.service.weekendSurchargePct > 0)}
+          surchargeRow={items.some((item) =>
+            visitServicesOf(item).some((service) => service.weekendSurchargePct > 0)
+          )}
         />
       )}
 
