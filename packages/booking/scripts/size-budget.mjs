@@ -142,7 +142,8 @@ const BUDGETS = [
     // 20 → 21 KB for several services per person (one visit): the hook's
     // visit-keyed fetching, the extras on drafts and submissions, and the
     // `wizard-error` bridge measured 20.12 KB. The booking page's own budgets
-    // above are NOT raised — the page itself still fits its 15 KB.
+    // above were raised separately (15 → 15.5 KB with the multi-select step,
+    // then again for `account.required`) — see their own comments.
     // Raised 21 → 21.3 KB for `account.required` on top of that: the account
     // gate, its labels and the login sheet's throttled notice measured
     // 21.06 KB with both features in.
