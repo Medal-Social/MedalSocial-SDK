@@ -1064,6 +1064,42 @@ describe('useBooking — the corners', () => {
     expect(result.current.schedule.openDays?.[1].lastStartTs).toBe(osloTs(3, 16));
   });
 
+  it('asks for the chosen stylist’s days, and the salon’s again for first available', async () => {
+    const { urls } = stubApi({
+      schedule: { status: 200, body: { days: [OPEN_WEEK[3], OPEN_WEEK[4]] } },
+    });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    expect(result.current.schedule.openDays).toHaveLength(OPEN_WEEK.length);
+
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(result.current.schedule.openDays?.map((day) => day.dayKey)).toEqual([
+        '2026-09-05',
+        '2026-09-06',
+      ])
+    );
+    const narrowed = urls
+      .filter((url) => url.includes('/api/booking/schedule'))
+      .map((url) => new URL(url, 'https://example.test').searchParams.get('resource_id'));
+    expect(narrowed).toEqual([BJARNE.id]);
+
+    act(() => result.current.pickResource(null));
+    expect(result.current.schedule.openDays).toHaveLength(OPEN_WEEK.length);
+  });
+
   it('forgets a failed read that lands after the visitor moved on', async () => {
     const pending: Array<() => void> = [];
     const fail = () => {
