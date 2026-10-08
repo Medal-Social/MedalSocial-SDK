@@ -4,9 +4,9 @@ The booking product behind a Medal Social booking site: the wizard's rules,
 the business's clock, money, phone and deep-link handling, browser stores,
 and the customer-portal helpers — built on [`@medalsocial/sdk`](../sdk).
 
-> **Status: pre-release (0.x, not yet published).** `/core`, `/react` and
-> `/next` are in place for the first release, `0.1.0`. In 0.x a minor version
-> may break; pin the exact version.
+> **Status: pre-release (0.x), published on npm.** `/core`, `/react` and
+> `/next` are stable enough to build a site on, but in 0.x a minor version may
+> break; pin the exact version.
 
 ## Entry points
 

@@ -48,6 +48,9 @@ function renderInline(
       }}
     />
   );
+  // With Vipps on offer, e-mail is a second button and the form is behind it.
+  const email = screen.queryByRole('button', { name: 'Fortsett med e-post' });
+  if (email !== null) fireEvent.click(email);
   return { startLogin };
 }
 
@@ -211,8 +214,11 @@ describe('LoginSheet wiring', () => {
 
   it('offers no Vipps without the app’s start action', () => {
     renderInline({ startVipps: undefined });
-    expect(screen.queryByRole('button', { name: 'Logg inn med Vipps' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fortsett med Vipps' })).toBeNull();
     expect(screen.queryByText('eller')).toBeNull();
+    // E-mail is the only way in: the form itself, not a button in front of it.
+    expect(screen.queryByRole('button', { name: 'Fortsett med e-post' })).toBeNull();
+    expect(screen.getByLabelText('E-post')).toBeInTheDocument();
   });
 
   it('offers no Vipps on a site without the method', () => {
@@ -221,7 +227,8 @@ describe('LoginSheet wiring', () => {
       portal: { ...PARITY_CONFIG.portal, methods: ['email_code'] },
     });
     renderInline({ config });
-    expect(screen.queryByRole('button', { name: 'Logg inn med Vipps' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fortsett med Vipps' })).toBeNull();
+    expect(screen.getByLabelText('E-post')).toBeInTheDocument();
   });
 
   it('lands the panel, code and Vipps classNames on their slots', async () => {
@@ -233,7 +240,7 @@ describe('LoginSheet wiring', () => {
       },
     });
     expect(document.querySelector('.panel-root')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Logg inn med Vipps' })).toHaveClass('vipps-button');
+    expect(screen.getByRole('button', { name: 'Fortsett med Vipps' })).toHaveClass('vipps-button');
 
     await sendCode();
     expect(document.querySelector('.otp-row')).not.toBeNull();

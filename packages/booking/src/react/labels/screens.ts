@@ -80,6 +80,7 @@ export const SCREEN_LABELS_NB: ScreenLabels = {
   'details.email.error': 'E-postadressen ser ikke riktig ut.',
   'details.email.help': 'Vi sender bekreftelsen og en kalenderfil hit.',
   'details.email.label': 'E-postadresse',
+  'details.email.lockedHelp': 'E-posten du logget inn med',
   'details.error.conflict': 'Timen kunne ikke settes opp. Prøv igjen.',
   'details.error.inProgress':
     'Bestillingen er allerede mottatt. Se etter bekreftelsen på e-post, eller ring oss.',
@@ -143,6 +144,7 @@ export const SCREEN_LABELS_NB: ScreenLabels = {
   'login.codeHelp': 'Seks sifre, sendt til {email}. Koden varer i ti minutter.',
   'login.codeHelpVipps': 'Seks sifre. Riktig kode kobler Vipps til kontoen din.',
   'login.codeLabel': 'Kode',
+  'login.continueEmail': 'Fortsett med e-post',
   'login.cooldownReady': 'Nå kan du be om en ny kode.',
   'login.cooldownWait': 'Du kan be om en ny kode om {seconds} sekunder.',
   'login.emailIntro': 'Bruk e-postadressen du bestilte med, så sender vi deg en kode.',
@@ -451,6 +453,7 @@ export const SCREEN_LABELS_EN: ScreenLabels = {
   'details.email.error': 'That email address does not look right.',
   'details.email.help': 'We send the confirmation and a calendar file here.',
   'details.email.label': 'Email address',
+  'details.email.lockedHelp': 'The e-mail you signed in with',
   'details.error.conflict': 'We could not set up the appointment. Please try again.',
   'details.error.inProgress':
     'We already have this booking. Look for the confirmation email, or give us a call.',
@@ -515,6 +518,7 @@ export const SCREEN_LABELS_EN: ScreenLabels = {
   'login.codeHelp': 'Six digits, sent to {email}. The code lasts ten minutes.',
   'login.codeHelpVipps': 'Six digits. The right code links Vipps to your account.',
   'login.codeLabel': 'Code',
+  'login.continueEmail': 'Continue with e-mail',
   'login.cooldownReady': 'You can ask for a new code now.',
   'login.cooldownWait': 'You can ask for a new code in {seconds} seconds.',
   'login.emailIntro': 'Use the e-mail address you booked with and we will send you a code.',

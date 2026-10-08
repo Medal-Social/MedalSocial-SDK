@@ -408,3 +408,52 @@ describe('a family link at a site that seats fewer than the service allows', () 
     expect(state.error).toBeNull();
   });
 });
+
+/**
+ * Another parent logs in over a party seated with somebody else's children:
+ * the seats go, the visit stays.
+ */
+describe('unseatPeople', () => {
+  const THEO: WizardPerson = { key: 'p:p-theo', personId: 'p-theo', name: 'Theo', birthYear: 2019 };
+  const MIA: WizardPerson = { key: 'p:p-mia', personId: 'p-mia', name: 'Mia', birthYear: 2021 };
+
+  it('turns the named seats into guest chairs, keeping every service and the hour', () => {
+    let state = seated([THEO, KID_1, MIA]);
+    state = toggle(toggle(state, 0, KLIPP), 0, VASK);
+    state = toggle(state, 1, FARGE);
+    state = toggle(state, 2, KLIPP);
+    state = reduce(state, { type: 'pickSlot', startTs: 1_000, resourceId: 'res-1' });
+    state = reduce(state, {
+      type: 'setItemField',
+      index: 1,
+      field: 'bookedForName',
+      value: 'Ola',
+    });
+
+    const next = reduce(state, { type: 'unseatPeople', keys: ['p:p-theo', 'p:p-mia'] });
+
+    // `guest:1` is taken, so the chairs are the next free numbers.
+    expect(next.people.map((person) => person.key)).toEqual(['guest:2', 'guest:1', 'guest:3']);
+    expect(next.items).toEqual([
+      { service: KLIPP, extraServices: [VASK] },
+      { service: FARGE, bookedForName: 'Ola' },
+      { service: KLIPP },
+    ]);
+    expect(next.choices).toEqual(state.choices);
+    expect(next.extras).toEqual(state.extras);
+    expect(next.startTs).toBe(1_000);
+    expect(next.resolvedResourceId).toBe('res-1');
+  });
+
+  it('unseats a party with no whole basket yet without inventing lines', () => {
+    const state = seated([THEO, MIA]);
+    const next = reduce(state, { type: 'unseatPeople', keys: ['p:p-mia'] });
+    expect(next.people.map((person) => person.key)).toEqual(['p:p-theo', 'guest:1']);
+    expect(next.items).toEqual([]);
+  });
+
+  it('is the same state when none of the keys is seated', () => {
+    const state = seated([THEO]);
+    expect(reduce(state, { type: 'unseatPeople', keys: ['p:p-mia'] })).toBe(state);
+  });
+});

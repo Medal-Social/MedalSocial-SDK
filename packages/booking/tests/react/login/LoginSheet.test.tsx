@@ -107,8 +107,18 @@ async function openSheet(user: ReturnType<typeof userEvent.setup>) {
   return dialog;
 }
 
+/**
+ * The page draws e-mail as a second button under Vipps; the form is behind
+ * it. A no-op where the form is already open (the sheet).
+ */
+function openEmailForm() {
+  const button = screen.queryByRole('button', { name: 'Fortsett med e-post' });
+  if (button !== null) fireEvent.click(button);
+}
+
 /** From the e-mail field to the code field, the way a parent gets there. */
 async function requestCode(typed = `  ${EMAIL}  `) {
+  openEmailForm();
   fireEvent.change(screen.getByLabelText('E-post'), { target: { value: typed } });
   fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
   await waitFor(() => expect(actions.startLoginAction).toHaveBeenCalled());
@@ -299,16 +309,22 @@ describe('the live regions', () => {
 });
 
 describe('LoginSheet inline, on Min side', () => {
-  it('puts Vipps above the e-mail form, with an «eller» between', () => {
-    const { container } = render(<LoginSheet presentation="inline" returnPath={null} />);
+  it('offers Vipps first and e-mail as a second button, the form behind it', () => {
+    render(<LoginSheet presentation="inline" returnPath={null} />);
 
-    const html = container.innerHTML;
-    expect(screen.getByRole('button', { name: 'Logg inn med Vipps' })).toBeInTheDocument();
-    expect(html.indexOf('Logg inn med Vipps')).toBeLessThan(html.indexOf('eller'));
-    expect(html.indexOf('eller')).toBeLessThan(
-      html.indexOf('Logg inn med e-postadressen du brukte da du bestilte.')
-    );
+    const buttons = screen
+      .getAllByRole('button')
+      .map((button) => button.textContent)
+      .filter((text) => text === 'Fortsett med Vipps' || text === 'Fortsett med e-post');
+    expect(buttons).toEqual(['Fortsett med Vipps', 'Fortsett med e-post']);
+    // Two equal choices: no «eller» rule, and no form until e-mail is chosen.
+    expect(screen.queryByText('eller')).toBeNull();
+    expect(screen.queryByLabelText('E-post')).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Fortsett med e-post' }));
+    expect(screen.getByText(/^Logg inn med e-postadressen du brukte/)).toBeInTheDocument();
+    expect(screen.getByLabelText('E-post')).toBeInTheDocument();
   });
 
   it('hands the return path to Vipps', () => {
@@ -321,8 +337,9 @@ describe('LoginSheet inline, on Min side', () => {
     );
   });
 
-  it('opens on the e-mail field', () => {
+  it('opens the e-mail field from «Fortsett med e-post»', () => {
     render(<LoginSheet presentation="inline" returnPath={null} />);
+    openEmailForm();
 
     const input = screen.getByLabelText('E-post');
     expect(input).toHaveAttribute('type', 'email');
@@ -382,6 +399,7 @@ describe('LoginSheet inline, on Min side', () => {
   it('stays on the e-mail step with a plain notice when the action itself failed', async () => {
     actions.startLoginAction.mockResolvedValue({ serverError: 'Something went wrong' });
     render(<LoginSheet presentation="inline" returnPath={null} />);
+    openEmailForm();
 
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
     fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
@@ -396,9 +414,25 @@ describe('LoginSheet inline, on Min side', () => {
     expect(screen.queryByLabelText('Engangskode')).toBeNull();
   });
 
+  it('says «for mange forsøk» when the action answers throttled, staying on the e-mail step', async () => {
+    actions.startLoginAction.mockResolvedValue({ ok: false, reason: 'throttled' });
+    render(<LoginSheet presentation="inline" returnPath={null} />);
+    openEmailForm();
+
+    fireEvent.change(screen.getByLabelText('E-post'), { target: { value: EMAIL } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send kode' }));
+
+    expect(
+      await screen.findByText('For mange forsøk. Vent litt før du prøver igjen.')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('E-post')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Engangskode')).toBeNull();
+  });
+
   it('asks again for a valid address when the action refuses the one typed', async () => {
     actions.startLoginAction.mockResolvedValue({ validationErrors: { email: ['bad'] } });
     render(<LoginSheet presentation="inline" returnPath={null} />);
+    openEmailForm();
 
     // Well-formed to the browser, refused by the action's own `z.email()`.
     fireEvent.change(screen.getByLabelText('E-post'), { target: { value: 'kari@localhost' } });
@@ -610,6 +644,7 @@ describe('LoginSheet confirming a Vipps login with a code', () => {
     render(<LoginSheet presentation="inline" vippsConfirm={{ to: 'k•••@g•••.com' }} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Logg inn med e-post i stedet' }));
+    openEmailForm();
 
     expect(await screen.findByLabelText('E-post')).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Send kode' })).toBeInTheDocument();

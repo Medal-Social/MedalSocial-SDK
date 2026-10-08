@@ -43,7 +43,7 @@ const UNAVAILABLE = 'Vipps-innlogging er ikke tilgjengelig akkurat nå. Bruk e-p
 const THROTTLED = 'Prøv igjen om et øyeblikk.';
 
 function button() {
-  return screen.getByRole('button', { name: 'Logg inn med Vipps' });
+  return screen.getByRole('button', { name: 'Fortsett med Vipps' });
 }
 
 async function submit() {
