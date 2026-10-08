@@ -3788,6 +3788,63 @@ describe('BookingWizard with account.required', () => {
     expect(sent.items[0]).toHaveProperty('bookedForPersonId', 'p-jonas');
   });
 
+  it('holds the hour that was SENT when a same-page resend, after a step back, finds the session gone', async () => {
+    const OPEN_TWO = {
+      ...OPEN_AT_ONE,
+      slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id), slot(2, 14, SARA.id)] },
+    };
+    // «Bekreft time» at 13:00 answers 502: the attempt stays pending, and it
+    // may have booked.
+    const first = stubApi({ ...OPEN_TWO, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true, guardian: KARI });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+    const { submissionNonce } = first.bodies.find((body) => 'items' in (body as object)) as {
+      submissionNonce: string;
+    };
+
+    // The parent steps back for 14:00 — and «Bekreft time» resends the 13:00
+    // still owed an answer, which finds the session gone.
+    const gone = stubApi({
+      ...OPEN_TWO,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Frisør og tid' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    await user.click(await screen.findByRole('button', { name: '14:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    const resent = gone.bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+    };
+    expect(resent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+
+    // The gate holds the visit that went, not the one on screen before it.
+    const gate = screen.getByRole('region', { name: 'Nesten ferdig' });
+    expect(within(gate).getByText(/13:00/)).toBeInTheDocument();
+    expect(within(gate).queryByText(/14:00/)).toBeNull();
+
+    // After the login: that visit, under that nonce — the first try's key.
+    const third = stubApi(OPEN_TWO);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const sent = third.bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+      submissionNonce: string;
+    };
+    expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+    expect(sent.submissionNonce).toBe(submissionNonce);
+  });
+
   it('holds the hour that was SENT when a resend, while a link waits, finds the session gone', async () => {
     const OPEN_TWO = {
       ...OPEN_AT_ONE,

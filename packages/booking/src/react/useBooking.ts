@@ -1425,12 +1425,16 @@ export function useBooking(options: UseBookingOptions) {
           setArrivalExpired(true);
           setSessionLost(true);
           // Before the resumed reset below: the gate holds the slot, a clean
-          // wizard would drop it. A resumed send's machine does not hold the
-          // visit it sent (never hydrated, or built again by hand while a link
-          // waited), so the visit it sent is rebuilt under the gate — the one
-          // whose key a resend after the login has to meet.
+          // wizard would drop it. A replay or a resend of a pending attempt
+          // sent a visit the machine need not hold (never hydrated; or the
+          // parent stepped back and picked another hour while the attempt
+          // waited, and «Bekreft» resent the old one verbatim), so the visit
+          // it SENT is rebuilt under the gate — the one whose key a resend
+          // after the login has to meet. Any other send is the machine's own.
           if (options.loginOffered !== false) {
-            if (wasResumed) rebuildSubmitted(submitted);
+            if (sendOptions?.replay === true || sendOptions?.pending === true) {
+              rebuildSubmitted(submitted);
+            }
             return;
           }
         }
