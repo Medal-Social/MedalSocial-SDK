@@ -1150,6 +1150,86 @@ describe('useBooking — the corners', () => {
     expect(result.current.schedule.settled).toBe(false);
   });
 
+  it('drops a stylist’s earlier days when picking them again fails', async () => {
+    let calls = 0;
+    stubApi({
+      schedule: () => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ days: [OPEN_WEEK[3]] }),
+          });
+        }
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+      },
+    });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(result.current.schedule.openDays?.map((day) => day.dayKey)).toEqual(['2026-09-05'])
+    );
+
+    act(() => result.current.pickResource(null));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toBeNull());
+    expect(result.current.schedule.settled).toBe(true);
+  });
+
+  it('does not treat a stylist’s retry as already settled', async () => {
+    let calls = 0;
+    const { urls } = stubApi({
+      schedule: () => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+        }
+        return new Promise<StubResponse>(() => undefined);
+      },
+    });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toBeNull());
+
+    act(() => result.current.pickResource(null));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(urls.filter((url) => url.includes(`resource_id=${BJARNE.id}`))).toHaveLength(2)
+    );
+    // The retry is in flight. Unknown-and-settled would be the previous failure
+    // speaking for a request that has not answered yet.
+    expect(result.current.schedule.openDays === null && result.current.schedule.settled).toBe(
+      false
+    );
+  });
+
   it('forgets a failed read that lands after the visitor moved on', async () => {
     const pending: Array<() => void> = [];
     const fail = () => {

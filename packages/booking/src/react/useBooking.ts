@@ -1054,6 +1054,9 @@ export function useBooking(options: UseBookingOptions) {
     let cancelled = false;
     const key = scheduleKey;
     const resourceId = state.resourceId;
+    // A new read is not the previous failure. Leaving that flag set would settle
+    // the retry before it has answered.
+    setScheduleFailedFor((current) => (current === key ? null : current));
 
     (async () => {
       try {
@@ -1067,7 +1070,11 @@ export function useBooking(options: UseBookingOptions) {
       } catch {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
-        if (!cancelled) setScheduleFailedFor(key);
+        if (!cancelled) {
+          setScheduleFailedFor(key);
+          // The previous success for this stylist is stale once this read failed.
+          setFetchedSchedule((current) => (current?.key === key ? null : current));
+        }
       }
     })();
 
