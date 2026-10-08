@@ -55,7 +55,7 @@ export const PARITY_CONFIG = resolveBookingConfig({
     { key: 'annet', audience: 'any' },
   ],
   fallbackCategory: 'annet',
-  party: { maxPeople: 3, allowParallel: true, askWhoFirst: true },
+  party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 3 },
   window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: 'barn' },
   dayparts: [
     { key: 'formiddag', from: 0, to: 12 },

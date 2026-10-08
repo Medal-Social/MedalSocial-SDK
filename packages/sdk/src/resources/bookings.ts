@@ -638,6 +638,9 @@ export class Bookings {
       to_ts: String(options.to_ts),
     };
     if (options.resource_id) params.resource_id = options.resource_id;
+    if (options.extra_service_ids?.length) {
+      params.extra_service_ids = options.extra_service_ids.join(",");
+    }
     return this.client.get("/api/v1/bookings/availability", params);
   }
 
@@ -655,6 +658,9 @@ export class Bookings {
       to_ts: String(options.to_ts),
     };
     if (options.resource_id) params.resource_id = options.resource_id;
+    if (options.extra_service_ids?.length) {
+      params.extra_service_ids = options.extra_service_ids.join(",");
+    }
     return this.client.get("/api/v1/bookings/schedule", params);
   }
 

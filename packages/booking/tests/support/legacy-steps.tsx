@@ -66,6 +66,7 @@ import {
   serviceScreenBase,
   weekendNoteFor,
 } from '../../src/react/wizard/adapters';
+import { forMedaScreen } from '../../src/react/wizard-error';
 import { TEST_LABELS } from './labels';
 import { parityConfigWith } from './legacy-wizard';
 
@@ -389,7 +390,7 @@ export function DetailsStep({
   const kit = legacyKit(phone);
   return (
     <DetailsScreen
-      state={state}
+      state={forMedaScreen(state)}
       onChange={onChange}
       onSubmit={onSubmit}
       lines={detailsLines(kit, state)}

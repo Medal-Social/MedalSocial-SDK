@@ -14,7 +14,6 @@
 import {
   BookingButton,
   Confirmation,
-  DETAILS_ERROR_LABEL_KEYS,
   DetailsScreen,
   LiveStatus,
   ServiceScreen,
@@ -37,6 +36,7 @@ import {
 } from 'react';
 import { fill, fillParts, labelText } from '../core/labels';
 import { SELF_KEY, type WizardPerson, type WizardState, type WizardStep } from '../core/machine';
+import { visitServicesOf } from '../core/visit';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
 import { LoginSheet } from './LoginSheet';
@@ -62,6 +62,7 @@ import {
   serviceScreenBase,
   weekendNoteFor,
 } from './wizard/adapters';
+import { forMedaScreen, wizardErrorText } from './wizard-error';
 
 export interface BookingWizardProps extends BookingOverrides {
   /** What the page prefetched (the `/next` loader's seed). */
@@ -290,7 +291,7 @@ function BookingWizardShell(props: BookingWizardProps) {
             'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
           }
         >
-          {labels[DETAILS_ERROR_LABEL_KEYS[state.error]]}
+          {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
         </p>
       )}
 
@@ -427,8 +428,9 @@ function WhenStep({ booking, resolved }: StepProps) {
       <StylistScreen
         labels={screenLabels(labels)}
         format={format}
-        // Not deduplicated: a named stylist has to cover every line.
-        serviceIds={items.map((item) => item.service.id)}
+        // Not deduplicated: a named stylist has to cover every service of every
+        // line — a person's extras included, as their visit is one stylist's.
+        serviceIds={items.flatMap((item) => visitServicesOf(item).map((service) => service.id))}
         resources={catalogue.resources}
         loading={!catalogue.resourcesKnown}
         nextAvailableLoading={slots.nextAvailableLoading}
@@ -506,7 +508,9 @@ function WhenStep({ booking, resolved }: StepProps) {
           labels={screenLabels(labels)}
           days={slots.days.length}
           monthView
-          surchargeRow={items.some((item) => item.service.weekendSurchargePct > 0)}
+          surchargeRow={items.some((item) =>
+            visitServicesOf(item).some((service) => service.weekendSurchargePct > 0)
+          )}
         />
       )}
 
@@ -527,7 +531,7 @@ function DetailsStep({ booking, resolved }: StepProps) {
   const lines = useMemo(() => detailsLines(kit, state), [kit, state]);
   return (
     <DetailsScreen
-      state={state}
+      state={forMedaScreen(state)}
       onChange={booking.dispatch}
       onSubmit={booking.submit}
       lines={lines}

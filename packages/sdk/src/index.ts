@@ -258,6 +258,7 @@ export type {
   BookingsToday,
   BookingsTodayOptions,
   BookingTimestampInput,
+  BookingVisitService,
   CancelBookingInput,
   ContactPerson,
   ContactRelation,

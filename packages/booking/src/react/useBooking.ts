@@ -32,7 +32,7 @@ import type {
   WizardState,
 } from '../core/machine';
 import { firstOpeningPerResource } from '../core/next-available';
-import type { PartySlot, SlotsByService } from '../core/party-slots';
+import { type PartySlot, type SlotsByService, slotKeysFor } from '../core/party-slots';
 import { stripVippsReturn, vippsConfirmFrom } from '../core/portal/vipps-return';
 import type {
   BookingDayDto,
@@ -43,6 +43,7 @@ import type {
   BookingSlotDto,
   BookingSubmission,
 } from '../core/types';
+import { visitKey, visitServicesOf } from '../core/visit';
 import type { BookingKit } from './kit';
 import { type BookingOverrides, useBookingKit } from './Provider';
 
@@ -109,7 +110,7 @@ function noSubscription(): () => void {
   };
 }
 
-/** The `freshSlots` of a `slotTaken` answer, narrowed to the lost services' lists. */
+/** The `freshSlots` of a `slotTaken` answer, narrowed to the lost visits' lists. */
 function freshSlotsOf(raw: unknown, lost: ReadonlySet<string>): Record<string, BookingSlotDto[]> {
   if (typeof raw !== 'object' || raw === null) return {};
   return Object.fromEntries(
@@ -119,12 +120,55 @@ function freshSlotsOf(raw: unknown, lost: ReadonlySet<string>): Record<string, B
   );
 }
 
-function windowQuery(serviceId: string, fromTs: number, toTs: number): URLSearchParams {
+/**
+ * The window query for ONE visit, named by its key (`a` or `a+b`): the first
+ * service as `service_id`, the rest as `extra_service_ids`. The extras are
+ * added only when there are some, so a one-service visit asks with exactly the
+ * URL it always did — the slot cache and every seeded answer are keyed by it.
+ */
+function windowQuery(key: string, fromTs: number, toTs: number): URLSearchParams {
+  const [serviceId, ...extras] = key.split('+');
   return new URLSearchParams({
     service_id: serviceId,
+    ...(extras.length === 0 ? {} : { extra_service_ids: extras.join(',') }),
     from_ts: String(fromTs),
     to_ts: String(toTs),
   });
+}
+
+/**
+ * The submission with each line's extras on it. meda's details screen builds
+ * the body from its own types, which have one service per line, so the shell
+ * is the only place that knows the rest of a person's visit. Index-aligned with
+ * the basket the screen was drawn from; a body of another length is not one
+ * this basket produced, and is sent as it came rather than with extras pinned
+ * to the wrong people.
+ */
+function withExtraServices(
+  submission: BookingSubmission,
+  items: ReadonlyArray<SubmittedVisit['items'][number]>
+): BookingSubmission | null {
+  if (!items.some((item) => (item.extraServices ?? []).length > 0)) return submission;
+  // Lines that cannot be matched to the basket are REFUSED, not sent bare: a
+  // body without the extras books the first service only, while the card and
+  // the calendar entry would describe the whole visit.
+  if (submission.items.length !== items.length) {
+    console.warn(
+      '[@medalsocial/booking] The submission has %d lines for a basket of %d; not sent.',
+      submission.items.length,
+      items.length
+    );
+    return null;
+  }
+  return {
+    ...submission,
+    items: submission.items.map((line, index) => {
+      const extras = items[index].extraServices ?? [];
+      return extras.length === 0
+        ? line
+        : { ...line, extraServiceIds: extras.map((service) => service.id) };
+    }),
+  };
 }
 
 /** What the create route said, narrowed to what the machine can hold. */
@@ -220,9 +264,9 @@ function stylistLeftToFill(prefill: WizardPrefill | null): WizardPrefill | null 
 function canFinishStylist(
   pending: WizardPrefill | null,
   resources: BookingResourceDto[],
-  primaryServiceId: string | null
+  primaryVisit: string | null
 ): pending is WizardPrefill {
-  return pending !== null && resources.length > 0 && primaryServiceId === pending.serviceId;
+  return pending !== null && resources.length > 0 && primaryVisit === pending.serviceId;
 }
 
 /**
@@ -459,7 +503,12 @@ export function useBooking(options: UseBookingOptions) {
   };
   const pendingStylist = useRef(stylistLeftToFill(prefill));
 
-  /** Unfiltered openings, keyed by service id. */
+  /**
+   * Unfiltered openings, keyed by VISIT (`visitKey`): a service id for a
+   * one-service visit — which is all the server seed ever holds — and `a+b`
+   * for a person having both, whose list is the server's answer for the whole
+   * visit rather than either service's own.
+   */
   const [slots, setSlots] = useState<Record<string, readonly BookingSlotDto[]>>(
     () => options.seed.slots ?? {}
   );
@@ -473,9 +522,9 @@ export function useBooking(options: UseBookingOptions) {
     options.seed.resources ? (options.seed.nextAvailable ?? {}) : {}
   );
   const [seededSchedule] = useState(() => options.seed.schedules ?? {});
-  /** The last «next available» answer, and for WHICH service. */
+  /** The last «next available» answer, and for WHICH visit (its key). */
   const [fetchedNextAvailable, setFetchedNextAvailable] = useState<{
-    serviceId: string;
+    key: string;
     times: Record<string, number>;
   } | null>(null);
 
@@ -581,6 +630,43 @@ export function useBooking(options: UseBookingOptions) {
   };
 
   /**
+   * Each draft line's extras back on it, through `toggleServiceFor` like a tap.
+   * Returns whether EVERY extra came back. The machine's refusals are checked
+   * here first rather than read off its state, which a dispatch does not hand
+   * back: an id the catalogue no longer books, one already on the line (a
+   * toggle would take it OFF again), one past `maxServicesPerPerson`, or one
+   * more taker than the service's `maxPerBooking` — each is skipped, as an
+   * unknown main service is, and makes the answer `false`.
+   */
+  const restoreExtras = (
+    draft: WizardDraft,
+    lines: BookingServiceDto[],
+    bookable: ReadonlyMap<string, BookingServiceDto>
+  ): boolean => {
+    let whole = true;
+    const lists = lines.map((service) => [service]);
+    draft.items.forEach((item, index) => {
+      for (const id of item.extraServiceIds ?? []) {
+        const service = bookable.get(id);
+        const list = lists[index];
+        const takers = lists.filter((other) => other.some((entry) => entry.id === id)).length;
+        if (
+          service === undefined ||
+          list.some((entry) => entry.id === id) ||
+          list.length >= config.party.maxServicesPerPerson ||
+          takers + 1 > service.maxPerBooking
+        ) {
+          whole = false;
+          continue;
+        }
+        list.push(service);
+        dispatch({ type: 'toggleServiceFor', index, service });
+      }
+    });
+    return whole;
+  };
+
+  /**
    * The booking a Vipps login interrupted, rebuilt through the machine's own
    * actions — so it obeys every rule a tapped one does — and trusting nothing
    * beyond the catalogue.
@@ -607,6 +693,10 @@ export function useBooking(options: UseBookingOptions) {
     // Every line resolved (checked above), so `rest` holds services only.
     for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
     const reseated = reseatFamily(draft, resolved as BookingServiceDto[]);
+    // After the seats are final (a reseat moves people, and their extras with
+    // them) and before the stylist, so no toggle is refused for a preference
+    // the draft is about to restore anyway.
+    const wholeVisits = restoreExtras(draft, resolved as BookingServiceDto[], bookable);
     // Before the stylist: `setPartyMode('parallel')` drops the preference.
     if (draft.partyMode === 'parallel') dispatch({ type: 'setPartyMode', mode: 'parallel' });
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
@@ -631,7 +721,11 @@ export function useBooking(options: UseBookingOptions) {
       }
     });
 
-    if (draft.startTs === null) return;
+    // The hour was chosen for the visits as they were. One that came back
+    // shorter — an extra retired since, or one the rules now refuse — would be
+    // submitted at a time that was only ever free for the longer visit (or
+    // offered for the shorter one by nobody), so the visitor picks again.
+    if (draft.startTs === null || !wholeVisits) return;
     if (draft.partyResourceIds !== null && draft.partyResourceIds.length === resolved.length) {
       restoredStylists.current = draft.partyResourceIds;
       dispatch({
@@ -704,6 +798,10 @@ export function useBooking(options: UseBookingOptions) {
     kit.drafts.stashDraft({
       items: state.items.map((item) => ({
         serviceId: item.service.id,
+        // Only when there are some: a one-service line is stored as it always was.
+        ...(item.extraServices?.length
+          ? { extraServiceIds: item.extraServices.map((service) => service.id) }
+          : {}),
         bookedForName: item.bookedForName ?? null,
         bookedForBirthYear: item.bookedForBirthYear ?? null,
         adult: item.adult === true,
@@ -758,22 +856,31 @@ export function useBooking(options: UseBookingOptions) {
     }
   }, [guardian, phone]);
 
-  const basketServiceIds = useMemo(
-    () => [...new Set(state.items.map((item) => item.service.id))],
-    [state.items]
-  );
+  // One entry per distinct VISIT, not per service: a person having cut and wash
+  // is one question to the engine (one stylist, back to back), and the cut's
+  // own list would offer somebody who cannot wash.
+  const basketVisits = useMemo(() => slotKeysFor(state.items), [state.items]);
   // A string, so an effect keyed on it does not refetch on every keystroke.
-  const basketKey = basketServiceIds.join('|');
+  // `|` between visits, as `+` is already inside one.
+  const basketKey = basketVisits.join('|');
   const primaryServiceId = state.items[0]?.service.id ?? null;
+  /**
+   * The first person's whole visit, by key — what the stylists' «neste ledige»
+   * and the business's hours are asked for. Equal to `primaryServiceId` for a
+   * one-service visit, so the seed (keyed by service id, and only ever for one
+   * service) answers exactly the visits it can, and a visit with extras is
+   * fetched instead of being read off its first service's openings.
+   */
+  const primaryVisit = state.items[0] ? visitKey(state.items[0]) : null;
 
   const nextAvailableTs = useMemo<Record<string, number>>(() => {
-    if (primaryServiceId === null) return {};
-    const seeded = seededNextAvailable[primaryServiceId];
+    if (primaryVisit === null) return {};
+    const seeded = seededNextAvailable[primaryVisit];
     if (seeded) return seeded;
-    return fetchedNextAvailable?.serviceId === primaryServiceId ? fetchedNextAvailable.times : {};
-  }, [primaryServiceId, seededNextAvailable, fetchedNextAvailable]);
+    return fetchedNextAvailable?.key === primaryVisit ? fetchedNextAvailable.times : {};
+  }, [primaryVisit, seededNextAvailable, fetchedNextAvailable]);
 
-  const missingKey = basketServiceIds.filter((id) => !(id in slots)).join('|');
+  const missingKey = basketVisits.filter((key) => !(key in slots)).join('|');
   /** Bumped to ask for the openings again after a failure. */
   const [slotsAttempt, setSlotsAttempt] = useState(0);
   const api = config.paths.api;
@@ -788,13 +895,12 @@ export function useBooking(options: UseBookingOptions) {
     (async () => {
       try {
         const fetched = await Promise.all(
-          wanted.map(async (serviceId) => {
-            const response = await fetch(
-              `${api}/availability?${windowQuery(serviceId, fromTs, toTs)}`
-            );
+          wanted.map(async (key) => {
+            const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
             if (!response.ok) throw new Error(`availability ${response.status}`);
             const body = (await response.json()) as { slots?: BookingSlotDto[] };
-            return [serviceId, body.slots ?? []] as const;
+            // Stored under the WHOLE visit's key — the key it is read back by.
+            return [key, body.slots ?? []] as const;
           })
         );
         if (cancelled) return;
@@ -811,15 +917,13 @@ export function useBooking(options: UseBookingOptions) {
   }, [api, missingKey, fromTs, toTs, slotsAttempt]);
 
   useEffect(() => {
-    if (primaryServiceId === null) return;
-    if (primaryServiceId in seededNextAvailable) return;
+    if (primaryVisit === null) return;
+    if (primaryVisit in seededNextAvailable) return;
     let cancelled = false;
 
     (async () => {
       try {
-        const response = await fetch(
-          `${api}/resources?${windowQuery(primaryServiceId, fromTs, toTs)}`
-        );
+        const response = await fetch(`${api}/resources?${windowQuery(primaryVisit, fromTs, toTs)}`);
         if (!response.ok) throw new Error(`resources ${response.status}`);
         const body = (await response.json()) as {
           resources?: BookingResourceDto[];
@@ -828,12 +932,12 @@ export function useBooking(options: UseBookingOptions) {
         if (cancelled) return;
         setResources(body.resources ?? []);
         setResourcesKnown(true);
-        setFetchedNextAvailable({ serviceId: primaryServiceId, times: body.nextAvailableTs ?? {} });
+        setFetchedNextAvailable({ key: primaryVisit, times: body.nextAvailableTs ?? {} });
       } catch {
-        // Answered «none» FOR THIS SERVICE; the stylist LIST is kept.
+        // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
         if (!cancelled) {
           setResourcesKnown(true);
-          setFetchedNextAvailable({ serviceId: primaryServiceId, times: {} });
+          setFetchedNextAvailable({ key: primaryVisit, times: {} });
         }
       }
     })();
@@ -841,23 +945,28 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryServiceId, fromTs, toTs, seededNextAvailable]);
+  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable]);
 
-  /** The stylist half of a «book again» link, once a list for its service has landed. */
+  /**
+   * The stylist half of a «book again» link, once a list for its service has
+   * landed. Compared by VISIT: the link named one service, and a visitor who
+   * has since added a wash to it is asking a different question — the list now
+   * in hand answers the longer visit, not the one the link vouched for.
+   */
   useEffect(() => {
     const pending = pendingStylist.current;
-    if (pending && primaryServiceId !== null && primaryServiceId !== pending.serviceId) {
+    if (pending && primaryVisit !== null && primaryVisit !== pending.serviceId) {
       pendingStylist.current = null;
       return;
     }
-    if (!canFinishStylist(pending, resources, primaryServiceId)) return;
+    if (!canFinishStylist(pending, resources, primaryVisit)) return;
     pendingStylist.current = null;
     dispatch({
       type: 'prefill',
       prefill: pending,
       catalogue: prefillCatalogue(services, resources),
     });
-  }, [resources, primaryServiceId, services]);
+  }, [resources, primaryVisit, services]);
 
   /** A party link's stylist, once the family has its services and is on step 3. */
   useEffect(() => {
@@ -882,45 +991,47 @@ export function useBooking(options: UseBookingOptions) {
     dispatch({ type: 'pickResource', resourceId: null });
   }, [resources, primaryServiceId]);
 
-  /** The business's open dates over the window, for ONE service (cutoffs are per service). */
+  /**
+   * The business's open dates over the window, for the first person's VISIT
+   * (cutoffs are per service, and `visitTailMinutes` assumes the answer was for
+   * item 0's whole visit — see the machine).
+   */
   const [fetchedSchedule, setFetchedSchedule] = useState<{
-    serviceId: string;
+    key: string;
     days: BookingDayDto[];
   } | null>(null);
   const [scheduleFailedFor, setScheduleFailedFor] = useState<string | null>(null);
 
   // `null`, not `[]`, until this service's hours are in hand: «we do not know».
   const openDays = useMemo<BookingDayDto[] | null>(() => {
-    if (primaryServiceId === null) return null;
-    const seeded = seededSchedule[primaryServiceId];
+    if (primaryVisit === null) return null;
+    const seeded = seededSchedule[primaryVisit];
     if (seeded) return seeded;
-    return fetchedSchedule?.serviceId === primaryServiceId ? fetchedSchedule.days : null;
-  }, [primaryServiceId, seededSchedule, fetchedSchedule]);
+    return fetchedSchedule?.key === primaryVisit ? fetchedSchedule.days : null;
+  }, [primaryVisit, seededSchedule, fetchedSchedule]);
 
   useEffect(() => {
-    if (primaryServiceId === null) return;
-    if (primaryServiceId in seededSchedule) return;
+    if (primaryVisit === null) return;
+    if (primaryVisit in seededSchedule) return;
     let cancelled = false;
 
     (async () => {
       try {
-        const response = await fetch(
-          `${api}/schedule?${windowQuery(primaryServiceId, fromTs, toTs)}`
-        );
+        const response = await fetch(`${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs)}`);
         if (!response.ok) throw new Error(`schedule ${response.status}`);
         const body = (await response.json()) as { days?: BookingDayDto[] };
         if (cancelled) return;
-        setFetchedSchedule({ serviceId: primaryServiceId, days: body.days ?? [] });
+        setFetchedSchedule({ key: primaryVisit, days: body.days ?? [] });
       } catch {
         // Left `null`: the hours are unknown, which is not the same as «closed».
-        if (!cancelled) setScheduleFailedFor(primaryServiceId);
+        if (!cancelled) setScheduleFailedFor(primaryVisit);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, primaryServiceId, fromTs, toTs, seededSchedule]);
+  }, [api, primaryVisit, fromTs, toTs, seededSchedule]);
 
   /** A stylist's display name for an id; `''` from Medal reads as none. */
   const resolveStylistName = useMemo(
@@ -943,9 +1054,13 @@ export function useBooking(options: UseBookingOptions) {
     if (!resourcesKnown || resources.length === 0) return;
     if (state.step !== 'when' || state.resourceId === null) return;
     const chosen = resources.find((resource) => resource.id === state.resourceId);
+    // Every service of every visit: a stylist who cuts but does not wash cannot
+    // take the person having both.
     const covers =
       chosen !== undefined &&
-      state.items.every((item) => chosen.serviceIds.includes(item.service.id));
+      state.items.every((item) =>
+        visitServicesOf(item).every((service) => chosen.serviceIds.includes(service.id))
+      );
     if (covers) return;
     dispatch({ type: 'pickResource', resourceId: null });
     setStylistNotice(labelText(labels['wizard.stylistGone']));
@@ -963,14 +1078,14 @@ export function useBooking(options: UseBookingOptions) {
   }, [wizard, openDays, state.items, state.partyMode]);
 
   const party = wizard.showsPartyMode(state);
-  const haveEveryService = basketServiceIds.every((id) => id in slots);
+  const haveEveryService = basketVisits.every((key) => key in slots);
   const scheduleSettled =
-    openDays !== null || (primaryServiceId !== null && scheduleFailedFor === primaryServiceId);
+    openDays !== null || (primaryVisit !== null && scheduleFailedFor === primaryVisit);
   const nextAvailableLoading = party
     ? !haveEveryService && !slotsFailed
-    : primaryServiceId !== null &&
-      !(primaryServiceId in seededNextAvailable) &&
-      fetchedNextAvailable?.serviceId !== primaryServiceId;
+    : primaryVisit !== null &&
+      !(primaryVisit in seededNextAvailable) &&
+      fetchedNextAvailable?.key !== primaryVisit;
 
   /** The basket's openings, unfiltered — the parallel search needs two stylists. */
   const basketSlots: SlotsByService = useMemo(() => {
@@ -1011,10 +1126,10 @@ export function useBooking(options: UseBookingOptions) {
   );
 
   const singleSlots = useMemo(() => {
-    if (party || primaryServiceId === null) return [];
-    const list = slots[primaryServiceId] ?? [];
+    if (party || primaryVisit === null) return [];
+    const list = slots[primaryVisit] ?? [];
     return state.resourceId === null ? [...list] : onlyResource(list, state.resourceId);
-  }, [party, primaryServiceId, slots, state.resourceId]);
+  }, [party, primaryVisit, slots, state.resourceId]);
 
   /** Create a logged-in parent's new child through the site's portal route. */
   async function saveChild(child: {
@@ -1097,7 +1212,12 @@ export function useBooking(options: UseBookingOptions) {
     }
     // Read BEFORE the await: the card describes what left the browser.
     const resourceIds = wizard.itemResourceIds(state);
-    await send(submission, {
+    const body = withExtraServices(submission, state.items);
+    if (body === null) {
+      dispatch({ type: 'submitFailed', error: 'invalidInput' });
+      return;
+    }
+    await send(body, {
       items: state.items,
       startTs: state.startTs ?? 0,
       partyMode: state.partyMode,
@@ -1156,13 +1276,14 @@ export function useBooking(options: UseBookingOptions) {
           setTakenSlotTs(submitted.startTs);
           // The cache goes too, or the time step reopens on the SAME chip:
           // replaced by the 409's live `freshSlots`, else evicted for a re-read.
-          const lost = new Set(submitted.items.map((item) => item.service.id));
+          // By VISIT, as the server keys `freshSlots` and the wizard its cache.
+          const lost = new Set(submitted.items.map((item) => visitKey(item)));
           const fresh = freshSlotsOf(payload?.freshSlots, lost);
           setSlots((previous) => {
             const next = { ...previous };
-            for (const serviceId of lost) {
-              if (serviceId in fresh) next[serviceId] = fresh[serviceId];
-              else delete next[serviceId];
+            for (const key of lost) {
+              if (key in fresh) next[key] = fresh[key];
+              else delete next[key];
             }
             return next;
           });
@@ -1177,7 +1298,7 @@ export function useBooking(options: UseBookingOptions) {
               : {}),
           }));
           setFetchedNextAvailable((previous) =>
-            previous !== null && lost.has(previous.serviceId) ? null : previous
+            previous !== null && lost.has(previous.key) ? null : previous
           );
           kit.attempts.clearAttempt();
           dispatch({ type: 'slotTaken' });
@@ -1257,6 +1378,31 @@ export function useBooking(options: UseBookingOptions) {
       service,
       resourceServiceIds: chosenStylistServiceIds,
     });
+  }
+
+  /**
+   * The multi-select card: person `index` gains `service`, or loses it if they
+   * have it. Never moves the visitor — they say when their list is done with
+   * `continueFromService`. The named stylist's services ride along as for
+   * `pickServiceFor`, so a stylist who cannot do the longer visit is released.
+   */
+  function toggleServiceFor(index: number, service: WizardService) {
+    if (deepLinkPending.current) {
+      deepLinkPending.current = false;
+      partyStylist.current = deepLink.stylist;
+    }
+    dispatch({
+      type: 'toggleServiceFor',
+      index,
+      service,
+      resourceServiceIds: chosenStylistServiceIds,
+    });
+  }
+
+  /** «Neste» under a multi-select card: on to the hour once everybody has a service. */
+  function continueFromService() {
+    if (state.step !== 'service' || !wizard.canAdvance(state)) return;
+    dispatch({ type: 'goToStep', step: 'when' });
   }
 
   function pickResource(resourceId: string | null) {
@@ -1355,6 +1501,8 @@ export function useBooking(options: UseBookingOptions) {
     },
     pickService,
     pickServiceFor,
+    toggleServiceFor,
+    continueFromService,
     pickResource,
     pickSlot,
     pickPartySlot,

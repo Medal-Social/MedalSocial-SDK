@@ -13,7 +13,8 @@
  * bucket, the catalogue keys a five-minute one — and a key that has moved on
  * is a miss, not a stale hit. The resulting bounds:
  *
- * - free slots (tag `booking-slots:<serviceId>`): at most ~60 s old. The
+ * - free slots (tag `booking-slots:<serviceId>`, one per service in the
+ *   visit): at most ~60 s old. The
  *   site's own create / move / cancel expire the tag at once (`expireSlots`);
  *   the bound is what covers a booking made anywhere else;
  * - the catalogue (services, stylists, opening hours; tag `booking-catalogue`):
@@ -21,13 +22,17 @@
  *
  * KEYS. Every entry is keyed `[prefix, '<read>']` plus its arguments, the
  * scheme the first site on this package already uses, so its key parts stay
- * the same when `prefix` does.
+ * the same when `prefix` does. A slot or schedule key names the VISIT
+ * (`visitKeyOfIds`: `a+b` for a person having both, the bare id for one
+ * service), so a one-service key is byte-identical to what it was before
+ * visits existed and a deploy does not empty the cache.
  *
  * A failed read throws and is not cached, so a Medal blip is not pinned.
  */
 
 import { createClock } from '../core/clock';
 import type { BookingConfig } from '../core/config';
+import { visitKeyOfIds } from '../core/visit';
 import type { MedalResource, MedalScheduleDay, MedalService, MedalSlot } from '../core/wire';
 import type { MedalSeam, RangeArgs } from './medal';
 import { type BookingCacheAdapter, type BookingLogger, cacheLoad } from './options';
@@ -62,6 +67,17 @@ export function slotsTag(serviceId: string): string {
  */
 export function slotKeyStart(fromTs: number, now: number = Date.now()): number {
   return Math.floor(Math.max(fromTs, now) / SLOT_KEY_STEP_MS) * SLOT_KEY_STEP_MS;
+}
+
+/** Every service in the read's visit, the first one first. */
+function visitIdsOf(args: RangeArgs): string[] {
+  return [args.serviceId, ...(args.extraServiceIds ?? [])];
+}
+
+/** `extraServiceIds` as a spread: absent for a one-service visit, so a
+ * one-service read reaches the seam with exactly the arguments it always had. */
+function extrasOf(args: RangeArgs): Pick<RangeArgs, 'extraServiceIds'> {
+  return args.extraServiceIds?.length ? { extraServiceIds: args.extraServiceIds } : {};
 }
 
 function catalogueBucket(now: number): number {
@@ -156,8 +172,11 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
     const days = await cacheLoad(
       data,
       [KEY_PREFIX, 'schedule'],
-      [serviceId, key.fromTs, key.toTs, catalogueBucket(now)],
-      () => medal.listSchedule({ serviceId, fromTs: key.fromTs, toTs: key.toTs }),
+      // The visit, not the first service: a visit's last start is earlier than
+      // its first service's alone, so the two answers are different entries.
+      [visitKeyOfIds(visitIdsOf(args)), key.fromTs, key.toTs, catalogueBucket(now)],
+      () =>
+        medal.listSchedule({ serviceId, ...extrasOf(args), fromTs: key.fromTs, toTs: key.toTs }),
       { ttlSeconds: CATALOGUE_TTL_S, tags: [CATALOGUE_TAG] }
     );
     const firstDay = clock.dayKey(args.fromTs);
@@ -170,8 +189,10 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
   }
 
   /**
-   * Free slots for one service. The tag names the service; the key is the
-   * same for every call with the same arguments.
+   * Free slots for one visit — one service, or one person's several back to
+   * back. The entry carries the tag of EVERY service in the visit, so a write
+   * to any one of them (`expireSlots`) retires it; the key is the same for
+   * every call with the same arguments.
    *
    * Only slots starting inside the caller's real `[fromTs, toTs)` AND not
    * before now are returned: the key reaches forward to the next local
@@ -194,9 +215,15 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
       slots = await cacheLoad(
         data,
         [KEY_PREFIX, 'availability'],
-        [serviceId, key.fromTs, key.toTs, Math.floor(now / SLOT_KEY_STEP_MS)],
-        () => medal.listAvailability({ serviceId, fromTs: key.fromTs, toTs: key.toTs }),
-        { ttlSeconds: SLOTS_TTL_S, tags: [slotsTag(serviceId)] }
+        [visitKeyOfIds(visitIdsOf(args)), key.fromTs, key.toTs, Math.floor(now / SLOT_KEY_STEP_MS)],
+        () =>
+          medal.listAvailability({
+            serviceId,
+            ...extrasOf(args),
+            fromTs: key.fromTs,
+            toTs: key.toTs,
+          }),
+        { ttlSeconds: SLOTS_TTL_S, tags: [...new Set(visitIdsOf(args))].map(slotsTag) }
       );
     }
     const earliest = Math.max(args.fromTs, now);
