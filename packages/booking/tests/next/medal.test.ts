@@ -147,6 +147,24 @@ describe('medal-client', () => {
     expect(header(fetchMock.mock.calls[1][1], 'x-portal-session')).toBeNull();
   });
 
+  it('sends a visit’s extra_service_ids in the body with the session in X-Portal-Session', async () => {
+    vi.stubEnv('MEDAL_API_KEY', 'sk_test');
+    const fetchMock = stubFetch({ data: { bookings: [], contact_id: 'c' } });
+    const body = {
+      items: [{ service_id: 'svc-cut', extra_service_ids: ['svc-wash'], start_ts: 1 }],
+      contact: { phone: '40000000' },
+    };
+
+    await createBooking(body, 'idem-1', { portalSession: SESSION });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(header(init, 'x-portal-session')).toBe(SESSION);
+    expect(JSON.parse(init.body as string).items[0]).toMatchObject({
+      service_id: 'svc-cut',
+      extra_service_ids: ['svc-wash'],
+    });
+  });
+
   it('scrubs the portal session out of what create throws, keeping the error’s identity', async () => {
     vi.stubEnv('MEDAL_API_KEY', 'sk_test');
     stubFetch({ error: { code: 'BAD', message: `no session ${SESSION} here` } }, 400);

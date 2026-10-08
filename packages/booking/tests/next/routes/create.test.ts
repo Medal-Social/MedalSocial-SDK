@@ -1055,6 +1055,43 @@ describe('POST /api/booking/create — the portal session', () => {
     });
   });
 
+  it('books a visit of several services under account.required: extras and session together', async () => {
+    const visit = () =>
+      request({
+        items: [
+          {
+            serviceId: 'svc-cut',
+            extraServiceIds: ['svc-wash', 'svc-style'],
+            startTs: 1,
+            bookedForName: 'Jonas',
+          },
+        ],
+        contact: { phone: '40000000', name: 'Kari' },
+        consentTerms: true,
+        submissionNonce: NONCE,
+      });
+
+    // Nobody logged in: the gate's 401, whatever the visit holds.
+    const refused = await POST_REQUIRED(visit());
+    expect(refused.status).toBe(401);
+    expect(await refused.json()).toEqual({ error: 'accountRequired', message: 'Log in to book' });
+    expect(createBooking).not.toHaveBeenCalled();
+
+    // Logged in: the body carries the extras and the session goes beside it.
+    portal.readPortalSession.mockResolvedValue(SESSION);
+    const response = await POST_REQUIRED(visit());
+
+    expect(response.status).toBe(201);
+    expect(createBooking).toHaveBeenCalledTimes(1);
+    const [body, , options] = vi.mocked(createBooking).mock.calls[0];
+    expect(body.items[0]).toMatchObject({
+      service_id: 'svc-cut',
+      extra_service_ids: ['svc-wash', 'svc-style'],
+    });
+    expect(options).toEqual({ portalSession: SESSION });
+    expect(expireSlots).toHaveBeenCalledWith(['svc-cut', 'svc-wash', 'svc-style']);
+  });
+
   it('forwards a logged-in parent’s session even when no account is required', async () => {
     portal.readPortalSession.mockResolvedValue(SESSION);
 
