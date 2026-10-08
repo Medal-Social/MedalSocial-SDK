@@ -122,11 +122,15 @@ const BUDGETS = [
     gzipBytes: 24.5 * 1024,
   },
   {
-    // Everything `/react` exports, manage page and portal included.
+    // Everything `/react` exports, manage page and portal included. Raised
+    // 20 → 21 KB for several services per person (one visit): the hook's
+    // visit-keyed fetching, the extras on drafts and submissions, and the
+    // `wizard-error` bridge measured 20.12 KB. The booking page's own budgets
+    // above are NOT raised — the page itself still fits its 15 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 20 * 1024,
+    gzipBytes: 21 * 1024,
   },
 ];
 
