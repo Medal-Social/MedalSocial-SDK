@@ -14,7 +14,13 @@ import { earliestOpening } from '../../core/next-available';
 import type { MedalResource } from '../../core/wire';
 import { DEFAULT_AVATAR_HOSTS } from '../options';
 import type { BookingRuntime } from '../runtime';
-import { bookingErrorResponse, catalogueErrorResponse, knownServiceId, parseRange } from './shared';
+import {
+  bookingErrorResponse,
+  catalogueErrorResponse,
+  knownExtraServiceIds,
+  knownServiceId,
+  parseRange,
+} from './shared';
 
 /**
  * The full price list, in the order Medal returns it. Nothing is filtered: a
@@ -42,12 +48,19 @@ export async function servicesRoute(rt: BookingRuntime): Promise<Response> {
 async function firstOpeningPerResource(
   rt: BookingRuntime,
   serviceId: string,
+  extraServiceIds: string[],
   range: { fromTs: number; toTs: number }
 ): Promise<Record<string, number>> {
   try {
     // Unfiltered by resource, deliberately: the whole point is one entry per
-    // stylist, and `resource_id` would collapse the answer to that one.
-    const slots = await rt.catalogue.cachedAvailability({ serviceId, ...range });
+    // stylist, and `resource_id` would collapse the answer to that one. The
+    // whole visit, too: a stylist free for the cut but not the cut and the
+    // wash is not free for this person.
+    const slots = await rt.catalogue.cachedAvailability({
+      serviceId,
+      ...(extraServiceIds.length > 0 ? { extraServiceIds } : {}),
+      ...range,
+    });
     const earliest: Record<string, number> = {};
     for (const slot of slots) {
       // A slot with no stylist cannot fill anybody's line, and an unparseable
@@ -79,6 +92,7 @@ export async function resourcesRoute(rt: BookingRuntime, request: Request): Prom
   // this route is the catalogue alone, and a stray `from_ts` is not worth a 400.
   let range: { fromTs: number; toTs: number } | null = null;
   let serviceId: string | null = null;
+  let extraServiceIds: string[] = [];
   if (rawServiceId) {
     const parsed = parseRange(searchParams);
     if ('error' in parsed) return parsed.error;
@@ -86,13 +100,16 @@ export async function resourcesRoute(rt: BookingRuntime, request: Request): Prom
     const known = await knownServiceId(rt, rawServiceId);
     if ('error' in known) return known.error;
     serviceId = known.serviceId;
+    const extras = await knownExtraServiceIds(rt, searchParams.get('extra_service_ids'), serviceId);
+    if ('error' in extras) return extras.error;
+    extraServiceIds = extras.extraServiceIds;
   }
 
   // Started before the stylist list is awaited, so the two reads overlap.
   // `firstOpeningPerResource` never rejects.
   const nextAvailable =
     serviceId !== null && range !== null
-      ? firstOpeningPerResource(rt, serviceId, range)
+      ? firstOpeningPerResource(rt, serviceId, extraServiceIds, range)
       : Promise.resolve({});
 
   let resources: MedalResource[];
@@ -112,7 +129,8 @@ export async function resourcesRoute(rt: BookingRuntime, request: Request): Prom
 }
 
 /**
- * Free slots for one service over one range, optionally narrowed to the
+ * Free slots for one visit over one range — one service, or one person's
+ * several (`extra_service_ids`) back to back — optionally narrowed to the
  * stylist chosen on step 2. Read through the slot cache (at most ~60 s old),
  * which the site's own create / move / cancel routes expire on success.
  */
@@ -131,11 +149,16 @@ export async function availabilityRoute(rt: BookingRuntime, request: Request): P
   if ('error' in known) return known.error;
   const { serviceId } = known;
 
+  const extras = await knownExtraServiceIds(rt, searchParams.get('extra_service_ids'), serviceId);
+  if ('error' in extras) return extras.error;
+  const { extraServiceIds } = extras;
+
   const resourceId = searchParams.get('resource_id')?.trim();
 
   try {
     const slots = await rt.catalogue.cachedAvailability({
       serviceId,
+      ...(extraServiceIds.length > 0 ? { extraServiceIds } : {}),
       // Omitted rather than passed as an empty string: `?resource_id=` with
       // nothing after it means «first available».
       ...(resourceId ? { resourceId } : {}),
@@ -171,12 +194,18 @@ export async function scheduleRoute(rt: BookingRuntime, request: Request): Promi
   if ('error' in known) return known.error;
   const { serviceId } = known;
 
+  const extras = await knownExtraServiceIds(rt, searchParams.get('extra_service_ids'), serviceId);
+  if ('error' in extras) return extras.error;
+  const { extraServiceIds } = extras;
+
   const resourceId = searchParams.get('resource_id')?.trim();
 
   try {
     const days = await rt.catalogue.cachedSchedule({
       ...(resourceId ? { resourceId } : {}),
       serviceId,
+      // The whole visit's hours: its last start leaves room for every service.
+      ...(extraServiceIds.length > 0 ? { extraServiceIds } : {}),
       fromTs: range.fromTs,
       toTs: range.toTs,
     });

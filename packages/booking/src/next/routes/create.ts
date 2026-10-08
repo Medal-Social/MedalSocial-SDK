@@ -13,11 +13,12 @@ import { MedalApiError } from '@medalsocial/sdk';
 import { after, NextResponse } from 'next/server';
 import { marketingConsent } from '../../core/consent';
 import type { BookingSlotDto } from '../../core/types';
+import { visitKeyOfIds } from '../../core/visit';
 import { type CreateBookingBody, MedalConfigError } from '../medal';
 import { PortalSessionExpiredError } from '../portal/medal-portal';
 import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
-import { bookingErrorResponse, isSlotTaken, parseRange } from './shared';
+import { bookingErrorResponse, isSlotTaken, MAX_EXTRA_SERVICES, parseRange } from './shared';
 
 /**
  * What the wizard submits. Every optional field here is one `WizardState`
@@ -31,6 +32,8 @@ import { bookingErrorResponse, isSlotTaken, parseRange } from './shared';
 interface CreateRequest {
   items?: Array<{
     serviceId?: unknown;
+    /** The rest of this person's visit after `serviceId` — see `extraServiceIdsOf`. */
+    extraServiceIds?: unknown;
     resourceId?: unknown;
     startTs?: unknown;
     bookedForName?: unknown;
@@ -84,26 +87,39 @@ function slotWindow(
 }
 
 /**
- * What is free NOW for each service in a refused booking, read live past the
+ * What is free NOW for each VISIT in a refused booking, read live past the
  * slot cache — the entry that offered the lost slot may still be there, since
- * the tag expiry lands after this response. Best effort per service: one that
- * fails is left out, and the wizard reads it the ordinary way.
+ * the tag expiry lands after this response. Keyed by visit key (`a+b` for a
+ * person having both, the bare id for one service), the key the wizard stores
+ * availability under: a visit's openings are not its first service's. Best
+ * effort per visit: one that fails is left out, and the wizard reads it the
+ * ordinary way.
  */
 async function liveSlotsFor(
   rt: BookingRuntime,
-  serviceIds: string[],
+  items: CreateBookingBody['items'],
   window: { fromTs: number; toTs: number }
 ): Promise<Record<string, BookingSlotDto[]>> {
+  const visits = new Map(
+    items.map((item) => {
+      const extraServiceIds = item.extra_service_ids ?? [];
+      return [visitKeyOfIds([item.service_id, ...extraServiceIds]), item] as const;
+    })
+  );
   const read = await Promise.all(
-    [...new Set(serviceIds)].map(async (serviceId) => {
+    [...visits].map(async ([visit, { service_id: serviceId, extra_service_ids }]) => {
       try {
         const slots = await rt.catalogue.cachedAvailability(
-          { serviceId, ...window },
+          {
+            serviceId,
+            ...(extra_service_ids ? { extraServiceIds: extra_service_ids } : {}),
+            ...window,
+          },
           { fresh: true }
         );
-        return [serviceId, slots.flatMap(rt.dto.toBookingSlotDto)] as const;
+        return [visit, slots.flatMap(rt.dto.toBookingSlotDto)] as const;
       } catch (error) {
-        rt.logger.warn({ err: error, serviceId }, 'Could not re-read openings after a taken slot');
+        rt.logger.warn({ err: error, visit }, 'Could not re-read openings after a taken slot');
         return null;
       }
     })
@@ -155,6 +171,36 @@ function invalid(message: string): NextResponse {
 }
 
 /**
+ * A line's `extraServiceIds` — the rest of this person's visit after
+ * `serviceId`, in order — or why not. Absent, `null` and `[]` are a
+ * one-service visit. Refused locally on everything the engine would refuse
+ * with a 422 (more than three, one twice, `serviceId` again), and on anything
+ * that is not a list of non-blank strings: a blank id is not «no extra», it is
+ * a wizard that lost track of what the person chose.
+ */
+function extraServiceIdsOf(
+  raw: unknown,
+  serviceId: string,
+  index: number
+): { ids: string[] } | { error: NextResponse } {
+  if (raw === undefined || raw === null) return { ids: [] };
+  const field = `items.${index}.extraServiceIds`;
+  if (!Array.isArray(raw)) return { error: invalid(`${field} must be a list of service ids`) };
+  const ids: string[] = [];
+  for (const entry of raw) {
+    const id = blankToUndefined(entry);
+    if (id === undefined) return { error: invalid(`${field} must be a list of service ids`) };
+    ids.push(id);
+  }
+  if (ids.length > MAX_EXTRA_SERVICES) {
+    return { error: invalid(`${field} must name at most ${MAX_EXTRA_SERVICES} services`) };
+  }
+  if (new Set(ids).size !== ids.length) return { error: invalid(`${field} names a service twice`) };
+  if (ids.includes(serviceId)) return { error: invalid(`${field} repeats serviceId`) };
+  return { ids };
+}
+
+/**
  * Turn the wizard's submission into Medal's create body, or say why not.
  *
  * Every rejection here is one the engine would also make. Answering locally is
@@ -203,8 +249,15 @@ function toMedalBody(body: CreateRequest): { body: CreateBookingBody } | { error
     if (!Number.isFinite(startTs)) {
       return { error: invalid(`items.${index}.startTs must be a timestamp`) };
     }
+    const extras = extraServiceIdsOf(item?.extraServiceIds, serviceId, index);
+    if ('error' in extras) return extras;
     items.push({
       service_id: serviceId,
+      // Only for a visit. Right after `service_id`, and absent rather than
+      // `[]` otherwise: the idempotency key hashes this body, so a one-service
+      // line must serialise exactly as it did before visits existed — and a
+      // visit's extras are part of what makes two submissions different.
+      ...(extras.ids.length > 0 ? { extra_service_ids: extras.ids } : {}),
       // `null` is the ORDINARY value here — «Første ledige» is the default
       // choice on step 2 and the one the salon prefers — and the engine's
       // `z.string().trim().min(1).optional()` refuses it.
@@ -506,7 +559,7 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
       // time step from them rather than re-reading through the cache.
       const freshSlots = await liveSlotsFor(
         rt,
-        serviceIds,
+        mapped.body.items,
         slotWindow(rt, (parsed as CreateRequest).window)
       );
       return NextResponse.json({ error: 'slotTaken', freshSlots }, { status: 409 });
@@ -515,8 +568,11 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   }
 }
 
+/** Every service a submission books — each visit's extras too, since a
+ * visit's slot entry is tagged with all of its services and a write to any of
+ * them must retire it. */
 function bookedServiceIds(body: CreateBookingBody): string[] {
-  return body.items.map((item) => item.service_id);
+  return body.items.flatMap((item) => [item.service_id, ...(item.extra_service_ids ?? [])]);
 }
 
 /** Medal's person ids are Convex ids; anything else is not one worth asking about. */

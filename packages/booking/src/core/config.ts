@@ -85,7 +85,18 @@ export interface BookingConfig {
   /** Where an unknown Medal category lands. Must be one of `categories`. */
   fallbackCategory: string;
   /** Step 1's rules. */
-  party: { maxPeople: number; allowParallel: boolean; askWhoFirst: boolean };
+  party: {
+    maxPeople: number;
+    allowParallel: boolean;
+    askWhoFirst: boolean;
+    /**
+     * How many services one person may book as a single visit (1–4; Medal's
+     * cap is 4). `1` — the default — is the one-tap service step: a tap
+     * answers it. Above `1`, `<BookingWizard>` draws the multi-select step:
+     * each person ticks up to this many, done back to back as one visit.
+     */
+    maxServicesPerPerson: number;
+  };
   /** The bookable window and the page's prefetch. */
   window: { rangeDays: number; prefetchLimit: number; prefetchCategory: string | null };
   /** Named day parts for the time step, contiguous from 0 to 24. */
@@ -180,7 +191,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       { key: 'annet', audience: 'any' },
     ],
     fallbackCategory: 'annet',
-    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true },
+    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
       { key: 'formiddag', from: 0, to: 12 },
@@ -336,6 +347,7 @@ const schema = z
       maxPeople: z.number().int().min(1).max(20),
       allowParallel: z.boolean(),
       askWhoFirst: z.boolean(),
+      maxServicesPerPerson: z.number().int().min(1).max(4),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(62),

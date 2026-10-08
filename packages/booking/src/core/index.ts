@@ -40,4 +40,5 @@ export * from './rebook-store';
 export * from './restore-gate';
 export * from './stores';
 export * from './types';
+export * from './visit';
 export * from './wire';

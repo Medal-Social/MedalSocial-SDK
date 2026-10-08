@@ -73,7 +73,7 @@ its own values in.
 | `paths` | `/bestill`, `/bestill/administrer`, `/min-side`, `/api/booking`, … | The URLs the site serves |
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
-| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true }` | Step 1's rules |
+| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste») |
 | `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
@@ -127,7 +127,7 @@ The override ladder, cheapest first, all public API:
    (see [Labels and text nodes](#labels-and-text-nodes)).
 3. **`classNames`** — per screen and slot: `classNames={{ who: { chip: '…' }, time: { chip: '…' } }}`.
 4. **`components`** — card renderers: `components={{ ServiceCard, StylistCard, TimeChip, … }}`.
-5. **`useBooking()`** — the wizard's whole state, fetches and actions, without its markup.
+5. **`useBooking()`** — the wizard's whole state, fetches and actions, without its markup. Several services per person: `toggleServiceFor(index, service)` ticks or unticks one (never advances) and `continueFromService()` moves on to the time step — for a multi-select service step; `pickService`/`pickServiceFor` keep the one-tap behaviour.
 
 `<BookingProvider config labels classNames components>` shares one set of
 these with every booking piece under it. Server actions stay in the app

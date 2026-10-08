@@ -22,6 +22,7 @@ import type { BookingConfig } from './config';
 import { resourceMatches } from './deep-link';
 import { fill, labelText, resolveLabels } from './labels';
 import { createMoney } from './money';
+import { visitKey, visitOf, visitPriceOre, visitServicesOf } from './visit';
 
 /**
  * The three steps the design draws, and the three the machine holds.
@@ -116,7 +117,13 @@ export interface WizardService {
 }
 
 export interface WizardItem {
+  /** The person's FIRST service. */
   service: WizardService;
+  /**
+   * The person's further services, performed back to back after `service` as
+   * ONE visit. Absent means one service — never `[]`.
+   */
+  extraServices?: WizardService[];
   /** The child this line is for. Asked inline in step 4. */
   bookedForName?: string;
   /** Optional fødselsår — powers "Jonas (9)" in the CRM later. */
@@ -148,6 +155,18 @@ export interface WizardState {
    * stays shut.
    */
   choices: Array<WizardService | null>;
+  /**
+   * Each person's FURTHER services, parallel to `people` and `choices` —
+   * `extras[i]` is what `people[i]` has after `choices[i]`, performed back to
+   * back as one visit. `[]` is one service, and so is a person whose `choices`
+   * entry is still `null`: an extra never stands without a first service.
+   *
+   * A second array rather than turning `choices` into lists, because meda keeps
+   * its own copy of this state's shape and reads `choices` and `item.service`
+   * as single services — the multi-service visit is additive, and a screen that
+   * has never heard of it keeps working on the first service.
+   */
+  extras: WizardService[][];
   items: WizardItem[];
   /** null = «Første ledige» — the default, and the utilisation-maximising one. */
   resourceId: string | null;
@@ -220,6 +239,12 @@ export interface WizardState {
   pendingService: WizardService | null;
   error:
     | 'maxParty'
+    /**
+     * One person asked for more services than `party.maxServicesPerPerson`
+     * allows — `toggleServiceFor` refusing the next one. A code like the rest:
+     * the sentence (and the number in it) belongs to whoever shows it.
+     */
+    | 'maxServices'
     | 'slotTaken'
     | 'conflict'
     | 'invalidInput'
@@ -271,6 +296,25 @@ export type WizardAction =
    */
   | {
       type: 'pickServiceFor';
+      index: number;
+      service: WizardService;
+      resourceServiceIds?: readonly string[];
+    }
+  /**
+   * The multi-select service card: a person's list gains the service, or loses
+   * it if it was already there. The first service a person gets is their
+   * `choices` entry, every later one an extra; removing the first promotes the
+   * next, and removing the last leaves the person unanswered.
+   *
+   * Never moves the visitor — unlike the one-tap `pickServiceFor`, a person
+   * choosing several services is not done after the first, so «Neste» is theirs
+   * (the shell's `goToStep('when')`). Refused with `maxServices` past the
+   * site's per-person ceiling and with `maxParty` when more people would take
+   * the service than its `maxPerBooking`. `resourceServiceIds` is
+   * `pickServiceFor`'s: the named stylist has to do the person's whole list.
+   */
+  | {
+      type: 'toggleServiceFor';
       index: number;
       service: WizardService;
       resourceServiceIds?: readonly string[];
@@ -457,6 +501,7 @@ export function initialState(): WizardState {
     step: 'who',
     people: [],
     choices: [],
+    extras: [],
     items: [],
     resourceId: null,
     stylistAnswered: false,
@@ -474,23 +519,63 @@ export function initialState(): WizardState {
 }
 
 /**
- * The strictest service involved sets the party limit — and the service about to
- * be added counts, not just the ones already chosen. Mirroring the engine rather
- * than inventing a ceiling: `bookings.ts` takes `Math.min` over every service in
- * the request and imposes no cap of its own, so the salon's real ceiling is
- * whatever it seeded (`maxPerBooking: 3` for `barn`, 1 for everything else). A
- * hardcoded number here would be a second, invisible rule that silently
- * disagreed with the salon's the day they changed it.
+ * The first service more people would take than its `maxPerBooking` allows, or
+ * `null` when every service is within its cap — the engine's party rule, given
+ * the lists as they WOULD be after the tap being judged.
  *
- * Counting the incoming service is what lets a strict one refuse at the tap
- * instead of at submit — the engine's own worked example is that a service with
- * `maxPerBooking: 1` cannot ride along in a party of four. It also disposes of
- * `Math.min()`-of-nothing: the spread always holds at least the incoming
- * service, so an empty basket yields that service's own limit rather than
- * `Infinity`, and `addService` cannot append forever.
+ * Per service, not per party. The engine used to cap the whole booking at the
+ * strictest service's number, which kept a grown-up's one-at-a-time cut out of
+ * any family visit; it now counts, for each service, the people taking it. So
+ * a «Skjegg» with `maxPerBooking: 1` rides along with two children's cuts, and
+ * two people on that «Skjegg» are still refused. Mirroring the engine rather
+ * than inventing a ceiling: a number of our own would be a second, invisible
+ * rule that disagreed with the salon's the day they changed it.
+ *
+ * A service counts at most once per person — a person's list never holds it
+ * twice, and if one did it would still be one chair.
  */
-function partyLimit(items: WizardItem[], incoming: WizardService): number {
-  return Math.min(incoming.maxPerBooking, ...items.map((item) => item.service.maxPerBooking));
+function overServiceCap(lists: ReadonlyArray<readonly WizardService[]>): WizardService | null {
+  const takers = new Map<string, { service: WizardService; people: number }>();
+  for (const list of lists) {
+    const once = new Map(list.map((service) => [service.id, service]));
+    for (const service of once.values()) {
+      const entry = takers.get(service.id) ?? { service, people: 0 };
+      entry.people += 1;
+      takers.set(service.id, entry);
+    }
+  }
+  for (const { service, people } of takers.values()) {
+    if (people > service.maxPerBooking) return service;
+  }
+  return null;
+}
+
+/**
+ * A person's extra services, tolerating a state that predates them. This
+ * package's own state always carries `extras` (`initialState`), but meda types
+ * the field optional and a custom shell may hold a state saved before 0.3 —
+ * reading `state.extras[i]` off that would throw at the first tap.
+ */
+function extrasAt(state: Pick<WizardState, 'extras'>, index: number): WizardService[] {
+  return state.extras?.[index] ?? [];
+}
+
+/** Person `index`'s services in order: their first, then their extras. */
+function servicesOf(state: WizardState, index: number): WizardService[] {
+  const first = state.choices[index] ?? null;
+  return first === null ? [] : [first, ...extrasAt(state, index)];
+}
+
+/** Whether a named stylist can do every service in a list. Absent ids are
+ * «the caller does not know», which keeps the preference — see `stylistAfterAdd`. */
+function canServeAll(
+  resourceServiceIds: readonly string[] | undefined,
+  services: readonly WizardService[]
+): boolean {
+  return (
+    resourceServiceIds === undefined ||
+    services.every((service) => resourceServiceIds.includes(service.id))
+  );
 }
 
 /** The one stylist a seating chart names throughout, or `null` when it names
@@ -519,9 +604,7 @@ function stylistAfterAdd(action: Extract<WizardAction, { type: 'addService' }>):
   resourceId?: null;
   stylistAnswered?: false;
 } {
-  const canServe =
-    action.resourceServiceIds === undefined ||
-    action.resourceServiceIds.includes(action.service.id);
+  const canServe = canServeAll(action.resourceServiceIds, [action.service]);
   // Releasing the preference un-answers the question with it: the parent chose
   // Sara and the machine took her away, so the next thing that can fill the
   // blank — a «Bestill igjen» link, say — is filling a genuine blank.
@@ -573,10 +656,17 @@ export function guestChild(n: number): WizardPerson {
   return { key: `guest:${n}` };
 }
 
-/** A person as a line item: the service, and what is known about who sits in the chair. */
-function itemFor(person: WizardPerson, service: WizardService): WizardItem {
+/** A person as a line item: the services, and what is known about who sits in the chair. */
+function itemFor(
+  person: WizardPerson,
+  service: WizardService,
+  extras: readonly WizardService[]
+): WizardItem {
   return {
     service,
+    // Absent rather than `[]`, the rule every optional field here follows: a
+    // one-service line has to look exactly as it did before visits had extras.
+    ...(extras.length === 0 ? {} : { extraServices: [...extras] }),
     ...(person.name === undefined ? {} : { bookedForName: person.name }),
     ...(person.birthYear === undefined ? {} : { bookedForBirthYear: person.birthYear }),
     ...(person.personId === undefined ? {} : { bookedForPersonId: person.personId }),
@@ -585,27 +675,47 @@ function itemFor(person: WizardPerson, service: WizardService): WizardItem {
   };
 }
 
+/** Every person's whole visit, so an extra added or removed reads as a changed
+ * basket — a Vask after the Klipp makes the visit fifteen minutes longer, and
+ * the slot chosen for the shorter one is no longer a slot anyone offered. */
 function basketOf(items: readonly WizardItem[]): string {
-  return items.map((item) => item.service.id).join('|');
+  return items.map((item) => visitKey(item)).join('|');
 }
 
 /**
- * `people` and `choices` in, the basket out — the one place `items` is built
- * from them. A basket whose services changed drops the slot, for the reason
- * `clearedSlot` gives; one that only changed WHO (a name typed on «Bekreft»,
- * say) keeps it.
+ * `people`, `choices` and `extras` in, the basket out — the one place `items`
+ * is built from them. A basket whose services changed drops the slot, for the
+ * reason `clearedSlot` gives; one that only changed WHO (a name typed on
+ * «Bekreft», say) keeps it.
+ *
+ * THE ALIGNMENT RULE: `extras[i]` belongs to `people[i]`, exactly as
+ * `choices[i]` does. Every action that rebuilds or reorders `people` either
+ * carries each surviving person's extras with them — matched by `key`, the way
+ * `choosePeople` and `seatFamily` carry `choices` — or resets them to `[]`
+ * where the person's first service is replaced by a one-tap pick: `pickService`
+ * replacing the basket clears every extra, `pickServiceFor` clears that
+ * person's, because a one-tap card means «this, and only this». A person added
+ * by a link or a sibling chip starts on `[]`. Required rather than defaulted, so
+ * no caller can drop a person's extras by forgetting to mention them.
+ *
+ * A person with no first service has no extras either, whatever was passed:
+ * an extra never stands alone.
  */
 function withParty(
   state: WizardState,
   people: WizardPerson[],
-  choices: Array<WizardService | null>
+  choices: Array<WizardService | null>,
+  extras: ReadonlyArray<readonly WizardService[]>
 ): WizardState {
+  const aligned = people.map((_, index) => (choices[index] ? [...extras[index]] : []));
   const complete = people.length > 0 && choices.every((choice) => choice !== null);
   const items = complete
-    ? people.map((person, index) => itemFor(person, choices[index] as WizardService))
+    ? people.map((person, index) =>
+        itemFor(person, choices[index] as WizardService, aligned[index])
+      )
     : [];
   const changed = basketOf(items) !== basketOf(state.items);
-  return { ...state, people, choices, items, ...(changed ? clearedSlot : {}) };
+  return { ...state, people, choices, extras: aligned, items, ...(changed ? clearedSlot : {}) };
 }
 
 /** The people behind a basket built without step 1 — a link, a restored draft. */
@@ -669,14 +779,16 @@ function seatFamily(state: WizardState): WizardState {
   if (!state.people.some(isGuestSeat)) return state;
   const people: WizardPerson[] = [];
   const choices: Array<WizardService | null> = [];
+  const extras: WizardService[][] = [];
   state.people.forEach((person, index) => {
     const seat = person.key === 'adult' ? { key: SELF_KEY, adult: true } : person;
     if (isGuestSeat(seat) || people.some((other) => other.key === seat.key)) return;
     people.push(seat);
     choices.push(state.choices[index] ?? null);
+    extras.push(extrasAt(state, index));
   });
   return {
-    ...withParty(state, people, choices),
+    ...withParty(state, people, choices, extras),
     step: people.length === 0 ? 'who' : state.step,
     error: null,
   };
@@ -694,7 +806,7 @@ function pickServiceFor(
   if (state.people.length <= 1) {
     const person = state.people[0] ?? guestChild(1);
     return {
-      ...withParty(state, [person], [action.service]),
+      ...withParty(state, [person], [action.service], [[]]),
       ...clearedSlot,
       resourceId: null,
       stylistAnswered: false,
@@ -702,18 +814,24 @@ function pickServiceFor(
       error: null,
     };
   }
-  // A family: the strictest service sets the limit, as `addService` has it.
-  if (action.service.maxPerBooking < state.people.length) {
-    return { ...state, error: 'maxParty' };
-  }
+  // A family: judged on the lists as they would be after the tap — this person
+  // on the one service, everybody else as they are — so a grown-up's
+  // one-at-a-time cut is refused only when somebody else already has it.
+  const lists = state.people.map((_, index) =>
+    index === action.index ? [action.service] : servicesOf(state, index)
+  );
+  if (overServiceCap(lists) !== null) return { ...state, error: 'maxParty' };
   const choices = state.choices.map((choice, index) =>
     index === action.index ? action.service : choice
   );
-  const canServe =
-    action.resourceServiceIds === undefined ||
-    action.resourceServiceIds.includes(action.service.id);
+  // A one-tap card is «this, and only this»: the person's extras go with the
+  // service they followed.
+  const extras = state.people.map((_, index) =>
+    index === action.index ? [] : extrasAt(state, index)
+  );
+  const canServe = canServeAll(action.resourceServiceIds, [action.service]);
   return {
-    ...withParty(state, state.people, choices),
+    ...withParty(state, state.people, choices, extras),
     ...(canServe ? {} : { resourceId: null, stylistAnswered: false }),
     error: null,
   };
@@ -805,7 +923,7 @@ export function itemStartTimes(
   partyMode: WizardState['partyMode']
 ): number[] {
   let offset = 0;
-  return items.map(({ service }, index) => {
+  return items.map((item, index) => {
     // The gap between two children on one chair is not the first cut's length.
     // It is that length PLUS the salon's cleanup after it PLUS the prep before
     // the next one — the interval the engine actually reserves. Advancing by
@@ -814,10 +932,15 @@ export function itemStartTimes(
     // its own, both instants come back free while the engine refuses the
     // combined submission. The family is offered a visit that cannot be made,
     // and offered it again every time they try.
+    //
+    // Per VISIT, not per service: a person with Klipp + Vask holds the chair for
+    // both, and the cleanup that matters is the one after their LAST service.
     if (partyMode === 'sequential' && index > 0) {
-      const previous = items[index - 1].service;
+      const previous = visitOf(items[index - 1]);
       offset +=
-        (previous.durationMinutes + previous.bufferAfterMinutes + service.bufferBeforeMinutes) *
+        (previous.durationMinutes +
+          previous.bufferAfterMinutes +
+          visitOf(item).bufferBeforeMinutes) *
         60_000;
     }
     return startTs + offset;
@@ -839,18 +962,20 @@ export function itemStartTimes(
  * length rather than a negative one.
  */
 export function visitMinutes(items: WizardItem[], partyMode: WizardState['partyMode']): number {
+  // Each person's whole visit — every service they chose, back to back.
+  const visits = items.map((item) => visitOf(item));
   if (partyMode === 'parallel') {
-    return Math.max(0, ...items.map(({ service }) => service.durationMinutes));
+    return Math.max(0, ...visits.map((visit) => visit.durationMinutes));
   }
   // The inner gaps count, for the same reason `itemStartTimes` applies them: the
   // family is in the salon from the first cut starting to the last one ending,
   // and the second child cannot sit down until the chair is ready. The buffer
   // AFTER the last child is not part of it — they have left by then.
-  return items.reduce(
-    (total, { service }, index) =>
+  return visits.reduce(
+    (total, visit, index) =>
       total +
-      service.durationMinutes +
-      (index === 0 ? 0 : items[index - 1].service.bufferAfterMinutes + service.bufferBeforeMinutes),
+      visit.durationMinutes +
+      (index === 0 ? 0 : visits[index - 1].bufferAfterMinutes + visit.bufferBeforeMinutes),
     0
   );
 }
@@ -858,11 +983,13 @@ export function visitMinutes(items: WizardItem[], partyMode: WizardState['partyM
 /**
  * How much EARLIER a family has to start than a single first child would.
  *
- * The schedule endpoint answers for one service, so `lastStartTs` is «the last
- * start a Gutteklipp fits» — the last minute at which that service's prep,
- * duration and cleanup all land inside the day's window. A family needs its
- * whole chain to fit, so its own last start is earlier by exactly the part of
- * the chain that hangs off the end of the first child's busy span.
+ * The schedule endpoint is asked for the FIRST person's whole visit — their
+ * service plus its extras — so `lastStartTs` is «the last start that visit
+ * fits»: the last minute at which its prep, every service's minutes and its
+ * cleanup all land inside the day's window. A family needs its whole chain to
+ * fit, so its own last start is earlier by exactly the part of the chain that
+ * hangs off the end of the first person's whole busy span — everybody after
+ * them.
  *
  * NOT `visitMinutes - firstDuration`, which was the first attempt and is wrong
  * in a way that only shows on a mixed basket: `visitMinutes` deliberately
@@ -878,21 +1005,19 @@ export function visitMinutes(items: WizardItem[], partyMode: WizardState['partyM
  * has to fit is the LONGEST busy span rather than the sum.
  */
 export function visitTailMinutes(items: WizardItem[], partyMode: WizardState['partyMode']): number {
-  const first = items[0]?.service;
+  const first = items[0];
   if (first === undefined || items.length < 2) return 0;
-  const busy = (service: WizardService) =>
-    service.bufferBeforeMinutes + service.durationMinutes + service.bufferAfterMinutes;
+  // A person's busy span is their whole visit: the first service's prep, every
+  // service's minutes, the last service's cleanup.
+  const busy = (item: WizardItem) => {
+    const visit = visitOf(item);
+    return visit.bufferBeforeMinutes + visit.durationMinutes + visit.bufferAfterMinutes;
+  };
 
   if (partyMode === 'parallel') {
-    return Math.max(0, Math.max(...items.map(({ service }) => busy(service))) - busy(first));
+    return Math.max(0, Math.max(...items.map(busy)) - busy(first));
   }
-  return items
-    .slice(1)
-    .reduce(
-      (total, { service }) =>
-        total + service.bufferBeforeMinutes + service.durationMinutes + service.bufferAfterMinutes,
-      0
-    );
+  return items.slice(1).reduce((total, item) => total + busy(item), 0);
 }
 
 /** When the family leaves. The same arithmetic as `visitMinutes`, which is why
@@ -980,6 +1105,8 @@ export interface Wizard {
   canAdvance: typeof canAdvance;
   canGoToStep: typeof canGoToStep;
   itemPriceOre(service: WizardService, startTs: number | null): number;
+  /** One person's whole visit: every service priced on its own, then summed. */
+  visitItemPriceOre(item: WizardItem, startTs: number | null): number;
   totalPriceOre(items: WizardItem[], startTs: number | null): number;
   itemStartTimes: typeof itemStartTimes;
   visitMinutes: typeof visitMinutes;
@@ -999,6 +1126,7 @@ export interface Wizard {
 /** The machine for one site: its party ceiling, kids' categories, clock, currency and words. */
 export function createWizard(config: WizardConfig): Wizard {
   const maxPeople = config.party.maxPeople;
+  const maxServices = config.party.maxServicesPerPerson;
   const clock = createClock(config);
   const money = createMoney(config);
   const labels = resolveLabels(config.locale, config.labels);
@@ -1019,6 +1147,12 @@ export function createWizard(config: WizardConfig): Wizard {
       // asked for a moment ago.
       return heldFor(state.pendingService, person) ?? action.services?.[position] ?? null;
     });
+    // Extras follow their person by the same key; a new person has none — the
+    // held link and «Samme som sist» are one service each.
+    const extras = action.people.map((person) => {
+      const index = before(person);
+      return index === -1 ? [] : extrasAt(state, index);
+    });
     // A guest chair that stays keeps what «Bekreft» was told about it: going
     // back and tapping «2 barn» again must not forget the names typed.
     const people = action.people.map((person) => {
@@ -1031,7 +1165,7 @@ export function createWizard(config: WizardConfig): Wizard {
     // through `pickServiceFor`, which releases a stylist who cannot do it —
     // adding a sibling is not a change of mind about Sara.
     return {
-      ...withParty(state, people, choices),
+      ...withParty(state, people, choices, extras),
       step: action.advance ? 'service' : state.step,
       error: null,
     };
@@ -1051,6 +1185,54 @@ export function createWizard(config: WizardConfig): Wizard {
     return choosePeople(state, { type: 'choosePeople', people: [...state.people, person] });
   }
 
+  /** `toggleServiceFor` — see the action. */
+  function toggleServiceFor(
+    state: WizardState,
+    action: Extract<WizardAction, { type: 'toggleServiceFor' }>
+  ): WizardState {
+    const seated = state.people[action.index] !== undefined;
+    if (!seated && !(action.index === 0 && state.people.length === 0)) return state;
+    // Nobody seated yet is the same guest child `pickServiceFor` seats — a
+    // service card tapped before step 1 was ever answered.
+    const people = seated ? state.people : [guestChild(1)];
+    const lists = people.map((_, index) => (seated ? servicesOf(state, index) : []));
+    const current = lists[action.index];
+    const has = current.some((service) => service.id === action.service.id);
+
+    let next: WizardService[];
+    if (has) {
+      next = current.filter((service) => service.id !== action.service.id);
+    } else {
+      // Both refusals change nothing but the error, `addService`'s rule: the
+      // services already chosen are exactly as the visitor left them.
+      if (current.length >= maxServices) return { ...state, error: 'maxServices' };
+      next = [...current, action.service];
+      const after = lists.map((list, index) => (index === action.index ? next : list));
+      if (overServiceCap(after) !== null) return { ...state, error: 'maxParty' };
+    }
+
+    // The head of the list is the person's `choices` entry — removing the first
+    // service promotes the next — and an emptied list is an unanswered person,
+    // which empties the basket the way any unanswered person does.
+    const choices = people.map((_, index) =>
+      index === action.index ? (next[0] ?? null) : (state.choices[index] ?? null)
+    );
+    const extras = people.map((_, index) =>
+      index === action.index ? next.slice(1) : extrasAt(state, index)
+    );
+    // The named stylist has to do the person's whole list, as `addService` has
+    // it for a whole basket; absent ids keep the preference.
+    const canServe = canServeAll(action.resourceServiceIds, next);
+    return {
+      ...withParty(state, people, choices, extras),
+      // Always, not only when the basket key changed: a toggle is a change to
+      // the question the slot answered, even one that ends where it began.
+      ...clearedSlot,
+      ...(canServe ? {} : { resourceId: null, stylistAnswered: false }),
+      error: null,
+    };
+  }
+
   function reduce(state: WizardState, action: WizardAction): WizardState {
     switch (action.type) {
       case 'startOver':
@@ -1064,6 +1246,9 @@ export function createWizard(config: WizardConfig): Wizard {
 
       case 'pickServiceFor':
         return pickServiceFor(state, action);
+
+      case 'toggleServiceFor':
+        return toggleServiceFor(state, action);
 
       case 'seatFamily':
         return seatFamily(state);
@@ -1090,8 +1275,10 @@ export function createWizard(config: WizardConfig): Wizard {
         //
         // `null` is «Første ledige», which is both the default and the answer the
         // salon would rather they gave.
+        //
+        // Every extra goes too: a one-tap card is «this, and only this».
         return {
-          ...withParty(state, peopleFor(state, 1), [action.service]),
+          ...withParty(state, peopleFor(state, 1), [action.service], [[]]),
           ...clearedSlot,
           resourceId: null,
           stylistAnswered: false,
@@ -1100,7 +1287,15 @@ export function createWizard(config: WizardConfig): Wizard {
         };
 
       case 'addService':
-        if (state.items.length >= partyLimit(state.items, action.service)) {
+        // The service being added counts with the basket — a fourth child on a
+        // `maxPerBooking: 3` cut is refused at the tap rather than at submit —
+        // and so does the party ceiling: with the per-service rule a basket of
+        // DIFFERENT services is no longer bounded by any one of their caps, and
+        // step 1 would never have seated that many people.
+        if (
+          state.items.length >= maxPeople ||
+          overServiceCap([...state.items.map(visitServicesOf), [action.service]]) !== null
+        ) {
           // "Changes nothing else" is the whole point: a refused fourth child
           // must leave the three already chosen exactly as they were.
           return { ...state, error: 'maxParty' };
@@ -1108,10 +1303,14 @@ export function createWizard(config: WizardConfig): Wizard {
         // No step change — adding a sibling happens on step 1, and yanking the
         // visitor forward mid-basket is how the third child gets lost.
         return {
-          ...withParty(state, peopleFor(state, state.items.length + 1), [
-            ...state.items.map((item) => item.service),
-            action.service,
-          ]),
+          ...withParty(
+            state,
+            peopleFor(state, state.items.length + 1),
+            [...state.items.map((item) => item.service), action.service],
+            // Everybody already in the basket keeps their visit; the newcomer
+            // has the one service they were added with.
+            [...state.items.map((item) => item.extraServices ?? []), []]
+          ),
           ...clearedSlot,
           // The named stylist has to cover the whole basket, and the basket just
           // grew. A stylist who cannot do the new child's service is one step 2
@@ -1320,8 +1519,10 @@ export function createWizard(config: WizardConfig): Wizard {
     let next = state;
     while (next.items.length < wanted) {
       const after = reduce(next, { type: 'addService', service });
-      // A refusal leaves the basket as it was; stop rather than spin.
-      /* v8 ignore next -- defensive: `wanted` never exceeds the service's own limit */
+      // A refusal leaves the basket as it was; stop rather than spin. The
+      // service's own limit is already in `wanted`, but the site's party ceiling
+      // (`party.maxPeople`) is not: «?antall=3» at a site that seats two stops
+      // at two, without an error, because the link asked and nobody tapped.
       if (after.items.length === next.items.length) break;
       next = after;
     }
@@ -1407,7 +1608,9 @@ export function createWizard(config: WizardConfig): Wizard {
     ) {
       const wantedResource = prefill.resourceId;
       const resource = catalogue.resources.find((entry) => resourceMatches(entry, wantedResource));
-      const basket = next.items.map((item) => item.service.id);
+      // Every service of every visit, extras included — a stylist who cuts but
+      // does not colour cannot take a Klipp + Farge.
+      const basket = next.items.flatMap((item) => visitServicesOf(item).map(({ id }) => id));
       if (resource !== undefined && basket.every((id) => resource.serviceIds.includes(id))) {
         next = reduce(next, { type: 'pickResource', resourceId: resource.id });
       }
@@ -1449,6 +1652,17 @@ export function createWizard(config: WizardConfig): Wizard {
   }
 
   /**
+   * What ONE person's whole visit costs — every service they chose, each priced
+   * by `itemPriceOre`. The line the confirmation card prints per person, and
+   * the unit `totalPriceOre` sums, so a line and the total cannot disagree.
+   */
+  function visitItemPriceOre(item: WizardItem, startTs: number | null): number {
+    // Each service on its own, surcharge included, then summed — never one
+    // percentage over the visit, since Klipp and Vask may carry different ones.
+    return visitPriceOre(visitServicesOf(item), (service) => itemPriceOre(service, startTs));
+  }
+
+  /**
    * What the visit costs, in øre, at the time it was booked for.
    *
    * Here rather than in either component that shows it, because both of them show
@@ -1457,7 +1671,7 @@ export function createWizard(config: WizardConfig): Wizard {
    * sort of rule that gets applied in one of two places.
    */
   function totalPriceOre(items: WizardItem[], startTs: number | null): number {
-    return items.reduce((sum, { service }) => sum + itemPriceOre(service, startTs), 0);
+    return items.reduce((sum, item) => sum + visitItemPriceOre(item, startTs), 0);
   }
 
   /**
@@ -1476,7 +1690,15 @@ export function createWizard(config: WizardConfig): Wizard {
     // `showsPartyMode` and not a second `length > 1`: the bar changing shape and
     // step 2 growing a question are the same event, and two spellings of it is
     // how the bar ends up aggregating a booking the wizard still calls single.
-    if (!showsPartyMode(state)) return items[0].service.name;
+    //
+    // One person with several services is still one visit, named — «Klipp +
+    // Vask». A plus reads as one booking where the bar's own separator would
+    // not, and the family aggregate counts people, of whom there is one.
+    if (!showsPartyMode(state)) {
+      return visitServicesOf(items[0])
+        .map((service) => service.name)
+        .join(' + ');
+    }
     return `${fill(labels['summary.services'], { count: items.length })}${SEPARATOR}${fill(
       labels['summary.totalMinutes'],
       { minutes: visitMinutes(items, state.partyMode) }
@@ -1587,6 +1809,7 @@ export function createWizard(config: WizardConfig): Wizard {
     canAdvance,
     canGoToStep,
     itemPriceOre,
+    visitItemPriceOre,
     totalPriceOre,
     itemStartTimes,
     visitMinutes,

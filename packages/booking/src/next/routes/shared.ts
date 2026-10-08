@@ -89,6 +89,55 @@ export async function knownServiceId(
 }
 
 /**
+ * How many services one person's visit may add after the first — the engine's
+ * own bound (four services in all), refused here so a visitor's query string
+ * cannot make it a Medal call.
+ */
+export const MAX_EXTRA_SERVICES = 3;
+
+/**
+ * `extra_service_ids` from the query string — the rest of ONE person's visit
+ * after `service_id`, comma-separated, in order. Blank entries are dropped, so
+ * an absent, empty or `,`-only value is a one-service visit (`[]`).
+ *
+ * Held to everything the engine would refuse with a 422 (more than three, one
+ * twice, `service_id` again) and to what `knownServiceId` holds `service_id` to
+ * (the shape, and a service the catalogue has), for the same reason: every id
+ * here lands in a cache key and a cache tag. Call it after `knownServiceId`.
+ */
+export async function knownExtraServiceIds(
+  rt: Pick<BookingRuntime, 'logger' | 'catalogue'>,
+  raw: string | null,
+  serviceId: string
+): Promise<{ extraServiceIds: string[] } | { error: NextResponse }> {
+  const ids = (raw ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+  if (ids.length === 0) return { extraServiceIds: [] };
+  const refuse = (message: string) => ({
+    error: bookingErrorResponse('invalidInput', 400, message),
+  });
+  if (ids.length > MAX_EXTRA_SERVICES) {
+    return refuse(`extra_service_ids must name at most ${MAX_EXTRA_SERVICES} services`);
+  }
+  if (new Set(ids).size !== ids.length) return refuse('extra_service_ids names a service twice');
+  if (ids.includes(serviceId)) return refuse('extra_service_ids repeats service_id');
+  if (!ids.every((id) => SERVICE_ID_SHAPE.test(id))) {
+    return refuse('extra_service_ids is malformed');
+  }
+  let services: Array<{ id: string }>;
+  try {
+    services = await rt.catalogue.cachedServices();
+  } catch (error) {
+    return { error: catalogueErrorResponse(rt, error, 'services') };
+  }
+  const known = new Set(services.map((service) => service.id));
+  if (!ids.every((id) => known.has(id))) return refuse('Unknown service in extra_service_ids');
+  return { extraServiceIds: ids };
+}
+
+/**
  * The engine's «that slot is no longer free».
  *
  * It arrives as `CONFLICT` with `SLOT_TAKEN` in the message: the SDK exposes no

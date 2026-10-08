@@ -5,6 +5,7 @@ import {
   findPartySlots,
   firstPartyStartPerResource,
   type PartySlot,
+  slotKeysFor,
 } from '../../src/core/party-slots';
 import type { BookingSlotDto } from '../../src/core/types';
 import { PARITY_CONFIG } from '../support/parity-config';
@@ -385,5 +386,98 @@ describe('firstPartyStartPerResource', () => {
 
   it('answers nothing for an empty basket', () => {
     expect(firstPartyStartPerResource([], basket)).toEqual({});
+  });
+});
+
+/**
+ * One person, several services, one visit. The server answers a visit's
+ * availability as ONE list — spans as long as the whole visit, on stylists who
+ * do every part of it — and the wizard stores it under the visit's key. A
+ * search that still read the first service's own list would offer a stylist who
+ * can cut but not wash, at a minute where only the cut fits.
+ */
+describe('party seating — a person with several services', () => {
+  const KLIPP: WizardService = { ...GUTTEKLIPP, id: 'svc-klipp', name: 'Klipp' };
+  const VASK: WizardService = {
+    ...GUTTEKLIPP,
+    id: 'svc-vask',
+    name: 'Vask',
+    durationMinutes: 15,
+    bufferAfterMinutes: 5,
+  };
+  const SKJEGG: WizardService = {
+    ...GUTTEKLIPP,
+    id: 'svc-skjegg',
+    name: 'Skjegg',
+    bufferBeforeMinutes: 10,
+  };
+  const KLIPP_VASK: WizardItem = { service: KLIPP, extraServices: [VASK] };
+  const VISIT = `${KLIPP.id}+${VASK.id}`;
+
+  it('reads the visit’s own slots, not its first service’s', () => {
+    const found = findPartySlots(
+      [KLIPP_VASK],
+      {
+        [KLIPP.id]: slots(['res-marcus', '10:00']),
+        [VISIT]: slots(['res-sara', '15:00']),
+      },
+      'sequential'
+    );
+    expect(found.map((slot) => slot.startTs)).toEqual([at('15:00')]);
+    expect(stylistsOf(found[0])).toEqual(['res-sara']);
+  });
+
+  it('finds nothing when only the first service’s slots are stored', () => {
+    expect(
+      findPartySlots([KLIPP_VASK], { [KLIPP.id]: slots(['res-sara', '15:00']) }, 'sequential')
+    ).toEqual([]);
+  });
+
+  /** 30 + 15 of visit, Vask's 5 of cleanup, Skjegg's 10 of prep: 60 minutes on. */
+  it('seats the next person after the whole visit and its buffers', () => {
+    const found = findPartySlots(
+      [KLIPP_VASK, { service: SKJEGG }],
+      {
+        [VISIT]: slots(['res-sara', '15:00']),
+        [SKJEGG.id]: slots(['res-sara', '15:45'], ['res-sara', '16:00']),
+      },
+      'sequential'
+    );
+    expect(found).toHaveLength(1);
+    expect(seatingOf(found[0])).toEqual(['15:00', '16:00']);
+    expect(stylistsOf(found[0])).toEqual(['res-sara', 'res-sara']);
+  });
+
+  it('seats a visit in parallel from that visit’s slots', () => {
+    const found = findPartySlots(
+      [{ service: SKJEGG }, KLIPP_VASK],
+      {
+        [SKJEGG.id]: slots(['res-sara', '15:00'], ['res-marcus', '15:00']),
+        // Marcus can cut at 15:00 but not cut AND wash: only the visit's list knows.
+        [KLIPP.id]: slots(['res-marcus', '15:00']),
+        [VISIT]: slots(['res-sara', '15:00']),
+      },
+      'parallel'
+    );
+    expect(found).toHaveLength(1);
+    expect(stylistsOf(found[0])).toEqual(['res-marcus', 'res-sara']);
+  });
+
+  it('gives each stylist their first start for a basket holding a visit', () => {
+    expect(
+      firstPartyStartPerResource([KLIPP_VASK, { service: SKJEGG }], {
+        [VISIT]: slots(['res-sara', '15:00'], ['res-bjarne', '09:00']),
+        [SKJEGG.id]: slots(['res-sara', '16:00'], ['res-bjarne', '09:45']),
+      })
+    ).toEqual({ 'res-sara': at('15:00') });
+  });
+
+  it('lists each distinct visit key once, in basket order', () => {
+    expect(slotKeysFor([KLIPP_VASK, { service: SKJEGG }, KLIPP_VASK, { service: KLIPP }])).toEqual([
+      VISIT,
+      SKJEGG.id,
+      KLIPP.id,
+    ]);
+    expect(slotKeysFor([])).toEqual([]);
   });
 });

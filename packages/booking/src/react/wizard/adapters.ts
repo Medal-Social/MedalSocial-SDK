@@ -21,6 +21,7 @@ import { normaliseCategory } from '../../core/categories';
 import { fill, labelText } from '../../core/labels';
 import { SELF_KEY, type WizardItem, type WizardPerson, type WizardState } from '../../core/machine';
 import type { BookingFamilyMember, BookingServiceDto } from '../../core/types';
+import { visitOf, visitServicesOf } from '../../core/visit';
 import type { BookingKit } from '../kit';
 import type { BookingLabels } from '../labels';
 import type { BookingConfirmation, BookingSuggestion } from '../useBooking';
@@ -163,7 +164,13 @@ export function weekendNoteFor(
   dayTs: number
 ): WeekendNote | null {
   if (items.length === 0) return null;
-  const rates = [...new Set(items.map((item) => item.service.weekendSurchargePct))];
+  // Every service of every visit: a wash on a Saturday pays its own rate even
+  // when the cut beside it does not.
+  const rates = [
+    ...new Set(
+      items.flatMap((item) => visitServicesOf(item).map((service) => service.weekendSurchargePct))
+    ),
+  ];
   if (rates.every((rate) => rate <= 0)) return null;
   return {
     pct: rates.length === 1 ? rates[0] : null,
@@ -218,13 +225,20 @@ export function confirmationProps(
   const lines = confirmationLines(confirmation).map((line, index) => ({
     ...line,
     startTs: starts[index],
-    priceOre: wizard.itemPriceOre(line.item.service, submitted.startTs),
+    // The WHOLE visit's price, each service with its own surcharge — the same
+    // function `totalPriceOre` sums, so the lines add up to «Totalt».
+    priceOre: wizard.visitItemPriceOre(line.item, submitted.startTs),
   }));
   const absolute = (href: string) => (siteUrl ? new URL(href, siteUrl).toString() : href);
   const calendarHref = kit.ics.icsDataUrl(
     kit.ics.buildIcs(
       lines.map((line) => {
-        const { service, bookedForName } = line.item;
+        const { bookedForName } = line.item;
+        // One calendar entry per person: as long as their whole visit, named
+        // after every service in it.
+        const names = visitServicesOf(line.item)
+          .map((service) => service.name)
+          .join(' + ');
         const description = [
           fill(labels['wizard.ics.price'], { price: format.price(line.priceOre) }),
         ];
@@ -234,9 +248,9 @@ export function confirmationProps(
         return {
           uid: line.bookingId,
           startTs: line.startTs,
-          endTs: line.startTs + service.durationMinutes * 60_000,
+          endTs: line.startTs + visitOf(line.item).durationMinutes * 60_000,
           summary: fill(labels[bookedForName ? 'wizard.ics.titleFor' : 'wizard.ics.title'], {
-            service: service.name,
+            service: names,
             name: bookedForName ?? '',
             business: config.contact.name,
           }),
