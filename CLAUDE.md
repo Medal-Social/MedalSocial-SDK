@@ -13,7 +13,7 @@ and is never published.
 | Package | Directory | Registries |
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
-| `@medalsocial/booking` | `packages/booking` | npm only (provenance); published since 0.1.0 (latest 0.2.0), pre-1.0 |
+| `@medalsocial/booking` | `packages/booking` | npm only (provenance); published since 0.1.0, pre-1.0 — current version in `packages/booking/package.json` / its CHANGELOG |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
