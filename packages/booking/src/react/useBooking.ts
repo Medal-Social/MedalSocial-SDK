@@ -1024,18 +1024,28 @@ export function useBooking(options: UseBookingOptions) {
 
   // `null`, not `[]`, until this service's hours are in hand: «we do not know».
   // A named stylist's own week replaces the salon's when it arrives. Until then
-  // the salon answer stays, so the time step does not unmount mid-tap.
+  // the salon answer stays, so the time step does not unmount mid-tap. A failed
+  // read is not «still waiting»: their hours are unknown, and the salon week
+  // must not stay on screen as theirs.
   const openDays = useMemo<BookingDayDto[] | null>(() => {
     if (primaryVisit === null || scheduleKey === null) return null;
     if (fetchedSchedule?.key === scheduleKey) return fetchedSchedule.days;
     if (state.resourceId === null) {
       return seededSchedule[primaryVisit] ?? null;
     }
+    if (scheduleFailedFor === scheduleKey) return null;
     return (
       seededSchedule[primaryVisit] ??
       (fetchedSchedule?.key === primaryVisit ? fetchedSchedule.days : null)
     );
-  }, [primaryVisit, state.resourceId, scheduleKey, seededSchedule, fetchedSchedule]);
+  }, [
+    primaryVisit,
+    state.resourceId,
+    scheduleKey,
+    seededSchedule,
+    fetchedSchedule,
+    scheduleFailedFor,
+  ]);
 
   useEffect(() => {
     if (primaryVisit === null || scheduleKey === null) return;
@@ -1056,7 +1066,8 @@ export function useBooking(options: UseBookingOptions) {
         setFetchedSchedule({ key, days: body.days ?? [] });
       } catch {
         // Left `null`: the hours are unknown, which is not the same as «closed».
-        if (!cancelled) setScheduleFailedFor(primaryVisit);
+        // Keyed like the success, so one stylist's failure does not settle the next.
+        if (!cancelled) setScheduleFailedFor(key);
       }
     })();
 
@@ -1112,7 +1123,7 @@ export function useBooking(options: UseBookingOptions) {
   const party = wizard.showsPartyMode(state);
   const haveEveryService = basketVisits.every((key) => key in slots);
   const scheduleSettled =
-    openDays !== null || (primaryVisit !== null && scheduleFailedFor === primaryVisit);
+    openDays !== null || (scheduleKey !== null && scheduleFailedFor === scheduleKey);
   const nextAvailableLoading = party
     ? !haveEveryService && !slotsFailed
     : primaryVisit !== null &&

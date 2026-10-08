@@ -1100,6 +1100,55 @@ describe('useBooking — the corners', () => {
     expect(result.current.schedule.openDays).toHaveLength(OPEN_WEEK.length);
   });
 
+  it('treats a failed stylist schedule as unknown hours, not the salon week', async () => {
+    stubApi({ schedule: { status: 500, body: {} } });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    expect(result.current.schedule.openDays).toHaveLength(OPEN_WEEK.length);
+
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toBeNull());
+    // Settled, so the time step stays up and can say the hours are unknown.
+    expect(result.current.schedule.settled).toBe(true);
+  });
+
+  it('does not settle the next stylist off the previous stylist’s failed read', async () => {
+    let calls = 0;
+    const { urls } = stubApi({
+      schedule: () => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+        }
+        return new Promise(() => undefined);
+      },
+    });
+    const { result } = renderHook(() =>
+      useBooking(options({ seed: { services: [KIDS], resources: [BJARNE, OLA], fromTs: NOW } }))
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    await waitFor(() => expect(result.current.schedule.settled).toBe(true));
+
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(urls.some((url) => url.includes(`resource_id=${BJARNE.id}`))).toBe(true)
+    );
+    expect(result.current.schedule.settled).toBe(false);
+  });
+
   it('forgets a failed read that lands after the visitor moved on', async () => {
     const pending: Array<() => void> = [];
     const fail = () => {
