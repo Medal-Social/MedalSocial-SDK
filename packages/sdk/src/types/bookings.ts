@@ -101,8 +101,9 @@ export interface Booking {
   /**
    * Every service of a multi-service visit, in the order performed — `null`
    * for an ordinary one-service booking. `service_id` is the first line's.
+   * Optional: a server older than multi-service visits leaves it out.
    */
-  services: BookingVisitService[] | null;
+  services?: BookingVisitService[] | null;
   /** Customer-visible note. */
   notes: string | null;
   /** Staff-only note; never shown to the customer. */

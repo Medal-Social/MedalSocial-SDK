@@ -275,13 +275,14 @@ describe('useBooking — a visit of several services', () => {
     expect(result.current.confirmed?.submitted.items[0].extraServices).toEqual([WASH]);
   });
 
-  it('sends a body of another length as it came, and says so', async () => {
+  it('refuses a body of another length rather than book the first service only', async () => {
     const { bodies } = stubApi();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { result } = renderHook(() => useBooking(options()));
     oneGuestWith(result, [CUT, WASH]);
     await act(() => result.current.submit(submission(2)));
-    expect(bodies[0].items.every((line) => !('extraServiceIds' in line))).toBe(true);
+    expect(bodies).toHaveLength(0);
+    expect(result.current.state.error).toBe('invalidInput');
     expect(warn).toHaveBeenCalledOnce();
   });
 

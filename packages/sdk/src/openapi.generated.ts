@@ -2103,7 +2103,7 @@ export interface components {
       /** @description Price in integer øre. Never a float and never kroner. */
       amount_ore: number | null;
       /** @description Every service of a multi-service visit, in the order performed; null for an ordinary one-service booking. */
-      services: components["schemas"]["BookingVisitService"][] | null;
+      services?: components["schemas"]["BookingVisitService"][] | null;
       /** @description Customer-visible note. */
       notes: string | null;
       /** @description Staff-only note; never shown to the customer. */

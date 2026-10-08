@@ -3613,7 +3613,6 @@ components:
         - cancelled_by
         - cancel_reason
         - rescheduled_from_id
-        - services
         - payment_status
         - payment_mode
         - amount_ore

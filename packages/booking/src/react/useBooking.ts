@@ -147,15 +147,18 @@ function windowQuery(key: string, fromTs: number, toTs: number): URLSearchParams
 function withExtraServices(
   submission: BookingSubmission,
   items: ReadonlyArray<SubmittedVisit['items'][number]>
-): BookingSubmission {
+): BookingSubmission | null {
   if (!items.some((item) => (item.extraServices ?? []).length > 0)) return submission;
+  // Lines that cannot be matched to the basket are REFUSED, not sent bare: a
+  // body without the extras books the first service only, while the card and
+  // the calendar entry would describe the whole visit.
   if (submission.items.length !== items.length) {
     console.warn(
-      '[@medalsocial/booking] The submission has %d lines for a basket of %d; sent without extra services.',
+      '[@medalsocial/booking] The submission has %d lines for a basket of %d; not sent.',
       submission.items.length,
       items.length
     );
-    return submission;
+    return null;
   }
   return {
     ...submission,
@@ -1209,7 +1212,12 @@ export function useBooking(options: UseBookingOptions) {
     }
     // Read BEFORE the await: the card describes what left the browser.
     const resourceIds = wizard.itemResourceIds(state);
-    await send(withExtraServices(submission, state.items), {
+    const body = withExtraServices(submission, state.items);
+    if (body === null) {
+      dispatch({ type: 'submitFailed', error: 'invalidInput' });
+      return;
+    }
+    await send(body, {
       items: state.items,
       startTs: state.startTs ?? 0,
       partyMode: state.partyMode,
