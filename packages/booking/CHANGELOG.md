@@ -1,5 +1,18 @@
 # @medalsocial/booking
 
+## 0.2.0
+
+### Minor Changes
+
+- [#185](https://github.com/Medal-Social/MedalSocial-SDK/pull/185) [`ecf1912`](https://github.com/Medal-Social/MedalSocial-SDK/commit/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1) Thanks [@alioftech](https://github.com/alioftech)! - Several services per person as one visit: the wizard machine holds a person's extra services, the site routes take `extra_service_ids` on availability, schedule and stylists and `extraServiceIds` on create, and `useBooking()` fetches, seats, submits, stashes and confirms the whole visit. New hook actions `toggleServiceFor(index, service)` and `continueFromService()` are ready for a multi-select service screen.
+  
+  `<BookingWizard>` draws meda 3.5's multi-select service step when `party.maxServicesPerPerson` is above `1`: each person ticks up to that many services, the step's own bar shows the visit's total, and «Neste» moves on once everyone has one. The default is `1`, the one-tap step every site has today. The meda peer is now `^3.5.0`.
+
+### Patch Changes
+
+- Updated dependencies [[`ecf1912`](https://github.com/Medal-Social/MedalSocial-SDK/commit/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1)]:
+  - @medalsocial/sdk@1.13.0
+
 ## 0.1.0
 
 ### Minor Changes
