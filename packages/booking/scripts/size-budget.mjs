@@ -92,10 +92,14 @@ const BUDGETS = [
     // hook, the provider, the login sheet it offers and the booking link. The
     // label packs are NOT in it: the page resolves its pack on the server
     // (`/react/shared`) and passes it as a prop.
+    // Raised 15 → 15.5 KB with the multi-select service step: «Samme som sist»
+    // has to join a visit rather than replace it once a person has ticked
+    // something, which measured 15.06 KB. Same raise, same reason, as the
+    // wizard-entry budget below.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 15 * 1024,
+    gzipBytes: 15.5 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -111,10 +115,14 @@ const BUDGETS = [
     // `'use client'` entry as one unit (Turbopack does) ships all of each, so
     // this is the honest measure of the page. It must stay well under the
     // `/react` barrel below; that gap is the manage page and the portal.
+    // Raised 15 → 15.5 KB for the multi-select service step (meda 3.5's
+    // `ServiceScreen` `selection`): the wizard hands it the visit's lists,
+    // total, refusal notice and labels — reusing the hook's derived values —
+    // and hides its own bar on that step. Measured 15.13 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 15 * 1024,
+    gzipBytes: 15.5 * 1024,
   },
   {
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',

@@ -55,7 +55,7 @@ export const PARITY_CONFIG = resolveBookingConfig({
     { key: 'annet', audience: 'any' },
   ],
   fallbackCategory: 'annet',
-  party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 3 },
+  party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
   window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: 'barn' },
   dayparts: [
     { key: 'formiddag', from: 0, to: 12 },
@@ -85,3 +85,9 @@ export const PARITY_CONFIG = resolveBookingConfig({
   ics: { prodId: '-//Salong Demo//Booking//NO', uidDomain: 'booking.demo.invalid' },
   monitoring: { enabled: true, sampleRate: 1 },
 });
+
+/** The parity fixture with the multi-select service step on: up to 3 services a person. */
+export const MULTI_SERVICE_CONFIG = {
+  ...PARITY_CONFIG,
+  party: { ...PARITY_CONFIG.party, maxServicesPerPerson: 3 },
+};

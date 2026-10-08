@@ -89,7 +89,12 @@ export interface BookingConfig {
     maxPeople: number;
     allowParallel: boolean;
     askWhoFirst: boolean;
-    /** How many services one person may book as a single visit (1–4; Medal's cap is 4). */
+    /**
+     * How many services one person may book as a single visit (1–4; Medal's
+     * cap is 4). `1` — the default — is the one-tap service step: a tap
+     * answers it. Above `1`, `<BookingWizard>` draws the multi-select step:
+     * each person ticks up to this many, done back to back as one visit.
+     */
     maxServicesPerPerson: number;
   };
   /** The bookable window and the page's prefetch. */
@@ -186,7 +191,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       { key: 'annet', audience: 'any' },
     ],
     fallbackCategory: 'annet',
-    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 3 },
+    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
       { key: 'formiddag', from: 0, to: 12 },
