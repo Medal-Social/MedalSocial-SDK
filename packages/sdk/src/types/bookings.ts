@@ -96,8 +96,14 @@ export interface Booking {
    * this is the field that does.
    */
   payment_mode: BookingPaymentMode;
-  /** Price in integer øre. */
+  /** Price in integer øre — for a multi-service visit, the sum of its lines. */
   amount_ore: number | null;
+  /**
+   * Every service of a multi-service visit, in the order performed — `null`
+   * for an ordinary one-service booking. `service_id` is the first line's.
+   * Optional: a server older than multi-service visits leaves it out.
+   */
+  services?: BookingVisitService[] | null;
   /** Customer-visible note. */
   notes: string | null;
   /** Staff-only note; never shown to the customer. */
@@ -105,6 +111,15 @@ export interface Booking {
   created_via: BookingCreatedVia | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+/** One service of a multi-service visit, frozen when it was booked. */
+export interface BookingVisitService {
+  service_id: string;
+  name: string;
+  duration_minutes: number;
+  /** This service's share of the booking's `amount_ore`, surcharge included. */
+  amount_ore: number;
 }
 
 /** A bookable service in the workspace catalogue. */
@@ -185,9 +200,20 @@ export interface BookingScheduleDay {
   last_start_ts: string | null;
 }
 
-/** One line of a party booking — a single service on a single slot. */
+/**
+ * One line of a party booking — one PERSON on one slot, with one service or
+ * a visit of several.
+ */
 export interface CreateBookingItemInput {
   service_id: string;
+  /**
+   * The rest of this person's visit after `service_id` (at most 3 more, each
+   * once), performed back to back by the same resource. It is ONE booking
+   * whose duration and amount are the sums, with the lines in
+   * {@link Booking.services}. Ask `availability` with the same ids for its
+   * slots.
+   */
+  extra_service_ids?: string[];
   /** Leave unset to let the engine pick a free resource. */
   resource_id?: string;
   start_ts: BookingTimestampInput;
@@ -461,6 +487,12 @@ export interface ListBookingServicesOptions {
  */
 export interface BookingScheduleOptions {
   service_id: string;
+  /**
+   * The rest of ONE person's visit after `service_id`, performed back to back
+   * by the same resource (at most 4 services in all, each once). Slots then
+   * span the whole visit and only resources performing every service count.
+   */
+  extra_service_ids?: string[];
   from_ts: BookingTimestampInput;
   /** Must be after `from_ts`. */
   to_ts: BookingTimestampInput;
@@ -471,6 +503,12 @@ export interface BookingScheduleOptions {
 /** Options for querying free slots. The window is required and half-open. */
 export interface BookingAvailabilityOptions {
   service_id: string;
+  /**
+   * The rest of ONE person's visit after `service_id`, performed back to back
+   * by the same resource (at most 4 services in all, each once). Slots then
+   * span the whole visit and only resources performing every service count.
+   */
+  extra_service_ids?: string[];
   from_ts: BookingTimestampInput;
   /** Must be after `from_ts`. */
   to_ts: BookingTimestampInput;

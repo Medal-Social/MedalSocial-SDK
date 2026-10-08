@@ -23,6 +23,7 @@
 import { type ClockConfig, createClock } from './clock';
 import { itemStartTimes, type WizardItem, type WizardState } from './machine';
 import type { BookingSlotDto } from './types';
+import { visitKey } from './visit';
 
 /** One child's place in the visit: when they sit down, and with whom. */
 export interface PartySeat {
@@ -49,11 +50,21 @@ export interface PartySlot {
   seats: PartySeat[];
 }
 
-/** Availability as the wizard collects it: one query per service in the
- * basket, keyed by `service.id`. Two children sharing a service share the
+/** Availability as the wizard collects it: one query per VISIT in the basket,
+ * keyed by `visitKey` — a service id for a one-service visit, `a+b` for a
+ * person having both. The server answers a visit as one list (spans as long as
+ * the whole visit, on stylists who do every part of it), so it has to be stored
+ * and read under the visit's key: the first service's own list would offer a
+ * stylist who can cut but not wash. Two children sharing a visit share the
  * entry — which is exactly why the parallel search has to insist on distinct
  * stylists rather than trusting the lists to differ. */
 export type SlotsByService = Readonly<Record<string, readonly BookingSlotDto[]>>;
+
+/** The keys a basket's availability is fetched and stored under: each distinct
+ * visit once, in basket order — the list the wizard asks the route for. */
+export function slotKeysFor(items: readonly WizardItem[]): string[] {
+  return [...new Set(items.map((item) => visitKey(item)))];
+}
 
 /** `resource@instant`, the unit both searches ask about. */
 function seatKey(resourceId: string, startTs: number): string {
@@ -62,7 +73,7 @@ function seatKey(resourceId: string, startTs: number): string {
 
 /**
  * The catalogue, indexed for the only question either search asks: is this
- * stylist free for this service at this exact minute?
+ * stylist free for this visit at this exact minute?
  *
  * Slots with no `resourceId` are dropped rather than treated as «anybody». The
  * wire type is nullable because `medal-client.ts` types every field the way the
@@ -71,10 +82,10 @@ function seatKey(resourceId: string, startTs: number): string {
  * stylists or one stylist promised twice.
  */
 function indexAvailability(slotsByService: SlotsByService): {
-  free: (serviceId: string, resourceId: string, startTs: number) => boolean;
+  free: (key: string, resourceId: string, startTs: number) => boolean;
   resourceOrder: string[];
 } {
-  const byService = new Map<string, Set<string>>();
+  const byVisit = new Map<string, Set<string>>();
   // First-encounter order across the whole catalogue: the tie-break when two
   // stylists could both take the same slot. It follows whatever order the
   // availability route returned, which is the engine's own resource order, so
@@ -83,8 +94,8 @@ function indexAvailability(slotsByService: SlotsByService): {
   const resourceOrder: string[] = [];
   const seen = new Set<string>();
 
-  for (const [serviceId, slots] of Object.entries(slotsByService)) {
-    const keys = byService.get(serviceId) ?? new Set<string>();
+  for (const [key, slots] of Object.entries(slotsByService)) {
+    const keys = byVisit.get(key) ?? new Set<string>();
     for (const slot of slots) {
       if (slot.resourceId === null) continue;
       keys.add(seatKey(slot.resourceId, slot.startTs));
@@ -93,18 +104,18 @@ function indexAvailability(slotsByService: SlotsByService): {
         resourceOrder.push(slot.resourceId);
       }
     }
-    byService.set(serviceId, keys);
+    byVisit.set(key, keys);
   }
 
   return {
-    free: (serviceId, resourceId, startTs) =>
-      byService.get(serviceId)?.has(seatKey(resourceId, startTs)) ?? false,
+    free: (key, resourceId, startTs) =>
+      byVisit.get(key)?.has(seatKey(resourceId, startTs)) ?? false,
     resourceOrder,
   };
 }
 
 /**
- * The instants a visit could begin at: every time the FIRST child's service is
+ * The instants the party could begin at: every time the FIRST child's visit is
  * free, with anybody, in ascending order and without repeats.
  *
  * The first child is the right anchor for both modes — sequential seats the
@@ -122,7 +133,7 @@ function indexAvailability(slotsByService: SlotsByService): {
  * step 3 would draw the identical chip twice.
  */
 function candidateStarts(items: WizardItem[], slotsByService: SlotsByService): number[] {
-  const first = slotsByService[items[0].service.id] ?? [];
+  const first = slotsByService[visitKey(items[0])] ?? [];
   return [...new Set(first.map((slot) => slot.startTs))].sort((a, b) => a - b);
 }
 
@@ -146,7 +157,7 @@ function seatSequentially(
 ): string[] | null {
   for (const resourceId of index.resourceOrder) {
     const fits = items.every((item, position) =>
-      index.free(item.service.id, resourceId, starts[position])
+      index.free(visitKey(item), resourceId, starts[position])
     );
     if (fits) return items.map(() => resourceId);
   }
@@ -179,7 +190,7 @@ function seatInParallel(
     if (position === items.length) return [];
     for (const resourceId of index.resourceOrder) {
       if (taken.has(resourceId)) continue;
-      if (!index.free(items[position].service.id, resourceId, starts[position])) continue;
+      if (!index.free(visitKey(items[position]), resourceId, starts[position])) continue;
       taken.add(resourceId);
       const rest = assign(position + 1);
       taken.delete(resourceId);
@@ -293,7 +304,7 @@ export function firstPartyStartPerResource(
     for (const resourceId of index.resourceOrder) {
       if (resourceId in earliest) continue;
       const fits = items.every((item, position) =>
-        index.free(item.service.id, resourceId, starts[position])
+        index.free(visitKey(item), resourceId, starts[position])
       );
       if (!fits) continue;
       earliest[resourceId] = startTs;

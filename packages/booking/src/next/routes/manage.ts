@@ -142,6 +142,9 @@ function manageErrorResponse(rt: BookingRuntime, error: unknown, action: string)
  * the service — but there is no reason to wait for that). Best effort: `null`
  * leaves the cache to its ~60 s bound, never fails the action.
  */
+// A visit's extra services are not expired here: the summary names only its
+// first one (the visit's own entry carries that tag too, so it does go); their
+// one-service entries turn over with their own ~60 s bound.
 async function serviceIdOf(rt: BookingRuntime, token: string): Promise<string | null> {
   try {
     return (await rt.medal.getManage(token)).service_id ?? null;

@@ -150,6 +150,43 @@ describe('createMedalSeam', () => {
     expect(url.searchParams.has('resource_id')).toBe(false);
   });
 
+  it('asks for a whole visit with its extras comma-joined, on availability and schedule', async () => {
+    const seam = createMedalSeam({ apiKey: 'sk_x' });
+    const fetchMock = stubFetch({ data: [] });
+
+    await seam.listAvailability({
+      serviceId: 'svc-cut',
+      extraServiceIds: ['svc-wash', 'svc-style'],
+      fromTs: 0,
+      toTs: 1,
+    });
+    await seam.listSchedule({
+      serviceId: 'svc-cut',
+      extraServiceIds: ['svc-wash'],
+      fromTs: 0,
+      toTs: 1,
+    });
+
+    const availability = new URL(fetchMock.mock.calls[0][0]);
+    expect(availability.searchParams.get('service_id')).toBe('svc-cut');
+    expect(availability.searchParams.get('extra_service_ids')).toBe('svc-wash,svc-style');
+    const schedule = new URL(fetchMock.mock.calls[1][0]);
+    expect(schedule.pathname).toBe('/api/v1/bookings/schedule');
+    expect(schedule.searchParams.get('extra_service_ids')).toBe('svc-wash');
+  });
+
+  it('sends no extra_service_ids for a one-service read, empty list or none', async () => {
+    const seam = createMedalSeam({ apiKey: 'sk_x' });
+    const fetchMock = stubFetch({ data: [] });
+
+    await seam.listAvailability({ serviceId: 'svc', extraServiceIds: [], fromTs: 0, toTs: 1 });
+    await seam.listSchedule({ serviceId: 'svc', fromTs: 0, toTs: 1 });
+
+    for (const [url] of fetchMock.mock.calls) {
+      expect(new URL(url).searchParams.has('extra_service_ids')).toBe(false);
+    }
+  });
+
   it('returns only the bookings from a create', async () => {
     const seam = createMedalSeam({ apiKey: 'sk_x' });
     stubFetch({ data: { bookings: [{ id: 'b1', manage_token: 'mt' }], contact_id: 'c' } });

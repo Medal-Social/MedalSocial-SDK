@@ -85,6 +85,13 @@ export function unwrap<T>(response: { data: T } | undefined, path: string): T {
 
 export interface RangeArgs {
   serviceId: string;
+  /**
+   * The rest of ONE person's visit after `serviceId`, in order — absent (or
+   * empty) for a one-service visit. With it the engine answers for the whole
+   * visit: slots as long as every service together, on stylists who perform
+   * all of them, and a schedule whose last start leaves room for the lot.
+   */
+  extraServiceIds?: readonly string[];
   resourceId?: string;
   fromTs: number;
   toTs: number;
@@ -166,6 +173,9 @@ function rangeParams(args: RangeArgs) {
     from_ts: new Date(args.fromTs).toISOString(),
     to_ts: new Date(args.toTs).toISOString(),
     ...(args.resourceId ? { resource_id: args.resourceId } : {}),
+    // Only when there is a visit to describe: a one-service read asks exactly
+    // what it asked before, so nothing about it changes on the wire.
+    ...(args.extraServiceIds?.length ? { extra_service_ids: [...args.extraServiceIds] } : {}),
   };
 }
 

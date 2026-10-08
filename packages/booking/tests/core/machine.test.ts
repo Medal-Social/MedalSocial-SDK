@@ -163,27 +163,29 @@ describe('wizard machine', () => {
     expect(fourth.error).toBe('maxParty');
   });
 
-  // Both directions, because they cover different halves of the `Math.min`. The
-  // forward case is the engine's own worked example — a service with
-  // maxPerBooking 1 cannot ride along in a party — and only it can fail if the
-  // incoming service stops being counted. The reverse case is the only thing in
-  // this file that fails if the *basket* stops being counted: three identical
-  // children never disagree with each other, so the test above passes happily
-  // against a limit that reads nothing but the service being added.
-  it('takes the limit from the strictest service involved, in either direction', () => {
-    const strictIncoming = reduce(
-      reduce(initialState(), { type: 'pickService', service: GUTTEKLIPP }),
-      { type: 'addService', service: DAMEKLIPP }
-    );
-    expect(strictIncoming.items).toHaveLength(1);
-    expect(strictIncoming.error).toBe('maxParty');
+  // The engine's party rule is per service: `maxPerBooking` caps how many
+  // PEOPLE take that service, not the whole party. So a one-at-a-time service
+  // rides along with a child's cut in either order — the old strictest-service
+  // rule refused both — and only a second person on it is refused, whether the
+  // basket or the incoming child is the one that would break the cap.
+  it('caps each service by the people taking it, not the party by the strictest', () => {
+    const alongside = reduce(reduce(initialState(), { type: 'pickService', service: GUTTEKLIPP }), {
+      type: 'addService',
+      service: DAMEKLIPP,
+    });
+    expect(alongside.items).toHaveLength(2);
+    expect(alongside.error).toBeNull();
 
     const strictInBasket = reduce(
       reduce(initialState(), { type: 'pickService', service: DAMEKLIPP }),
       { type: 'addService', service: GUTTEKLIPP }
     );
-    expect(strictInBasket.items).toHaveLength(1);
-    expect(strictInBasket.error).toBe('maxParty');
+    expect(strictInBasket.items).toHaveLength(2);
+    expect(strictInBasket.error).toBeNull();
+
+    const twice = reduce(strictInBasket, { type: 'addService', service: DAMEKLIPP });
+    expect(twice.items).toHaveLength(2);
+    expect(twice.error).toBe('maxParty');
   });
 
   // Length and error alone would also pass for a refusal that reset the step or
@@ -251,8 +253,12 @@ describe('wizard machine', () => {
     it('leaves a refused child alone, preference included', () => {
       // `maxParty` changes nothing but the error, and that has to keep holding
       // for the argument that clears the preference: a child who is not coming
-      // cannot take anybody out of reach.
-      const state = withNamedStylist();
+      // cannot take anybody out of reach. A second person on the one-at-a-time
+      // service is what the per-service rule refuses.
+      const state = reduce(reduce(initialState(), { type: 'pickService', service: DAMEKLIPP }), {
+        type: 'pickResource',
+        resourceId: 'res-1',
+      });
       const refused = reduce(state, {
         type: 'addService',
         service: DAMEKLIPP,
@@ -1506,16 +1512,22 @@ describe('wizard machine: who, then what for each of them', () => {
     expect(canAdvance(state)).toBe(true);
   });
 
-  it('refuses a service whose limit is below the family’s size', () => {
+  // Per service, not per party: one child on a one-at-a-time service is fine
+  // in a family of two; the sibling taking the same one is the refusal.
+  it('refuses a service more of the family would take than its limit allows', () => {
     let state = reduce(initialState(), {
       type: 'choosePeople',
       people: [THEO, EMMA],
       advance: true,
     });
     state = reduce(state, { type: 'pickServiceFor', index: 0, service: DAMEKLIPP });
+    expect(state.error).toBeNull();
+    expect(state.choices).toEqual([DAMEKLIPP, null]);
+
+    state = reduce(state, { type: 'pickServiceFor', index: 1, service: DAMEKLIPP });
 
     expect(state.error).toBe('maxParty');
-    expect(state.choices).toEqual([null, null]);
+    expect(state.choices).toEqual([DAMEKLIPP, null]);
   });
 
   it('keeps a child’s service when a sibling is added on step 1, and drops the slot', () => {

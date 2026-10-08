@@ -999,3 +999,135 @@ describe('POST /api/booking/create — booked_for_person_id', () => {
     expect(portal.getMe).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * One person, several services, ONE visit: the line carries the rest of the
+ * visit after its first service, and everything the route does per service —
+ * expiry, the live re-read, the key — has to see all of them.
+ */
+describe('POST /api/booking/create — a visit of several services', () => {
+  /** The wizard's window, passed explicitly, so no clock is involved. */
+  const WINDOW = {
+    fromTs: Date.parse('2026-09-02T10:06:40+02:00'),
+    toTs: Date.parse('2026-09-09T00:00:00+02:00'),
+  };
+
+  function visitRequest(
+    extraServiceIds: unknown,
+    overrides: Record<string, unknown> = {}
+  ): Request {
+    return request({
+      items: [{ serviceId: 'svc-cut', extraServiceIds, startTs: 1, bookedForName: 'Jonas' }],
+      contact: { phone: '40000000', name: 'Kari' },
+      consentTerms: true,
+      submissionNonce: NONCE,
+      window: WINDOW,
+      ...overrides,
+    });
+  }
+
+  it('sends the extras as extra_service_ids, trimmed, right after service_id', async () => {
+    const response = await POST(visitRequest([' svc-wash ', 'svc-style']));
+
+    expect(response.status).toBe(201);
+    const [item] = submittedBody().items;
+    expect(item.extra_service_ids).toEqual(['svc-wash', 'svc-style']);
+    expect(Object.keys(item).slice(0, 2)).toEqual(['service_id', 'extra_service_ids']);
+  });
+
+  it('sends no extra_service_ids for a one-service line, whatever empty it arrived as', async () => {
+    for (const extras of [undefined, null, []]) {
+      vi.mocked(createBooking).mockClear();
+      await POST(visitRequest(extras));
+      expect(Object.keys(submittedBody().items[0])).not.toContain('extra_service_ids');
+    }
+  });
+
+  it('keeps a one-service line’s idempotency key what it was before visits existed', async () => {
+    await POST(visitRequest(undefined));
+    await POST(visitRequest([]));
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it('derives a different key when the visit’s extras differ', async () => {
+    await POST(visitRequest(undefined));
+    await POST(visitRequest(['svc-wash']));
+    await POST(visitRequest(['svc-style']));
+    await POST(visitRequest(['svc-wash']));
+
+    expect(new Set([keyOf(0), keyOf(1), keyOf(2)]).size).toBe(3);
+    expect(keyOf(3)).toBe(keyOf(1));
+  });
+
+  it('refuses a malformed visit before Medal is asked', async () => {
+    const cases: Array<[unknown, string]> = [
+      ['svc-wash', 'items.0.extraServiceIds must be a list of service ids'],
+      [['svc-wash', ''], 'items.0.extraServiceIds must be a list of service ids'],
+      [['svc-wash', 7], 'items.0.extraServiceIds must be a list of service ids'],
+      [['a', 'b', 'c', 'd'], 'items.0.extraServiceIds must name at most 3 services'],
+      [['svc-wash', ' svc-wash'], 'items.0.extraServiceIds names a service twice'],
+      [['svc-cut'], 'items.0.extraServiceIds repeats serviceId'],
+    ];
+    for (const [extras, message] of cases) {
+      const response = await POST(visitRequest(extras));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'invalidInput', message });
+    }
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('expires the slots of every service in the visit once it is booked', async () => {
+    await POST(visitRequest(['svc-wash', 'svc-style']));
+
+    expect(expireSlots).toHaveBeenCalledWith(['svc-cut', 'svc-wash', 'svc-style']);
+    expect(expireBookingSeeds).toHaveBeenCalledWith(['svc-cut', 'svc-wash', 'svc-style']);
+  });
+
+  it('answers a taken slot with live openings keyed by visit, read for the whole visit', async () => {
+    vi.mocked(cachedAvailability).mockReset();
+    vi.mocked(cachedAvailability).mockImplementation(async ({ extraServiceIds }) =>
+      extraServiceIds
+        ? [{ start_ts: '2026-09-02T12:30:00.000Z', end_ts: null, resource_id: 'r1' }]
+        : []
+    );
+    vi.mocked(createBooking).mockRejectedValue(
+      new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN: gone')
+    );
+
+    const response = await POST(
+      visitRequest(undefined, {
+        items: [
+          { serviceId: 'svc-cut', extraServiceIds: ['svc-wash'], startTs: 1 },
+          { serviceId: 'svc-cut', extraServiceIds: ['svc-wash'], startTs: 1 },
+          { serviceId: 'svc-cut', startTs: 1 },
+        ],
+      })
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: 'slotTaken',
+      freshSlots: {
+        'svc-cut+svc-wash': [{ startTs: Date.UTC(2026, 8, 2, 12, 30), resourceId: 'r1' }],
+        'svc-cut': [],
+      },
+    });
+    // Each visit once, however many people share it.
+    expect(cachedAvailability).toHaveBeenCalledTimes(2);
+    expect(cachedAvailability).toHaveBeenCalledWith(
+      { serviceId: 'svc-cut', extraServiceIds: ['svc-wash'], ...WINDOW },
+      { fresh: true }
+    );
+    expect(cachedAvailability).toHaveBeenCalledWith(
+      { serviceId: 'svc-cut', ...WINDOW },
+      { fresh: true }
+    );
+    expect(expireSlots).toHaveBeenCalledWith([
+      'svc-cut',
+      'svc-wash',
+      'svc-cut',
+      'svc-wash',
+      'svc-cut',
+    ]);
+  });
+});

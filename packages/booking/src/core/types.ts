@@ -146,6 +146,10 @@ export interface BookingManageDto {
  */
 export interface BookingSubmissionItem {
   serviceId: string;
+  /** The rest of this person's visit after `serviceId`, in order — booked as
+   * ONE appointment with one stylist. Absent for a one-service visit, never
+   * `[]`. */
+  extraServiceIds?: string[];
   /** The stylist the slot RESOLVED to, not the visitor's «Første ledige»
    * preference — absent when the engine is still to choose. */
   resourceId?: string;

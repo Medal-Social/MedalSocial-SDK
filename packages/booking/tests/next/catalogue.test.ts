@@ -369,6 +369,65 @@ describe('cachedSchedule', () => {
   });
 });
 
+describe('a visit of several services', () => {
+  const VISIT = { serviceId: 'svc-cut', extraServiceIds: ['svc-wash', 'svc-style'] };
+
+  it('keys availability on the visit, asks Medal for all of it, and tags every service', async () => {
+    await cachedAvailability({ ...VISIT, fromTs: NOW, toTs: TO });
+
+    expect(listAvailability).toHaveBeenCalledWith({ ...VISIT, fromTs: KEY_FROM, toTs: TO });
+    const invocation = lastInvocation();
+    expect(invocation.args).toEqual(['svc-cut+svc-wash+svc-style', KEY_FROM, TO, SLOT_BUCKET]);
+    // So a write to ANY of the three retires the visit's entry.
+    expect(invocation.options).toEqual({
+      revalidate: 30,
+      tags: [slotsTag('svc-cut'), slotsTag('svc-wash'), slotsTag('svc-style')],
+    });
+  });
+
+  it('keeps a one-service key byte-identical, an empty extras list included', async () => {
+    await cachedAvailability({ serviceId: 'svc-cut', extraServiceIds: [], fromTs: NOW, toTs: TO });
+
+    expect(lastInvocation().args).toEqual(['svc-cut', KEY_FROM, TO, SLOT_BUCKET]);
+    expect(lastInvocation().options?.tags).toEqual([slotsTag('svc-cut')]);
+    // Nothing about extras reaches the seam for a one-service read.
+    expect(listAvailability).toHaveBeenCalledWith({
+      serviceId: 'svc-cut',
+      fromTs: KEY_FROM,
+      toTs: TO,
+    });
+    expect(Object.keys(vi.mocked(listAvailability).mock.calls[0][0])).not.toContain(
+      'extraServiceIds'
+    );
+
+    await cachedSchedule({ serviceId: 'svc-cut', extraServiceIds: [], fromTs: NOW, toTs: TO });
+    expect(lastInvocation().args).toEqual(['svc-cut', KEY_FROM, TO, BUCKET]);
+  });
+
+  it('gives a visit and its first service different entries', async () => {
+    await cachedAvailability({ serviceId: 'svc-cut', fromTs: NOW, toTs: TO });
+    const alone = lastInvocation().args;
+    await cachedAvailability({ ...VISIT, fromTs: NOW, toTs: TO });
+
+    expect(lastInvocation().args).not.toEqual(alone);
+  });
+
+  it('keys the schedule on the visit and asks Medal for all of it', async () => {
+    await cachedSchedule({ ...VISIT, fromTs: NOW, toTs: TO });
+
+    expect(listSchedule).toHaveBeenCalledWith({ ...VISIT, fromTs: KEY_FROM, toTs: TO });
+    expect(lastInvocation().args).toEqual(['svc-cut+svc-wash+svc-style', KEY_FROM, TO, BUCKET]);
+    expect(lastInvocation().options).toEqual({ revalidate: 300, tags: [CATALOGUE_TAG] });
+  });
+
+  it('passes the visit through to a live read', async () => {
+    await cachedAvailability({ ...VISIT, fromTs: NOW, toTs: TO }, { fresh: true });
+
+    expect(cache.invocations).toHaveLength(0);
+    expect(listAvailability).toHaveBeenCalledWith({ ...VISIT, fromTs: NOW, toTs: TO });
+  });
+});
+
 describe('expireSlots', () => {
   it('expires each affected service once, immediately', () => {
     expireSlots(['svc-gutt', 'svc-jente', 'svc-gutt']);
