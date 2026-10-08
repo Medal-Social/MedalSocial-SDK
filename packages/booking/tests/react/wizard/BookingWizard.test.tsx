@@ -3652,6 +3652,209 @@ describe('BookingWizard with account.required', () => {
     expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
   });
 
+  describe('a different account logging in over a lost session', () => {
+    const KARI_IDS = {
+      ...KARI,
+      family: [{ name: 'Jonas', birthYear: 2018, personId: 'p-jonas' }],
+    };
+    const OLA = {
+      firstName: 'Ola',
+      lastName: 'Hansen',
+      email: 'ola@example.com',
+      phone: '+47 411 11 111',
+      family: [{ name: 'Per', birthYear: 2017, personId: 'p-per' }],
+    };
+    const GONE = {
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    };
+
+    /** Kari books Jonas at 13:00, and «Bekreft time» finds her session gone. */
+    async function lostAsKari(user: ReturnType<typeof userEvent.setup>) {
+      stubApi(GONE);
+      renderWizard({ accountRequired: true, guardian: KARI_IDS });
+      await tickJonas(user);
+      await pickGutteklipp(user);
+      await user.click(await screen.findByRole('button', { name: '13:00' }));
+      await onDetails();
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    }
+
+    type Sent = {
+      items: Array<{ startTs: number; bookedForName?: string; bookedForPersonId?: string }>;
+      contact: { phone: string };
+    };
+
+    it('does not book the previous parent’s child for the parent who logs in next', async () => {
+      const user = userEvent.setup();
+      await lostAsKari(user);
+      // The draft a Vipps round trip would rebuild from keeps Jonas by id
+      // ALONE: whoever comes back decides — Kari gets him reseated, anybody
+      // else a guest chair, never his name.
+      const draft = JSON.parse(window.sessionStorage.getItem('demo:booking:draft') ?? 'null');
+      expect(draft.items[0]).toMatchObject({
+        personId: 'p-jonas',
+        bookedForName: null,
+        bookedForBirthYear: null,
+      });
+
+      // Ola logs in on the same device: the hour is still held for him…
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: OLA } },
+      });
+      await logInByEmail(user);
+      expect(screen.getByLabelText('Mobilnummer')).toHaveValue('41111111');
+      // …but Jonas is Kari's child, not his: no longer named on the form.
+      expect(screen.queryByText(/for Jonas/)).toBeNull();
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(sent.items[0].bookedForName).not.toBe('Jonas');
+      expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+      expect(sent.contact.phone).toBe('41111111');
+    });
+
+    it('unseats them too for a login whose profile could not be read', async () => {
+      const user = userEvent.setup();
+      await lostAsKari(user);
+
+      // A good code, no profile behind it: nobody can say whose children these are.
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: null } },
+      });
+      await logInByEmail(user);
+      expect(screen.queryByText(/for Jonas/)).toBeNull();
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(sent.items[0].bookedForName).not.toBe('Jonas');
+      expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+    });
+
+    it('keeps the child seated when the SAME parent logs back in', async () => {
+      const user = userEvent.setup();
+      await lostAsKari(user);
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: KARI_IDS } },
+      });
+      await logInByEmail(user);
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({
+        startTs: osloTs(2, 13),
+        bookedForName: 'Jonas',
+        bookedForPersonId: 'p-jonas',
+      });
+    });
+  });
+
+  it('sends a saved child’s id under account.required whatever phone was typed', async () => {
+    const KARI_IDS = {
+      ...KARI,
+      family: [{ name: 'Jonas', birthYear: 2018, personId: 'p-jonas' }],
+    };
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ accountRequired: true, guardian: KARI_IDS });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    // Booking with her partner's number: the booking is still on HER contact.
+    await user.clear(screen.getByLabelText('Mobilnummer'));
+    await user.type(screen.getByLabelText('Mobilnummer'), '99887766');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    const sent = bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ bookedForPersonId?: string }>;
+      contact: { phone: string };
+    };
+    expect(sent.contact.phone).toBe('99887766');
+    expect(sent.items[0]).toHaveProperty('bookedForPersonId', 'p-jonas');
+  });
+
+  it('holds the hour that was SENT when a resend, while a link waits, finds the session gone', async () => {
+    const OPEN_TWO = {
+      ...OPEN_AT_ONE,
+      slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id), slot(2, 14, SARA.id)] },
+    };
+    // An ambiguous first try at 13:00…
+    window.sessionStorage.clear();
+    const first = stubApi({ ...OPEN_TWO, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    const view = renderWizard({ accountRequired: true, guardian: KARI });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+    const { submissionNonce } = first.bodies.find((body) => 'items' in (body as object)) as {
+      submissionNonce: string;
+    };
+    view.unmount();
+
+    // …a reload by a «Bestill igjen» link, whose replay is no more conclusive:
+    // a clean wizard, the link waiting on the old attempt's answer.
+    location.search = `?service=${GUTTEKLIPP.id}&stylist=${SARA.id}`;
+    stubApi({ ...OPEN_TWO, createStatus: 502, create: {} });
+    renderWizard({ accountRequired: true, guardian: KARI });
+    await screen.findByRole('alert');
+
+    // The parent builds 14:00, and «Bekreft time» resends the 13:00 still owed
+    // an answer — which finds the session gone.
+    const gone = stubApi({
+      ...OPEN_TWO,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '14:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    const resent = gone.bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+    };
+    expect(resent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+
+    // The gate holds the hour that went, not the one on screen before it.
+    const gate = screen.getByRole('region', { name: 'Nesten ferdig' });
+    expect(within(gate).getByText(/13:00/)).toBeInTheDocument();
+    expect(within(gate).queryByText(/14:00/)).toBeNull();
+
+    // Logged in again, that same visit goes under the same nonce.
+    const third = stubApi(OPEN_TWO);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const sent = third.bodies.find((body) => 'items' in (body as object)) as {
+      items: Array<{ startTs: number }>;
+      submissionNonce: string;
+    };
+    expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+    expect(sent.submissionNonce).toBe(submissionNonce);
+    location.search = '';
+  });
+
   it('keeps the gate and its notice when a signed-out parent steps back and picks another hour', async () => {
     stubApi({
       slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id), slot(2, 14, SARA.id)] },
@@ -3695,7 +3898,7 @@ describe('BookingWizard with account.required', () => {
       // A resumed page replays the pending attempt; the session has run out
       // meanwhile. A clean wizard would drop the hour the gate promises to hold.
       window.sessionStorage.clear();
-      stubApi({ ...open, createStatus: 502, create: {} });
+      const first = stubApi({ ...open, createStatus: 502, create: {} });
       const user = userEvent.setup();
       const view = renderWizard({ accountRequired: true, guardian: KARI });
       await tickJonas(user);
@@ -3705,6 +3908,10 @@ describe('BookingWizard with account.required', () => {
       await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
       await screen.findByRole('alert');
+      // The 502 may have booked: Medal can make the booking and lose the answer.
+      const { submissionNonce } = first.bodies.find((body) => 'items' in (body as object)) as {
+        submissionNonce: string;
+      };
 
       view.unmount();
       const second = stubApi({
@@ -3723,11 +3930,15 @@ describe('BookingWizard with account.required', () => {
       expect(await screen.findByRole('status')).toHaveTextContent(
         'Du ble logget ut. Logg inn igjen — timen din er holdt.'
       );
-      // Answered, so not replayed again on the next load.
+      // Answered, so not replayed again on the next load — but the NONCE stays:
+      // the first try may have booked, and the resend after the login has to
+      // derive the same key to meet that booking rather than make a second.
       expect(second.bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
-      expect(window.sessionStorage.getItem('demo:booking:attempt')).toBeNull();
+      const stored = JSON.parse(window.sessionStorage.getItem('demo:booking:attempt') ?? 'null');
+      expect(stored).toMatchObject({ nonce: submissionNonce });
+      expect(stored).not.toHaveProperty('pending');
 
-      // Logged in again, the same hour goes through.
+      // Logged in again, the same hour goes through — under the same nonce.
       const third = stubApi(open);
       await logInByEmail(user);
       await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
@@ -3735,8 +3946,10 @@ describe('BookingWizard with account.required', () => {
       await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
       const submitted = third.bodies.find((body) => 'items' in (body as object)) as {
         items: Array<{ startTs: number }>;
+        submissionNonce: string;
       };
       expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(submitted.submissionNonce).toBe(submissionNonce);
     }
   );
 

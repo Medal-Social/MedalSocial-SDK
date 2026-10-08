@@ -24,13 +24,14 @@ import { serviceMatches } from '../core/deep-link';
 import { stylistDisplayName } from '../core/display-name';
 import { DRAFT_MAX_AGE_MS, type WizardDraft, type WizardDraftItem } from '../core/draft-store';
 import { fill, labelText } from '../core/labels';
-import type {
-  WizardAction,
-  WizardItem,
-  WizardPerson,
-  WizardPrefill,
-  WizardService,
-  WizardState,
+import {
+  SELF_KEY,
+  type WizardAction,
+  type WizardItem,
+  type WizardPerson,
+  type WizardPrefill,
+  type WizardService,
+  type WizardState,
 } from '../core/machine';
 import { firstOpeningPerResource } from '../core/next-available';
 import { type PartySlot, type SlotsByService, slotKeysFor } from '../core/party-slots';
@@ -197,6 +198,28 @@ function withExtraServices(
       return extras.length === 0
         ? line
         : { ...line, extraServiceIds: extras.map((service) => service.id) };
+    }),
+  };
+}
+
+/**
+ * Under `account.required`, each line's saved child back on it whatever phone
+ * was typed. The details screen sends a person id only under the parent's own
+ * number (the phone rule), but with an account required the booking goes on
+ * the logged-in parent's contact anyway, so a child sent by name alone would
+ * be created there a second time. The machine's id is the line's own: a name
+ * typed over a saved child clears it. The route checks every id against the
+ * session's own family before it is forwarded.
+ */
+function withSessionPersons(
+  submission: BookingSubmission,
+  items: ReadonlyArray<SubmittedVisit['items'][number]>
+): BookingSubmission {
+  return {
+    ...submission,
+    items: submission.items.map((line, index) => {
+      const personId = items[index]?.bookedForPersonId;
+      return personId === undefined ? line : { ...line, bookedForPersonId: personId };
     }),
   };
 }
@@ -498,6 +521,43 @@ export function useBooking(options: UseBookingOptions) {
   useEffect(() => {
     if (guestSeated) dispatch({ type: 'seatFamily' });
   }, [guestSeated, state.step]);
+
+  /**
+   * The account the party's saved children were seated under — its e-mail,
+   * `null` before anybody. Kept across a lost session on purpose: the seats
+   * outlive it, held under the gate, and it is the NEXT login that decides
+   * whether they still fit (`reseatFor`).
+   */
+  const seatedFor = useRef<string | null>(arrivedAs?.email ?? null);
+  useEffect(() => {
+    if (guardian !== null) seatedFor.current = guardian.email;
+  }, [guardian]);
+
+  /**
+   * A login from the sheet or the gate, before it lands: when it is ANOTHER
+   * account than the one the party was seated under — or one whose profile
+   * nobody could read — the previous parent's children are not this one's to
+   * book. Their seats become guest chairs (the services and the hour stay),
+   * and what the old parent added here goes with them. In the same batch as
+   * the login, so the form it opens never draws the old names.
+   */
+  function reseatFor(who: BookingGuardian | null) {
+    const before = seatedFor.current;
+    const now = who?.email ?? null;
+    seatedFor.current = now;
+    if (before === null || before === now) return;
+    setAddedChildren([]);
+    const theirs = new Set(
+      (who?.family ?? []).map((child, index) => personForChild(child, index).key)
+    );
+    const keys = state.people
+      .filter(
+        (person) =>
+          !wizard.isGuestSeat(person) && person.key !== SELF_KEY && !theirs.has(person.key)
+      )
+      .map((person) => person.key);
+    if (keys.length > 0) dispatch({ type: 'unseatPeople', keys });
+  }
 
   /** A stylist a party link named, applied once the family reaches step 3. */
   const partyStylist = useRef<string | null>(
@@ -836,7 +896,15 @@ export function useBooking(options: UseBookingOptions) {
       return;
     }
     kit.drafts.stashDraft({
-      items: state.items.map(draftItem),
+      // Nobody logged in — the session ran out under the gate — and a line
+      // still naming a saved child: kept by its id ALONE. The login the draft
+      // waits for decides: that parent's child is reseated by id, anybody
+      // else gets a guest chair rather than the previous parent's child's name.
+      items: state.items.map((item) =>
+        guardian === null && item.bookedForPersonId !== undefined
+          ? { ...draftItem(item), bookedForName: null, bookedForBirthYear: null }
+          : draftItem(item)
+      ),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       startTs: state.startTs,
@@ -846,6 +914,7 @@ export function useBooking(options: UseBookingOptions) {
   }, [
     kit,
     confirmed,
+    guardian,
     state.items,
     state.resourceId,
     state.partyMode,
@@ -1285,7 +1354,11 @@ export function useBooking(options: UseBookingOptions) {
     }
     // Read BEFORE the await: the card describes what left the browser.
     const resourceIds = wizard.itemResourceIds(state);
-    const body = withExtraServices(submission, state.items);
+    const extended = withExtraServices(submission, state.items);
+    const body =
+      extended !== null && config.account.required
+        ? withSessionPersons(extended, state.items)
+        : extended;
     if (body === null) {
       dispatch({ type: 'submitFailed', error: 'invalidInput' });
       return;
@@ -1328,31 +1401,39 @@ export function useBooking(options: UseBookingOptions) {
       if (!response.ok) {
         // `upstreamError` is «we still do not know»: the attempt survives it.
         const definite = payload?.error !== undefined && payload.error !== 'upstreamError';
-        if (definite) {
-          kit.attempts.clearAttempt();
-          setPendingAttempt(null);
-        }
         // `account.required` and the session gone: the login again, not an
         // error. Nothing else moves — the wizard keeps the hour, and «Bekreft»
         // turns back into the login over it.
         const sessionGone = payload?.error === 'accountRequired';
-        if (sessionGone) {
-          setSignedIn(null);
-          setArrivalExpired(true);
-          setSessionLost(true);
-          // Before the resumed reset below: the gate holds the slot, a clean
-          // wizard would drop it. A replay's machine was never hydrated, so
-          // the visit it sent is rebuilt under the gate.
-          if (options.loginOffered !== false) {
-            if (sendOptions?.replay === true) rebuildSubmitted(submitted);
-            return;
-          }
+        if (definite) {
+          // The session gone keeps the NONCE (and drops only the body): an
+          // earlier try of this submission may have booked with its answer
+          // lost, and the same parent's resend after the login — same nonce,
+          // same visit — derives the same key and meets it rather than booking
+          // twice. The body is not kept: whoever logs in next is asked again.
+          if (sessionGone) kit.attempts.releasePending(current);
+          else kit.attempts.clearAttempt();
+          setPendingAttempt(null);
         }
         // A RESUMED replay (or the resend of one while a link waits) has no
         // basket to rescue: a clean wizard, or the link it came by.
         const wasResumed =
           sendOptions?.replay === true ||
           (sendOptions?.pending === true && rebookLink.current !== null);
+        if (sessionGone) {
+          setSignedIn(null);
+          setArrivalExpired(true);
+          setSessionLost(true);
+          // Before the resumed reset below: the gate holds the slot, a clean
+          // wizard would drop it. A resumed send's machine does not hold the
+          // visit it sent (never hydrated, or built again by hand while a link
+          // waited), so the visit it sent is rebuilt under the gate — the one
+          // whose key a resend after the login has to meet.
+          if (options.loginOffered !== false) {
+            if (wasResumed) rebuildSubmitted(submitted);
+            return;
+          }
+        }
         if (wasResumed) {
           if (definite) {
             dispatch({ type: 'startOver' });
@@ -1577,6 +1658,7 @@ export function useBooking(options: UseBookingOptions) {
       /** `/create` said the session ran out, and no login has happened since. */
       sessionLost,
       signIn: (who: BookingGuardian | null) => {
+        reseatFor(who);
         setSessionLost(false);
         setSignedIn({ guardian: who });
       },

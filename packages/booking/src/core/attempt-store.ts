@@ -113,6 +113,7 @@ export interface AttemptStore {
     attempt: BookingAttempt,
     confirmed: NonNullable<BookingAttempt['confirmed']>
   ): void;
+  releasePending(attempt: BookingAttempt): void;
   clearAttempt(): void;
 }
 
@@ -197,6 +198,19 @@ export function createAttemptStore(namespace: string): AttemptStore {
   }
 
   /**
+   * Drop the pending submission, keep the nonce.
+   *
+   * For a submission refused because the parent's session ran out
+   * (`accountRequired`). Its body is not replayed — the next login may be
+   * somebody else, who is asked again — but an EARLIER try of it may have
+   * booked with its answer lost, and the same parent's resend after the login
+   * has to derive the same key to meet that booking instead of making another.
+   */
+  function releasePending(attempt: BookingAttempt): void {
+    write({ nonce: attempt.nonce });
+  }
+
+  /**
    * Forget the attempt entirely.
    *
    * For the failures that are certainly NOT «we do not know»: a slot that was
@@ -219,6 +233,7 @@ export function createAttemptStore(namespace: string): AttemptStore {
     readAttempt,
     rememberPending,
     rememberConfirmed,
+    releasePending,
     clearAttempt,
   };
 }

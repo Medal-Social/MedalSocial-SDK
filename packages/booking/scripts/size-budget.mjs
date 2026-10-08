@@ -100,10 +100,16 @@ const BUDGETS = [
     // step: the gate that turns «Bekreft» into Vipps / e-post (with the
     // booking it holds and the session-lost notice) and the session handling
     // in submit measured 15.78 KB with both features in.
+    // Raised 16 → 16.4 KB for the #181 review round: a login as ANOTHER
+    // account over a lost session unseats the previous parent's children
+    // (`reseatFor`, keeping the visit and the hour), a draft written while
+    // nobody is logged in keeps a saved child by id alone, `account.required`
+    // puts each saved child's id back on its line whatever phone was typed,
+    // and a lost session keeps the attempt's nonce. Measured 16.11 KB.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 16 * 1024,
+    gzipBytes: 16.4 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -127,15 +133,21 @@ const BUDGETS = [
     // the account gate (booking summary, session-lost notice, focus on
     // re-gate) and the replay that rebuilds a refused visit — extras
     // included — under it. Measured 15.91 KB with both features in.
+    // Raised 16.1 → 16.5 KB for the #181 review round, the same code as the
+    // page budget above (another account's login unseats the previous
+    // parent's children; the lost session keeps the nonce). Measured 16.25 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 16.1 * 1024,
+    gzipBytes: 16.5 * 1024,
   },
   {
+    // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
+    // plus the machine's `unseatPeople` (the previous parent's seats become
+    // guest chairs with their services and the hour). Measured 24.53 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 24.5 * 1024,
+    gzipBytes: 24.8 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -147,10 +159,13 @@ const BUDGETS = [
     // Raised 21 → 21.3 KB for `account.required` on top of that: the account
     // gate, its labels and the login sheet's throttled notice measured
     // 21.06 KB with both features in.
+    // Raised 21.3 → 21.7 KB for the #181 review round — the booking page's
+    // own growth above (unseating another account's children, the id-only
+    // draft line, the ids under `account.required`). Measured 21.40 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 21.3 * 1024,
+    gzipBytes: 21.7 * 1024,
   },
 ];
 
