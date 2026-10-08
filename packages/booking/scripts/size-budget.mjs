@@ -96,10 +96,14 @@ const BUDGETS = [
     // has to join a visit rather than replace it once a person has ticked
     // something, which measured 15.06 KB. Same raise, same reason, as the
     // wizard-entry budget below.
+    // Raised 15.5 → 16 KB for `account.required` on top of the multi-select
+    // step: the gate that turns «Bekreft» into Vipps / e-post (with the
+    // booking it holds and the session-lost notice) and the session handling
+    // in submit measured 15.78 KB with both features in.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 15.5 * 1024,
+    gzipBytes: 16 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -119,10 +123,14 @@ const BUDGETS = [
     // `ServiceScreen` `selection`): the wizard hands it the visit's lists,
     // total, refusal notice and labels — reusing the hook's derived values —
     // and hides its own bar on that step. Measured 15.13 KB.
+    // Raised 15.5 → 16.1 KB for `account.required` with the multi-select step:
+    // the account gate (booking summary, session-lost notice, focus on
+    // re-gate) and the replay that rebuilds a refused visit — extras
+    // included — under it. Measured 15.91 KB with both features in.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 15.5 * 1024,
+    gzipBytes: 16.1 * 1024,
   },
   {
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
@@ -135,10 +143,13 @@ const BUDGETS = [
     // visit-keyed fetching, the extras on drafts and submissions, and the
     // `wizard-error` bridge measured 20.12 KB. The booking page's own budgets
     // above are NOT raised — the page itself still fits its 15 KB.
+    // Raised 21 → 21.3 KB for `account.required` on top of that: the account
+    // gate, its labels and the login sheet's throttled notice measured
+    // 21.06 KB with both features in.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 21 * 1024,
+    gzipBytes: 21.3 * 1024,
   },
 ];
 
