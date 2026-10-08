@@ -219,6 +219,30 @@ describe('resolveBookingConfig', () => {
   });
 });
 
+describe('resolveBookingConfig — account.required', () => {
+  it('defaults to booking without an account', () => {
+    expect(resolveBookingConfig({ timeZone: 'Europe/Oslo' }).account.required).toBe(false);
+  });
+
+  it('refuses account.required without an enabled portal to log in through', () => {
+    expect(() =>
+      resolveBookingConfig({ timeZone: 'Europe/Oslo', account: { required: true } })
+    ).toThrow(BookingConfigError);
+    expect(issuesOf({ timeZone: 'Europe/Oslo', account: { required: true } })).toContain(
+      'account.required: account.required needs portal.enabled'
+    );
+  });
+
+  it('takes account.required with an enabled portal', () => {
+    const config = resolveBookingConfig({
+      timeZone: 'Europe/Oslo',
+      account: { required: true },
+      portal: { enabled: true, methods: ['vipps', 'email_code'] },
+    });
+    expect(config.account.required).toBe(true);
+  });
+});
+
 /**
  * Pre-release review: the three secondary portal cookie names derive from
  * `portal.cookieName` with a prefix and a suffix. A base name that fits the

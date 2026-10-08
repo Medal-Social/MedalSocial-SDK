@@ -330,6 +330,14 @@ export type WizardAction =
    */
   | { type: 'seatFamily' }
   /**
+   * Somebody else has logged in over this party — another account than the
+   * one it was seated under: each seat in `keys` (the previous parent's saved
+   * children) becomes a guest chair. Its services stay, and so does the hour —
+   * the basket is the same visit, only WHO changed — but its name, year and
+   * person id go with the parent they belonged to, and «Bekreft» asks again.
+   */
+  | { type: 'unseatPeople'; keys: readonly string[] }
+  /**
    * One person joins the party as it is WHEN this lands — a child the parent
    * just created in Medal, after the await. Refused at the limit, a no-op for
    * somebody already seated.
@@ -794,6 +802,28 @@ function seatFamily(state: WizardState): WizardState {
   };
 }
 
+/** `unseatPeople` — see the action. */
+function unseatPeople(state: WizardState, keys: readonly string[]): WizardState {
+  const leaving = state.people.map((person) => keys.includes(person.key));
+  if (!leaving.includes(true)) return state;
+  const taken = new Set(state.people.map((person) => person.key));
+  let n = 0;
+  const people = state.people.map((person, index) => {
+    if (!leaving[index]) return person;
+    let seat = guestChild(++n);
+    while (taken.has(seat.key)) seat = guestChild(++n);
+    taken.add(seat.key);
+    return seat;
+  });
+  // The lines that stay keep what «Bekreft» was already told about them; the
+  // unseated ones are rebuilt from their guest chair, with the same services.
+  // A party without a whole basket yet has no lines to rebuild.
+  const items = state.items.map((item, index) =>
+    leaving[index] ? itemFor(people[index], item.service, item.extraServices ?? []) : item
+  );
+  return { ...state, people, items, error: null };
+}
+
 /** `pickServiceFor` — see the action. */
 function pickServiceFor(
   state: WizardState,
@@ -1252,6 +1282,9 @@ export function createWizard(config: WizardConfig): Wizard {
 
       case 'seatFamily':
         return seatFamily(state);
+
+      case 'unseatPeople':
+        return unseatPeople(state, action.keys);
 
       case 'addPerson':
         return addPerson(state, action.person);

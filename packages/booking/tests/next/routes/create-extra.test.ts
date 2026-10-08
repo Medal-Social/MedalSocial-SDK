@@ -183,7 +183,9 @@ describe('createRoute — the phone rule', () => {
       })
     );
 
-    expect(readPortalSession).not.toHaveBeenCalled();
+    // The cookie is read (it is forwarded as the booking's session), but the
+    // profile — the round trip to Medal — is not asked for.
+    expect(getMe).not.toHaveBeenCalled();
     expect(createBooking.mock.calls[0][0].items[0]).not.toHaveProperty('booked_for_person_id');
   });
 });

@@ -95,6 +95,9 @@ export type BookingWizardEvent =
   | { type: 'submit_ok'; bookings: number }
   | { type: 'submit_error'; code: NonNullable<WizardState['error']> };
 
+/** The bundler's build mode, which it inlines; absent outside a bundler. */
+declare const process: { env: { NODE_ENV?: string } } | undefined;
+
 /** The wizard's root, for the inline restore gate to find before hydration. */
 const WIZARD_ROOT_ID = 'booking-wizard';
 
@@ -136,9 +139,22 @@ export function BookingWizard(props: BookingWizardProps) {
 
 function BookingWizardShell(props: BookingWizardProps) {
   const resolved = useBookingKit(props, props.contact);
-  const booking = useBooking(props);
+  const loginOffered = props.actions !== undefined && resolved.kit.config.portal.enabled;
+  const booking = useBooking({ ...props, loginOffered });
   const { kit } = booking;
   const { labels } = kit;
+
+  // `account.required` with no way to log in: every «Bekreft» would be refused.
+  const unreachableLogin = kit.config.account.required && !loginOffered;
+  useEffect(() => {
+    if (
+      unreachableLogin &&
+      typeof process !== 'undefined' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      console.warn('[booking] account.required without login actions: nobody can log in to book.');
+    }
+  }, [unreachableLogin]);
   const { state, restore, confirmed, onEvent } = { ...booking, onEvent: props.onEvent };
 
   /**
@@ -177,6 +193,24 @@ function BookingWizardShell(props: BookingWizardProps) {
     focusAfterSignIn.current = false;
     document.getElementById(STEP_HEADINGS[state.step])?.focus({ preventScroll: true });
   }, [signedIn, state.step]);
+  /**
+   * A 401 put the gate back over the form: focus its heading (the details
+   * step's id), where the notice beside it says why. Once per loss, and only
+   * once the gate is actually on screen — a replay answers behind the skeleton.
+   */
+  const sessionLost = booking.login.sessionLost;
+  const sessionLossFocused = useRef(false);
+  useEffect(() => {
+    if (!sessionLost) {
+      sessionLossFocused.current = false;
+      return;
+    }
+    if (sessionLossFocused.current || restore.restoring || state.step !== 'details') return;
+    sessionLossFocused.current = true;
+    const heading = document.getElementById(STEP_HEADINGS.details);
+    scrollToTop(rootRef.current);
+    heading?.focus({ preventScroll: true });
+  }, [sessionLost, restore.restoring, state.step]);
   useEffect(() => {
     if (!timeStepReady || !focusTimeWhenReady.current) return;
     focusTimeWhenReady.current = false;
@@ -266,15 +300,21 @@ function BookingWizardShell(props: BookingWizardProps) {
   };
   // The multi-select service step carries its own total bar and refusal notice.
   const multiSelect = state.step === 'service' && kit.config.party.maxServicesPerPerson > 1;
-  const loginOffered = props.actions !== undefined && kit.config.portal.enabled;
-  const loginRow = loginOffered ? (
-    <LoginRow
-      booking={booking}
-      actions={props.actions as NonNullable<BookingWizardProps['actions']>}
-      overrides={props}
-      onSignedIn={onSignedIn}
-    />
-  ) : null;
+  /**
+   * `account.required`: every booking is a logged-in parent's. The login is
+   * not offered along the way — it IS «Bekreft», for a parent not logged in.
+   */
+  const accountRequired = kit.config.account.required && loginOffered;
+  const gated = accountRequired && state.step === 'details' && !booking.login.loggedIn;
+  const loginRow =
+    loginOffered && !accountRequired ? (
+      <LoginRow
+        booking={booking}
+        actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+        overrides={props}
+        onSignedIn={onSignedIn}
+      />
+    ) : null;
 
   return shell(
     <div className="space-y-8">
@@ -303,7 +343,8 @@ function BookingWizardShell(props: BookingWizardProps) {
 
       {state.step === 'details' && loginRow}
 
-      {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && (
+      {/* The gate takes a Vipps confirm code itself, in place of the form. */}
+      {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && !gated && (
         <LoginSheet
           {...overridesOf(props)}
           actions={props.actions as NonNullable<BookingWizardProps['actions']>}
@@ -329,7 +370,18 @@ function BookingWizardShell(props: BookingWizardProps) {
           <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
         )}
         {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
-        {state.step === 'details' && <DetailsStep booking={booking} resolved={resolved} />}
+        {state.step === 'details' &&
+          (gated ? (
+            <AccountGate
+              booking={booking}
+              resolved={resolved}
+              actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+              overrides={props}
+              onSignedIn={onSignedIn}
+            />
+          ) : (
+            <DetailsStep booking={booking} resolved={resolved} />
+          ))}
       </div>
 
       {!multiSelect && (
@@ -596,6 +648,8 @@ function DetailsStep({ booking, resolved }: StepProps) {
       submissionNonce={booking.submissionNonce}
       family={guardian?.family}
       guardianPhone={guardian?.phone ?? null}
+      // The address they logged in with: the booking is theirs, by that address.
+      emailReadOnly={kit.config.account.required && guardian !== null}
       format={kit.format}
       labels={screenLabels(kit.labels)}
       classNames={resolved.classNames.details}
@@ -603,6 +657,68 @@ function DetailsStep({ booking, resolved }: StepProps) {
         resolved.components.FamilyChip ? { FamilyChip: resolved.components.FamilyChip } : undefined
       }
     />
+  );
+}
+
+/**
+ * «Bekreft» under `account.required` for a parent not logged in: «Nesten
+ * ferdig», a line, and the login — Vipps, or e-mail — in place of the form.
+ * The heading carries the details step's id, so the focus a step change moves
+ * lands here, and the form's heading takes it over once the parent is in.
+ */
+function AccountGate({
+  booking,
+  resolved,
+  actions,
+  overrides,
+  onSignedIn,
+}: StepProps & {
+  actions: NonNullable<BookingWizardProps['actions']>;
+  overrides: BookingOverrides;
+  onSignedIn: (guardian: Parameters<BookingController['login']['signIn']>[0]) => void;
+}) {
+  const { labels } = booking.kit;
+  const { classNames } = resolved;
+  // The details screen's own root and heading slots, after the same defaults.
+  const slot = (base: string, extra: string | undefined) => [base, extra].filter(Boolean).join(' ');
+  return (
+    <section
+      aria-labelledby={STEP_HEADINGS.details}
+      className={slot('space-y-6', classNames.details?.root)}
+    >
+      <h2
+        id={STEP_HEADINGS.details}
+        tabIndex={-1}
+        className={slot(
+          'font-sans text-2xl font-bold outline-none md:text-3xl',
+          classNames.details?.heading
+        )}
+      >
+        {labelText(labels['wizard.account.heading'])}
+      </h2>
+      <LiveStatus
+        text={booking.login.sessionLost ? labelText(labels['wizard.account.sessionLost']) : null}
+        className="text-sm font-medium empty:hidden"
+      />
+      <p className="text-muted-foreground">{labelText(labels['wizard.account.intro'])}</p>
+      {/* What the login is for: the hour held, in the summary bar's own words and slot. */}
+      <p
+        className={slot(
+          'rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium',
+          classNames.summary?.line
+        )}
+      >
+        {booking.derived.summary}
+      </p>
+      <LoginSheet
+        {...overridesOf(overrides)}
+        actions={actions}
+        presentation="gate"
+        resumePath={booking.login.resumePath}
+        vippsConfirm={booking.login.vippsConfirm}
+        onSignedIn={onSignedIn}
+      />
+    </section>
   );
 }
 
