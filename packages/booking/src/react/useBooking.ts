@@ -126,11 +126,18 @@ function freshSlotsOf(raw: unknown, lost: ReadonlySet<string>): Record<string, B
  * added only when there are some, so a one-service visit asks with exactly the
  * URL it always did — the slot cache and every seeded answer are keyed by it.
  */
-function windowQuery(key: string, fromTs: number, toTs: number): URLSearchParams {
+function windowQuery(
+  key: string,
+  fromTs: number,
+  toTs: number,
+  resourceId?: string | null
+): URLSearchParams {
   const [serviceId, ...extras] = key.split('+');
   return new URLSearchParams({
     service_id: serviceId,
     ...(extras.length === 0 ? {} : { extra_service_ids: extras.join(',') }),
+    // Omitted for «first available»: an empty resource_id would still narrow.
+    ...(resourceId ? { resource_id: resourceId } : {}),
     from_ts: String(fromTs),
     to_ts: String(toTs),
   });
@@ -992,46 +999,82 @@ export function useBooking(options: UseBookingOptions) {
   }, [resources, primaryServiceId]);
 
   /**
-   * The business's open dates over the window, for the first person's VISIT
-   * (cutoffs are per service, and `visitTailMinutes` assumes the answer was for
-   * item 0's whole visit — see the machine).
+   * The open dates over the window, for the first person's VISIT (cutoffs are
+   * per service, and `visitTailMinutes` assumes the answer was for item 0's
+   * whole visit — see the machine).
+   *
+   * The seed is the SALON's week, which is what «first available» draws. A named
+   * stylist works a different week, so their hours are fetched with `resource_id`
+   * and the seed is not allowed to answer for them — a seeded salon week would
+   * otherwise paint every open day as theirs.
    */
   const [fetchedSchedule, setFetchedSchedule] = useState<{
     key: string;
     days: BookingDayDto[];
   } | null>(null);
   const [scheduleFailedFor, setScheduleFailedFor] = useState<string | null>(null);
+  // The visit, plus the stylist when one is named. The two answers must not
+  // share a key: a late salon response must not land on a stylist's calendar.
+  const scheduleKey =
+    primaryVisit === null
+      ? null
+      : state.resourceId === null
+        ? primaryVisit
+        : `${primaryVisit}#${state.resourceId}`;
 
   // `null`, not `[]`, until this service's hours are in hand: «we do not know».
+  // A named stylist's own week replaces the salon's when it arrives. Until then
+  // the salon answer stays, so the time step does not unmount mid-tap. A failed
+  // read is not «still waiting»: their hours are unknown, and the salon week
+  // must not stay on screen as theirs.
   const openDays = useMemo<BookingDayDto[] | null>(() => {
-    if (primaryVisit === null) return null;
-    const seeded = seededSchedule[primaryVisit];
-    if (seeded) return seeded;
-    return fetchedSchedule?.key === primaryVisit ? fetchedSchedule.days : null;
-  }, [primaryVisit, seededSchedule, fetchedSchedule]);
+    if (primaryVisit === null || scheduleKey === null) return null;
+    if (fetchedSchedule?.key === scheduleKey) return fetchedSchedule.days;
+    if (state.resourceId === null) {
+      return seededSchedule[primaryVisit] ?? null;
+    }
+    if (scheduleFailedFor === scheduleKey) return null;
+    return (
+      seededSchedule[primaryVisit] ??
+      (fetchedSchedule?.key === primaryVisit ? fetchedSchedule.days : null)
+    );
+  }, [
+    primaryVisit,
+    state.resourceId,
+    scheduleKey,
+    seededSchedule,
+    fetchedSchedule,
+    scheduleFailedFor,
+  ]);
 
   useEffect(() => {
-    if (primaryVisit === null) return;
-    if (primaryVisit in seededSchedule) return;
+    if (primaryVisit === null || scheduleKey === null) return;
+    // The seed already answers «first available». A named stylist always asks.
+    if (state.resourceId === null && primaryVisit in seededSchedule) return;
     let cancelled = false;
+    const key = scheduleKey;
+    const resourceId = state.resourceId;
 
     (async () => {
       try {
-        const response = await fetch(`${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs)}`);
+        const response = await fetch(
+          `${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs, resourceId)}`
+        );
         if (!response.ok) throw new Error(`schedule ${response.status}`);
         const body = (await response.json()) as { days?: BookingDayDto[] };
         if (cancelled) return;
-        setFetchedSchedule({ key: primaryVisit, days: body.days ?? [] });
+        setFetchedSchedule({ key, days: body.days ?? [] });
       } catch {
         // Left `null`: the hours are unknown, which is not the same as «closed».
-        if (!cancelled) setScheduleFailedFor(primaryVisit);
+        // Keyed like the success, so one stylist's failure does not settle the next.
+        if (!cancelled) setScheduleFailedFor(key);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededSchedule]);
+  }, [api, primaryVisit, fromTs, toTs, seededSchedule, state.resourceId, scheduleKey]);
 
   /** A stylist's display name for an id; `''` from Medal reads as none. */
   const resolveStylistName = useMemo(
@@ -1080,7 +1123,7 @@ export function useBooking(options: UseBookingOptions) {
   const party = wizard.showsPartyMode(state);
   const haveEveryService = basketVisits.every((key) => key in slots);
   const scheduleSettled =
-    openDays !== null || (primaryVisit !== null && scheduleFailedFor === primaryVisit);
+    openDays !== null || (scheduleKey !== null && scheduleFailedFor === scheduleKey);
   const nextAvailableLoading = party
     ? !haveEveryService && !slotsFailed
     : primaryVisit !== null &&
