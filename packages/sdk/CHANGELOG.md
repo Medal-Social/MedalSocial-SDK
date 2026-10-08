@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.13.0
+
+### Minor Changes
+
+- [#185](https://github.com/Medal-Social/MedalSocial-SDK/pull/185) [`ecf1912`](https://github.com/Medal-Social/MedalSocial-SDK/commit/ecf1912b4029c2faf3aca3e005c4b7f9183f53a1) Thanks [@alioftech](https://github.com/alioftech)! - Book one person several services as one visit: `bookings.create` items take `extra_service_ids`, `bookings.availability` and `bookings.schedule` take `extra_service_ids` (slots and last starts then cover the whole visit), and `Booking` carries the visit's `services` lines (`BookingVisitService`, `null` for a one-service booking).
+
 ## 1.12.0
 
 ### Minor Changes
