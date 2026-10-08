@@ -93,6 +93,27 @@ function klippOgVask(): WizardState {
   return toggle(toggle(seated([KID_1]), 0, KLIPP), 0, VASK);
 }
 
+describe('a state from before extras existed', () => {
+  /** meda types `extras` optional, and a shell may hold a state saved before 0.3. */
+  function withoutExtras(state: WizardState): WizardState {
+    const { extras: _dropped, ...rest } = state;
+    return rest as WizardState;
+  }
+
+  it('takes taps, toggles and a re-seating without throwing', () => {
+    let state = withoutExtras(
+      reduce(initialState(), { type: 'choosePeople', people: [ADULT, KID_1] })
+    );
+    state = reduce(state, { type: 'pickServiceFor', index: 0, service: SKJEGG });
+    state = withoutExtras(state);
+    state = reduce(state, { type: 'toggleServiceFor', index: 1, service: KLIPP });
+    state = withoutExtras(state);
+    state = reduce(state, { type: 'choosePeople', people: [KID_1, ADULT] });
+    expect(state.items.map((item) => item.service.id)).toEqual([KLIPP.id, SKJEGG.id]);
+    expect(state.items.every((item) => item.extraServices === undefined)).toBe(true);
+  });
+});
+
 describe('toggleServiceFor', () => {
   it('starts with no extras', () => {
     expect(initialState().extras).toEqual([]);
