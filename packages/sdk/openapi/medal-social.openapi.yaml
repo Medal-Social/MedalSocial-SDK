@@ -671,6 +671,8 @@ paths:
         Books every item or none of them. Each created booking carries a
         `manage_token` returned exactly once — only its hash is stored, and an
         idempotent replay omits it.
+      parameters:
+        - $ref: "#/components/parameters/OptionalPortalSession"
       requestBody:
         required: true
         content:
@@ -2564,6 +2566,19 @@ components:
         cookie and forwards it here. Missing answers
         `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers
         `401 PORTAL_SESSION_INVALID`.
+      schema:
+        type: string
+    OptionalPortalSession:
+      name: X-Portal-Session
+      in: header
+      required: false
+      description: >-
+        A logged-in customer's `session_token` (from `verifyPortalLogin`).
+        When present the booking is created on THAT session's contact rather
+        than the one the submitted phone or e-mail resolves to, and an
+        idempotent replay is bound to the session. Unknown, expired or revoked
+        answers `401 PORTAL_SESSION_INVALID` and books nothing. Omit it to book
+        as before.
       schema:
         type: string
     Cursor:

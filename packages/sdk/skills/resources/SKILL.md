@@ -176,6 +176,8 @@ data.contact_id;
 await medal.bookings.create(body, { idempotencyKey, portalSession: session.session_token });
 ```
 
+A replay is bound to the session as well as the key and body: the same `idempotencyKey` under another session (or none) is `409 IDEMPOTENCY_KEY_CONFLICT`, never the first customer's booking. So a key derived from the customer rather than the token survives a fresh login as a conflict («this attempt already exists») instead of a second booking.
+
 `created_via` is optional and defaults to `api`. Send `web` **only** from the workspace's own website, so its bookings can be told apart from integrations'. `dashboard` and `walk_in` are staff-only and the API rejects them with 400 — an API key proves which workspace is calling, not that a member typed the booking in.
 
 `manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.
