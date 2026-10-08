@@ -994,8 +994,7 @@ describe('POST /api/booking/create — booked_for_person_id', () => {
   );
 
   it('asks Medal nothing extra for a booking with no ids in it', async () => {
-    // The cookie is read (it decides `X-Portal-Session`), but that is the
-    // browser's own request — no round trip to Medal before the booking.
+    // Without `account.required` nothing but the ids asks for the profile.
     await POST(validRequest());
     expect(portal.getMe).not.toHaveBeenCalled();
     expect(createBooking).toHaveBeenCalledTimes(1);
@@ -1004,12 +1003,51 @@ describe('POST /api/booking/create — booked_for_person_id', () => {
 
 /**
  * Vipps-first accounts: under `account.required` only a logged-in parent books,
- * and whenever a parent IS logged in their session goes to Medal with the
- * booking (`X-Portal-Session`), so it lands on their own contact.
+ * and their session goes to Medal with the booking (`X-Portal-Session`), so it
+ * lands on their own contact. Without it, nothing about a booking changes: the
+ * session is never forwarded, and the phone decides the contact as it always did.
  */
 describe('POST /api/booking/create — the portal session', () => {
   const SESSION = 'a'.repeat(43);
   const OTHER_SESSION = 'b'.repeat(43);
+  /** The same parent's session after a fresh login. */
+  const RENEWED_SESSION = 'c'.repeat(43);
+
+  /** A logged-in parent's profile: their contact and their children. */
+  const profileOf = (contactId: string, phone: string | null = '+47 400 00 000') => ({
+    contactId,
+    email: `${contactId}@example.com`,
+    firstName: 'Kari',
+    lastName: null,
+    phone,
+    family: [
+      {
+        personId: `${contactId}-child`,
+        name: 'Jonas',
+        birthYear: 2018,
+        birthMonth: null,
+        notes: null,
+        preferredResourceId: null,
+      },
+      {
+        personId: null,
+        name: 'Uten id',
+        birthYear: 2019,
+        birthMonth: null,
+        notes: null,
+        preferredResourceId: null,
+      },
+    ],
+    personDetails: true,
+    marketingConsent: false,
+  });
+
+  /** Whose contact each session is. */
+  const CONTACT_OF: Record<string, string> = {
+    [SESSION]: 'ct-kari',
+    [RENEWED_SESSION]: 'ct-kari',
+    [OTHER_SESSION]: 'ct-ola',
+  };
 
   const required = testRuntime(
     {
@@ -1034,6 +1072,7 @@ describe('POST /api/booking/create — the portal session', () => {
     portal.readPortalSession.mockReset();
     portal.readPortalSession.mockResolvedValue(null);
     portal.getMe.mockReset();
+    portal.getMe.mockImplementation(async (session: string) => profileOf(CONTACT_OF[session]));
   });
 
   it('refuses 401 accountRequired without a session when an account is required, booking nothing', async () => {
@@ -1050,6 +1089,7 @@ describe('POST /api/booking/create — the portal session', () => {
     const response = await POST_REQUIRED(validRequest());
 
     expect(response.status).toBe(201);
+    expect(portal.getMe).toHaveBeenCalledWith(SESSION);
     expect(createBooking).toHaveBeenCalledWith(expect.anything(), expect.any(String), {
       portalSession: SESSION,
     });
@@ -1092,32 +1132,100 @@ describe('POST /api/booking/create — the portal session', () => {
     expect(expireSlots).toHaveBeenCalledWith(['svc-cut', 'svc-wash', 'svc-style']);
   });
 
-  it('forwards a logged-in parent’s session even when no account is required', async () => {
+  /**
+   * The session decides the contact under `account.required`, so the phone
+   * rule has nothing to say: the parent's own children keep their ids under
+   * any typed number, and another family's id is still dropped.
+   */
+  it('keeps the parent’s own children’s ids under account.required, whatever phone was typed', async () => {
+    portal.readPortalSession.mockResolvedValue(SESSION);
+
+    const response = await POST_REQUIRED(
+      request({
+        items: [
+          {
+            serviceId: 'svc',
+            startTs: 1,
+            bookedForName: 'Jonas',
+            bookedForPersonId: 'ct-kari-child',
+          },
+          { serviceId: 'svc', startTs: 2, bookedForName: 'Per', bookedForPersonId: 'ct-ola-child' },
+        ],
+        contact: { phone: '99887766', name: 'Kari' },
+        consentTerms: true,
+      })
+    );
+
+    expect(response.status).toBe(201);
+    expect(submittedBody().items[0]).toHaveProperty('booked_for_person_id', 'ct-kari-child');
+    expect(submittedBody().items[1]).not.toHaveProperty('booked_for_person_id');
+    expect(submittedBody().items[1]).toMatchObject({ booked_for_name: 'Per' });
+  });
+
+  it('never forwards a session when no account is required: the phone decides, as before', async () => {
+    portal.readPortalSession.mockResolvedValue(SESSION);
+
+    // Another phone than the parent's, with their own child's id: booked as a
+    // logged-out visitor's would be — no session, and names only.
+    const response = await POST(
+      request({
+        items: [
+          {
+            serviceId: 'svc',
+            startTs: 1,
+            bookedForName: 'Jonas',
+            bookedForPersonId: 'ct-kari-child',
+          },
+        ],
+        contact: { phone: '99887766', name: 'Kari' },
+        consentTerms: true,
+      })
+    );
+
+    expect(response.status).toBe(201);
+    expect(vi.mocked(createBooking).mock.calls[0]).toHaveLength(2);
+    expect(submittedBody().items[0]).not.toHaveProperty('booked_for_person_id');
+
+    // The parent's own number: their child's id, still without the session.
+    vi.mocked(createBooking).mockClear();
+    await POST(
+      request({
+        items: [
+          {
+            serviceId: 'svc',
+            startTs: 1,
+            bookedForName: 'Jonas',
+            bookedForPersonId: 'ct-kari-child',
+          },
+        ],
+        contact: { phone: '40000000', name: 'Kari' },
+        consentTerms: true,
+      })
+    );
+    expect(vi.mocked(createBooking).mock.calls[0]).toHaveLength(2);
+    expect(submittedBody().items[0]).toHaveProperty('booked_for_person_id', 'ct-kari-child');
+  });
+
+  it('books without a session exactly as before when none is required, reading no cookie', async () => {
     portal.readPortalSession.mockResolvedValue(SESSION);
 
     const response = await POST(validRequest());
 
     expect(response.status).toBe(201);
-    expect(createBooking).toHaveBeenCalledWith(expect.anything(), expect.any(String), {
-      portalSession: SESSION,
-    });
-  });
-
-  it('books without a session exactly as before when none is required', async () => {
-    const response = await POST(validRequest());
-
-    expect(response.status).toBe(201);
     expect(vi.mocked(createBooking).mock.calls[0]).toHaveLength(2);
+    expect(portal.readPortalSession).not.toHaveBeenCalled();
+    expect(portal.getMe).not.toHaveBeenCalled();
   });
 
   it('never lets two parents share an idempotency key for the same submission', async () => {
     portal.readPortalSession.mockResolvedValueOnce(SESSION);
-    await POST(nonceRequest());
+    await POST_REQUIRED(nonceRequest());
     portal.readPortalSession.mockResolvedValueOnce(OTHER_SESSION);
-    await POST(nonceRequest());
+    await POST_REQUIRED(nonceRequest());
+    // Logged out (no account required): the key a logged-out submission derives.
     await POST(nonceRequest());
     portal.readPortalSession.mockResolvedValueOnce(SESSION);
-    await POST(nonceRequest());
+    await POST_REQUIRED(nonceRequest());
 
     expect(keyOf(0)).not.toBe(keyOf(1));
     expect(keyOf(0)).not.toBe(keyOf(2));
@@ -1126,10 +1234,60 @@ describe('POST /api/booking/create — the portal session', () => {
     expect(keyOf(3)).toBe(keyOf(0));
   });
 
+  /**
+   * The answer to a booking Medal made was lost, and the session ran out
+   * before the parent pressed again. After a fresh login the same parent's
+   * resend must meet that booking — the same key — not book a second time.
+   */
+  it('keeps the same parent’s key across a renewed session, so a lost answer is not a second booking', async () => {
+    portal.readPortalSession.mockResolvedValueOnce(SESSION);
+    vi.mocked(createBooking).mockRejectedValueOnce(new Error('socket hang up'));
+    const lost = await POST_REQUIRED(nonceRequest());
+    expect(lost.status).toBe(502);
+    expect(await lost.json()).toEqual({ error: 'upstreamError' });
+
+    // The retry: the session is dead now, and Medal will not replay under it.
+    portal.readPortalSession.mockResolvedValueOnce(SESSION);
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(401, 'PORTAL_SESSION_INVALID', 'session expired')
+    );
+    const gone = await POST_REQUIRED(nonceRequest());
+    expect(gone.status).toBe(401);
+    expect(await gone.json()).toEqual({ error: 'accountRequired', message: 'Log in to book' });
+
+    // Logged in again: a new token for the same contact derives the same key,
+    // which Medal answers for the first attempt (here its 409).
+    portal.readPortalSession.mockResolvedValueOnce(RENEWED_SESSION);
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'IDEMPOTENCY_KEY_CONFLICT', 'already used')
+    );
+    const resent = await POST_REQUIRED(nonceRequest());
+    expect(resent.status).toBe(409);
+    expect(await resent.json()).toEqual({ error: 'inProgress' });
+
+    expect(createBooking).toHaveBeenCalledTimes(3);
+    expect(keyOf(1)).toBe(keyOf(0));
+    expect(keyOf(2)).toBe(keyOf(0));
+    expect(vi.mocked(createBooking).mock.calls[2][2]).toEqual({ portalSession: RENEWED_SESSION });
+    // No anonymous fallback anywhere: every attempt carried a session.
+    for (const call of vi.mocked(createBooking).mock.calls) expect(call).toHaveLength(3);
+  });
+
   it('answers 503 «retry» when the session cookie cannot be read, booking nothing', async () => {
     portal.readPortalSession.mockRejectedValueOnce(new Error('no request scope'));
 
-    const response = await POST(validRequest());
+    const response = await POST_REQUIRED(validRequest());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: 'upstreamError', retryable: true });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 «retry» under account.required when the profile cannot be read, booking nothing', async () => {
+    portal.readPortalSession.mockResolvedValue(SESSION);
+    portal.getMe.mockRejectedValueOnce(new Error('down'));
+
+    const response = await POST_REQUIRED(validRequest());
 
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: 'upstreamError', retryable: true });
@@ -1149,26 +1307,19 @@ describe('POST /api/booking/create — the portal session', () => {
     expect(createBooking).toHaveBeenCalledTimes(1);
   });
 
-  it('books anonymously, under the anonymous key, when Medal refuses a dead session and none is required', async () => {
+  it('passes on any other refusal of a session booking as the create failure it is', async () => {
     portal.readPortalSession.mockResolvedValue(SESSION);
     vi.mocked(createBooking).mockRejectedValueOnce(
-      new MedalApiError(401, 'PORTAL_SESSION_INVALID', 'session expired')
+      new MedalApiError(401, 'UNAUTHORIZED', 'bad key')
     );
 
-    const response = await POST(nonceRequest());
+    const response = await POST_REQUIRED(validRequest());
 
-    expect(response.status).toBe(201);
-    expect(createBooking).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(createBooking).mock.calls[1]).toHaveLength(2);
-    expect(keyOf(1)).not.toBe(keyOf(0));
-
-    // The anonymous key is the one a logged-out visitor's submission derives.
-    portal.readPortalSession.mockResolvedValue(null);
-    await POST(nonceRequest());
-    expect(keyOf(2)).toBe(keyOf(1));
+    expect(response.status).toBe(502);
+    expect(createBooking).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses 401 under account.required when the phone-rule check finds the session dead', async () => {
+  it('refuses 401 under account.required when the profile read finds the session dead', async () => {
     portal.readPortalSession.mockResolvedValue(SESSION);
     portal.getMe.mockRejectedValue(new PortalSessionExpiredError());
 
