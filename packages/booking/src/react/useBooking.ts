@@ -561,16 +561,17 @@ export function useBooking(options: UseBookingOptions) {
    * a child is the new parent's too: a child without one is matched by place,
    * name and year, which two families can share. A guest chair rebuilt from a
    * sent visit while nobody was logged in (`awaitingIds`) is this parent's
-   * child again when the id is theirs, and stays a blank chair when it is not.
-   * In the same batch as the login, so the form it opens never draws the old
+   * child again when the id is theirs, and stays a blank chair when it is not;
+   * a login with no readable profile decides nothing, so the ids wait on for
+   * the next one. In the same batch as the login, so the form it opens never draws the old
    * names; the chairs it leaves keep their services on a step back.
    */
   function reseatFor(who: BookingGuardian | null) {
     const before = seatedFor.current;
     const now = who?.email ?? null;
-    const awaiting = awaitingIds.current;
+    const awaiting = who === null ? null : awaitingIds.current;
     seatedFor.current = now;
-    awaitingIds.current = null;
+    if (who !== null) awaitingIds.current = null;
     const switched = before !== null && before !== now;
     if (!switched && awaiting === null) return;
     if (switched) setAddedChildren([]);
@@ -943,6 +944,8 @@ export function useBooking(options: UseBookingOptions) {
   /** The draft, kept current on every answer rather than written on the Vipps tap. */
   useEffect(() => {
     if (confirmed !== null || state.items.length === 0) {
+      // A booked visit's chairs wait for nobody.
+      if (confirmed !== null) awaitingIds.current = null;
       kit.drafts.clearDraft();
       return;
     }
@@ -1493,6 +1496,7 @@ export function useBooking(options: UseBookingOptions) {
         }
         if (wasResumed) {
           if (definite) {
+            forgetChairs();
             dispatch({ type: 'startOver' });
             restartFromLink();
           } else dispatch({ type: 'submitFailed', error: 'upstreamError' });
@@ -1598,9 +1602,15 @@ export function useBooking(options: UseBookingOptions) {
     setSlotsFailed(false);
     setConfirmed(null);
     setTakenSlotTs(null);
-    setKeptSeats([]);
+    forgetChairs();
     dispatch({ type: 'startOver' });
     restartFromLink();
+  }
+
+  /** A new visit: no chair of the last one is kept or waits for its parent. */
+  function forgetChairs() {
+    setKeptSeats([]);
+    awaitingIds.current = null;
   }
 
   /** A service tap on step 2 for a party of one — the first carries the link's stylist. */
@@ -1683,6 +1693,14 @@ export function useBooking(options: UseBookingOptions) {
 
   /** Who a parent seats on step 1; each new child starts on «same as last time». */
   function choosePeople(people: WizardPerson[], advance: boolean) {
+    // A kept or waiting chair is that chair only while step 1 passes it through
+    // as it is: one replaced — by a family child, or a count chip of the same
+    // key — is somebody new.
+    const stays = (key: string) =>
+      people.includes(state.people.find((p) => p.key === key) as WizardPerson);
+    setKeptSeats((current) => current.filter(stays));
+    const waiting = [...(awaitingIds.current ?? [])].filter(([key]) => stays(key));
+    awaitingIds.current = waiting.length > 0 ? new Map(waiting) : null;
     dispatch({
       type: 'choosePeople',
       people,

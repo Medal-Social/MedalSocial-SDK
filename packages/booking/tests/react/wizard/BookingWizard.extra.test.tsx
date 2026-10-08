@@ -877,6 +877,88 @@ describe('useBooking — the corners', () => {
     expect(result.current.state.step).toBe('when');
   });
 
+  describe('chairs an account change leaves', () => {
+    const OTHER: BookingGuardian = {
+      ...GUARDIAN,
+      email: 'other@example.test',
+      family: [{ name: 'Per', birthYear: 2017, personId: 'p-per' }],
+    };
+    const storedItems = () =>
+      JSON.parse(String(window.sessionStorage.getItem(drafts.DRAFT_STORAGE_KEY))).items;
+
+    /** A signed-out resume of a saved child's line: its chair waits for a parent. */
+    async function waitingChair() {
+      stubApi();
+      location.search = '?resume=1';
+      familyDraft([{ personId: 'p-theo' }]);
+      const hook = renderHook(() => useBooking(options()));
+      await waitFor(() => expect(hook.result.current.state.items).toHaveLength(1));
+      expect(hook.result.current.state.people[0].key).toBe('guest:1');
+      return hook;
+    }
+
+    it('waits through a login with no readable profile for the next one', async () => {
+      const { result } = await waitingChair();
+      act(() => result.current.login.signIn(null));
+      expect(result.current.state.people[0].key).toBe('guest:1');
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: 'p-theo' }));
+
+      act(() => result.current.login.signIn(GUARDIAN));
+      expect(result.current.state.people[0]).toMatchObject({ key: 'p:p-theo', name: 'Theo' });
+      expect(result.current.state.items[0]).toMatchObject({ bookedForPersonId: 'p-theo' });
+    });
+
+    it('forgets a waiting chair on «Book again»: a later guest’s chair is nobody’s', async () => {
+      const { result } = await waitingChair();
+      act(() => result.current.startOver());
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }], true));
+      act(() => result.current.pickService(KIDS));
+      await waitFor(() => expect(result.current.state.step).toBe('when'));
+      expect(storedItems()[0]).toMatchObject({ personId: null });
+
+      act(() => result.current.login.signIn(GUARDIAN));
+      expect(result.current.state.people.map((person) => person.key)).not.toContain('p:p-theo');
+    });
+
+    it('forgets a waiting chair step 1 replaced, not one it passed through', async () => {
+      const { result } = await waitingChair();
+      const chair = result.current.state.people[0];
+      act(() => result.current.people.choosePeople([chair], false));
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: 'p-theo' }));
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }], true));
+      act(() => result.current.pickService(KIDS));
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: null }));
+    });
+
+    it('keeps a switched chair only while step 1 passes it through as it is', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      const theo = { key: 'p:p-theo', name: 'Theo', birthYear: 2019, personId: 'p-theo' };
+      act(() => result.current.people.choosePeople([theo], true));
+      act(() => result.current.dispatch({ type: 'toggleServiceFor', index: 0, service: KIDS }));
+      act(() => result.current.login.signIn(OTHER));
+      const chair = result.current.state.people[0];
+      expect(chair.key).toBe('guest:1');
+
+      // Passed through untouched (a family child added beside it): still kept.
+      const per = { key: 'p:p-per', name: 'Per', birthYear: 2017, personId: 'p-per' };
+      act(() => result.current.people.choosePeople([chair, per], false));
+      await waitFor(() => expect(result.current.state.people).toHaveLength(2));
+      act(() => result.current.dispatch({ type: 'goToStep', step: 'service' }));
+      expect(result.current.state.people.map((person) => person.key)).toEqual([
+        'guest:1',
+        'p:p-per',
+      ]);
+      expect(result.current.state.choices[0]).toMatchObject({ id: KIDS.id });
+
+      // Replaced by a new chair under the same key: a guest seat like any other.
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }, per], false));
+      await waitFor(() =>
+        expect(result.current.state.people.map((person) => person.key)).toEqual(['p:p-per'])
+      );
+    });
+  });
+
   it('never reseats a person id the parent’s family does not have', async () => {
     stubApi();
     location.search = '?resume=1';
