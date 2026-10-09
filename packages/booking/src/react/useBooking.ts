@@ -460,6 +460,10 @@ function setupFor(kit: BookingKit) {
   return { prefillFromQuery, deepLinkFromQuery, heldLink, initialWizardState };
 }
 
+const CONTACT_FIELDS = ['name', 'phone', 'email'] as const;
+/** Contact fields by value, each only while a profile still owns it. */
+type ProfileOwned = Partial<Record<(typeof CONTACT_FIELDS)[number], string>>;
+
 export function useBooking(options: UseBookingOptions) {
   const { kit } = useBookingKit(options, options.contact);
   const { config, labels, wizard, clock, age, phone, deepLinks } = kit;
@@ -484,7 +488,10 @@ export function useBooking(options: UseBookingOptions) {
   /** The gate is back because the session ran out — until the next login. */
   const [sessionLost, setSessionLost] = useState(false);
   const arrivedAsNow = arrivalExpired ? null : arrivedAs;
-  const guardian = signedIn?.guardian ?? arrivedAsNow;
+  // A login decides who the parent is, even one whose profile read failed:
+  // falling back to who ARRIVED would hand account B the family and
+  // details of account A, whose seats `signIn` has just let go.
+  const guardian = signedIn === null ? arrivedAsNow : signedIn.guardian;
 
   // The link, read ONCE, in the initialisers: a prefill that re-applied later
   // would answer questions the visitor has since changed their mind about.
@@ -583,7 +590,8 @@ export function useBooking(options: UseBookingOptions) {
    * sent visit while nobody was logged in (`awaitingIds`) is this parent's
    * child again when the id is theirs, and stays a blank chair when it is not;
    * a login with no readable profile decides nothing, so the ids wait on for
-   * the next one. In the same batch as the login, so the form it opens never draws the old
+   * the next one — including those of the seats it just let go, which the
+   * next readable login claims back when they are its own. In the same batch as the login, so the form it opens never draws the old
    * names; the chairs it leaves keep their services on a step back.
    */
   function reseatFor(who: BookingGuardian | null) {
@@ -620,6 +628,16 @@ export function useBooking(options: UseBookingOptions) {
         (keys.includes(state.people[index].key) || awaiting?.has(person.key))
     );
     setKeptSeats((current) => [...current, ...kept.map((person) => person.key)]);
+    if (who === null && switched) {
+      const waiting = new Map(awaitingIds.current ?? []);
+      after.forEach((person, index) => {
+        const before = state.people[index];
+        if (keys.includes(before.key) && before.personId !== undefined) {
+          waiting.set(person.key, before.personId);
+        }
+      });
+      awaitingIds.current = waiting.size > 0 ? waiting : null;
+    }
     if (keys.length > 0) dispatch(action);
   }
 
@@ -999,37 +1017,65 @@ export function useBooking(options: UseBookingOptions) {
     state.partyResourceIds,
   ]);
 
+  /**
+   * The fields a logged-in parent's profile wrote, by value, for as long as it
+   * still owns them — and only those: a field the visitor filled or changed is
+   * never in here, whoever logs in next.
+   */
+  const guardianFilled = useRef<{ email: string; owns: ProfileOwned } | null>(null);
   /** A live mirror of the contact fields, for the prefill below. */
   const latestContact = useRef(state.contact);
   useEffect(() => {
     latestContact.current = state.contact;
+    // A field that ever differs from what the profile wrote is the visitor's
+    // from then on — typed back to the same value included — so neither a
+    // switch nor an unreadable login below takes it.
+    const owns = guardianFilled.current?.owns;
+    if (owns === undefined) return;
+    for (const field of CONTACT_FIELDS) {
+      if (field in owns && state.contact[field] !== owns[field]) delete owns[field];
+    }
   });
 
   /**
-   * The logged-in parent's details into the fields — once per parent, into
-   * fields still BLANK or still holding exactly what the PREVIOUS parent's
-   * profile put there (a shared device), never over what the visitor typed.
+   * The logged-in parent's details into the fields — once per parent. A field
+   * the previous parent's profile still owns is theirs to replace: with this
+   * parent's value, or emptied when this profile has none (a shared device
+   * must not keep the last account's phone). A blank field is filled. A field
+   * the visitor owns is never touched, and stays theirs.
    */
-  const guardianFilled = useRef<{ email: string; wrote: WizardState['contact'] } | null>(null);
   useEffect(() => {
-    if (guardian === null || guardianFilled.current?.email === guardian.email) return;
-    const previous = guardianFilled.current?.wrote;
     const contact = latestContact.current;
-    const wrote = {
+    const previous = guardianFilled.current?.owns ?? {};
+    if (guardian === null) {
+      // A login with no readable profile is somebody else until shown
+      // otherwise: what the previous parent's profile wrote goes, and what
+      // the visitor typed stays. (No login at all — the session ran out —
+      // keeps the fields for the same parent's next login.)
+      if (signedIn === null || guardianFilled.current === null) return;
+      guardianFilled.current = null;
+      for (const field of CONTACT_FIELDS) {
+        if (field in previous) dispatch({ type: 'setContact', field, value: '' });
+      }
+      return;
+    }
+    if (guardianFilled.current?.email === guardian.email) return;
+    const profile = {
       name: [guardian.firstName, guardian.lastName].filter(Boolean).join(' ').trim(),
       phone: guardian.phone === null ? '' : phone.nationalDigits(guardian.phone),
       email: guardian.email,
     };
-    guardianFilled.current = { email: guardian.email, wrote };
+    const owns: ProfileOwned = {};
+    guardianFilled.current = { email: guardian.email, owns };
 
-    for (const field of ['name', 'phone', 'email'] as const) {
-      const value = wrote[field];
-      if (value === '') continue;
-      const held = contact[field].trim();
-      if (held !== '' && held !== previous?.[field]) continue;
-      dispatch({ type: 'setContact', field, value });
+    for (const field of CONTACT_FIELDS) {
+      const value = profile[field];
+      const theirs = field in previous;
+      if (!theirs && contact[field].trim() !== '') continue;
+      if (value !== '') owns[field] = value;
+      if (value !== '' || theirs) dispatch({ type: 'setContact', field, value });
     }
-  }, [guardian, phone]);
+  }, [guardian, signedIn, phone]);
 
   // One entry per distinct VISIT, not per service: a person having cut and wash
   // is one question to the engine (one stylist, back to back), and the cut's
