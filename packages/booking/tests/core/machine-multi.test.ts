@@ -456,4 +456,60 @@ describe('unseatPeople', () => {
     const state = seated([THEO]);
     expect(reduce(state, { type: 'unseatPeople', keys: ['p:p-mia'] })).toBe(state);
   });
+
+  it('seats the logged-in parent’s own child in a chair `into` names, keeping its services', () => {
+    let state = seated([KID_1, KID_2]);
+    state = toggle(toggle(state, 0, KLIPP), 0, VASK);
+    state = toggle(state, 1, FARGE);
+    state = reduce(state, { type: 'pickSlot', startTs: 1_000, resourceId: 'res-1' });
+
+    const next = reduce(state, {
+      type: 'unseatPeople',
+      keys: [KID_1.key],
+      into: { [KID_1.key]: THEO },
+    });
+
+    expect(next.people).toEqual([THEO, KID_2]);
+    expect(next.items[0]).toEqual({
+      service: KLIPP,
+      extraServices: [VASK],
+      bookedForName: 'Theo',
+      bookedForBirthYear: 2019,
+      bookedForPersonId: 'p-theo',
+    });
+    expect(next.startTs).toBe(1_000);
+  });
+
+  it('falls back to a guest chair when the child `into` names is seated already', () => {
+    const state = seated([THEO, KID_1]);
+    const next = reduce(state, {
+      type: 'unseatPeople',
+      keys: [KID_1.key],
+      into: { [KID_1.key]: THEO },
+    });
+    expect(next.people.map((person) => person.key)).toEqual(['p:p-theo', 'guest:2']);
+  });
+});
+
+describe('seatFamily with chairs to keep', () => {
+  it('keeps a guest chair in `keep` with its services, and drops the rest', () => {
+    const child: WizardPerson = { key: 'p:p-1', personId: 'p-1', name: 'Kari' };
+    let state = seated([KID_1, KID_2, child]);
+    state = toggle(toggle(state, 0, KLIPP), 0, VASK);
+    state = toggle(state, 1, FARGE);
+    state = toggle(state, 2, KLIPP);
+
+    const next = reduce(state, { type: 'seatFamily', keep: [KID_1.key] });
+
+    expect(next.people.map((person) => person.key)).toEqual([KID_1.key, 'p:p-1']);
+    expect(next.items).toEqual([
+      { service: KLIPP, extraServices: [VASK] },
+      { service: KLIPP, bookedForName: 'Kari', bookedForPersonId: 'p-1' },
+    ]);
+  });
+
+  it('is the same state when every guest chair is kept', () => {
+    const state = toggle(seated([KID_1]), 0, KLIPP);
+    expect(reduce(state, { type: 'seatFamily', keep: [KID_1.key] })).toBe(state);
+  });
 });

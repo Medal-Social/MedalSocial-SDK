@@ -3740,6 +3740,190 @@ describe('BookingWizard with account.required', () => {
       expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
     });
 
+    it('never keeps a child without an id because the next family has one by the same name and year', async () => {
+      // Two families, each with a «Jonas 2018» Medal has no person id for:
+      // place, name and year match, the birth month does not.
+      const KARI_NO_ID = { ...KARI, family: [{ name: 'Jonas', birthYear: 2018, birthMonth: 3 }] };
+      const OLA_NO_ID = { ...OLA, family: [{ name: 'Jonas', birthYear: 2018, birthMonth: 11 }] };
+      stubApi(GONE);
+      const user = userEvent.setup();
+      renderWizard({ accountRequired: true, guardian: KARI_NO_ID });
+      await tickJonas(user);
+      await pickGutteklipp(user);
+      await user.click(await screen.findByRole('button', { name: '13:00' }));
+      await onDetails();
+      expect(screen.getByText(/for Jonas/)).toBeInTheDocument();
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Nesten ferdig' });
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: OLA_NO_ID } },
+      });
+      await logInByEmail(user);
+      // Kari's Jonas is not in Ola's chair: a guest chair, asked again.
+      expect(screen.queryByText(/for Jonas/)).toBeNull();
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(sent.items[0]).not.toHaveProperty('bookedForName');
+      expect(sent.items[0]).not.toHaveProperty('bookedForBirthYear');
+    });
+
+    it('keeps the unseated chair and its service when the next parent steps back to «Hva»', async () => {
+      const user = userEvent.setup();
+      await lostAsKari(user);
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: OLA } },
+      });
+      await logInByEmail(user);
+      await user.click(screen.getByRole('button', { name: 'Hva' }));
+      // Still the service step — the party was not emptied back to «Hvem».
+      expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Hvem skal klippes?' })).toBeNull();
+
+      // Forward again: the same service at the same hour goes through.
+      await user.click(screen.getByRole('button', { name: 'Bekreft' }));
+      await onDetails();
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent & {
+        items: Array<{ serviceId: string }>;
+      };
+      expect(sent.items).toHaveLength(1);
+      expect(sent.items[0]).toMatchObject({ serviceId: GUTTEKLIPP.id, startTs: osloTs(2, 13) });
+      expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+    });
+
+    /**
+     * Kari's «Bekreft time» answers 502 (it may have booked); the page loads
+     * again with her session gone, and the replay is refused.
+     */
+    async function replayLostAsKari(user: ReturnType<typeof userEvent.setup>) {
+      window.sessionStorage.clear();
+      stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+      const view = renderWizard({ accountRequired: true, guardian: KARI_IDS });
+      await tickJonas(user);
+      await pickGutteklipp(user);
+      await user.click(await screen.findByRole('button', { name: '13:00' }));
+      await onDetails();
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('alert');
+      view.unmount();
+
+      stubApi(GONE);
+      // Nobody logged in on this load: the cookie went with the session.
+      renderWizard({ accountRequired: true });
+      await screen.findByRole('heading', { name: 'Nesten ferdig' });
+      // The sent visit is rebuilt id-only, as a draft written signed-out is.
+      await waitFor(() => {
+        const draft = JSON.parse(window.sessionStorage.getItem('demo:booking:draft') ?? 'null');
+        expect(draft.items[0]).toMatchObject({
+          personId: 'p-jonas',
+          bookedForName: null,
+          bookedForBirthYear: null,
+        });
+      });
+    }
+
+    it('gives the next parent a blank chair, not the previous family’s child, after a refused replay', async () => {
+      const user = userEvent.setup();
+      await replayLostAsKari(user);
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: OLA } },
+      });
+      await logInByEmail(user);
+      expect(screen.queryByText(/for Jonas/)).toBeNull();
+      expect(screen.queryByDisplayValue('Jonas')).toBeNull();
+      expect(screen.queryByDisplayValue('2018')).toBeNull();
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(sent.items[0]).not.toHaveProperty('bookedForName');
+      expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+    });
+
+    it('seats the parent’s own child again by id when SHE logs in after a refused replay', async () => {
+      const user = userEvent.setup();
+      await replayLostAsKari(user);
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: KARI_IDS } },
+      });
+      await logInByEmail(user);
+      expect(screen.getByText(/for Jonas/)).toBeInTheDocument();
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({
+        startTs: osloTs(2, 13),
+        bookedForName: 'Jonas',
+        bookedForPersonId: 'p-jonas',
+      });
+    });
+
+    it('keeps a child both parents have, by the id they share', async () => {
+      const user = userEvent.setup();
+      await lostAsKari(user);
+
+      // Jonas's other parent: another account, the same child in Medal.
+      const CO_PARENT = { ...OLA, family: KARI_IDS.family };
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: CO_PARENT } },
+      });
+      await logInByEmail(user);
+      expect(screen.getByText(/for Jonas/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ bookedForPersonId: 'p-jonas' });
+    });
+
+    it('takes the previous parent’s child off a guest line a family chip put them on', async () => {
+      stubApi({ ...OPEN_AT_ONE, verify: { status: 200, body: { ok: true, guardian: KARI_IDS } } });
+      const user = userEvent.setup();
+      renderWizard({ accountRequired: true });
+      await onGate(user);
+      await logInByEmail(user);
+      // A guest's line, logged in at the gate: Kari names Jonas with his chip.
+      await user.click(screen.getByRole('button', { name: 'Jonas' }));
+      expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+      stubApi(GONE);
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Nesten ferdig' });
+
+      const { bodies } = stubApi({
+        ...OPEN_AT_ONE,
+        verify: { status: 200, body: { ok: true, guardian: OLA } },
+      });
+      await logInByEmail(user);
+      expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('');
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+      const sent = bodies.find((body) => 'items' in (body as object)) as Sent;
+      expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
+      expect(sent.items[0]).not.toHaveProperty('bookedForName');
+      expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+    });
+
     it('keeps the child seated when the SAME parent logs back in', async () => {
       const user = userEvent.setup();
       await lostAsKari(user);

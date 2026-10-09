@@ -326,17 +326,25 @@ export type WizardAction =
    * see `isGuestSeat` — and a guest «Voksen» becomes «Meg selv». Only while
    * nothing is held on them (steps 1 and 2); from the hour on they are real
    * chairs with a time, and «Bekreft» names them. A party emptied by it goes
-   * back to step 1, where the children are.
+   * back to step 1, where the children are. A guest chair in `keep` stays:
+   * one an account switch made of a seat (`unseatPeople`), whose services are
+   * the visit the parent is booking, not a guest's count chip.
    */
-  | { type: 'seatFamily' }
+  | { type: 'seatFamily'; keep?: readonly string[] }
   /**
    * Somebody else has logged in over this party — another account than the
    * one it was seated under: each seat in `keys` (the previous parent's saved
    * children) becomes a guest chair. Its services stay, and so does the hour —
    * the basket is the same visit, only WHO changed — but its name, year and
    * person id go with the parent they belonged to, and «Bekreft» asks again.
+   * With `into`, the seat `key` becomes `into[key]` instead — the child of the
+   * parent who logged in, found by id — unless that child is seated already.
    */
-  | { type: 'unseatPeople'; keys: readonly string[] }
+  | {
+      type: 'unseatPeople';
+      keys: readonly string[];
+      into?: Readonly<Record<string, WizardPerson>>;
+    }
   /**
    * One person joins the party as it is WHEN this lands — a child the parent
    * just created in Medal, after the await. Refused at the limit, a no-op for
@@ -782,15 +790,16 @@ function withPersonFields(person: WizardPerson, item: WizardItem): WizardPerson 
 }
 
 /** `seatFamily` — see the action. */
-function seatFamily(state: WizardState): WizardState {
+function seatFamily(state: WizardState, keep: readonly string[] = []): WizardState {
+  const drops = (person: WizardPerson) => isGuestSeat(person) && !keep.includes(person.key);
   if (state.step !== 'who' && state.step !== 'service') return state;
-  if (!state.people.some(isGuestSeat)) return state;
+  if (!state.people.some(drops)) return state;
   const people: WizardPerson[] = [];
   const choices: Array<WizardService | null> = [];
   const extras: WizardService[][] = [];
   state.people.forEach((person, index) => {
     const seat = person.key === 'adult' ? { key: SELF_KEY, adult: true } : person;
-    if (isGuestSeat(seat) || people.some((other) => other.key === seat.key)) return;
+    if (drops(seat) || people.some((other) => other.key === seat.key)) return;
     people.push(seat);
     choices.push(state.choices[index] ?? null);
     extras.push(extrasAt(state, index));
@@ -803,20 +812,29 @@ function seatFamily(state: WizardState): WizardState {
 }
 
 /** `unseatPeople` — see the action. */
-function unseatPeople(state: WizardState, keys: readonly string[]): WizardState {
+function unseatPeople(
+  state: WizardState,
+  keys: readonly string[],
+  into: Readonly<Record<string, WizardPerson>> = {}
+): WizardState {
   const leaving = state.people.map((person) => keys.includes(person.key));
   if (!leaving.includes(true)) return state;
   const taken = new Set(state.people.map((person) => person.key));
   let n = 0;
   const people = state.people.map((person, index) => {
     if (!leaving[index]) return person;
+    const own = into[person.key];
+    if (own !== undefined && !taken.has(own.key)) {
+      taken.add(own.key);
+      return own;
+    }
     let seat = guestChild(++n);
     while (taken.has(seat.key)) seat = guestChild(++n);
     taken.add(seat.key);
     return seat;
   });
   // The lines that stay keep what «Bekreft» was already told about them; the
-  // unseated ones are rebuilt from their guest chair, with the same services.
+  // unseated ones are rebuilt from their new seat, with the same services.
   // A party without a whole basket yet has no lines to rebuild.
   const items = state.items.map((item, index) =>
     leaving[index] ? itemFor(people[index], item.service, item.extraServices ?? []) : item
@@ -1281,10 +1299,10 @@ export function createWizard(config: WizardConfig): Wizard {
         return toggleServiceFor(state, action);
 
       case 'seatFamily':
-        return seatFamily(state);
+        return seatFamily(state, action.keep);
 
       case 'unseatPeople':
-        return unseatPeople(state, action.keys);
+        return unseatPeople(state, action.keys, action.into);
 
       case 'addPerson':
         return addPerson(state, action.person);
