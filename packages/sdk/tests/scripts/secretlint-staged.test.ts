@@ -12,6 +12,9 @@ const REPO_ROOT = `${resolve(__dirname, "../../../..")}/`;
 // `git diff --cached` (newline-separated) instead of `git ls-files -z`.
 const SCRIPT_PATH = resolve(REPO_ROOT, "scripts/secretlint-staged.mjs");
 
+// Windows runs the `pnpm` shim through a shell; every other platform does not.
+const WINDOWS_SHELL = process.platform === "win32" ? { shell: true } : {};
+
 async function runScript(execFileSync: ReturnType<typeof vi.fn>) {
   vi.doMock("node:child_process", () => ({ execFileSync }));
   vi.resetModules();
@@ -56,7 +59,7 @@ describe("scripts/secretlint-staged.mjs", () => {
       2,
       "pnpm",
       ["exec", "secretlint", "a.ts", "b.ts"],
-      { cwd: REPO_ROOT, stdio: "inherit" },
+      { cwd: REPO_ROOT, stdio: "inherit", ...WINDOWS_SHELL },
     );
     expect(exitSpy).not.toHaveBeenCalled();
   });

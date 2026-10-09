@@ -19,7 +19,11 @@ if (stagedFiles.length === 0) {
   process.exit(0);
 }
 
+// On Windows `pnpm` is a `.cmd` shim, which Node only runs through a shell;
+// elsewhere the call is exactly what it was. The staged paths are the
+// repository's own (no spaces), so the shell sees each as one argument.
 execFileSync("pnpm", ["exec", "secretlint", ...stagedFiles], {
   cwd: repoRoot,
   stdio: "inherit",
+  ...(process.platform === "win32" ? { shell: true } : {}),
 });
