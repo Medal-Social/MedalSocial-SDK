@@ -1167,6 +1167,16 @@ export interface Wizard {
     resolveStylistName: (resourceId: string) => string | null,
     now?: number
   ): string;
+  /**
+   * `summaryLine`'s words in two parts, for a bar with a second line: `line`
+   * is what (and with whom), `detail` when and for how much. The same parts
+   * as the one-line form, so the two can never disagree.
+   */
+  summaryParts(
+    state: WizardState,
+    resolveStylistName: (resourceId: string) => string | null,
+    now?: number
+  ): { line: string; detail: string };
   guestChild: typeof guestChild;
   isGuestSeat: typeof isGuestSeat;
 }
@@ -1852,6 +1862,33 @@ export function createWizard(config: WizardConfig): Wizard {
     ].join(SEPARATOR);
   }
 
+  function summaryParts(
+    state: WizardState,
+    resolveStylistName: (resourceId: string) => string | null,
+    now: number = Date.now()
+  ): { line: string; detail: string } {
+    if (state.items.length === 0 && state.people.length > 0) {
+      return { line: peopleLabel(state.people), detail: '' };
+    }
+    const service = serviceLabel(state);
+    if (showsPartyMode(state)) {
+      return { line: service ?? '', detail: priceLabel(state) ?? '' };
+    }
+    if (service === null) return { line: '', detail: '' };
+    const unnamedPreference = (state.resolvedResourceId ?? state.resourceId) === null;
+    const stylist =
+      stylistLabel(state, resolveStylistName) ??
+      (unnamedPreference ? labelText(labels['summary.firstAvailable']) : UNCHOSEN);
+    return {
+      line: [service, stylist].join(SEPARATOR),
+      detail: [
+        timeLabel(state.startTs, now) ?? labelText(labels['summary.pickTime']),
+        /* v8 ignore next -- defensive: a service in the bar means a price */
+        priceLabel(state) ?? UNCHOSEN,
+      ].join(SEPARATOR),
+    };
+  }
+
   return {
     maxPeople,
     initialState,
@@ -1869,6 +1906,7 @@ export function createWizard(config: WizardConfig): Wizard {
     showsPartyMode,
     itemResourceIds,
     summaryLine,
+    summaryParts,
     guestChild,
     isGuestSeat,
   };

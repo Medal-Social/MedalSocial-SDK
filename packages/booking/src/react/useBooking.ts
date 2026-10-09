@@ -431,6 +431,16 @@ function setupFor(kit: BookingKit) {
     const seated = seat ?? unasked;
     const base = seated !== null && 'adult' in seated ? withAdult() : wizard.initialState();
     if (prefill === null) {
+      // `screens.guestParty`: step 1 opens on its common answer, one child,
+      // already in the state — so the server-rendered step shows «1» and a
+      // live «next», and a tap before hydration has something to press.
+      if (seated === null && config.screens.guestParty) {
+        return wizard.reduce(wizard.initialState(), {
+          type: 'choosePeople',
+          people: [wizard.guestChild(1)],
+          advance: false,
+        });
+      }
       if (seated === null) return wizard.initialState();
       return 'adult' in seated ? withAdult() : withGuests(seated.children);
     }
@@ -1778,6 +1788,7 @@ export function useBooking(options: UseBookingOptions) {
       party,
       total: wizard.totalPriceOre(state.items, state.startTs),
       summary: wizard.summaryLine(state, resolveStylistName),
+      summaryParts: wizard.summaryParts(state, resolveStylistName),
       visitEnd:
         state.startTs === null
           ? null

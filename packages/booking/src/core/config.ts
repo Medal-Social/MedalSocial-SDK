@@ -127,6 +127,36 @@ export interface BookingConfig {
    * until there is a session, and `/create` refuses without one.
    */
   account: { required: boolean };
+  /**
+   * Opt-in screen features, all off by default so a site's wizard only
+   * changes when it asks:
+   * - `recap` — the details step opens with what is being booked (day, hours,
+   *   who, stylist, total, «edit», and a swap to another stylist free at the
+   *   same minute when «first available» picked one).
+   * - `soonest` — the time step leads with the earliest free starts.
+   * - `dayFullness` — each day chip shows how much room the day has.
+   * - `summaryDetail` — the sticky bar's time and price on a second line.
+   * - `hideDisabledNext` — the bar's «next» only while it does something.
+   * - `firstAvailableFaces` — «first available» drawn as the qualified
+   *   stylists' faces.
+   * - `stylistEdgeFade` — the phone stylist row fades at its edge.
+   * - `guestParty` — a guest picks a number of children and «me too» instead
+   *   of the chips, so a parent and child book together without an account.
+   * - `childMenuFirst` — a child's service list leads with the children's and
+   *   anyone's groups; the grown-ups' groups move below the «usually not for
+   *   this age» divider, still one tap away.
+   */
+  screens: {
+    recap: boolean;
+    soonest: boolean;
+    dayFullness: boolean;
+    summaryDetail: boolean;
+    hideDisabledNext: boolean;
+    firstAvailableFaces: boolean;
+    stylistEdgeFade: boolean;
+    guestParty: boolean;
+    childMenuFirst: boolean;
+  };
   consent: {
     termsUrl: string | null;
     /** `null` = no marketing box. */
@@ -207,6 +237,17 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
     contact: { phone: null, address: null, name: '' },
     portal: { enabled: false, methods: ['email_code'], cookieName: 'booking_portal' },
     account: { required: false },
+    screens: {
+      recap: false,
+      soonest: false,
+      dayFullness: false,
+      summaryDetail: false,
+      hideDisabledNext: false,
+      firstAvailableFaces: false,
+      stylistEdgeFade: false,
+      guestParty: false,
+      childMenuFirst: false,
+    },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
     ics: { prodId: '-//Medal Social//Booking//EN', uidDomain: 'booking.invalid' },
@@ -388,6 +429,17 @@ const schema = z
       returnPaths: z.object({ exact: z.array(path), prefixes: z.array(prefix) }),
     }),
     account: z.object({ required: z.boolean() }),
+    screens: z.object({
+      recap: z.boolean(),
+      soonest: z.boolean(),
+      dayFullness: z.boolean(),
+      summaryDetail: z.boolean(),
+      hideDisabledNext: z.boolean(),
+      firstAvailableFaces: z.boolean(),
+      stylistEdgeFade: z.boolean(),
+      guestParty: z.boolean(),
+      childMenuFirst: z.boolean(),
+    }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),
       marketing: z.object({ text: z.string().min(1), version: z.string().min(1) }).nullable(),
