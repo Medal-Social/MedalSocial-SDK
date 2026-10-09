@@ -19,4 +19,4 @@ allowBuilds:
 # First-party: meda is released from Medal-Social/meda; the booking package
 # tracks its booking screens release by release, inside the age window.
 minimumReleaseAgeExclude:
-  - '@medalsocial/meda@3.6.0'
+  - '@medalsocial/meda@3.6.0 || 3.7.0'

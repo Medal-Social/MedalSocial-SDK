@@ -13,6 +13,7 @@
 
 import {
   BookingButton,
+  BookingRecap,
   Confirmation,
   DetailsScreen,
   LiveStatus,
@@ -56,11 +57,14 @@ import {
   detailsLines,
   detailsScreenBase,
   familyEntries,
+  GUEST_ADULT_SEAT,
   guestChoices,
   partyPeople,
   partySizeWord,
+  recapProps,
   serviceFitsFor,
   serviceScreenBase,
+  stylistFace,
   weekendNoteFor,
 } from './wizard/adapters';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
@@ -341,6 +345,11 @@ function BookingWizardShell(props: BookingWizardProps) {
           </p>
         )}
 
+      {/* What is being booked, first: above the login offer and the form. */}
+      {state.step === 'details' && !gated && kit.config.screens.recap && (
+        <RecapStep booking={booking} resolved={resolved} />
+      )}
+
       {state.step === 'details' && loginRow}
 
       {/* The gate takes a Vipps confirm code itself, in place of the form. */}
@@ -386,10 +395,13 @@ function BookingWizardShell(props: BookingWizardProps) {
 
       {!multiSelect && (
         <SummaryBar
-          line={booking.derived.summary}
+          {...(kit.config.screens.summaryDetail
+            ? booking.derived.summaryParts
+            : { line: booking.derived.summary })}
           canAdvance={booking.derived.canAdvance}
           step={state.step}
           onNext={booking.next}
+          hideNextWhenDisabled={kit.config.screens.hideDisabledNext}
           labels={screenLabels(labels)}
           classNames={resolved.classNames.summary}
         />
@@ -429,6 +441,11 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
       isGuestSeat={kit.wizard.isGuestSeat}
       onChoose={people.choosePeople}
       onAddChild={people.addChild}
+      guestParty={
+        kit.config.screens.guestParty
+          ? { child: kit.wizard.guestChild, adult: GUEST_ADULT_SEAT }
+          : undefined
+      }
       loginRow={loginRow}
       currentYear={Number(kit.clock.dayKey(booking.slots.fromTs).slice(0, 4))}
       classNames={resolved.classNames.who}
@@ -462,7 +479,7 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
       format={kit.format}
       services={catalogue.services}
       {...serviceScreenBase(kit)}
-      serviceFits={serviceFitsFor(kit, state.people.map(ageOf))}
+      serviceFits={serviceFitsFor(kit, state.people.map(ageOf), state.people)}
       initialCategory={catalogue.deepLinkCategory}
       onPick={(service) => pickFor(0, service, () => booking.pickService(service))}
       suggestion={single ? people.suggestionFor(single) : null}
@@ -546,6 +563,8 @@ function WhenStep({ booking, resolved }: StepProps) {
         pendingName={catalogue.chosenStylistName}
         notice={catalogue.stylistNotice}
         onPick={booking.pickResource}
+        firstAvailableFaces={config.screens.firstAvailableFaces}
+        edgeFade={config.screens.stylistEdgeFade}
         party={
           party
             ? {
@@ -582,6 +601,14 @@ function WhenStep({ booking, resolved }: StepProps) {
           phone={phone}
           weekendNote={(dayTs) => weekendNoteFor(kit, party ? items : items.slice(0, 1), dayTs)}
           onPick={booking.pickSlot}
+          soonest={
+            config.screens.soonest
+              ? {
+                  resolveStylist: (resourceId) => stylistFace(catalogue.resources, resourceId),
+                }
+              : undefined
+          }
+          dayFullness={config.screens.dayFullness}
           party={
             party
               ? {
@@ -624,6 +651,32 @@ function WhenStep({ booking, resolved }: StepProps) {
       {/* Once, outside the skeleton-or-step switch, so a re-read cannot remount it. */}
       <TakenToast labels={screenLabels(labels)} takenSlotTs={slots.takenSlotTs} />
     </>
+  );
+}
+
+/**
+ * The details step's recap (`config.screens.recap`): the day, hours, who and
+ * total of the booking the form below submits, «edit» back to the time step,
+ * and a swap to another stylist free at that minute.
+ */
+function RecapStep({ booking, resolved }: StepProps) {
+  const { kit, state, catalogue, slots } = booking;
+  const recap = useMemo(
+    () => recapProps(kit, state, catalogue.resources, slots.single),
+    [kit, state, catalogue.resources, slots.single]
+  );
+  return (
+    <BookingRecap
+      lines={recap.lines}
+      totalOre={booking.derived.total}
+      format={kit.format}
+      labels={screenLabels(kit.labels)}
+      onEdit={() => booking.dispatch({ type: 'goToStep', step: 'when' })}
+      alternatives={recap.alternatives}
+      // Alternatives exist only for a timed visit, so there is always a start to keep.
+      onSwap={(resourceId) => booking.pickSlot({ startTs: state.startTs as number, resourceId })}
+      classNames={resolved.classNames.recap}
+    />
   );
 }
 

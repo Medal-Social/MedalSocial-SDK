@@ -1167,6 +1167,16 @@ export interface Wizard {
     resolveStylistName: (resourceId: string) => string | null,
     now?: number
   ): string;
+  /**
+   * `summaryLine`'s words in two parts, for a bar with a second line: `line`
+   * is what (and with whom), `detail` when and for how much. The same parts
+   * as the one-line form, so the two can never disagree.
+   */
+  summaryParts(
+    state: WizardState,
+    resolveStylistName: (resourceId: string) => string | null,
+    now?: number
+  ): { line: string; detail: string };
   guestChild: typeof guestChild;
   isGuestSeat: typeof isGuestSeat;
 }
@@ -1852,6 +1862,29 @@ export function createWizard(config: WizardConfig): Wizard {
     ].join(SEPARATOR);
   }
 
+  function summaryParts(
+    state: WizardState,
+    resolveStylistName: (resourceId: string) => string | null,
+    now: number = Date.now()
+  ): { line: string; detail: string } {
+    if (state.items.length === 0) {
+      return { line: state.people.length > 0 ? peopleLabel(state.people) : '', detail: '' };
+    }
+    // A basket always has a service and a price; the bar names both.
+    const service = serviceLabel(state) as string;
+    const price = money.formatMinor(totalPriceOre(state.items, state.startTs));
+    if (showsPartyMode(state)) return { line: service, detail: price };
+    const unnamedPreference = (state.resolvedResourceId ?? state.resourceId) === null;
+    const stylist =
+      stylistLabel(state, resolveStylistName) ??
+      (unnamedPreference ? labelText(labels['summary.firstAvailable']) : UNCHOSEN);
+    const when = timeLabel(state.startTs, now) ?? labelText(labels['summary.pickTime']);
+    return {
+      line: [service, stylist].join(SEPARATOR),
+      detail: [when, price].join(SEPARATOR),
+    };
+  }
+
   return {
     maxPeople,
     initialState,
@@ -1869,6 +1902,7 @@ export function createWizard(config: WizardConfig): Wizard {
     showsPartyMode,
     itemResourceIds,
     summaryLine,
+    summaryParts,
     guestChild,
     isGuestSeat,
   };

@@ -11,6 +11,7 @@ import type {
   AccountCardSlot,
   AddChildSheetSlot,
   BookingCardProps,
+  BookingRecapSlot,
   BookingSkeletonSlot,
   ChildCardProps,
   ChildCardsSlot,
@@ -62,6 +63,7 @@ export interface BookingClassNames {
   stylist?: SlotClassNames<StylistScreenSlot>;
   time?: SlotClassNames<TimeScreenSlot>;
   details?: SlotClassNames<DetailsScreenSlot>;
+  recap?: SlotClassNames<BookingRecapSlot>;
   summary?: SlotClassNames<SummaryBarSlot>;
   confirmation?: SlotClassNames<ConfirmationSlot>;
   skeleton?: SlotClassNames<BookingSkeletonSlot>;

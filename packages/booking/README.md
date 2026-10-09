@@ -78,9 +78,27 @@ its own values in.
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |
+| `screens` | every switch `false` | Opt-in screen features, below; nothing changes for a site that sets none |
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |
 | `ics` | `-//Medal Social//Booking//EN` | Calendar product id and UID domain |
 | `labels` | built-in pack for `locale` | Partial copy overrides (`summary.pickTime`, `daypart.<key>`, …) |
+
+### Opt-in screens (`screens`)
+
+Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.7). The
+built-in packs carry their words; override them with `labels`.
+
+| Switch | What the parent sees |
+|---|---|
+| `recap` | The details step opens with what is being booked: a calendar leaf, the hours, each person's services and stylist, the total, «Endre» back to the time step, and — when «first available» picked one stylist while others were free at that minute — a one-tap swap (`recap.*`) |
+| `soonest` | «Ledig snart» above the days: the three earliest starts across the window, one tap each, with who it would be with (`time.soonest.*`) |
+| `dayFullness` | Each day chip shows how much room it has, or «fullt» for an open day searched for everyone (`time.dayChip.*`) |
+| `summaryDetail` | The sticky bar's time and price on a second line, so a phone's ellipsis does not eat them |
+| `hideDisabledNext` | The bar's «Neste» only while it does something; the step's hint in its place (`summary.hint.*`) |
+| `firstAvailableFaces` | «Første ledige» drawn as the faces of the stylists who can do the basket |
+| `stylistEdgeFade` | The phone's sideways stylist row fades at its edge |
+| `guestParty` | A guest picks a number of children and «me too» instead of the chips, so a parent and child book together without an account; the step opens with one child seated (also in the server render) (`who.party.*`) |
+| `childMenuFirst` | A child's service list leads with the children's and anyone's groups; grown-ups' groups move below the «usually not for this age» divider |
 
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
