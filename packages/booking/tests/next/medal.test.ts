@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMedalSeam, MedalApiError, MedalConfigError } from '../../src/next/medal';
+import { redactSession } from '../../src/next/redact';
 
 /**
  * The seam reads its key and origin per call; read from the environment here,
@@ -19,6 +20,9 @@ const { createBooking, getManage, listAvailability, listSchedule, listServices, 
  * old hand-rolled client and the SDK differ on those, the test reads through
  * `Headers` or picks a status the SDK does not retry.
  */
+
+/** A token of the shape Medal issues. */
+const SESSION = 's'.repeat(43);
 
 type FetchMock = ReturnType<typeof vi.fn<(url: string, init: RequestInit) => Promise<Response>>>;
 
@@ -128,6 +132,65 @@ describe('medal-client', () => {
 
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(init.body as string).created_via).toBe('web');
+  });
+
+  it('forwards a portal session on create as X-Portal-Session, and none without one', async () => {
+    vi.stubEnv('MEDAL_API_KEY', 'sk_test');
+    const fetchMock = stubFetch({ data: { bookings: [], contact_id: 'c' } });
+    const body = { items: [{ service_id: 'svc', start_ts: 1 }], contact: { phone: '40000000' } };
+
+    await createBooking(body, 'idem-1', { portalSession: SESSION });
+    await createBooking(body, 'idem-2');
+
+    expect(header(fetchMock.mock.calls[0][1], 'x-portal-session')).toBe(SESSION);
+    expect(header(fetchMock.mock.calls[0][1], 'idempotency-key')).toBe('idem-1');
+    expect(header(fetchMock.mock.calls[1][1], 'x-portal-session')).toBeNull();
+  });
+
+  it('sends a visit’s extra_service_ids in the body with the session in X-Portal-Session', async () => {
+    vi.stubEnv('MEDAL_API_KEY', 'sk_test');
+    const fetchMock = stubFetch({ data: { bookings: [], contact_id: 'c' } });
+    const body = {
+      items: [{ service_id: 'svc-cut', extra_service_ids: ['svc-wash'], start_ts: 1 }],
+      contact: { phone: '40000000' },
+    };
+
+    await createBooking(body, 'idem-1', { portalSession: SESSION });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(header(init, 'x-portal-session')).toBe(SESSION);
+    expect(JSON.parse(init.body as string).items[0]).toMatchObject({
+      service_id: 'svc-cut',
+      extra_service_ids: ['svc-wash'],
+    });
+  });
+
+  it('scrubs the portal session out of what create throws, keeping the error’s identity', async () => {
+    vi.stubEnv('MEDAL_API_KEY', 'sk_test');
+    stubFetch({ error: { code: 'BAD', message: `no session ${SESSION} here` } }, 400);
+
+    const thrown = await createBooking(
+      { items: [{ service_id: 'svc', start_ts: 1 }], contact: { phone: '40000000' } },
+      'idem-1',
+      { portalSession: SESSION }
+    ).catch((error: unknown) => error);
+
+    expect(thrown).toBeInstanceOf(MedalApiError);
+    expect((thrown as MedalApiError).status).toBe(400);
+    expect(String((thrown as Error).message)).not.toContain(SESSION);
+    expect(String((thrown as Error).stack)).not.toContain(SESSION);
+  });
+
+  it('rethrows a create failure untouched when no session went with it', async () => {
+    vi.stubEnv('MEDAL_API_KEY', 'sk_test');
+    stubFetch({ error: { code: 'BAD', message: 'plain' } }, 400);
+
+    await expect(
+      createBooking(
+        { items: [{ service_id: 'svc', start_ts: 1 }], contact: { phone: '40000000' } },
+        'idem-1'
+      )
+    ).rejects.toBeInstanceOf(MedalApiError);
   });
 
   it('reschedules on new_start_ts, the field the engine actually requires', async () => {
@@ -256,5 +319,59 @@ describe('medal-client', () => {
 
     expect(header(fetchMock.mock.calls[0][1], 'authorization')).toBe('Bearer sk_first');
     expect(header(fetchMock.mock.calls[1][1], 'authorization')).toBe('Bearer sk_second');
+  });
+});
+
+describe("redactSession (the create route's forwarded session)", () => {
+  const SECRET = 'x'.repeat(43);
+
+  it('cuts the secret out of message, stack and the cause chain, in place', () => {
+    const inner = new Error(`inner ${SECRET}`);
+    const error = new Error(`outer ${SECRET}`, { cause: inner });
+
+    expect(redactSession(error, SECRET)).toBe(error);
+    expect(error.message).toBe('outer <session>');
+    expect(error.stack).not.toContain(SECRET);
+    expect(inner.message).toBe('inner <session>');
+  });
+
+  it('rewrites a string cause that holds the secret and keeps one that does not', () => {
+    const leaking = new Error('x', { cause: `cause ${SECRET}` });
+    redactSession(leaking, SECRET);
+    expect(leaking.cause).toBe('cause <session>');
+
+    const clean = new Error('x', { cause: 'harmless' });
+    redactSession(clean, SECRET);
+    expect(clean.cause).toBe('harmless');
+  });
+
+  it('replaces a bare string throw holding the secret, and passes anything else through', () => {
+    const replaced = redactSession(`thrown ${SECRET}`, SECRET);
+    expect(replaced).toBeInstanceOf(Error);
+    expect((replaced as Error).message).toBe('thrown <session>');
+    expect(redactSession('harmless', SECRET)).toBe('harmless');
+    const other = { code: 1 };
+    expect(redactSession(other, SECRET)).toBe(other);
+  });
+
+  it('leaves a getter-only message alone and still scrubs the rest', () => {
+    const inner = new Error(`inner ${SECRET}`);
+    const error = new Error('outer', { cause: inner });
+    Object.defineProperty(error, 'message', { get: () => `fixed ${SECRET}` });
+    error.stack = `Error: at ${SECRET}`;
+
+    expect(() => redactSession(error, SECRET)).not.toThrow();
+    expect(error.stack).toBe('Error: at <session>');
+    expect(inner.message).toBe('inner <session>');
+  });
+
+  it('stops following a cause chain after three links', () => {
+    const deepest = new Error(`deepest ${SECRET}`);
+    let error: Error = deepest;
+    for (let i = 0; i < 4; i++) error = new Error('link', { cause: error });
+
+    redactSession(error, SECRET);
+
+    expect(deepest.message).toContain(SECRET);
   });
 });

@@ -46,6 +46,16 @@ describe('createAttemptStore', () => {
     });
   });
 
+  it('drops a pending submission but keeps its nonce on releasePending', () => {
+    const attempt = store.readAttempt();
+    store.rememberPending(attempt, { submission: SUBMISSION, submitted: SUBMITTED });
+
+    store.releasePending(attempt);
+
+    // Nothing replayed on the next load, and the next submission is the same attempt.
+    expect(store.readAttempt()).toEqual({ nonce: attempt.nonce });
+  });
+
   it('keeps a pending submission, then swaps it for the confirmation', () => {
     const attempt = store.readAttempt();
     store.rememberPending(attempt, { submission: SUBMISSION, submitted: SUBMITTED });

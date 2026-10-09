@@ -201,6 +201,12 @@ describe('the wizard’s screen adapters', () => {
     expect(people.map((person) => person.label)).toEqual([TEST_LABELS['people.adult'], 'Mia']);
   });
 
+  it('hands the service step each group’s audience, so a child is offered «any» groups', () => {
+    const categories = serviceScreenBase(kit).categories;
+    expect(categories.find((group) => group.key === 'barn')?.audience).toBe('child');
+    expect(categories.find((group) => group.key === 'annet')?.audience).toBe('any');
+  });
+
   it('offers no children’s menu split for a site without one', () => {
     const adults = resolveBookingConfig({
       timeZone: 'Europe/Oslo',

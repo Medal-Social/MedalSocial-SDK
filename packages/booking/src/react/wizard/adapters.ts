@@ -9,6 +9,8 @@
  */
 
 import type {
+  BookingRecapAlternative,
+  BookingRecapLine,
   ConfirmationProps,
   DetailsLine,
   ServicePartyPerson,
@@ -20,7 +22,12 @@ import type { AgeRange } from '../../core/age';
 import { normaliseCategory } from '../../core/categories';
 import { fill, labelText } from '../../core/labels';
 import { SELF_KEY, type WizardItem, type WizardPerson, type WizardState } from '../../core/machine';
-import type { BookingFamilyMember, BookingServiceDto } from '../../core/types';
+import type {
+  BookingFamilyMember,
+  BookingResourceDto,
+  BookingServiceDto,
+  BookingSlotDto,
+} from '../../core/types';
 import { visitOf, visitServicesOf } from '../../core/visit';
 import type { BookingKit } from '../kit';
 import type { BookingLabels } from '../labels';
@@ -148,9 +155,27 @@ export function serviceScreenBase(kit: BookingKit) {
 }
 
 /** Whether a service suits the person at `index`, by their age on the day. */
-export function serviceFitsFor(kit: BookingKit, ages: ReadonlyArray<AgeRange | null>) {
-  return (service: BookingServiceDto, index: number) =>
-    kit.age.fitsAge(service, ages[index] ?? null);
+export function serviceFitsFor(
+  kit: BookingKit,
+  ages: ReadonlyArray<AgeRange | null>,
+  people: ReadonlyArray<WizardPerson> = []
+) {
+  // `screens.childMenuFirst`: a child's list leads with what is meant for
+  // children and for anyone. A grown-ups' group moves below the divider, not
+  // off the list, so the twelve-year-old who wants the men's cut still has it.
+  const adultGroups = new Set(
+    kit.config.screens.childMenuFirst
+      ? kit.config.categories
+          .filter((category) => category.audience === 'adult')
+          .map((category) => category.key)
+      : []
+  );
+  return (service: BookingServiceDto, index: number) => {
+    if (!kit.age.fitsAge(service, ages[index] ?? null)) return false;
+    const person = people[index];
+    if (adultGroups.size === 0 || person === undefined || person.adult) return true;
+    return !adultGroups.has(normaliseCategory(kit.config, service.category));
+  };
 }
 
 /**
@@ -279,4 +304,62 @@ export function confirmationProps(
 export function partySizeWord(labels: Readonly<BookingLabels>, size: number): string | undefined {
   const suffix = size === 2 ? 'two' : size === 3 ? 'three' : 'other';
   return labelText(labels[`wizard.party.sizeWord.${suffix}`]) || undefined;
+}
+
+/** The grown-up's seat a guest books with (`guestChoices` and `guestParty` share it). */
+export const GUEST_ADULT_SEAT = { key: 'adult', adult: true } as const;
+
+/**
+ * A stylist's name and photo by id, for the recap and the time step's «free
+ * soon» row; `null` for nobody chosen yet or an id the catalogue no longer has.
+ */
+export function stylistFace(
+  resources: readonly BookingResourceDto[],
+  resourceId: string | null
+): { name: string; photoUrl: string | null } | null {
+  const resource = resources.find((one) => one.id === resourceId);
+  return resource ? { name: resource.name, photoUrl: resource.photoUrl } : null;
+}
+
+/**
+ * The details step's recap: the same lines the submission is built from
+ * (`detailsLines`), with each line's services, end and stylist named.
+ *
+ * `alternatives` are the other stylists free at the very start booked, for a
+ * one-person visit whose stylist was left to «first available»: the one tap
+ * that turns «first available gave me Ada» into «I would rather have Bo». Never for a
+ * family (a party slot is a seating plan, not one stylist), nor for a named
+ * stylist the parent chose themselves.
+ */
+export function recapProps(
+  kit: BookingKit,
+  state: WizardState,
+  resources: readonly BookingResourceDto[],
+  singleSlots: readonly BookingSlotDto[]
+): { lines: BookingRecapLine[]; alternatives: BookingRecapAlternative[] } {
+  const lines = detailsLines(kit, state).map((line, index) => {
+    const item = state.items[index] as WizardItem;
+    return {
+      startTs: line.startTs,
+      endTs: kit.wizard.visitEndTs([item], line.startTs, 'sequential'),
+      services: visitServicesOf(item).map((service) => service.name),
+      stylist: stylistFace(resources, line.resourceId),
+      who: item.bookedForName ?? null,
+    };
+  });
+
+  const alternatives: BookingRecapAlternative[] = [];
+  if (state.items.length === 1 && state.resourceId === null && state.startTs !== null) {
+    const seen = new Set<string>();
+    for (const slot of singleSlots) {
+      const id = slot.resourceId;
+      if (slot.startTs !== state.startTs || id === null || id === state.resolvedResourceId)
+        continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const face = stylistFace(resources, id);
+      if (face) alternatives.push({ resourceId: id, ...face });
+    }
+  }
+  return { lines, alternatives };
 }

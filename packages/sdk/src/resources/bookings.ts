@@ -28,6 +28,7 @@ import type {
   CreateBookingEventHostInput,
   CreateBookingEventInput,
   CreateBookingInput,
+  CreateBookingOptions,
   CreateContactPersonInput,
   CreateContactRelationInput,
   CreateContactRelationResult,
@@ -698,12 +699,19 @@ export class Bookings {
    * `options.idempotencyKey` to deduplicate across your OWN retries too — the
    * server keys on it for 24 hours, so re-sending the same key after a network
    * timeout returns the original bookings instead of a second set.
+   *
+   * Pass `options.portalSession` (a customer-portal session token) to book on
+   * that logged-in customer's contact; it goes out as `X-Portal-Session`.
    */
   async create(
     input: CreateBookingInput,
-    options?: RequestOptions,
+    options?: CreateBookingOptions,
   ): Promise<ApiResponse<BookingCreateResult>> {
-    return this.client.postOnce("/api/v1/bookings", input, options);
+    const { portalSession, ...rest } = options ?? {};
+    const requestOptions: RequestOptions = portalSession
+      ? { ...rest, headers: { ...rest.headers, "x-portal-session": portalSession } }
+      : rest;
+    return this.client.postOnce("/api/v1/bookings", input, requestOptions);
   }
 
   /** Get a booking by ID. */

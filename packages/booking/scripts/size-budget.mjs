@@ -96,19 +96,46 @@ const BUDGETS = [
     // has to join a visit rather than replace it once a person has ticked
     // something, which measured 15.06 KB. Same raise, same reason, as the
     // wizard-entry budget below.
+    // Raised 15.5 → 16 KB for `account.required` on top of the multi-select
+    // step: the gate that turns «Bekreft» into Vipps / e-post (with the
+    // booking it holds and the session-lost notice) and the session handling
+    // in submit measured 15.78 KB with both features in.
+    // Raised 16 → 16.4 KB for the #181 review round: a login as ANOTHER
+    // account over a lost session unseats the previous parent's children
+    // (`reseatFor`, keeping the visit and the hour), a draft written while
+    // nobody is logged in keeps a saved child by id alone, `account.required`
+    // puts each saved child's id back on its line whatever phone was typed,
+    // and a lost session keeps the attempt's nonce. Measured 16.11 KB.
+    // Raised 16.4 → 16.7 KB for the second review round on account switches over a lost session: only a person id keeps a child seated
+    // for the next parent (never a place/name/year match), a guest line's
+    // family chip goes with the parent too, the chairs a switch leaves keep
+    // their services on a step back (`keptSeats`), and a sent visit rebuilt
+    // while nobody is logged in keeps saved children by id alone until the
+    // next login claims them (`awaitingIds`). Measured 16.40 KB.
+    // Raised 16.7 → 17.5 KB for `config.screens` (bestill phase 2): the
+    // recap above the details step with its stylist swap, the two-part
+    // summary, the guest party's first seat, and the screen switches.
+    // Measured 17.08 KB.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 15.5 * 1024,
+    gzipBytes: 17.5 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
     // the plan's 15 KB was written for the React layer alone, and the core it
     // sits on is P1's (its client path is gated above). Measured at 0.1.0 plus
     // ~15%, so the two layers cannot grow unnoticed together either.
+    // Raised 24.5 → 25.1 KB for the second #181 review round: the hook's code
+    // above (it had been 24.47 KB, already at the edge, before it) plus the
+    // machine's `seatFamily` `keep` and `unseatPeople` `into`. Measured 24.82 KB.
+    // Raised 25.1 → 26 KB for `config.screens` (bestill phase 2): the
+    // recap above the details step with its stylist swap, the two-part
+    // summary, the guest party's first seat, and the screen switches.
+    // Measured 25.56 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 24.5 * 1024,
+    gzipBytes: 26 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -119,26 +146,63 @@ const BUDGETS = [
     // `ServiceScreen` `selection`): the wizard hands it the visit's lists,
     // total, refusal notice and labels — reusing the hook's derived values —
     // and hides its own bar on that step. Measured 15.13 KB.
+    // Raised 15.5 → 16.1 KB for `account.required` with the multi-select step:
+    // the account gate (booking summary, session-lost notice, focus on
+    // re-gate) and the replay that rebuilds a refused visit — extras
+    // included — under it. Measured 15.91 KB with both features in.
+    // Raised 16.1 → 16.5 KB for the #181 review round, the same code as the
+    // page budget above (another account's login unseats the previous
+    // parent's children; the lost session keeps the nonce). Measured 16.25 KB.
+    // Raised 16.5 → 16.8 KB for the second review round, the same code as the
+    // page budget above. Measured 16.53 KB.
+    // Raised 16.8 → 17.6 KB for `config.screens` (bestill phase 2): the
+    // recap above the details step with its stylist swap, the two-part
+    // summary, the guest party's first seat, and the screen switches.
+    // Measured 17.23 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 15.5 * 1024,
+    gzipBytes: 17.6 * 1024,
   },
   {
+    // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
+    // plus the machine's `unseatPeople` (the previous parent's seats become
+    // guest chairs with their services and the hour). Measured 24.53 KB.
+    // Raised 24.8 → 25.2 KB for the second review round: the hook's code above
+    // plus `seatFamily` `keep` / `unseatPeople` `into`. Measured 24.95 KB.
+    // Raised 25.2 → 26.1 KB for `config.screens` (bestill phase 2): the
+    // recap above the details step with its stylist swap, the two-part
+    // summary, the guest party's first seat, and the screen switches.
+    // Measured 25.68 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 24.5 * 1024,
+    gzipBytes: 26.1 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
     // 20 → 21 KB for several services per person (one visit): the hook's
     // visit-keyed fetching, the extras on drafts and submissions, and the
     // `wizard-error` bridge measured 20.12 KB. The booking page's own budgets
-    // above are NOT raised — the page itself still fits its 15 KB.
+    // above were raised separately (15 → 15.5 KB with the multi-select step,
+    // then again for `account.required`) — see their own comments.
+    // Raised 21 → 21.3 KB for `account.required` on top of that: the account
+    // gate, its labels and the login sheet's throttled notice measured
+    // 21.06 KB with both features in.
+    // Raised 21.3 → 21.7 KB for the #181 review round — the booking page's
+    // own growth above (unseating another account's children, the id-only
+    // draft line, the ids under `account.required`). Measured 21.40 KB.
+    // Raised 21.7 → 22 KB for the second review round — the booking page's
+    // own growth above (only an id keeps a child across an account switch,
+    // switched chairs keep their services, a rebuilt visit waits for its
+    // child's parent by id). Measured 21.72 KB.
+    // Raised 22 → 22.9 KB for `config.screens` (bestill phase 2): the
+    // recap above the details step with its stylist swap, the two-part
+    // summary, the guest party's first seat, and the screen switches.
+    // Measured 22.41 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 21 * 1024,
+    gzipBytes: 22.9 * 1024,
   },
 ];
 

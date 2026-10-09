@@ -267,6 +267,7 @@ export type {
   CreateBookingEventInput,
   CreateBookingInput,
   CreateBookingItemInput,
+  CreateBookingOptions,
   CreateContactPersonInput,
   CreateContactRelationInput,
   CreateContactRelationResult,

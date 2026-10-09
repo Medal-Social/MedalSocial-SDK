@@ -877,6 +877,88 @@ describe('useBooking — the corners', () => {
     expect(result.current.state.step).toBe('when');
   });
 
+  describe('chairs an account change leaves', () => {
+    const OTHER: BookingGuardian = {
+      ...GUARDIAN,
+      email: 'other@example.test',
+      family: [{ name: 'Per', birthYear: 2017, personId: 'p-per' }],
+    };
+    const storedItems = () =>
+      JSON.parse(String(window.sessionStorage.getItem(drafts.DRAFT_STORAGE_KEY))).items;
+
+    /** A signed-out resume of a saved child's line: its chair waits for a parent. */
+    async function waitingChair() {
+      stubApi();
+      location.search = '?resume=1';
+      familyDraft([{ personId: 'p-theo' }]);
+      const hook = renderHook(() => useBooking(options()));
+      await waitFor(() => expect(hook.result.current.state.items).toHaveLength(1));
+      expect(hook.result.current.state.people[0].key).toBe('guest:1');
+      return hook;
+    }
+
+    it('waits through a login with no readable profile for the next one', async () => {
+      const { result } = await waitingChair();
+      act(() => result.current.login.signIn(null));
+      expect(result.current.state.people[0].key).toBe('guest:1');
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: 'p-theo' }));
+
+      act(() => result.current.login.signIn(GUARDIAN));
+      expect(result.current.state.people[0]).toMatchObject({ key: 'p:p-theo', name: 'Theo' });
+      expect(result.current.state.items[0]).toMatchObject({ bookedForPersonId: 'p-theo' });
+    });
+
+    it('forgets a waiting chair on «Book again»: a later guest’s chair is nobody’s', async () => {
+      const { result } = await waitingChair();
+      act(() => result.current.startOver());
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }], true));
+      act(() => result.current.pickService(KIDS));
+      await waitFor(() => expect(result.current.state.step).toBe('when'));
+      expect(storedItems()[0]).toMatchObject({ personId: null });
+
+      act(() => result.current.login.signIn(GUARDIAN));
+      expect(result.current.state.people.map((person) => person.key)).not.toContain('p:p-theo');
+    });
+
+    it('forgets a waiting chair step 1 replaced, not one it passed through', async () => {
+      const { result } = await waitingChair();
+      const chair = result.current.state.people[0];
+      act(() => result.current.people.choosePeople([chair], false));
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: 'p-theo' }));
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }], true));
+      act(() => result.current.pickService(KIDS));
+      await waitFor(() => expect(storedItems()[0]).toMatchObject({ personId: null }));
+    });
+
+    it('keeps a switched chair only while step 1 passes it through as it is', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      const theo = { key: 'p:p-theo', name: 'Theo', birthYear: 2019, personId: 'p-theo' };
+      act(() => result.current.people.choosePeople([theo], true));
+      act(() => result.current.dispatch({ type: 'toggleServiceFor', index: 0, service: KIDS }));
+      act(() => result.current.login.signIn(OTHER));
+      const chair = result.current.state.people[0];
+      expect(chair.key).toBe('guest:1');
+
+      // Passed through untouched (a family child added beside it): still kept.
+      const per = { key: 'p:p-per', name: 'Per', birthYear: 2017, personId: 'p-per' };
+      act(() => result.current.people.choosePeople([chair, per], false));
+      await waitFor(() => expect(result.current.state.people).toHaveLength(2));
+      act(() => result.current.dispatch({ type: 'goToStep', step: 'service' }));
+      expect(result.current.state.people.map((person) => person.key)).toEqual([
+        'guest:1',
+        'p:p-per',
+      ]);
+      expect(result.current.state.choices[0]).toMatchObject({ id: KIDS.id });
+
+      // Replaced by a new chair under the same key: a guest seat like any other.
+      act(() => result.current.people.choosePeople([{ key: 'guest:1' }, per], false));
+      await waitFor(() =>
+        expect(result.current.state.people.map((person) => person.key)).toEqual(['p:p-per'])
+      );
+    });
+  });
+
   it('never reseats a person id the parent’s family does not have', async () => {
     stubApi();
     location.search = '?resume=1';
@@ -1148,6 +1230,86 @@ describe('useBooking — the corners', () => {
       expect(urls.some((url) => url.includes(`resource_id=${BJARNE.id}`))).toBe(true)
     );
     expect(result.current.schedule.settled).toBe(false);
+  });
+
+  it('drops a stylist’s earlier days when picking them again fails', async () => {
+    let calls = 0;
+    stubApi({
+      schedule: () => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ days: [OPEN_WEEK[3]] }),
+          });
+        }
+        return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+      },
+    });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(result.current.schedule.openDays?.map((day) => day.dayKey)).toEqual(['2026-09-05'])
+    );
+
+    act(() => result.current.pickResource(null));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toBeNull());
+    expect(result.current.schedule.settled).toBe(true);
+  });
+
+  it('does not treat a stylist’s retry as already settled', async () => {
+    let calls = 0;
+    const { urls } = stubApi({
+      schedule: () => {
+        calls += 1;
+        if (calls === 1) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}) });
+        }
+        return new Promise<StubResponse>(() => undefined);
+      },
+    });
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toBeNull());
+
+    act(() => result.current.pickResource(null));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() =>
+      expect(urls.filter((url) => url.includes(`resource_id=${BJARNE.id}`))).toHaveLength(2)
+    );
+    // The retry is in flight. Unknown-and-settled would be the previous failure
+    // speaking for a request that has not answered yet.
+    expect(result.current.schedule.openDays === null && result.current.schedule.settled).toBe(
+      false
+    );
   });
 
   it('forgets a failed read that lands after the visitor moved on', async () => {
