@@ -1,4 +1,4 @@
-<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>RequestOptions | Medal Social SDK</title><meta name="description" content="Documentation for Medal Social SDK"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
+<!DOCTYPE html><html class="default" lang="en" data-base="../"><head><meta charset="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>CreateBookingOptions | Medal Social SDK</title><meta name="description" content="Documentation for Medal Social SDK"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/icons.js" id="tsd-icons-script"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script><script async src="../assets/hierarchy.js" id="tsd-hierarchy-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os";document.body.style.display="none";setTimeout(() => window.app?app.showPage():document.body.style.removeProperty("display"),500)</script><header class="tsd-page-toolbar">
 <div class="tsd-toolbar-contents container"><a href="../index.html" class="title">Medal Social SDK</a>
 <div id="tsd-toolbar-links"></div><button id="tsd-search-trigger" class="tsd-widget" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-search"></use></svg></button><dialog id="tsd-search" aria-label="Search"><input role="combobox" id="tsd-search-input" aria-controls="tsd-search-results" aria-autocomplete="list" aria-expanded="true" autocapitalize="off" autocomplete="off" placeholder="Search the docs" maxLength="100"/>
 <ul role="listbox" id="tsd-search-results"></ul>
@@ -8,20 +8,20 @@
 <div class="col-content">
 <div class="tsd-page-title">
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
-<li><a href="" aria-current="page">RequestOptions</a></li></ul>
-<h1>Interface RequestOptions</h1></div>
+<li><a href="" aria-current="page">CreateBookingOptions</a></li></ul>
+<h1>Interface CreateBookingOptions</h1></div>
 <section class="tsd-panel tsd-comment">
-<div class="tsd-comment tsd-typography"><p>Per-request options. <code>headers</code> applies to every verb; the named options only matter on writes.</p>
+<div class="tsd-comment tsd-typography"><p>Options for <code>bookings.create</code> — the usual request options plus a portal session.</p>
 </div></section>
-<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">RequestOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#autoconfirm">autoConfirm</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">false</span> <span class="tsd-signature-symbol">|</span> <a href="AutoConfirmOptions.html" class="tsd-signature-type tsd-kind-interface">AutoConfirmOptions</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#capabilityconfirmation">capabilityConfirmation</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#headers">headers</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotencykey">idempotencyKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#retry">retry</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#signal">signal</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">AbortSignal</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
-<section class="tsd-panel tsd-hierarchy" data-refl="41">
-<h4>Hierarchy (<a href="../hierarchy.html#RequestOptions">View Summary</a>)</h4>
+<div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">CreateBookingOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#autoconfirm">autoConfirm</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">false</span> <span class="tsd-signature-symbol">|</span> <a href="AutoConfirmOptions.html" class="tsd-signature-type tsd-kind-interface">AutoConfirmOptions</a><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#capabilityconfirmation">capabilityConfirmation</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#headers">headers</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotencykey">idempotencyKey</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#portalsession">portalSession</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#retry">retry</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#signal">signal</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">AbortSignal</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div>
+<section class="tsd-panel tsd-hierarchy" data-refl="17731">
+<h4>Hierarchy (<a href="../hierarchy.html#CreateBookingOptions">View Summary</a>)</h4>
 <ul class="tsd-hierarchy">
-<li class="tsd-hierarchy-item"><span class="tsd-hierarchy-target">RequestOptions</span>
+<li class="tsd-hierarchy-item"><a href="RequestOptions.html" class="tsd-signature-type tsd-kind-interface">RequestOptions</a>
 <ul class="tsd-hierarchy">
-<li class="tsd-hierarchy-item"><a href="CreateBookingOptions.html" class="tsd-signature-type tsd-kind-interface">CreateBookingOptions</a></li></ul></li></ul></section><aside class="tsd-sources">
+<li class="tsd-hierarchy-item"><span class="tsd-hierarchy-target">CreateBookingOptions</span></li></ul></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L15">packages/sdk/src/client.ts:15</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/types/bookings.ts#L243">packages/sdk/src/types/bookings.ts:243</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -29,17 +29,18 @@
 <div class="tsd-accordion-details">
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading tsd-anchor-link" id="properties">Properties<a href="#properties" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
-<div class="tsd-index-list"><a href="#autoconfirm" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm?</span></a>
-<a href="#capabilityconfirmation" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation?</span></a>
-<a href="#headers" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>headers?</span></a>
-<a href="#idempotencykey" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key?</span></a>
-<a href="#retry" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry?</span></a>
-<a href="#signal" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>signal?</span></a>
+<div class="tsd-index-list"><a href="#autoconfirm" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm?</span></a>
+<a href="#capabilityconfirmation" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation?</span></a>
+<a href="#headers" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>headers?</span></a>
+<a href="#idempotencykey" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key?</span></a>
+<a href="#portalsession" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>portal<wbr/>Session?</span></a>
+<a href="#retry" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry?</span></a>
+<a href="#signal" class="tsd-index-link tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>signal?</span></a>
 </div></section></div></details></section></section>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="properties-1">Properties<a href="#properties-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="autoconfirm"><code class="tsd-tag">Optional</code><span>auto<wbr/>Confirm</span><a href="#autoconfirm" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">autoConfirm</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">false</span> <span class="tsd-signature-symbol">|</span> <a href="AutoConfirmOptions.html" class="tsd-signature-type tsd-kind-interface">AutoConfirmOptions</a></div>
 <div class="tsd-comment tsd-typography"><p>Opt in to (or out of) automatic capability confirmation for this call.</p>
@@ -52,9 +53,10 @@ that a human on your side approved this exact action — only use it where
 that is true.</p>
 <p>Ignored on routes that do not require a capability confirmation.</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#autoconfirm">autoConfirm</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L46">packages/sdk/src/client.ts:46</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="capabilityconfirmation"><code class="tsd-tag">Optional</code><span>capability<wbr/>Confirmation</span><a href="#capabilityconfirmation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">capabilityConfirmation</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Capability confirmation token sent as the <code>X-Capability-Confirmation</code>
@@ -64,9 +66,10 @@ a confirmable write route. Obtain one from
 <code>POST /api/v1/capability-confirmations</code>. API keys with legacy scopes do
 not need it.</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#capabilityconfirmation">capabilityConfirmation</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L31">packages/sdk/src/client.ts:31</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="headers"><code class="tsd-tag">Optional</code><span>headers</span><a href="#headers" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">headers</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">Record</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">,</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></div>
 <div class="tsd-comment tsd-typography"><p>Extra request headers, e.g. <code>x-portal-session</code> for the customer portal.
@@ -74,9 +77,10 @@ Applied first: the named options (<code>idempotencyKey</code>,
 <code>capabilityConfirmation</code>) win over a same-named entry here, so a bag can
 never smuggle in a key the SDK did not resolve.</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#headers">headers</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L62">packages/sdk/src/client.ts:62</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="idempotencykey"><code class="tsd-tag">Optional</code><span>idempotency<wbr/>Key</span><a href="#idempotencykey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">idempotencyKey</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Idempotency key sent as the <code>Idempotency-Key</code> header. Retries with the
@@ -84,9 +88,19 @@ same key return the original result instead of repeating the operation.
 Required by some endpoints for capability-scoped tokens (e.g. helpdesk
 replies, webhook creation).</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#idempotencykey">idempotencyKey</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L22">packages/sdk/src/client.ts:22</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
+<h3 class="tsd-anchor-link" id="portalsession"><code class="tsd-tag">Optional</code><span>portal<wbr/>Session</span><a href="#portalsession" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">portalSession</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
+<div class="tsd-comment tsd-typography"><p>A customer-portal session token, sent as <code>X-Portal-Session</code>. Medal then
+books on THAT session's contact — the logged-in customer — instead of
+finding or creating one from <code>contact</code>. Omit it for an anonymous booking.</p>
+</div><aside class="tsd-sources">
+<ul>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/types/bookings.ts#L249">packages/sdk/src/types/bookings.ts:249</a></li></ul></aside></section>
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="retry"><code class="tsd-tag">Optional</code><span>retry</span><a href="#retry" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">retry</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span></div>
 <div class="tsd-comment tsd-typography"><p>Set to <code>false</code> to send the request exactly once — no automatic retry on
@@ -96,9 +110,10 @@ logout or erasure that revokes the very credential a retry would present.
 A retry there does not repeat the operation, it misreports it as failed.
 Defaults to <code>true</code>.</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#retry">retry</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L55">packages/sdk/src/client.ts:55</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member">
+<section class="tsd-panel tsd-member tsd-is-inherited">
 <h3 class="tsd-anchor-link" id="signal"><code class="tsd-tag">Optional</code><span>signal</span><a href="#signal" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">signal</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">AbortSignal</span></div>
 <div class="tsd-comment tsd-typography"><p>Your own cancellation signal — a React effect cleanup, a closing request,
@@ -109,6 +124,7 @@ so an abandoned call stops costing time immediately.</p>
 default), never with <a href="../classes/MedalTimeoutError.html" class="tsd-kind-class">MedalTimeoutError</a> — cancelling is not a Medal
 failure and must not be reported as one.</p>
 </div><aside class="tsd-sources">
+<p>Inherited from <a href="RequestOptions.html">RequestOptions</a>.<a href="RequestOptions.html#signal">signal</a></p>
 <ul>
 <li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/4312a911666bf08dd68385bb5d168a43b9fa951e/packages/sdk/src/client.ts#L73">packages/sdk/src/client.ts:73</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
@@ -126,7 +142,7 @@ failure and must not be reported as one.</p>
 <h3>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <details open class="tsd-accordion tsd-page-navigation-section"><summary class="tsd-accordion-summary" data-key="section-Properties"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>Properties</summary>
-<div><a href="#autoconfirm"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm</span></a><a href="#capabilityconfirmation"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation</span></a><a href="#headers"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>headers</span></a><a href="#idempotencykey"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key</span></a><a href="#retry"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry</span></a><a href="#signal"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>signal</span></a></div></details></div></details></div>
+<div><a href="#autoconfirm" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>auto<wbr/>Confirm</span></a><a href="#capabilityconfirmation" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>capability<wbr/>Confirmation</span></a><a href="#headers" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>headers</span></a><a href="#idempotencykey" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>idempotency<wbr/>Key</span></a><a href="#portalsession"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>portal<wbr/>Session</span></a><a href="#retry" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>retry</span></a><a href="#signal" class="tsd-is-inherited"><svg class="tsd-kind-icon" viewBox="0 0 24 24" aria-label="Property"><use href="../assets/icons.svg#icon-1024"></use></svg><span>signal</span></a></div></details></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../modules.html">Medal Social SDK</a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container">
