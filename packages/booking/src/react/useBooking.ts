@@ -430,21 +430,31 @@ function setupFor(kit: BookingKit) {
         : ({ adult: true } as const);
     const seated = seat ?? unasked;
     const base = seated !== null && 'adult' in seated ? withAdult() : wizard.initialState();
-    if (prefill === null) {
-      // `screens.guestParty`: step 1 opens on its common answer, one child,
-      // already in the state — so the server-rendered step shows «1» and a
-      // live «next», and a tap before hydration has something to press.
-      if (seated === null && config.screens.guestParty) {
-        return wizard.reduce(wizard.initialState(), {
-          type: 'choosePeople',
-          people: [wizard.guestChild(1)],
-          advance: false,
-        });
-      }
-      if (seated === null) return wizard.initialState();
-      return 'adult' in seated ? withAdult() : withGuests(seated.children);
+    const state =
+      prefill === null
+        ? seated === null
+          ? wizard.initialState()
+          : 'adult' in seated
+            ? withAdult()
+            : withGuests(seated.children)
+        : wizard.applyPrefill(base, prefill, prefillCatalogue(services, resources));
+    // `screens.guestParty`: a guest still on step 1 with nobody chosen — no
+    // link, or a link that holds a service for step 1 — starts on the common
+    // answer, one child, already in the state, so the server-rendered step
+    // shows «1» and a live «next». A link that seats people stays as it was.
+    if (
+      config.screens.guestParty &&
+      seated === null &&
+      state.step === 'who' &&
+      state.people.length === 0
+    ) {
+      return wizard.reduce(state, {
+        type: 'choosePeople',
+        people: [wizard.guestChild(1)],
+        advance: false,
+      });
     }
-    return wizard.applyPrefill(base, prefill, prefillCatalogue(services, resources));
+    return state;
   }
 
   return { prefillFromQuery, deepLinkFromQuery, heldLink, initialWizardState };

@@ -1867,25 +1867,21 @@ export function createWizard(config: WizardConfig): Wizard {
     resolveStylistName: (resourceId: string) => string | null,
     now: number = Date.now()
   ): { line: string; detail: string } {
-    if (state.items.length === 0 && state.people.length > 0) {
-      return { line: peopleLabel(state.people), detail: '' };
+    if (state.items.length === 0) {
+      return { line: state.people.length > 0 ? peopleLabel(state.people) : '', detail: '' };
     }
-    const service = serviceLabel(state);
-    if (showsPartyMode(state)) {
-      return { line: service ?? '', detail: priceLabel(state) ?? '' };
-    }
-    if (service === null) return { line: '', detail: '' };
+    // A basket always has a service and a price; the bar names both.
+    const service = serviceLabel(state) as string;
+    const price = money.formatMinor(totalPriceOre(state.items, state.startTs));
+    if (showsPartyMode(state)) return { line: service, detail: price };
     const unnamedPreference = (state.resolvedResourceId ?? state.resourceId) === null;
     const stylist =
       stylistLabel(state, resolveStylistName) ??
       (unnamedPreference ? labelText(labels['summary.firstAvailable']) : UNCHOSEN);
+    const when = timeLabel(state.startTs, now) ?? labelText(labels['summary.pickTime']);
     return {
       line: [service, stylist].join(SEPARATOR),
-      detail: [
-        timeLabel(state.startTs, now) ?? labelText(labels['summary.pickTime']),
-        /* v8 ignore next -- defensive: a service in the bar means a price */
-        priceLabel(state) ?? UNCHOSEN,
-      ].join(SEPARATOR),
+      detail: [when, price].join(SEPARATOR),
     };
   }
 

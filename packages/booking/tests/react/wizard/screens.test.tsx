@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pinAForeignViewerClock } from '../../support/viewer-clock';
@@ -10,8 +10,9 @@ import { pinAForeignViewerClock } from '../../support/viewer-clock';
  * that a site that asks for none of them sees none of them.
  */
 
+const location = vi.hoisted(() => ({ search: '' }));
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => new URLSearchParams(location.search),
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
@@ -131,6 +132,7 @@ function renderWizard(screens: Partial<typeof ALL_ON> | null = ALL_ON) {
 const L = TEST_LABELS as unknown as Record<string, string>;
 
 beforeEach(() => {
+  location.search = '';
   vi.spyOn(Date, 'now').mockReturnValue(NOW);
   window.sessionStorage.clear();
   vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
@@ -195,6 +197,29 @@ describe('BookingWizard — config.screens', () => {
     const next = html.match(new RegExp(`<button[^>]*>${L['summary.next']}</button>`))?.[0] ?? '';
     expect(next).not.toBe('');
     expect(next).not.toMatch(/\sdisabled(=""|\s|>)/);
+  });
+
+  it('seats the one child on a link that leaves step 1 open (a stylist), so «next» is live', async () => {
+    stubApi();
+    location.search = `frisor=${ADA.id}`;
+    renderWizard();
+
+    expect(await screen.findByRole('button', { name: L['summary.next'] })).toBeEnabled();
+    expect(
+      screen.getByText(L['who.party.count'].replace('{count}', '1'), { selector: '.sr-only' })
+    ).toBeInTheDocument();
+  });
+
+  it('leaves a link that seats someone itself as it was (a children’s service goes to the times)', async () => {
+    stubApi();
+    location.search = `tjeneste=${GUTTEKLIPP.id}`;
+    const { container } = renderWizard();
+    await waitFor(() =>
+      expect(container.querySelector('[data-booking-step]')).toHaveAttribute(
+        'data-booking-step',
+        'when'
+      )
+    );
   });
 
   it('leads the time step with «free soon», with who, and marks each day', async () => {

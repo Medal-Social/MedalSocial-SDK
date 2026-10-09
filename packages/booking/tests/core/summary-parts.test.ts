@@ -59,6 +59,27 @@ describe('summaryParts', () => {
     expect(line).toBe('Gutteklipp · Ada Demo');
     expect(detail).toContain('13:00');
   });
+  it('names a family by its basket and its price, like the one-line bar', () => {
+    const two = reduce(initialState(), {
+      type: 'choosePeople',
+      people: [guestChild(1), guestChild(2)],
+      advance: true,
+    });
+    const first = reduce(two, { type: 'pickServiceFor', index: 0, service: GUTTEKLIPP });
+    const party = reduce(first, { type: 'pickServiceFor', index: 1, service: GUTTEKLIPP });
+    expect(party.items).toHaveLength(2);
+    const { line, detail } = summaryParts(party, nobody, NOW);
+    expect(`${line} · ${detail}`).toBe(summaryLine(party, nobody, NOW));
+  });
+
+  it('dashes a stylist that was named but cannot be named back, and offers the rest', () => {
+    const named = reduce(oneChild(true), { type: 'pickResource', resourceId: 'res-gone' });
+    const firstTwo = (line: string) => line.split(' · ').slice(0, 2).join(' · ');
+    expect(summaryParts(named, nobody, NOW).line).toBe(firstTwo(summaryLine(named, nobody, NOW)));
+    expect(summaryParts(named, nobody, NOW).line).toBe('Gutteklipp · —');
+    const open = oneChild(true);
+    expect(summaryParts(open, nobody, NOW).line).toBe(firstTwo(summaryLine(open, nobody, NOW)));
+  });
 });
 
 describe('resolveBookingConfig — screens', () => {

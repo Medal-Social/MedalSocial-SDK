@@ -310,6 +310,18 @@ export function partySizeWord(labels: Readonly<BookingLabels>, size: number): st
 export const GUEST_ADULT_SEAT = { key: 'adult', adult: true } as const;
 
 /**
+ * A stylist's name and photo by id, for the recap and the time step's «free
+ * soon» row; `null` for nobody chosen yet or an id the catalogue no longer has.
+ */
+export function stylistFace(
+  resources: readonly BookingResourceDto[],
+  resourceId: string | null
+): { name: string; photoUrl: string | null } | null {
+  const resource = resources.find((one) => one.id === resourceId);
+  return resource ? { name: resource.name, photoUrl: resource.photoUrl } : null;
+}
+
+/**
  * The details step's recap: the same lines the submission is built from
  * (`detailsLines`), with each line's services, end and stylist named.
  *
@@ -325,18 +337,13 @@ export function recapProps(
   resources: readonly BookingResourceDto[],
   singleSlots: readonly BookingSlotDto[]
 ): { lines: BookingRecapLine[]; alternatives: BookingRecapAlternative[] } {
-  const byId = new Map(resources.map((resource) => [resource.id, resource]));
-  const person = (resourceId: string | null) => {
-    const resource = resourceId === null ? undefined : byId.get(resourceId);
-    return resource ? { name: resource.name, photoUrl: resource.photoUrl } : null;
-  };
   const lines = detailsLines(kit, state).map((line, index) => {
     const item = state.items[index] as WizardItem;
     return {
       startTs: line.startTs,
       endTs: kit.wizard.visitEndTs([item], line.startTs, 'sequential'),
       services: visitServicesOf(item).map((service) => service.name),
-      stylist: person(line.resourceId),
+      stylist: stylistFace(resources, line.resourceId),
       who: item.bookedForName ?? null,
     };
   });
@@ -350,9 +357,8 @@ export function recapProps(
         continue;
       if (seen.has(id)) continue;
       seen.add(id);
-      const resource = byId.get(id);
-      if (resource)
-        alternatives.push({ resourceId: id, name: resource.name, photoUrl: resource.photoUrl });
+      const face = stylistFace(resources, id);
+      if (face) alternatives.push({ resourceId: id, ...face });
     }
   }
   return { lines, alternatives };

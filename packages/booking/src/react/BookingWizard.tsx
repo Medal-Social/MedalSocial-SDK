@@ -64,6 +64,7 @@ import {
   recapProps,
   serviceFitsFor,
   serviceScreenBase,
+  stylistFace,
   weekendNoteFor,
 } from './wizard/adapters';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
@@ -603,10 +604,7 @@ function WhenStep({ booking, resolved }: StepProps) {
           soonest={
             config.screens.soonest
               ? {
-                  resolveStylist: (resourceId) => {
-                    const resource = catalogue.resources.find((one) => one.id === resourceId);
-                    return resource ? { name: resource.name, photoUrl: resource.photoUrl } : null;
-                  },
+                  resolveStylist: (resourceId) => stylistFace(catalogue.resources, resourceId),
                 }
               : undefined
           }
@@ -667,7 +665,6 @@ function RecapStep({ booking, resolved }: StepProps) {
     () => recapProps(kit, state, catalogue.resources, slots.single),
     [kit, state, catalogue.resources, slots.single]
   );
-  const startTs = state.startTs;
   return (
     <BookingRecap
       lines={recap.lines}
@@ -676,9 +673,8 @@ function RecapStep({ booking, resolved }: StepProps) {
       labels={screenLabels(kit.labels)}
       onEdit={() => booking.dispatch({ type: 'goToStep', step: 'when' })}
       alternatives={recap.alternatives}
-      onSwap={
-        startTs === null ? undefined : (resourceId) => booking.pickSlot({ startTs, resourceId })
-      }
+      // Alternatives exist only for a timed visit, so there is always a start to keep.
+      onSwap={(resourceId) => booking.pickSlot({ startTs: state.startTs as number, resourceId })}
       classNames={resolved.classNames.recap}
     />
   );
