@@ -461,6 +461,8 @@ function setupFor(kit: BookingKit) {
 }
 
 const CONTACT_FIELDS = ['name', 'phone', 'email'] as const;
+/** Contact fields by value, each only while a profile still owns it. */
+type ProfileOwned = Partial<Record<(typeof CONTACT_FIELDS)[number], string>>;
 
 export function useBooking(options: UseBookingOptions) {
   const { kit } = useBookingKit(options, options.contact);
@@ -1015,8 +1017,12 @@ export function useBooking(options: UseBookingOptions) {
     state.partyResourceIds,
   ]);
 
-  /** What the logged-in parent's profile wrote into the fields, while it still owns them. */
-  const guardianFilled = useRef<{ email: string; wrote: WizardState['contact'] } | null>(null);
+  /**
+   * The fields a logged-in parent's profile wrote, by value, for as long as it
+   * still owns them — and only those: a field the visitor filled or changed is
+   * never in here, whoever logs in next.
+   */
+  const guardianFilled = useRef<{ email: string; owns: ProfileOwned } | null>(null);
   /** A live mirror of the contact fields, for the prefill below. */
   const latestContact = useRef(state.contact);
   useEffect(() => {
@@ -1024,48 +1030,50 @@ export function useBooking(options: UseBookingOptions) {
     // A field that ever differs from what the profile wrote is the visitor's
     // from then on — typed back to the same value included — so neither a
     // switch nor an unreadable login below takes it.
-    const owned = guardianFilled.current?.wrote;
-    if (owned === undefined) return;
+    const owns = guardianFilled.current?.owns;
+    if (owns === undefined) return;
     for (const field of CONTACT_FIELDS) {
-      if (owned[field] !== '' && state.contact[field] !== owned[field]) owned[field] = '';
+      if (field in owns && state.contact[field] !== owns[field]) delete owns[field];
     }
   });
 
   /**
-   * The logged-in parent's details into the fields — once per parent, into
-   * fields still BLANK or still holding exactly what the PREVIOUS parent's
-   * profile put there (a shared device), never over what the visitor typed.
+   * The logged-in parent's details into the fields — once per parent. A field
+   * the previous parent's profile still owns is theirs to replace: with this
+   * parent's value, or emptied when this profile has none (a shared device
+   * must not keep the last account's phone). A blank field is filled. A field
+   * the visitor owns is never touched, and stays theirs.
    */
   useEffect(() => {
     const contact = latestContact.current;
+    const previous = guardianFilled.current?.owns ?? {};
     if (guardian === null) {
       // A login with no readable profile is somebody else until shown
       // otherwise: what the previous parent's profile wrote goes, and what
       // the visitor typed stays. (No login at all — the session ran out —
       // keeps the fields for the same parent's next login.)
-      const previous = guardianFilled.current?.wrote;
-      if (signedIn === null || previous === undefined) return;
+      if (signedIn === null || guardianFilled.current === null) return;
       guardianFilled.current = null;
       for (const field of CONTACT_FIELDS) {
-        if (previous[field] !== '') dispatch({ type: 'setContact', field, value: '' });
+        if (field in previous) dispatch({ type: 'setContact', field, value: '' });
       }
       return;
     }
     if (guardianFilled.current?.email === guardian.email) return;
-    const previous = guardianFilled.current?.wrote;
-    const wrote = {
+    const profile = {
       name: [guardian.firstName, guardian.lastName].filter(Boolean).join(' ').trim(),
       phone: guardian.phone === null ? '' : phone.nationalDigits(guardian.phone),
       email: guardian.email,
     };
-    guardianFilled.current = { email: guardian.email, wrote };
+    const owns: ProfileOwned = {};
+    guardianFilled.current = { email: guardian.email, owns };
 
     for (const field of CONTACT_FIELDS) {
-      const value = wrote[field];
-      if (value === '') continue;
-      const held = contact[field].trim();
-      if (held !== '' && held !== previous?.[field]) continue;
-      dispatch({ type: 'setContact', field, value });
+      const value = profile[field];
+      const theirs = field in previous;
+      if (!theirs && contact[field].trim() !== '') continue;
+      if (value !== '') owns[field] = value;
+      if (value !== '' || theirs) dispatch({ type: 'setContact', field, value });
     }
   }, [guardian, signedIn, phone]);
 

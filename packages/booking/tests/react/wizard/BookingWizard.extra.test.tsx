@@ -934,6 +934,34 @@ describe('useBooking — the corners', () => {
       expect(result.current.state.contact.phone).toBe('40000000');
     });
 
+    it('keeps a visitor’s field theirs through readable and unreadable logins in turn', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.phone).toBe('40000000'));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '4' }));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '40000000' }));
+      act(() => result.current.login.signIn(null));
+      act(() => result.current.login.signIn(GUARDIAN));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(GUARDIAN.email));
+      act(() => result.current.login.signIn(null));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('40000000');
+    });
+
+    it('empties the previous profile’s field when the next profile has nothing for it', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.phone).toBe('40000000'));
+      act(() => result.current.login.signIn({ ...OTHER, phone: null }));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(OTHER.email));
+      expect(result.current.state.contact.phone).toBe('');
+      // …and the next unreadable login has no field of Kari's left to clear.
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '41111111' }));
+      act(() => result.current.login.signIn(null));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('41111111');
+    });
+
     it('lets a returning parent claim back the child an unreadable login let go', async () => {
       stubApi();
       const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
