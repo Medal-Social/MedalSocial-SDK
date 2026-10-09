@@ -319,12 +319,27 @@ function toMedalBody(body: CreateRequest): { body: CreateBookingBody } | { error
  * still book — a per-request UUID, exactly as before — they simply do not get
  * the guarantee. Refusing them would turn a missing nicety into an outage.
  */
-async function idempotencyKeyFor(nonce: unknown, body: CreateBookingBody): Promise<string> {
+async function idempotencyKeyFor(
+  nonce: unknown,
+  body: CreateBookingBody,
+  contactId: string | null
+): Promise<string> {
   if (typeof nonce !== 'string' || nonce.trim().length === 0) return crypto.randomUUID();
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(`${nonce}${JSON.stringify(body)}`)
-  );
+  // Under `account.required`, the CONTACT the session resolved to — never the
+  // session itself. The contact is whose booking this is: two parents never
+  // share a key (the same submission from two accounts is two bookings), and
+  // the same parent keeps theirs across a fresh login. A key that hashed the
+  // token would change when the session is renewed, so a resend after a lost
+  // answer would be a new booking under a new key — the double booking, or a
+  // `slotTaken` for an hour that is in fact theirs. Medal binds a replay to the
+  // session as well (the header's hash is part of the request identity), so
+  // a resend under a renewed session meets the first attempt as a 409
+  // IDEMPOTENCY_KEY_CONFLICT — «check your e-mail» — rather than as a second
+  // booking, and nobody else's session is ever handed this one's answer.
+  // Without `account.required` the key is unchanged: the phone in the body
+  // already says whose booking it is.
+  const material = `${nonce}${JSON.stringify(body)}${contactId === null ? '' : `\u0000contact:${contactId}`}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -469,6 +484,7 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
 
   const mapped = toMedalBody(parsed as CreateRequest);
   if ('error' in mapped) return mapped.error;
+
   // ONE SUBMISSION, ONE KEY, ONE BODY. The key is derived from what the
   // CLIENT asked for — ids included, before the server checks them — and the
   // body Medal is sent is a pure function of that request and the profile.
@@ -482,11 +498,22 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   /* v8 ignore next */
   const requestedIds = requestedPersonIds((parsed as CreateRequest).items ?? []);
   const keyBody = withIds(mapped.body, requestedIds, null);
-  const checked = await withPersons(rt, mapped.body, requestedIds);
-  if (checked === null) {
+  const nonce = (parsed as CreateRequest).submissionNonce;
+  // Two models, never mixed. Without `account.required` the booking is the
+  // logged-out one it always was — Medal finds the contact by the phone, and a
+  // session only ever vouches for person ids under the phone rule. With it,
+  // the parent's session goes to Medal and decides the contact, whatever phone
+  // was typed: see `sessionBooking`.
+  const booking = rt.config.account.required
+    ? await sessionBooking(rt, mapped.body, requestedIds)
+    : await withPersons(rt, mapped.body, requestedIds).then((body) =>
+        body === null ? null : { body, session: null, contactId: null }
+      );
+  if (booking === null) {
     return NextResponse.json({ error: 'upstreamError', retryable: true }, { status: 503 });
   }
-  mapped.body = checked;
+  if (booking === 'accountRequired') return accountRequired();
+  mapped.body = booking.body;
 
   try {
     // Inside the try, though nothing about a SHA-256 of a string this route
@@ -494,11 +521,25 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     // «timen ble ikke satt opp» is true — nothing was booked — where an
     // unhandled rejection would be a bare 500 with no line in the log saying
     // which booking it was.
-    const idempotencyKey = await idempotencyKeyFor(
-      (parsed as CreateRequest).submissionNonce,
-      keyBody
-    );
-    const result = await rt.medal.createBooking(mapped.body, idempotencyKey);
+    const idempotencyKey = await idempotencyKeyFor(nonce, keyBody, booking.contactId);
+    let result: Awaited<ReturnType<BookingRuntime['medal']['createBooking']>>;
+    try {
+      result =
+        booking.session === null
+          ? await rt.medal.createBooking(mapped.body, idempotencyKey)
+          : await rt.medal.createBooking(mapped.body, idempotencyKey, {
+              portalSession: booking.session,
+            });
+    } catch (error) {
+      // The session died between the profile read and the create: the login
+      // again. Either Medal refused inside the create, which releases the
+      // key — nothing was booked — or it refused to REPLAY an earlier attempt
+      // of this submission that did book. The parent's resend after the login
+      // is the same contact, so the same key, and meets whichever it was: a
+      // booking, or the earlier attempt's 409 «check your e-mail».
+      if (booking.session !== null && isDeadPortalSession(error)) return accountRequired();
+      throw error;
+    }
     const booked = Array.isArray(result.bookings) ? result.bookings : [];
     // A null entry is a short answer, not a throw: the caches below must still go.
     const ids = booked.map((booking) => (booking as { id?: unknown } | null)?.id);
@@ -568,6 +609,20 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   }
 }
 
+/** Under `account.required`, the answer to a submission nobody is logged in for. */
+function accountRequired(): NextResponse {
+  return bookingErrorResponse('accountRequired', 401, 'Log in to book');
+}
+
+/** Medal's 401 for a portal session it no longer honours (or never issued). */
+function isDeadPortalSession(error: unknown): boolean {
+  return (
+    error instanceof MedalApiError &&
+    error.status === 401 &&
+    (error.code === 'PORTAL_SESSION_REQUIRED' || error.code === 'PORTAL_SESSION_INVALID')
+  );
+}
+
 /** Every service a submission books — each visit's extras too, since a
  * visit's slot entry is tagged with all of its services and a write to any of
  * them must retire it. */
@@ -579,7 +634,8 @@ function bookedServiceIds(body: CreateBookingBody): string[] {
 const PERSON_ID_SHAPE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
- * `booked_for_person_id` on each line — THE PHONE RULE (SP10).
+ * `booked_for_person_id` on each line — THE PHONE RULE (SP10), for a site
+ * without `account.required` (with it, see `sessionBooking`).
  *
  * Medal resolves a booking's contact by the PHONE first, then the e-mail, and
  * a person id is only valid on the contact who owns that child: an id sent
@@ -617,6 +673,54 @@ async function withPersons(
   if (owned === null) return null;
   if (owned.size === 0) return body;
   return withIds(body, ids, owned);
+}
+
+/**
+ * Under `account.required`: the logged-in parent's booking, on THEIR contact.
+ *
+ * The session goes to Medal (`X-Portal-Session`), and Medal books on the
+ * session's contact whatever phone was typed — so the phone rule has nothing
+ * to say here, and a person id is checked against the session's own family
+ * alone. The profile is read for every submission, ids or none: it is what
+ * proves the session is still alive before anything is booked, and its
+ * `contactId` is the half of the idempotency key that says WHOSE attempt this
+ * is (see `idempotencyKeyFor`).
+ *
+ * `'accountRequired'` when there is no session or Medal no longer honours it —
+ * an answer, and the same one on a retry. `null` when the session or the
+ * profile could not be read at all (an outage, a throttle): a 503 before
+ * anything is booked, as for the phone rule's read.
+ */
+async function sessionBooking(
+  rt: BookingRuntime,
+  body: CreateBookingBody,
+  ids: ReadonlyArray<string | null>
+): Promise<
+  { body: CreateBookingBody; session: string; contactId: string } | 'accountRequired' | null
+> {
+  try {
+    const session = await rt.session.readPortalSession();
+    if (session === null) return 'accountRequired';
+    const profile = await rt.portal.getMe(session);
+    return {
+      body: withIds(body, ids, familyIds(profile.family)),
+      session,
+      contactId: profile.contactId,
+    };
+  } catch (error) {
+    if (error instanceof PortalSessionExpiredError) return 'accountRequired';
+    // The seam scrubs the session.
+    rt.logger.warn(
+      { err: error },
+      'Could not read the booking’s portal session; asking for a retry'
+    );
+    return null;
+  }
+}
+
+/** The person ids a profile's family has. */
+function familyIds(family: ReadonlyArray<{ personId: string | null }>): Set<string> {
+  return new Set(family.flatMap((member) => (member.personId === null ? [] : [member.personId])));
 }
 
 /** The ids the client sent, one per line, `null` where none (or not an id). */
@@ -657,9 +761,7 @@ async function ownedPersonIds(rt: BookingRuntime, phone: string): Promise<Set<st
     const profile = await rt.portal.getMe(session);
     if (profile.phone === null) return new Set();
     if (nationalDigits(profile.phone) !== nationalDigits(phone)) return new Set();
-    return new Set(
-      profile.family.flatMap((member) => (member.personId === null ? [] : [member.personId]))
-    );
+    return familyIds(profile.family);
   } catch (error) {
     // A session Medal no longer honours is an answer, and the same one on a
     // retry: nobody is logged in, so the booking goes by names.

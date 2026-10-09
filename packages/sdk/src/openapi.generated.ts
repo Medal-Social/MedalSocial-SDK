@@ -3742,6 +3742,8 @@ export interface components {
     ManageToken: string;
     /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
     PortalSession: string;
+    /** @description A logged-in customer's `session_token` (from `verifyPortalLogin`). When present the booking is created on THAT session's contact rather than the one the submitted phone or e-mail resolves to, and an idempotent replay is bound to the session. Unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID` and books nothing. Omit it to book as before. */
+    OptionalPortalSession: string;
     Cursor: string;
     Limit: number;
   };
@@ -4459,7 +4461,10 @@ export interface operations {
   createBooking: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description A logged-in customer's `session_token` (from `verifyPortalLogin`). When present the booking is created on THAT session's contact rather than the one the submitted phone or e-mail resolves to, and an idempotent replay is bound to the session. Unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID` and books nothing. Omit it to book as before. */
+        "X-Portal-Session"?: components["parameters"]["OptionalPortalSession"];
+      };
       path?: never;
       cookie?: never;
     };

@@ -22,14 +22,16 @@ import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
 import { stylistDisplayName } from '../core/display-name';
-import { DRAFT_MAX_AGE_MS, type WizardDraft } from '../core/draft-store';
+import { DRAFT_MAX_AGE_MS, type WizardDraft, type WizardDraftItem } from '../core/draft-store';
 import { fill, labelText } from '../core/labels';
-import type {
-  WizardAction,
-  WizardPerson,
-  WizardPrefill,
-  WizardService,
-  WizardState,
+import {
+  SELF_KEY,
+  type WizardAction,
+  type WizardItem,
+  type WizardPerson,
+  type WizardPrefill,
+  type WizardService,
+  type WizardState,
 } from '../core/machine';
 import { firstOpeningPerResource } from '../core/next-available';
 import { type PartySlot, type SlotsByService, slotKeysFor } from '../core/party-slots';
@@ -78,6 +80,13 @@ export interface UseBookingOptions extends BookingOverrides {
   guardian?: BookingGuardian | null;
   /** How many days the window covers. Default `config.window.rangeDays`. */
   rangeDays?: number;
+  /**
+   * Whether the shell can put a login in front of the visitor again. Under
+   * `account.required` a lost session (`/create` → `accountRequired`) is a
+   * login when it can — `login.sessionLost` — and an ordinary submit error
+   * when it cannot. Default `true`: a headless shell reads `sessionLost`.
+   */
+  loginOffered?: boolean;
 }
 
 /** A person's «same as last time», and the note when it was swapped for their age. */
@@ -98,6 +107,26 @@ export interface ConfirmedLine {
 export interface BookingConfirmation {
   bookings: Array<{ id: string; manageHref: string | null }>;
   submitted: SubmittedVisit;
+}
+
+/**
+ * A line item as a draft keeps it. `idOnly` — nobody is logged in — keeps a
+ * saved child by its id ALONE: the login the draft waits for decides, and only
+ * that child's own parent gets the name back (`reseatFor`).
+ */
+function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
+  const saved = idOnly && item.bookedForPersonId !== undefined;
+  return {
+    serviceId: item.service.id,
+    // Only when there are some: a one-service line is stored as it always was.
+    ...(item.extraServices?.length
+      ? { extraServiceIds: item.extraServices.map((service) => service.id) }
+      : {}),
+    bookedForName: saved ? null : (item.bookedForName ?? null),
+    bookedForBirthYear: saved ? null : (item.bookedForBirthYear ?? null),
+    adult: item.adult === true,
+    personId: item.bookedForPersonId ?? null,
+  };
 }
 
 /** How long a replayed submission may take before the restore gate gives up. */
@@ -174,6 +203,28 @@ function withExtraServices(
       return extras.length === 0
         ? line
         : { ...line, extraServiceIds: extras.map((service) => service.id) };
+    }),
+  };
+}
+
+/**
+ * Under `account.required`, each line's saved child back on it whatever phone
+ * was typed. The details screen sends a person id only under the parent's own
+ * number (the phone rule), but with an account required the booking goes on
+ * the logged-in parent's contact anyway, so a child sent by name alone would
+ * be created there a second time. The machine's id is the line's own: a name
+ * typed over a saved child clears it. The route checks every id against the
+ * session's own family before it is forwarded.
+ */
+function withSessionPersons(
+  submission: BookingSubmission,
+  items: ReadonlyArray<SubmittedVisit['items'][number]>
+): BookingSubmission {
+  return {
+    ...submission,
+    items: submission.items.map((line, index) => {
+      const personId = items[index]?.bookedForPersonId;
+      return personId === undefined ? line : { ...line, bookedForPersonId: personId };
     }),
   };
 }
@@ -379,11 +430,31 @@ function setupFor(kit: BookingKit) {
         : ({ adult: true } as const);
     const seated = seat ?? unasked;
     const base = seated !== null && 'adult' in seated ? withAdult() : wizard.initialState();
-    if (prefill === null) {
-      if (seated === null) return wizard.initialState();
-      return 'adult' in seated ? withAdult() : withGuests(seated.children);
+    const state =
+      prefill === null
+        ? seated === null
+          ? wizard.initialState()
+          : 'adult' in seated
+            ? withAdult()
+            : withGuests(seated.children)
+        : wizard.applyPrefill(base, prefill, prefillCatalogue(services, resources));
+    // `screens.guestParty`: a guest still on step 1 with nobody chosen — no
+    // link, or a link that holds a service for step 1 — starts on the common
+    // answer, one child, already in the state, so the server-rendered step
+    // shows «1» and a live «next». A link that seats people stays as it was.
+    if (
+      config.screens.guestParty &&
+      seated === null &&
+      state.step === 'who' &&
+      state.people.length === 0
+    ) {
+      return wizard.reduce(state, {
+        type: 'choosePeople',
+        people: [wizard.guestChild(1)],
+        advance: false,
+      });
     }
-    return wizard.applyPrefill(base, prefill, prefillCatalogue(services, resources));
+    return state;
   }
 
   return { prefillFromQuery, deepLinkFromQuery, heldLink, initialWizardState };
@@ -403,7 +474,17 @@ export function useBooking(options: UseBookingOptions) {
    * logged-in parent, who must not be offered the login again.
    */
   const [signedIn, setSignedIn] = useState<{ guardian: BookingGuardian | null } | null>(null);
-  const guardian = signedIn?.guardian ?? arrivedAs;
+  /**
+   * The create route said nobody is logged in (`accountRequired`): the session
+   * the page arrived with — or the one taken here — has run out. From then on
+   * the parent the page found is not trusted; only a fresh login is. Sticky:
+   * a fresh login clears `sessionLost` (the notice), never this.
+   */
+  const [arrivalExpired, setArrivalExpired] = useState(false);
+  /** The gate is back because the session ran out — until the next login. */
+  const [sessionLost, setSessionLost] = useState(false);
+  const arrivedAsNow = arrivalExpired ? null : arrivedAs;
+  const guardian = signedIn?.guardian ?? arrivedAsNow;
 
   // The link, read ONCE, in the initialisers: a prefill that re-applied later
   // would answer questions the visitor has since changed their mind about.
@@ -459,12 +540,88 @@ export function useBooking(options: UseBookingOptions) {
     () => (guardian === null ? null : [...guardian.family, ...addedChildren]),
     [guardian, addedChildren]
   );
+  /**
+   * Guest chairs an account change left standing for a seat with services —
+   * the previous parent's child unseated, or a sent visit's child nobody could
+   * vouch for — which `seatFamily` keeps: they are the visit being booked.
+   */
+  const [keptSeats, setKeptSeats] = useState<readonly string[]>([]);
   /** Guest seats go when a family appears over them (`seatFamily`). */
-  const guestSeated = family !== null && state.people.some(wizard.isGuestSeat);
+  const guestSeated =
+    family !== null &&
+    state.people.some((person) => wizard.isGuestSeat(person) && !keptSeats.includes(person.key));
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-asked on every step change, as the source did.
   useEffect(() => {
-    if (guestSeated) dispatch({ type: 'seatFamily' });
+    if (guestSeated) dispatch({ type: 'seatFamily', keep: keptSeats });
   }, [guestSeated, state.step]);
+  /**
+   * The saved child behind each guest chair a visit was rebuilt into while
+   * nobody was logged in (`restoreDraft`), by seat key — names left out — for
+   * the next login to claim by id (`reseatFor`).
+   */
+  const awaitingIds = useRef<Map<string, string> | null>(null);
+
+  /**
+   * The account the party's saved children were seated under — its e-mail,
+   * `null` before anybody. Kept across a lost session on purpose: the seats
+   * outlive it, held under the gate, and it is the NEXT login that decides
+   * whether they still fit (`reseatFor`).
+   */
+  const seatedFor = useRef<string | null>(arrivedAs?.email ?? null);
+  useEffect(() => {
+    if (guardian !== null) seatedFor.current = guardian.email;
+  }, [guardian]);
+
+  /**
+   * A login from the sheet or the gate, before it lands: when it is ANOTHER
+   * account than the one the party was seated under — or one whose profile
+   * nobody could read — the previous parent's children are not this one's to
+   * book. Their seats become guest chairs (the services and the hour stay),
+   * and what the old parent added here goes with them. Only a person id says
+   * a child is the new parent's too: a child without one is matched by place,
+   * name and year, which two families can share. A guest chair rebuilt from a
+   * sent visit while nobody was logged in (`awaitingIds`) is this parent's
+   * child again when the id is theirs, and stays a blank chair when it is not;
+   * a login with no readable profile decides nothing, so the ids wait on for
+   * the next one. In the same batch as the login, so the form it opens never draws the old
+   * names; the chairs it leaves keep their services on a step back.
+   */
+  function reseatFor(who: BookingGuardian | null) {
+    const before = seatedFor.current;
+    const now = who?.email ?? null;
+    const awaiting = who === null ? null : awaitingIds.current;
+    seatedFor.current = now;
+    if (who !== null) awaitingIds.current = null;
+    const switched = before !== null && before !== now;
+    if (!switched && awaiting === null) return;
+    if (switched) setAddedChildren([]);
+    const theirs = who?.family ?? [];
+    const keys: string[] = [];
+    const into: Record<string, WizardPerson> = {};
+    for (const person of state.people) {
+      const id = awaiting?.get(person.key) ?? person.personId;
+      const at = theirs.findIndex((child) => id !== undefined && child.personId === id);
+      if (at !== -1 && person.personId === id) continue;
+      if (at !== -1) into[person.key] = personForChild(theirs[at], at);
+      if (
+        at !== -1 ||
+        (switched &&
+          person.key !== SELF_KEY &&
+          (person.personId !== undefined || !wizard.isGuestSeat(person)))
+      ) {
+        keys.push(person.key);
+      }
+    }
+    const action = { type: 'unseatPeople', keys, into } as const;
+    const after = wizard.reduce(state, action).people;
+    const kept = after.filter(
+      (person, index) =>
+        wizard.isGuestSeat(person) &&
+        (keys.includes(state.people[index].key) || awaiting?.has(person.key))
+    );
+    setKeptSeats((current) => [...current, ...kept.map((person) => person.key)]);
+    if (keys.length > 0) dispatch(action);
+  }
 
   /** A stylist a party link named, applied once the family reaches step 3. */
   const partyStylist = useRef<string | null>(
@@ -686,6 +843,14 @@ export function useBooking(options: UseBookingOptions) {
     const [first, ...rest] = resolved;
     if (first === undefined || resolved.some((service) => service === undefined)) return;
 
+    // Nobody to vouch for a saved child's id: its chair waits for the next login.
+    if (family === null) {
+      const ids = new Map<string, string>();
+      draft.items.forEach((item, index) => {
+        if (item.personId && !item.adult) ids.set(wizard.guestChild(index + 1).key, item.personId);
+      });
+      awaitingIds.current = ids.size > 0 ? ids : null;
+    }
     // A guest is reseated as they left; a family's seats are its own children.
     if (family === null && draft.items.every((item) => typeof item.adult === 'boolean')) {
       dispatch({
@@ -799,21 +964,22 @@ export function useBooking(options: UseBookingOptions) {
   /** The draft, kept current on every answer rather than written on the Vipps tap. */
   useEffect(() => {
     if (confirmed !== null || state.items.length === 0) {
+      // A booked visit's chairs wait for nobody.
+      if (confirmed !== null) awaitingIds.current = null;
       kit.drafts.clearDraft();
       return;
     }
     kit.drafts.stashDraft({
-      items: state.items.map((item) => ({
-        serviceId: item.service.id,
-        // Only when there are some: a one-service line is stored as it always was.
-        ...(item.extraServices?.length
-          ? { extraServiceIds: item.extraServices.map((service) => service.id) }
-          : {}),
-        bookedForName: item.bookedForName ?? null,
-        bookedForBirthYear: item.bookedForBirthYear ?? null,
-        adult: item.adult === true,
-        personId: item.bookedForPersonId ?? null,
-      })),
+      // Nobody logged in — the session ran out under the gate — and a line
+      // still naming a saved child: kept by its id ALONE. The login the draft
+      // waits for decides: that parent's child is reseated by id, anybody
+      // else gets a guest chair rather than the previous parent's child's name.
+      // A chair still waiting for its child's parent (`awaitingIds`) keeps the id too.
+      items: state.items.map((item, index) => {
+        const line = draftItem(item, guardian === null);
+        const waiting = awaitingIds.current?.get(state.people[index].key) ?? null;
+        return { ...line, personId: line.personId ?? waiting };
+      }),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       startTs: state.startTs,
@@ -823,7 +989,9 @@ export function useBooking(options: UseBookingOptions) {
   }, [
     kit,
     confirmed,
+    guardian,
     state.items,
+    state.people,
     state.resourceId,
     state.partyMode,
     state.startTs,
@@ -1054,6 +1222,9 @@ export function useBooking(options: UseBookingOptions) {
     let cancelled = false;
     const key = scheduleKey;
     const resourceId = state.resourceId;
+    // A new read is not the previous failure. Leaving that flag set would settle
+    // the retry before it has answered.
+    setScheduleFailedFor((current) => (current === key ? null : current));
 
     (async () => {
       try {
@@ -1067,7 +1238,11 @@ export function useBooking(options: UseBookingOptions) {
       } catch {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
-        if (!cancelled) setScheduleFailedFor(key);
+        if (!cancelled) {
+          setScheduleFailedFor(key);
+          // The previous success for this stylist is stale once this read failed.
+          setFetchedSchedule((current) => (current?.key === key ? null : current));
+        }
       }
     })();
 
@@ -1255,7 +1430,11 @@ export function useBooking(options: UseBookingOptions) {
     }
     // Read BEFORE the await: the card describes what left the browser.
     const resourceIds = wizard.itemResourceIds(state);
-    const body = withExtraServices(submission, state.items);
+    const extended = withExtraServices(submission, state.items);
+    const body =
+      extended !== null && config.account.required
+        ? withSessionPersons(extended, state.items)
+        : extended;
     if (body === null) {
       dispatch({ type: 'submitFailed', error: 'invalidInput' });
       return;
@@ -1298,8 +1477,18 @@ export function useBooking(options: UseBookingOptions) {
       if (!response.ok) {
         // `upstreamError` is «we still do not know»: the attempt survives it.
         const definite = payload?.error !== undefined && payload.error !== 'upstreamError';
+        // `account.required` and the session gone: the login again, not an
+        // error. Nothing else moves — the wizard keeps the hour, and «Bekreft»
+        // turns back into the login over it.
+        const sessionGone = payload?.error === 'accountRequired';
         if (definite) {
-          kit.attempts.clearAttempt();
+          // The session gone keeps the NONCE (and drops only the body): an
+          // earlier try of this submission may have booked with its answer
+          // lost, and the same parent's resend after the login — same nonce,
+          // same visit — derives the same key and meets it rather than booking
+          // twice. The body is not kept: whoever logs in next is asked again.
+          if (sessionGone) kit.attempts.releasePending(current);
+          else kit.attempts.clearAttempt();
           setPendingAttempt(null);
         }
         // A RESUMED replay (or the resend of one while a link waits) has no
@@ -1307,11 +1496,35 @@ export function useBooking(options: UseBookingOptions) {
         const wasResumed =
           sendOptions?.replay === true ||
           (sendOptions?.pending === true && rebookLink.current !== null);
+        if (sessionGone) {
+          setSignedIn(null);
+          setArrivalExpired(true);
+          setSessionLost(true);
+          // Before the resumed reset below: the gate holds the slot, a clean
+          // wizard would drop it. A replay or a resend of a pending attempt
+          // sent a visit the machine need not hold (never hydrated; or the
+          // parent stepped back and picked another hour while the attempt
+          // waited, and «Bekreft» resent the old one verbatim), so the visit
+          // it SENT is rebuilt under the gate — the one whose key a resend
+          // after the login has to meet. Any other send is the machine's own.
+          if (options.loginOffered !== false) {
+            if (sendOptions?.replay === true || sendOptions?.pending === true) {
+              rebuildSubmitted(submitted);
+            }
+            return;
+          }
+        }
         if (wasResumed) {
           if (definite) {
+            forgetChairs();
             dispatch({ type: 'startOver' });
             restartFromLink();
           } else dispatch({ type: 'submitFailed', error: 'upstreamError' });
+          return;
+        }
+        if (sessionGone) {
+          // Nowhere to log in again (no login actions): an error, not a dead «Bekreft».
+          dispatch({ type: 'submitFailed', error: 'upstreamError' });
           return;
         }
         if (payload?.error === 'slotTaken') {
@@ -1377,6 +1590,28 @@ export function useBooking(options: UseBookingOptions) {
     }
   }
 
+  /**
+   * The visit a refused replay sent, back in the machine as a draft would be
+   * — the hour on «Bekreft» — in place of the link that was waiting on it.
+   */
+  function rebuildSubmitted(submitted: SubmittedVisit) {
+    rebookLink.current = null;
+    const { items, resourceIds } = submitted;
+    // Nobody is logged in now: a saved child goes back by id alone (`draftItem`).
+    restoreDraft({
+      items: items.map((item) => draftItem(item, true)),
+      resourceId: null,
+      partyMode: submitted.partyMode,
+      startTs: submitted.startTs,
+      resolvedResourceId: resourceIds[0] ?? null,
+      partyResourceIds:
+        items.length > 1 && resourceIds.every((id) => id !== null)
+          ? (resourceIds as string[])
+          : null,
+      savedAt: Date.now(),
+    });
+  }
+
   /** «Book again» on the confirmation: a clean wizard with a fresh attempt. */
   function startOver() {
     kit.attempts.clearAttempt();
@@ -1387,8 +1622,15 @@ export function useBooking(options: UseBookingOptions) {
     setSlotsFailed(false);
     setConfirmed(null);
     setTakenSlotTs(null);
+    forgetChairs();
     dispatch({ type: 'startOver' });
     restartFromLink();
+  }
+
+  /** A new visit: no chair of the last one is kept or waits for its parent. */
+  function forgetChairs() {
+    setKeptSeats([]);
+    awaitingIds.current = null;
   }
 
   /** A service tap on step 2 for a party of one — the first carries the link's stylist. */
@@ -1471,6 +1713,14 @@ export function useBooking(options: UseBookingOptions) {
 
   /** Who a parent seats on step 1; each new child starts on «same as last time». */
   function choosePeople(people: WizardPerson[], advance: boolean) {
+    // A kept or waiting chair is that chair only while step 1 passes it through
+    // as it is: one replaced — by a family child, or a count chip of the same
+    // key — is somebody new.
+    const stays = (key: string) =>
+      people.includes(state.people.find((p) => p.key === key) as WizardPerson);
+    setKeptSeats((current) => current.filter(stays));
+    const waiting = [...(awaitingIds.current ?? [])].filter(([key]) => stays(key));
+    awaitingIds.current = waiting.length > 0 ? new Map(waiting) : null;
     dispatch({
       type: 'choosePeople',
       people,
@@ -1492,12 +1742,23 @@ export function useBooking(options: UseBookingOptions) {
     kit,
     state,
     dispatch: action,
-    /** The parent: who arrived, who logged in from the sheet, and the merged answer. */
+    /**
+     * The parent: who arrived (`null` once the create route said the session
+     * ran out), who logged in from the sheet, the merged answer, and whether
+     * anybody is logged in at all (a good code whose profile read failed is).
+     */
     login: {
-      arrivedAs,
+      arrivedAs: arrivedAsNow,
       signedIn,
       guardian,
-      signIn: (who: BookingGuardian | null) => setSignedIn({ guardian: who }),
+      loggedIn: signedIn !== null || arrivedAsNow !== null,
+      /** `/create` said the session ran out, and no login has happened since. */
+      sessionLost,
+      signIn: (who: BookingGuardian | null) => {
+        reseatFor(who);
+        setSessionLost(false);
+        setSignedIn({ guardian: who });
+      },
       vippsConfirm,
       resumePath: vippsResumePath,
     },
@@ -1537,6 +1798,7 @@ export function useBooking(options: UseBookingOptions) {
       party,
       total: wizard.totalPriceOre(state.items, state.startTs),
       summary: wizard.summaryLine(state, resolveStylistName),
+      summaryParts: wizard.summaryParts(state, resolveStylistName),
       visitEnd:
         state.startTs === null
           ? null

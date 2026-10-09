@@ -905,6 +905,33 @@ describe("bookings", () => {
     );
   });
 
+  it("forwards a portal session on create as X-Portal-Session", async () => {
+    const session = "a".repeat(43);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-portal-session")).toBe(session);
+      expect(headers.get("idempotency-key")).toBe("k");
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "k", portalSession: session },
+    );
+  });
+
+  it("sends no X-Portal-Session on create without a portal session", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(new Headers(init?.headers).has("x-portal-session")).toBe(false);
+      return mockJson({ data: { bookings: [], contact_id: "c_1" } }, 201);
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.bookings.create(
+      { items: [{ service_id: "svc_1", start_ts: 1 }], contact: { phone: "+47" } },
+      { idempotencyKey: "k" },
+    );
+  });
+
   it("cannot create two bookings when a 5xx is retried", async () => {
     // Simulates the server's idempotency machinery: a write only executes for
     // an Idempotency-Key it has not seen. The first attempt commits the booking

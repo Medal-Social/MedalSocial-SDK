@@ -11,7 +11,7 @@
 import type { BookingClock, BookingDaypart, BookingFormat } from '@medalsocial/meda/booking';
 import { type Age, createAge } from '../core/age';
 import { type AttemptStore, createAttemptStore } from '../core/attempt-store';
-import { categoryOrder, childCategory } from '../core/categories';
+import { childCategory } from '../core/categories';
 import { type Clock, createClock } from '../core/clock';
 import type { BookingConfig } from '../core/config';
 import { createDeepLinks, type DeepLinks } from '../core/deep-link';
@@ -48,8 +48,16 @@ export interface BookingKit {
   readonly paths: Paths;
   /** The day parts in order, as the time step takes them. */
   readonly dayparts: readonly BookingDaypart[];
-  /** The service groups in order, as the service step takes them. */
-  readonly categories: ReadonlyArray<{ key: string; label: string }>;
+  /**
+   * The service groups in order, as the service step takes them — with each
+   * group's audience, so a child in a family is offered the groups meant for
+   * anyone (meda 3.6 `ServiceScreenCategory.audience`).
+   */
+  readonly categories: ReadonlyArray<{
+    key: string;
+    label: string;
+    audience: 'child' | 'adult' | 'any';
+  }>;
   /** The kids' group, or `null` when the site has none. */
   readonly childCategory: string | null;
   /** «Theos» / «Jonas'» — the language's possessive of a name. */
@@ -150,11 +158,12 @@ function buildKit(base: Readonly<BookingConfig>, labels: Readonly<BookingLabels>
       key: part.key,
       label: core.daypartLabel(part.key),
     })),
-    categories: categoryOrder(config).map((key) => {
+    categories: config.categories.map(({ key, audience }) => {
       const label = labels[`category.${key}`];
       return {
         key,
         label: label === undefined ? capitalised(key, config.locale) : labelText(label),
+        audience,
       };
     }),
     childCategory: childCategory(config),

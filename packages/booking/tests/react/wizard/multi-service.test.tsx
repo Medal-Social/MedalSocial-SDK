@@ -665,3 +665,94 @@ describe('<BookingWizard> — the multi-select service step', () => {
     expect(within(summaryBar(container) as HTMLElement).getByText(/Klipp/)).toBeInTheDocument();
   });
 });
+
+describe('<BookingWizard> — account.required with the multi-select service step', () => {
+  // Synthetic on purpose: a public repository carries no real-looking person.
+  const PARENT = {
+    firstName: 'Test',
+    lastName: 'Forelder',
+    email: 'forelder@example.com',
+    phone: '+47 400 00 000',
+    family: [],
+  };
+  const ACCOUNT_MULTI = { ...MULTI_SERVICE_CONFIG, account: { required: true } };
+  const actions = {
+    startLogin: vi.fn(async () => ({ status: 'sent' as const })),
+    startVipps: vi.fn(async () => null),
+  };
+
+  /** The multi-service stub, plus the login sheet's code check. */
+  function stubWithLogin() {
+    const api = stubApi({
+      create: { status: 201, body: { bookings: [{ id: 'bk-1', manageToken: 't1' }] } },
+    });
+    const inner = globalThis.fetch;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        if (
+          new URL(String(input), 'https://example.test').pathname === '/api/portal/login/verify'
+        ) {
+          return { ok: true, status: 200, json: async () => ({ ok: true, guardian: PARENT }) };
+        }
+        return inner(input as RequestInfo, init);
+      })
+    );
+    return api;
+  }
+
+  it('gates «Bekreft» after a visit of several services, and books the whole visit once logged in', async () => {
+    const { bodies } = stubWithLogin();
+    const user = userEvent.setup();
+    const { container } = render(
+      <BookingWizard
+        config={ACCOUNT_MULTI}
+        labels={TEST_LABELS}
+        actions={actions}
+        classNames={{ summary: { root: 'summary-bar' } }}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    // The multi-select step, its own bar, and no login offered along the way.
+    expect(container.querySelector('.summary-bar')).toBeNull();
+    expect(screen.queryByText(/Har du konto\?/)).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: /Klipp/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Vask/ }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    // The visit's own openings: tomorrow at 11, with the stylist who does both.
+    await user.click(await screen.findByRole('button', { name: 'I morgen' }));
+    await user.click(await screen.findByRole('button', { name: '11:00' }));
+
+    // The gate, not the form — and it holds the visit, both services in it.
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    const gate = screen.getByRole('region', { name: 'Nesten ferdig' });
+    expect(within(gate).getByText(/Klipp/)).toBeInTheDocument();
+    expect(within(gate).getByText(/Vask/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Bekreft time/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Fortsett med Vipps' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Fortsett med e-post' }));
+    await user.type(screen.getByLabelText('E-post'), PARENT.email);
+    await user.click(screen.getByRole('button', { name: 'Send kode' }));
+    await user.click(await screen.findByLabelText('Engangskode'));
+    await user.paste('492155');
+    await screen.findByRole('heading', { name: 'Nesten ferdig!' });
+
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const created = bodies.filter((body) => 'items' in body && 'consentTerms' in body);
+    expect(created).toHaveLength(1);
+    expect(created[0].items).toHaveLength(1);
+    expect(created[0].items[0]).toMatchObject({
+      serviceId: CUT.id,
+      extraServiceIds: [WASH.id],
+      startTs: VISIT_SLOTS[0].startTs,
+    });
+  });
+});
