@@ -3731,6 +3731,12 @@ describe('BookingWizard with account.required', () => {
       });
       await logInByEmail(user);
       expect(screen.queryByText(/for Jonas/)).toBeNull();
+      // Nor whose details: Kari's profile filled the form, and it goes with her.
+      expect(screen.getByLabelText('Mobilnummer')).toHaveValue('');
+      expect(screen.getByLabelText('E-post')).toHaveValue('');
+      await user.type(screen.getByLabelText('Mobilnummer'), '41111111');
+      await user.type(screen.getByLabelText('Ditt navn'), 'Ola');
+      await user.type(screen.getByLabelText('E-post'), 'ola@example.com');
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
       await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
 
@@ -3738,6 +3744,7 @@ describe('BookingWizard with account.required', () => {
       expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
       expect(sent.items[0].bookedForName).not.toBe('Jonas');
       expect(sent.items[0]).not.toHaveProperty('bookedForPersonId');
+      expect(sent.contact.phone).toBe('41111111');
     });
 
     it('never keeps a child without an id because the next family has one by the same name and year', async () => {

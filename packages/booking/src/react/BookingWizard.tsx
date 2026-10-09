@@ -814,7 +814,9 @@ function LoginRow({
   const { arrivedAs, signedIn, resumePath } = booking.login;
   const { labels } = booking.kit;
   if (signedIn === null && arrivedAs !== null) return null;
-  const who = signedIn === null ? null : (signedIn.guardian ?? arrivedAs);
+  // Named only by the login itself: an unreadable profile is «Logget inn»,
+  // never the name of whoever the page arrived as.
+  const who = signedIn?.guardian ?? null;
   const name =
     who === null
       ? null
