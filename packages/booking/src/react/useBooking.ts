@@ -484,7 +484,10 @@ export function useBooking(options: UseBookingOptions) {
   /** The gate is back because the session ran out — until the next login. */
   const [sessionLost, setSessionLost] = useState(false);
   const arrivedAsNow = arrivalExpired ? null : arrivedAs;
-  const guardian = signedIn?.guardian ?? arrivedAsNow;
+  // A login decides who the parent is, even one whose profile read failed:
+  // falling back to who ARRIVED would hand account B the family and
+  // details of account A, whose seats `signIn` has just let go.
+  const guardian = signedIn === null ? arrivedAsNow : signedIn.guardian;
 
   // The link, read ONCE, in the initialisers: a prefill that re-applied later
   // would answer questions the visitor has since changed their mind about.
@@ -1012,9 +1015,24 @@ export function useBooking(options: UseBookingOptions) {
    */
   const guardianFilled = useRef<{ email: string; wrote: WizardState['contact'] } | null>(null);
   useEffect(() => {
-    if (guardian === null || guardianFilled.current?.email === guardian.email) return;
-    const previous = guardianFilled.current?.wrote;
     const contact = latestContact.current;
+    if (guardian === null) {
+      // A login with no readable profile is somebody else until shown
+      // otherwise: what the previous parent's profile wrote goes, and what
+      // the visitor typed stays. (No login at all — the session ran out —
+      // keeps the fields for the same parent's next login.)
+      const previous = guardianFilled.current?.wrote;
+      if (signedIn === null || previous === undefined) return;
+      guardianFilled.current = null;
+      for (const field of ['name', 'phone', 'email'] as const) {
+        if (previous[field] !== '' && contact[field].trim() === previous[field]) {
+          dispatch({ type: 'setContact', field, value: '' });
+        }
+      }
+      return;
+    }
+    if (guardianFilled.current?.email === guardian.email) return;
+    const previous = guardianFilled.current?.wrote;
     const wrote = {
       name: [guardian.firstName, guardian.lastName].filter(Boolean).join(' ').trim(),
       phone: guardian.phone === null ? '' : phone.nationalDigits(guardian.phone),
@@ -1029,7 +1047,7 @@ export function useBooking(options: UseBookingOptions) {
       if (held !== '' && held !== previous?.[field]) continue;
       dispatch({ type: 'setContact', field, value });
     }
-  }, [guardian, phone]);
+  }, [guardian, signedIn, phone]);
 
   // One entry per distinct VISIT, not per service: a person having cut and wash
   // is one question to the engine (one stylist, back to back), and the cut's

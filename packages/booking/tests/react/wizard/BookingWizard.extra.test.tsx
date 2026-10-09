@@ -908,6 +908,21 @@ describe('useBooking — the corners', () => {
       expect(result.current.state.items[0]).toMatchObject({ bookedForPersonId: 'p-theo' });
     });
 
+    it('never falls back to the arrived parent after a login with no readable profile', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(GUARDIAN.email));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'name', value: 'Typed' }));
+      act(() => result.current.login.signIn(null));
+      expect(result.current.login.guardian).toBeNull();
+      expect(result.current.login.loggedIn).toBe(true);
+      expect(result.current.people.family).toBeNull();
+      // The profile's details go; what the visitor typed stays.
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('');
+      expect(result.current.state.contact.name).toBe('Typed');
+    });
+
     it('forgets a waiting chair on «Book again»: a later guest’s chair is nobody’s', async () => {
       const { result } = await waitingChair();
       act(() => result.current.startOver());
