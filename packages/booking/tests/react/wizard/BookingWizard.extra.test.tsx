@@ -923,6 +923,76 @@ describe('useBooking — the corners', () => {
       expect(result.current.state.contact.name).toBe('Typed');
     });
 
+    it('keeps what the visitor typed, even typed back to the profile’s own value', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.phone).toBe('40000000'));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '4' }));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '40000000' }));
+      act(() => result.current.login.signIn(null));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('40000000');
+    });
+
+    it('keeps a visitor’s field theirs through readable and unreadable logins in turn', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.phone).toBe('40000000'));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '4' }));
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '40000000' }));
+      act(() => result.current.login.signIn(null));
+      act(() => result.current.login.signIn(GUARDIAN));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(GUARDIAN.email));
+      act(() => result.current.login.signIn(null));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('40000000');
+    });
+
+    it('empties the previous profile’s field when the next profile has nothing for it', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      await waitFor(() => expect(result.current.state.contact.phone).toBe('40000000'));
+      act(() => result.current.login.signIn({ ...OTHER, phone: null }));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(OTHER.email));
+      expect(result.current.state.contact.phone).toBe('');
+      // …and the next unreadable login has no field of Kari's left to clear.
+      act(() => result.current.dispatch({ type: 'setContact', field: 'phone', value: '41111111' }));
+      act(() => result.current.login.signIn(null));
+      await waitFor(() => expect(result.current.state.contact.email).toBe(''));
+      expect(result.current.state.contact.phone).toBe('41111111');
+    });
+
+    it('lets a returning parent claim back the child an unreadable login let go', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      const theo = { key: 'p:p-theo', name: 'Theo', birthYear: 2019, personId: 'p-theo' };
+      // Mia has no person id: nothing but an id may claim a chair back.
+      const mia = { key: 'n:1:Mia:2023', name: 'Mia', birthYear: 2023, birthMonth: 2 };
+      act(() => result.current.people.choosePeople([theo, mia], true));
+      act(() => result.current.login.signIn(null));
+      for (const chair of result.current.state.people) {
+        expect(chair.personId).toBeUndefined();
+        expect(chair.name).toBeUndefined();
+      }
+
+      act(() => result.current.login.signIn(GUARDIAN));
+      const [first, second] = result.current.state.people;
+      expect(first).toMatchObject({ key: 'p:p-theo', name: 'Theo' });
+      expect(second.name).toBeUndefined();
+    });
+
+    it('leaves that chair blank for a different parent after the unreadable login', async () => {
+      stubApi();
+      const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+      const theo = { key: 'p:p-theo', name: 'Theo', birthYear: 2019, personId: 'p-theo' };
+      act(() => result.current.people.choosePeople([theo], true));
+      act(() => result.current.login.signIn(null));
+      act(() => result.current.login.signIn(OTHER));
+      const chair = result.current.state.people[0];
+      expect(chair.personId).toBeUndefined();
+      expect(chair.name).toBeUndefined();
+    });
+
     it('forgets a waiting chair on «Book again»: a later guest’s chair is nobody’s', async () => {
       const { result } = await waitingChair();
       act(() => result.current.startOver());
