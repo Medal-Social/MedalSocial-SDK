@@ -460,6 +460,8 @@ function setupFor(kit: BookingKit) {
   return { prefillFromQuery, deepLinkFromQuery, heldLink, initialWizardState };
 }
 
+const CONTACT_FIELDS = ['name', 'phone', 'email'] as const;
+
 export function useBooking(options: UseBookingOptions) {
   const { kit } = useBookingKit(options, options.contact);
   const { config, labels, wizard, clock, age, phone, deepLinks } = kit;
@@ -586,7 +588,8 @@ export function useBooking(options: UseBookingOptions) {
    * sent visit while nobody was logged in (`awaitingIds`) is this parent's
    * child again when the id is theirs, and stays a blank chair when it is not;
    * a login with no readable profile decides nothing, so the ids wait on for
-   * the next one. In the same batch as the login, so the form it opens never draws the old
+   * the next one — including those of the seats it just let go, which the
+   * next readable login claims back when they are its own. In the same batch as the login, so the form it opens never draws the old
    * names; the chairs it leaves keep their services on a step back.
    */
   function reseatFor(who: BookingGuardian | null) {
@@ -623,6 +626,16 @@ export function useBooking(options: UseBookingOptions) {
         (keys.includes(state.people[index].key) || awaiting?.has(person.key))
     );
     setKeptSeats((current) => [...current, ...kept.map((person) => person.key)]);
+    if (who === null && switched) {
+      const waiting = new Map(awaitingIds.current ?? []);
+      after.forEach((person, index) => {
+        const before = state.people[index];
+        if (keys.includes(before.key) && before.personId !== undefined) {
+          waiting.set(person.key, before.personId);
+        }
+      });
+      awaitingIds.current = waiting.size > 0 ? waiting : null;
+    }
     if (keys.length > 0) dispatch(action);
   }
 
@@ -1002,10 +1015,20 @@ export function useBooking(options: UseBookingOptions) {
     state.partyResourceIds,
   ]);
 
+  /** What the logged-in parent's profile wrote into the fields, while it still owns them. */
+  const guardianFilled = useRef<{ email: string; wrote: WizardState['contact'] } | null>(null);
   /** A live mirror of the contact fields, for the prefill below. */
   const latestContact = useRef(state.contact);
   useEffect(() => {
     latestContact.current = state.contact;
+    // A field that ever differs from what the profile wrote is the visitor's
+    // from then on — typed back to the same value included — so neither a
+    // switch nor an unreadable login below takes it.
+    const owned = guardianFilled.current?.wrote;
+    if (owned === undefined) return;
+    for (const field of CONTACT_FIELDS) {
+      if (owned[field] !== '' && state.contact[field] !== owned[field]) owned[field] = '';
+    }
   });
 
   /**
@@ -1013,7 +1036,6 @@ export function useBooking(options: UseBookingOptions) {
    * fields still BLANK or still holding exactly what the PREVIOUS parent's
    * profile put there (a shared device), never over what the visitor typed.
    */
-  const guardianFilled = useRef<{ email: string; wrote: WizardState['contact'] } | null>(null);
   useEffect(() => {
     const contact = latestContact.current;
     if (guardian === null) {
@@ -1024,10 +1046,8 @@ export function useBooking(options: UseBookingOptions) {
       const previous = guardianFilled.current?.wrote;
       if (signedIn === null || previous === undefined) return;
       guardianFilled.current = null;
-      for (const field of ['name', 'phone', 'email'] as const) {
-        if (previous[field] !== '' && contact[field].trim() === previous[field]) {
-          dispatch({ type: 'setContact', field, value: '' });
-        }
+      for (const field of CONTACT_FIELDS) {
+        if (previous[field] !== '') dispatch({ type: 'setContact', field, value: '' });
       }
       return;
     }
@@ -1040,7 +1060,7 @@ export function useBooking(options: UseBookingOptions) {
     };
     guardianFilled.current = { email: guardian.email, wrote };
 
-    for (const field of ['name', 'phone', 'email'] as const) {
+    for (const field of CONTACT_FIELDS) {
       const value = wrote[field];
       if (value === '') continue;
       const held = contact[field].trim();
