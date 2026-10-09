@@ -109,16 +109,21 @@ export interface BookingConfirmation {
   submitted: SubmittedVisit;
 }
 
-/** A line item as a draft keeps it. */
-function draftItem(item: WizardItem): WizardDraftItem {
+/**
+ * A line item as a draft keeps it. `idOnly` — nobody is logged in — keeps a
+ * saved child by its id ALONE: the login the draft waits for decides, and only
+ * that child's own parent gets the name back (`reseatFor`).
+ */
+function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
+  const saved = idOnly && item.bookedForPersonId !== undefined;
   return {
     serviceId: item.service.id,
     // Only when there are some: a one-service line is stored as it always was.
     ...(item.extraServices?.length
       ? { extraServiceIds: item.extraServices.map((service) => service.id) }
       : {}),
-    bookedForName: item.bookedForName ?? null,
-    bookedForBirthYear: item.bookedForBirthYear ?? null,
+    bookedForName: saved ? null : (item.bookedForName ?? null),
+    bookedForBirthYear: saved ? null : (item.bookedForBirthYear ?? null),
     adult: item.adult === true,
     personId: item.bookedForPersonId ?? null,
   };
@@ -515,12 +520,26 @@ export function useBooking(options: UseBookingOptions) {
     () => (guardian === null ? null : [...guardian.family, ...addedChildren]),
     [guardian, addedChildren]
   );
+  /**
+   * Guest chairs an account change left standing for a seat with services —
+   * the previous parent's child unseated, or a sent visit's child nobody could
+   * vouch for — which `seatFamily` keeps: they are the visit being booked.
+   */
+  const [keptSeats, setKeptSeats] = useState<readonly string[]>([]);
   /** Guest seats go when a family appears over them (`seatFamily`). */
-  const guestSeated = family !== null && state.people.some(wizard.isGuestSeat);
+  const guestSeated =
+    family !== null &&
+    state.people.some((person) => wizard.isGuestSeat(person) && !keptSeats.includes(person.key));
   // biome-ignore lint/correctness/useExhaustiveDependencies: re-asked on every step change, as the source did.
   useEffect(() => {
-    if (guestSeated) dispatch({ type: 'seatFamily' });
+    if (guestSeated) dispatch({ type: 'seatFamily', keep: keptSeats });
   }, [guestSeated, state.step]);
+  /**
+   * The saved child behind each guest chair a visit was rebuilt into while
+   * nobody was logged in (`restoreDraft`), by seat key — names left out — for
+   * the next login to claim by id (`reseatFor`).
+   */
+  const awaitingIds = useRef<Map<string, string> | null>(null);
 
   /**
    * The account the party's saved children were seated under — its e-mail,
@@ -538,25 +557,50 @@ export function useBooking(options: UseBookingOptions) {
    * account than the one the party was seated under — or one whose profile
    * nobody could read — the previous parent's children are not this one's to
    * book. Their seats become guest chairs (the services and the hour stay),
-   * and what the old parent added here goes with them. In the same batch as
-   * the login, so the form it opens never draws the old names.
+   * and what the old parent added here goes with them. Only a person id says
+   * a child is the new parent's too: a child without one is matched by place,
+   * name and year, which two families can share. A guest chair rebuilt from a
+   * sent visit while nobody was logged in (`awaitingIds`) is this parent's
+   * child again when the id is theirs, and stays a blank chair when it is not;
+   * a login with no readable profile decides nothing, so the ids wait on for
+   * the next one. In the same batch as the login, so the form it opens never draws the old
+   * names; the chairs it leaves keep their services on a step back.
    */
   function reseatFor(who: BookingGuardian | null) {
     const before = seatedFor.current;
     const now = who?.email ?? null;
+    const awaiting = who === null ? null : awaitingIds.current;
     seatedFor.current = now;
-    if (before === null || before === now) return;
-    setAddedChildren([]);
-    const theirs = new Set(
-      (who?.family ?? []).map((child, index) => personForChild(child, index).key)
+    if (who !== null) awaitingIds.current = null;
+    const switched = before !== null && before !== now;
+    if (!switched && awaiting === null) return;
+    if (switched) setAddedChildren([]);
+    const theirs = who?.family ?? [];
+    const keys: string[] = [];
+    const into: Record<string, WizardPerson> = {};
+    for (const person of state.people) {
+      const id = awaiting?.get(person.key) ?? person.personId;
+      const at = theirs.findIndex((child) => id !== undefined && child.personId === id);
+      if (at !== -1 && person.personId === id) continue;
+      if (at !== -1) into[person.key] = personForChild(theirs[at], at);
+      if (
+        at !== -1 ||
+        (switched &&
+          person.key !== SELF_KEY &&
+          (person.personId !== undefined || !wizard.isGuestSeat(person)))
+      ) {
+        keys.push(person.key);
+      }
+    }
+    const action = { type: 'unseatPeople', keys, into } as const;
+    const after = wizard.reduce(state, action).people;
+    const kept = after.filter(
+      (person, index) =>
+        wizard.isGuestSeat(person) &&
+        (keys.includes(state.people[index].key) || awaiting?.has(person.key))
     );
-    const keys = state.people
-      .filter(
-        (person) =>
-          !wizard.isGuestSeat(person) && person.key !== SELF_KEY && !theirs.has(person.key)
-      )
-      .map((person) => person.key);
-    if (keys.length > 0) dispatch({ type: 'unseatPeople', keys });
+    setKeptSeats((current) => [...current, ...kept.map((person) => person.key)]);
+    if (keys.length > 0) dispatch(action);
   }
 
   /** A stylist a party link named, applied once the family reaches step 3. */
@@ -779,6 +823,14 @@ export function useBooking(options: UseBookingOptions) {
     const [first, ...rest] = resolved;
     if (first === undefined || resolved.some((service) => service === undefined)) return;
 
+    // Nobody to vouch for a saved child's id: its chair waits for the next login.
+    if (family === null) {
+      const ids = new Map<string, string>();
+      draft.items.forEach((item, index) => {
+        if (item.personId && !item.adult) ids.set(wizard.guestChild(index + 1).key, item.personId);
+      });
+      awaitingIds.current = ids.size > 0 ? ids : null;
+    }
     // A guest is reseated as they left; a family's seats are its own children.
     if (family === null && draft.items.every((item) => typeof item.adult === 'boolean')) {
       dispatch({
@@ -892,6 +944,8 @@ export function useBooking(options: UseBookingOptions) {
   /** The draft, kept current on every answer rather than written on the Vipps tap. */
   useEffect(() => {
     if (confirmed !== null || state.items.length === 0) {
+      // A booked visit's chairs wait for nobody.
+      if (confirmed !== null) awaitingIds.current = null;
       kit.drafts.clearDraft();
       return;
     }
@@ -900,11 +954,12 @@ export function useBooking(options: UseBookingOptions) {
       // still naming a saved child: kept by its id ALONE. The login the draft
       // waits for decides: that parent's child is reseated by id, anybody
       // else gets a guest chair rather than the previous parent's child's name.
-      items: state.items.map((item) =>
-        guardian === null && item.bookedForPersonId !== undefined
-          ? { ...draftItem(item), bookedForName: null, bookedForBirthYear: null }
-          : draftItem(item)
-      ),
+      // A chair still waiting for its child's parent (`awaitingIds`) keeps the id too.
+      items: state.items.map((item, index) => {
+        const line = draftItem(item, guardian === null);
+        const waiting = awaitingIds.current?.get(state.people[index].key) ?? null;
+        return { ...line, personId: line.personId ?? waiting };
+      }),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       startTs: state.startTs,
@@ -916,6 +971,7 @@ export function useBooking(options: UseBookingOptions) {
     confirmed,
     guardian,
     state.items,
+    state.people,
     state.resourceId,
     state.partyMode,
     state.startTs,
@@ -1440,6 +1496,7 @@ export function useBooking(options: UseBookingOptions) {
         }
         if (wasResumed) {
           if (definite) {
+            forgetChairs();
             dispatch({ type: 'startOver' });
             restartFromLink();
           } else dispatch({ type: 'submitFailed', error: 'upstreamError' });
@@ -1520,8 +1577,9 @@ export function useBooking(options: UseBookingOptions) {
   function rebuildSubmitted(submitted: SubmittedVisit) {
     rebookLink.current = null;
     const { items, resourceIds } = submitted;
+    // Nobody is logged in now: a saved child goes back by id alone (`draftItem`).
     restoreDraft({
-      items: items.map(draftItem),
+      items: items.map((item) => draftItem(item, true)),
       resourceId: null,
       partyMode: submitted.partyMode,
       startTs: submitted.startTs,
@@ -1544,8 +1602,15 @@ export function useBooking(options: UseBookingOptions) {
     setSlotsFailed(false);
     setConfirmed(null);
     setTakenSlotTs(null);
+    forgetChairs();
     dispatch({ type: 'startOver' });
     restartFromLink();
+  }
+
+  /** A new visit: no chair of the last one is kept or waits for its parent. */
+  function forgetChairs() {
+    setKeptSeats([]);
+    awaitingIds.current = null;
   }
 
   /** A service tap on step 2 for a party of one — the first carries the link's stylist. */
@@ -1628,6 +1693,14 @@ export function useBooking(options: UseBookingOptions) {
 
   /** Who a parent seats on step 1; each new child starts on «same as last time». */
   function choosePeople(people: WizardPerson[], advance: boolean) {
+    // A kept or waiting chair is that chair only while step 1 passes it through
+    // as it is: one replaced — by a family child, or a count chip of the same
+    // key — is somebody new.
+    const stays = (key: string) =>
+      people.includes(state.people.find((p) => p.key === key) as WizardPerson);
+    setKeptSeats((current) => current.filter(stays));
+    const waiting = [...(awaitingIds.current ?? [])].filter(([key]) => stays(key));
+    awaitingIds.current = waiting.length > 0 ? new Map(waiting) : null;
     dispatch({
       type: 'choosePeople',
       people,
