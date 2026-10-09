@@ -71,8 +71,12 @@ describe("scripts/secretlint-staged.mjs", () => {
 
     await runScript(execFileSync);
 
-    const [, args, options] = execFileSync.mock.calls[1] as [string, string[], object];
-    expect(args).toEqual([SECRETLINT_BIN, "docs/my notes.md", "a&b.ts"]);
-    expect(options).not.toHaveProperty("shell");
+    // Exact options: a `shell` key of any value would fail the match.
+    expect(execFileSync).toHaveBeenNthCalledWith(
+      2,
+      process.execPath,
+      [SECRETLINT_BIN, "docs/my notes.md", "a&b.ts"],
+      { cwd: REPO_ROOT, stdio: "inherit" },
+    );
   });
 });
