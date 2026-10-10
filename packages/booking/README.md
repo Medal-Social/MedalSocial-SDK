@@ -74,7 +74,7 @@ its own values in.
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
 | `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel` |
-| `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch |
+| `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch (`rangeDays` max 62). `Clock.window` and the availability route clamp `to_ts` to `from_ts + 62 × 24h` so a maxed window that crosses a DST fall-back is not refused; spans more than an hour over that bound still 400. |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |

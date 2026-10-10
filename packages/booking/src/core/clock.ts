@@ -19,6 +19,9 @@
 
 import type { BookingConfig, BookingDaypart } from './config';
 import { type BookingLabels, fill, labelText, resolveLabels } from './labels';
+import { MAX_RANGE_MS } from './range-bounds';
+
+export { MAX_RANGE_MS, MAX_RANGE_OVERSHOOT_MS, WINDOW_MAX_RANGE_DAYS } from './range-bounds';
 
 interface Formatters {
   /** `h23` rather than `hour12: false`, which renders midnight as `24:00` on some ICU builds. */
@@ -198,9 +201,11 @@ function buildClock(config: ClockConfig): Clock {
    * stops at — derived together, so they cannot disagree.
    *
    * `days` is one instant inside each business day, starting with the day
-   * `fromTs` falls in; `toTs` is the midnight that ends the last of them. That is
-   * the whole contract: every opening the engine can return has a chip to sit
-   * on, and every chip covers a stretch the engine was actually asked about.
+   * `fromTs` falls in; `toTs` is the midnight that ends the last of them, clamped
+   * to `fromTs + MAX_RANGE_MS` so a 62-calendar-day window that crosses a DST
+   * fall-back never asks the routes for more than 62 × 24h. That is the whole
+   * contract: every opening the engine can return has a chip to sit on, and
+   * every chip covers a stretch the engine was actually asked about.
    *
    * `fromTs` is returned untouched and is NOT snapped to midnight: it is the
    * moment the visitor is standing in, and a query that started at this morning's
@@ -210,9 +215,10 @@ function buildClock(config: ClockConfig): Clock {
     fromTs: number,
     rangeDays: number
   ): { fromTs: number; toTs: number; days: number[] } {
+    const calendarToTs = dayStart(fromTs, rangeDays);
     return {
       fromTs,
-      toTs: dayStart(fromTs, rangeDays),
+      toTs: Math.min(calendarToTs, fromTs + MAX_RANGE_MS),
       days: Array.from({ length: rangeDays }, (_, index) => dayStart(fromTs, index)),
     };
   }

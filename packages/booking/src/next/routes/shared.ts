@@ -25,6 +25,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
+import { MAX_RANGE_MS, MAX_RANGE_OVERSHOOT_MS } from '../../core/range-bounds';
 import { MedalConfigError } from '../medal';
 import type { BookingRuntime } from '../runtime';
 
@@ -158,13 +159,6 @@ export function isSlotTaken(error: unknown): boolean {
 }
 
 /**
- * 62 days. A bound on what a visitor-controlled query string may ask the site
- * to fetch on their behalf — not the engine's own limit, which clamps rather
- * than refuses. The wizard asks for a week at a time.
- */
-const MAX_RANGE_MS = 62 * 24 * 60 * 60 * 1000;
-
-/**
  * Epoch milliseconds or an ISO 8601 string — the same two forms the engine's
  * own parser accepts, so a bound this site admits is one Medal would have
  * admitted too. `null` for anything it cannot read as a time.
@@ -182,6 +176,11 @@ function parseTimestamp(raw: string | null): number | null {
  * called. Every guard answers a request the engine would also refuse, and an
  * unreadable bound would otherwise throw inside the client and surface as an
  * opaque 502 pointing at Medal for a typo in our own query string.
+ *
+ * Choice: clamp, do not 400, when a span is only slightly over {@link MAX_RANGE_MS}.
+ * A 62-calendar-day window that crosses a DST fall-back is about an hour longer
+ * than 62 × 24h; refusing that made the wizard show «Vi får ikke hentet ledige
+ * tider» for a legal ask. Spans past {@link MAX_RANGE_OVERSHOOT_MS} still 400.
  */
 export function parseRange(
   searchParams: URLSearchParams
@@ -200,10 +199,11 @@ export function parseRange(
   if (toTs <= fromTs) {
     return { error: bookingErrorResponse('invalidInput', 400, 'to_ts must be after from_ts') };
   }
-  if (toTs - fromTs > MAX_RANGE_MS) {
+  const span = toTs - fromTs;
+  if (span > MAX_RANGE_MS + MAX_RANGE_OVERSHOOT_MS) {
     return { error: bookingErrorResponse('invalidInput', 400, 'Range must not exceed 62 days') };
   }
-  return { fromTs, toTs };
+  return { fromTs, toTs: Math.min(toTs, fromTs + MAX_RANGE_MS) };
 }
 
 /** SHA-256, hex — for idempotency keys that must never carry what they hash. */

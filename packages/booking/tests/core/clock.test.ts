@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createClock } from '../../src/core/clock';
+import { MAX_RANGE_MS, WINDOW_MAX_RANGE_DAYS } from '../../src/core/range-bounds';
 import { PARITY_CONFIG } from '../support/parity-config';
 import { pinAForeignViewerClock } from '../support/viewer-clock';
 
@@ -169,5 +170,73 @@ describe('salon window', () => {
       '2026-10-30',
       '2026-10-31',
     ]);
+  });
+});
+
+/**
+ * A 62-calendar-day window that crosses a DST fall-back is longer than
+ * 62 × 24h. The availability routes refuse anything past that millisecond
+ * bound, so `window()` clamps `toTs` — otherwise Cool Kids' maxed
+ * `rangeDays: 62` 400s every autumn and the wizard shows the slots-error copy.
+ */
+describe('salon window — 62-day DST clamp', () => {
+  const osloClock = createClock(PARITY_CONFIG);
+  const nyClock = createClock({ ...PARITY_CONFIG, timeZone: 'America/New_York' });
+
+  it('clamps a Europe/Oslo fall-back window to fromTs + MAX_RANGE_MS', () => {
+    // 25 Oct 2026 is the Oslo fall-back (CEST → CET). A 62-calendar-day end
+    // from early that morning is ~one hour past 62 × 24h (afternoon starts
+    // still sit under the bound — the overshoot is only the gained hour).
+    const fromTs = Date.parse('2026-09-10T00:30:00+02:00');
+    const calendarEnd = osloClock.dayStart(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(calendarEnd - fromTs).toBeGreaterThan(MAX_RANGE_MS);
+
+    const { toTs, days } = osloClock.window(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(toTs).toBe(fromTs + MAX_RANGE_MS);
+    expect(toTs).toBeLessThan(calendarEnd);
+    expect(days).toHaveLength(WINDOW_MAX_RANGE_DAYS);
+  });
+
+  it('does not clamp a Europe/Oslo spring-forward window (span shrinks)', () => {
+    // 29 Mar 2026 is the Oslo spring-forward. A 62-day calendar end is short
+    // of 62 × 24h, so the clamp is a no-op.
+    const fromTs = Date.parse('2026-02-20T00:30:00+01:00');
+    const calendarEnd = osloClock.dayStart(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(calendarEnd - fromTs).toBeLessThan(MAX_RANGE_MS);
+
+    const { toTs } = osloClock.window(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(toTs).toBe(calendarEnd);
+  });
+
+  it('clamps an America/New_York fall-back window the same way', () => {
+    // 1 Nov 2026 is the US fall-back. Early on a September morning the
+    // 62-day end overshoots MAX_RANGE_MS by the gained hour.
+    const fromTs = Date.parse('2026-09-10T00:30:00-04:00');
+    const calendarEnd = nyClock.dayStart(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(calendarEnd - fromTs).toBeGreaterThan(MAX_RANGE_MS);
+
+    const { toTs } = nyClock.window(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(toTs).toBe(fromTs + MAX_RANGE_MS);
+  });
+
+  it('does not clamp an America/New_York spring-forward window', () => {
+    const fromTs = Date.parse('2026-02-20T00:30:00-05:00');
+    const calendarEnd = nyClock.dayStart(fromTs, WINDOW_MAX_RANGE_DAYS);
+    expect(calendarEnd - fromTs).toBeLessThan(MAX_RANGE_MS);
+    expect(nyClock.window(fromTs, WINDOW_MAX_RANGE_DAYS).toTs).toBe(calendarEnd);
+  });
+
+  it('keeps a window that already ends on the millisecond bound', () => {
+    // No DST in the span: calendar end can sit under the bound; a fromTs
+    // chosen so dayStart(from, 62) === from + MAX_RANGE_MS is rare, so assert
+    // the clamp is idempotent when the span equals the bound exactly.
+    const fromTs = 1_000_000;
+    const exactEnd = fromTs + MAX_RANGE_MS;
+    // Bypass dayStart: the clamp alone must leave an exact bound alone.
+    expect(Math.min(exactEnd, fromTs + MAX_RANGE_MS)).toBe(exactEnd);
+    // And a 62-day Oslo window in midsummer (no transition) stays ≤ the bound.
+    const midsummer = Date.parse('2026-06-01T12:00:00+02:00');
+    const { toTs } = osloClock.window(midsummer, WINDOW_MAX_RANGE_DAYS);
+    expect(toTs - midsummer).toBeLessThanOrEqual(MAX_RANGE_MS);
   });
 });
