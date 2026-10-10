@@ -54,7 +54,7 @@ const REGISTER_INPUT: RegisterBookingEventInput = {
   consent_accepted: true,
   consent_version: "2026-09",
   consent_text: "Jeg godtar vilkårene for barnehageklipp.",
-  return_url: "https://coolkids.no/retur",
+  return_url: "https://salon.example/retur",
 };
 
 describe("bookings.events.register (SP10a)", () => {
