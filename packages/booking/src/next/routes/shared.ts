@@ -25,6 +25,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
+import { MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
 import type { BookingRuntime } from '../runtime';
 
@@ -158,13 +159,6 @@ export function isSlotTaken(error: unknown): boolean {
 }
 
 /**
- * 62 days. A bound on what a visitor-controlled query string may ask the site
- * to fetch on their behalf — not the engine's own limit, which clamps rather
- * than refuses. The wizard asks for a week at a time.
- */
-const MAX_RANGE_MS = 62 * 24 * 60 * 60 * 1000;
-
-/**
  * Epoch milliseconds or an ISO 8601 string — the same two forms the engine's
  * own parser accepts, so a bound this site admits is one Medal would have
  * admitted too. `null` for anything it cannot read as a time.
@@ -200,8 +194,18 @@ export function parseRange(
   if (toTs <= fromTs) {
     return { error: bookingErrorResponse('invalidInput', 400, 'to_ts must be after from_ts') };
   }
+  // A bound on what a visitor-controlled query string may ask the site to
+  // fetch on their behalf — not the engine's own limit, which clamps rather
+  // than refuses. It admits the widest window a valid config can produce,
+  // DST hour included (`core/range.ts`).
   if (toTs - fromTs > MAX_RANGE_MS) {
-    return { error: bookingErrorResponse('invalidInput', 400, 'Range must not exceed 62 days') };
+    return {
+      error: bookingErrorResponse(
+        'invalidInput',
+        400,
+        `Range must not exceed ${MAX_RANGE_DAYS} days`
+      ),
+    };
   }
   return { fromTs, toTs };
 }
