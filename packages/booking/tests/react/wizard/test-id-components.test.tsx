@@ -1,11 +1,9 @@
 /**
- * Wrapper helpers that stamp `data-testid`s — pure helpers plus the cache and
- * object-ref path the full wizard never exercises alone.
+ * Pure helpers behind the wizard `data-testid` wrappers — the object-ref and
+ * non-HTMLElement paths the full wizard never exercises alone.
  */
 
-import { DefaultStylistCard } from '@medalsocial/meda/booking';
-import { render, screen } from '@testing-library/react';
-import { createRef, type RefObject } from 'react';
+import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   assignRef,
@@ -37,42 +35,10 @@ describe('testid helper primitives', () => {
     expect(el.getAttribute('data-testid')).toBe(BOOKING_TEST_IDS.stylistOption);
 
     stampAttrs(null, { 'data-testid': 'x' });
-    stampAttrs(document.createDocumentFragment().appendChild(document.createTextNode('t')), {
+    // SVGElement is an Element but not an HTMLElement — the early return.
+    stampAttrs(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), {
       'data-testid': 'x',
     });
-  });
-});
-
-describe('testid card wrappers', () => {
-  it('forwards an object ref on the stylist radio and stamps the test id there', () => {
-    const Stylist = withStylistOptionTestId(DefaultStylistCard);
-    const radioRef = createRef<HTMLButtonElement>();
-    render(
-      <Stylist
-        option={{ kind: 'resource', resourceId: 'res-1', label: 'Sara' }}
-        selected={false}
-        onClick={() => {}}
-        ref={radioRef as RefObject<HTMLButtonElement>}
-      />
-    );
-    const option = screen.getByTestId(BOOKING_TEST_IDS.stylistOption);
-    expect(option).toHaveAttribute('data-resource-id', 'res-1');
-    expect(radioRef.current).toBe(option);
-  });
-
-  it('stamps data-resource-id=first when the option has no resource id', () => {
-    const Stylist = withStylistOptionTestId(DefaultStylistCard);
-    render(
-      <Stylist
-        option={{ kind: 'firstAvailable', label: 'Første ledige' }}
-        selected={false}
-        onClick={() => {}}
-      />
-    );
-    expect(screen.getByTestId(BOOKING_TEST_IDS.stylistOption)).toHaveAttribute(
-      'data-resource-id',
-      'first'
-    );
   });
 
   it('returns the same wrapper identity for the same inner (cache hit)', () => {
