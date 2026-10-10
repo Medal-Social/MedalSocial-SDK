@@ -3,7 +3,7 @@
  * hooks synthetic monitoring and promote gates use.
  */
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BookingServiceDto, BookingSlotDto } from '../../../src/core/types';
@@ -96,7 +96,7 @@ describe('wizard data-testid hooks', () => {
     expect(screen.getByTestId(BOOKING_TEST_IDS.stepService)).toBeInTheDocument();
     const option = screen.getByTestId(BOOKING_TEST_IDS.serviceOption);
     expect(option).toHaveAttribute('data-service-id', GUTTEKLIPP.id);
-    expect(within(option).getByRole('button', { name: /Gutteklipp/ })).toBeInTheDocument();
+    expect(option).toHaveAccessibleName(/Gutteklipp/);
   });
 
   it('marks stylist options, day chips, slots, and the empty-day card', async () => {
@@ -130,7 +130,7 @@ describe('wizard data-testid hooks', () => {
     // Tap a later open day with no openings → empty card.
     const tomorrowChip = days.find((el) => el.getAttribute('data-day-ts') === String(osloTs(3, 0)));
     expect(tomorrowChip).toBeTruthy();
-    await user.click(within(tomorrowChip as HTMLElement).getByRole('button'));
+    await user.click(tomorrowChip as HTMLElement);
     await waitFor(() => {
       expect(screen.getByTestId(BOOKING_TEST_IDS.slotsEmpty)).toBeInTheDocument();
     });

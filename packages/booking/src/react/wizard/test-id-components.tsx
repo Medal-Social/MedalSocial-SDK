@@ -1,7 +1,13 @@
 /**
- * Meda card wrappers that add the wizard's stable `data-testid`s without
- * changing layout or behaviour. A `display: contents` span keeps flex/grid
- * geometry identical to an unwrapped card.
+ * Meda card wrappers that stamp the wizard's stable `data-testid`s onto the
+ * interactive root. Wrappers are cached per inner component so their identity
+ * is stable across renders — recreating them each paint remounted the chips
+ * mid-click and blocked slot picks.
+ *
+ * Stylist cards take a `ref` on the radio button, so the id lands there
+ * directly (a wrapping span sits between radiogroup and radio in jsdom, which
+ * does not flatten `display: contents`). Service / day / slot cards stamp the
+ * first child after mount the same way.
  */
 
 import {
@@ -14,89 +20,141 @@ import {
   type StylistCardProps,
   type TimeChipProps,
 } from '@medalsocial/meda/booking';
-import { type ComponentType, type ReactNode, useLayoutEffect, useRef } from 'react';
+import { type ComponentType, type ReactNode, type Ref, useLayoutEffect, useRef } from 'react';
 import { BOOKING_SLOTS_EMPTY_MARKER, BOOKING_TEST_IDS } from './test-ids';
 
-function TestIdShell({
-  testId,
-  attrs,
-  children,
-}: {
-  testId: string;
-  attrs?: Record<string, string | undefined>;
-  children: ReactNode;
-}) {
-  return (
-    <span data-testid={testId} className="contents" {...attrs}>
-      {children}
-    </span>
-  );
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
+  if (typeof ref === 'function') ref(value);
+  else if (ref) ref.current = value;
 }
 
-/** Wrap a site override (or the meda default) so the test id always lands. */
-export function withServiceOptionTestId(
-  Inner?: ComponentType<ServiceCardProps>
-): ComponentType<ServiceCardProps> {
-  const Card = Inner ?? DefaultServiceCard;
+function stampAttrs(node: Element | null, attrs: Record<string, string>): void {
+  if (!(node instanceof HTMLElement)) return;
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+}
+
+const SERVICE_WRAPS = new WeakMap<
+  ComponentType<ServiceCardProps>,
+  ComponentType<ServiceCardProps>
+>();
+const STYLIST_WRAPS = new WeakMap<
+  ComponentType<StylistCardProps>,
+  ComponentType<StylistCardProps>
+>();
+const DAY_WRAPS = new WeakMap<ComponentType<DayChipProps>, ComponentType<DayChipProps>>();
+const SLOT_WRAPS = new WeakMap<ComponentType<TimeChipProps>, ComponentType<TimeChipProps>>();
+
+function wrapService(Inner: ComponentType<ServiceCardProps>): ComponentType<ServiceCardProps> {
   function ServiceOption(props: ServiceCardProps) {
+    const hostRef = useRef<HTMLSpanElement>(null);
+    const attrs = {
+      'data-testid': BOOKING_TEST_IDS.serviceOption,
+      'data-service-id': props.service.id,
+    };
+    useLayoutEffect(() => {
+      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
+    });
     return (
-      <TestIdShell
-        testId={BOOKING_TEST_IDS.serviceOption}
-        attrs={{ 'data-service-id': props.service.id }}
-      >
-        <Card {...props} />
-      </TestIdShell>
+      <span ref={hostRef} className="contents">
+        <Inner {...props} />
+      </span>
     );
   }
   ServiceOption.displayName = 'BookingServiceOption';
   return ServiceOption;
 }
 
-export function withStylistOptionTestId(
-  Inner?: ComponentType<StylistCardProps>
-): ComponentType<StylistCardProps> {
-  const Card = Inner ?? DefaultStylistCard;
+function wrapStylist(Inner: ComponentType<StylistCardProps>): ComponentType<StylistCardProps> {
   function StylistOption(props: StylistCardProps) {
+    const attrs = {
+      'data-testid': BOOKING_TEST_IDS.stylistOption,
+      'data-resource-id': props.option.resourceId ?? 'first',
+    };
     return (
-      <TestIdShell
-        testId={BOOKING_TEST_IDS.stylistOption}
-        attrs={{ 'data-resource-id': props.option.resourceId ?? 'first' }}
-      >
-        <Card {...props} />
-      </TestIdShell>
+      <Inner
+        {...props}
+        ref={(node) => {
+          stampAttrs(node, attrs);
+          assignRef(props.ref, node);
+        }}
+      />
     );
   }
   StylistOption.displayName = 'BookingStylistOption';
   return StylistOption;
 }
 
-export function withDayTestId(Inner?: ComponentType<DayChipProps>): ComponentType<DayChipProps> {
-  const Chip = Inner ?? DefaultDayChip;
+function wrapDay(Inner: ComponentType<DayChipProps>): ComponentType<DayChipProps> {
   function Day(props: DayChipProps) {
+    const hostRef = useRef<HTMLSpanElement>(null);
+    const attrs = {
+      'data-testid': BOOKING_TEST_IDS.day,
+      'data-day-ts': String(props.dayTs),
+    };
+    useLayoutEffect(() => {
+      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
+    });
     return (
-      <TestIdShell testId={BOOKING_TEST_IDS.day} attrs={{ 'data-day-ts': String(props.dayTs) }}>
-        <Chip {...props} />
-      </TestIdShell>
+      <span ref={hostRef} className="contents">
+        <Inner {...props} />
+      </span>
     );
   }
   Day.displayName = 'BookingDay';
   return Day;
 }
 
-export function withSlotTestId(Inner?: ComponentType<TimeChipProps>): ComponentType<TimeChipProps> {
-  const Chip = Inner ?? DefaultTimeChip;
+function wrapSlot(Inner: ComponentType<TimeChipProps>): ComponentType<TimeChipProps> {
   function Slot(props: TimeChipProps) {
+    const hostRef = useRef<HTMLSpanElement>(null);
+    const attrs = {
+      'data-testid': BOOKING_TEST_IDS.slot,
+      'data-start-ts': String(props.startTs),
+    };
+    useLayoutEffect(() => {
+      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
+    });
     return (
-      <TestIdShell
-        testId={BOOKING_TEST_IDS.slot}
-        attrs={{ 'data-start-ts': String(props.startTs) }}
-      >
-        <Chip {...props} />
-      </TestIdShell>
+      <span ref={hostRef} className="contents">
+        <Inner {...props} />
+      </span>
     );
   }
   Slot.displayName = 'BookingSlot';
   return Slot;
+}
+
+function cached<P>(
+  map: WeakMap<ComponentType<P>, ComponentType<P>>,
+  Inner: ComponentType<P>,
+  wrap: (inner: ComponentType<P>) => ComponentType<P>
+): ComponentType<P> {
+  const known = map.get(Inner);
+  if (known) return known;
+  const built = wrap(Inner);
+  map.set(Inner, built);
+  return built;
+}
+
+/** Wrap a site override (or the meda default) so the test id always lands. */
+export function withServiceOptionTestId(
+  Inner?: ComponentType<ServiceCardProps>
+): ComponentType<ServiceCardProps> {
+  return cached(SERVICE_WRAPS, Inner ?? DefaultServiceCard, wrapService);
+}
+
+export function withStylistOptionTestId(
+  Inner?: ComponentType<StylistCardProps>
+): ComponentType<StylistCardProps> {
+  return cached(STYLIST_WRAPS, Inner ?? DefaultStylistCard, wrapStylist);
+}
+
+export function withDayTestId(Inner?: ComponentType<DayChipProps>): ComponentType<DayChipProps> {
+  return cached(DAY_WRAPS, Inner ?? DefaultDayChip, wrapDay);
+}
+
+export function withSlotTestId(Inner?: ComponentType<TimeChipProps>): ComponentType<TimeChipProps> {
+  return cached(SLOT_WRAPS, Inner ?? DefaultTimeChip, wrapSlot);
 }
 
 /**
