@@ -57,7 +57,7 @@ describe("bookings.payment (SP8b)", () => {
       // postOnce mints the key so an SDK retry cannot reserve twice.
       sentKey = new Headers(init?.headers).get("idempotency-key");
       expect(JSON.parse(String(init?.body))).toEqual({
-        return_url: "https://coolkids.no/retur",
+        return_url: "https://salon.example/retur",
         terms_accepted: true,
         terms_version: "2026-09",
       });
@@ -66,7 +66,7 @@ describe("bookings.payment (SP8b)", () => {
 
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const { data } = await medal.bookings.payment.start("bk_1", {
-      return_url: "https://coolkids.no/retur",
+      return_url: "https://salon.example/retur",
       terms_accepted: true,
       terms_version: "2026-09",
     });
@@ -87,7 +87,7 @@ describe("bookings.payment (SP8b)", () => {
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await medal.bookings.payment.start(
       "bk_1",
-      { return_url: "https://coolkids.no/retur", terms_accepted: true },
+      { return_url: "https://salon.example/retur", terms_accepted: true },
       { idempotencyKey: "idem_pay_1" },
     );
 
@@ -133,7 +133,7 @@ describe("bookings.payment (SP8b)", () => {
     const medal = new Medal("medal_test", { baseUrl: BASE });
     await expect(
       medal.bookings.payment.start("bk_1", {
-        return_url: "https://coolkids.no/retur",
+        return_url: "https://salon.example/retur",
         terms_accepted: true,
       }),
     ).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
@@ -148,7 +148,7 @@ describe("bookings.payment (SP8b)", () => {
 
     const medal = new Medal("medal_test", { baseUrl: BASE });
     const started = await medal.bookings.manage.payment.start("tok 1", {
-      return_url: "https://coolkids.no/retur",
+      return_url: "https://salon.example/retur",
       terms_accepted: true,
       terms_text: "Avbestilling senest 24 timer før.",
     });
@@ -194,7 +194,7 @@ describe("bookings.payment (SP8b)", () => {
       updated_at: null,
     };
     const input: StartBookingPaymentInput = {
-      return_url: "https://coolkids.no/retur",
+      return_url: "https://salon.example/retur",
       terms_accepted: true,
     };
 
