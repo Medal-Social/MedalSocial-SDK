@@ -1,5 +1,11 @@
 # @medalsocial/booking
 
+## 0.3.1
+
+### Patch Changes
+
+- [#204](https://github.com/Medal-Social/MedalSocial-SDK/pull/204) [`2e9425a`](https://github.com/Medal-Social/MedalSocial-SDK/commit/2e9425a78d4ed5871f8c0b607b6afa9b668c44bc) Thanks [@adaadev](https://github.com/adaadev)! - The time step's «now» starts at the seed window (`slots.fromTs`) for the server render and the first client paint, so a deferred chunk no longer hydrates on a later clock (React [#418](https://github.com/Medal-Social/MedalSocial-SDK/issues/418)). It then follows the wall clock every minute, so a wizard left open across midnight stops calling yesterday «I dag».
+
 ## 0.3.0
 
 ### Minor Changes
