@@ -887,8 +887,10 @@ export function useBooking(options: UseBookingOptions) {
     // them) and before the stylist, so no toggle is refused for a preference
     // the draft is about to restore anyway.
     const wholeVisits = restoreExtras(draft, resolved as BookingServiceDto[], bookable);
-    // Before the stylist: `setPartyMode('parallel')` drops the preference.
-    if (draft.partyMode === 'parallel') dispatch({ type: 'setPartyMode', mode: 'parallel' });
+    // Before the stylist: `setPartyMode('parallel')` drops the preference. Both
+    // modes, so a party saved «rett etter hverandre» comes back that way and
+    // `party.adultTogether` cannot re-decide it.
+    dispatch({ type: 'setPartyMode', mode: draft.partyMode });
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
     draft.items.forEach((item, index) => {
       // A reseated child's name and year are the family's own, already on the line.
