@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.14.0
+
+### Minor Changes
+
+- [#197](https://github.com/Medal-Social/MedalSocial-SDK/pull/197) [`4312a91`](https://github.com/Medal-Social/MedalSocial-SDK/commit/4312a911666bf08dd68385bb5d168a43b9fa951e) Thanks [@adaadev](https://github.com/adaadev)! - bookings.create accepts `portalSession` (sent as `X-Portal-Session`; Medal books on that portal contact).
+
 ## 1.13.0
 
 ### Minor Changes
