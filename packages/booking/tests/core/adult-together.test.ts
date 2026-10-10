@@ -98,3 +98,23 @@ describe('party.adultTogether', () => {
     expect(seat(sequentialOnly, [guestChild(1), ADULT]).partyMode).toBe('sequential');
   });
 });
+
+describe('party.adultTogether — a stylist named after the seats', () => {
+  it('takes an automatic «Samtidig» back to one after another, and «first available» gives it back', () => {
+    const both = seat(together, [guestChild(1), ADULT]);
+    expect(both.partyMode).toBe('parallel');
+    const named = together.reduce(both, { type: 'pickResource', resourceId: 'res-ada' });
+    expect(named.partyMode).toBe('sequential');
+    expect(named.resourceId).toBe('res-ada');
+    const anyone = together.reduce(named, { type: 'pickResource', resourceId: null });
+    expect(anyone.partyMode).toBe('parallel');
+  });
+
+  it('leaves a mode the parent picked alone when they name a stylist', () => {
+    const both = seat(together, [guestChild(1), ADULT]);
+    const picked = together.reduce(both, { type: 'setPartyMode', mode: 'sequential' });
+    const named = together.reduce(picked, { type: 'pickResource', resourceId: 'res-ada' });
+    expect(named.partyMode).toBe('sequential');
+    expect(named.partyModeChosen).toBe(true);
+  });
+});

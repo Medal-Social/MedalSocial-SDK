@@ -1426,14 +1426,19 @@ export function createWizard(config: WizardConfig): Wizard {
         //
         // `resourceId` is this action's own answer, written onto the same object
         // after the spread, so `clearedSlot` leaving it alone costs nothing here.
-        return {
+        //
+        // Through `withAdultTogether`: a stylist named after the party was seated
+        // (a link applied on the way to step 3) takes an automatic «Samtidig»
+        // back to one after another — a parallel search filtered to one stylist
+        // finds nothing — and «Første ledige» gives it back.
+        return withAdultTogether({
           ...state,
           ...clearedSlot,
           resourceId: action.resourceId,
           stylistAnswered: true,
           step: 'when',
           error: null,
-        };
+        });
 
       case 'pickSlot':
         // Two fields rather than one, and both earn their keep today. `resourceId`

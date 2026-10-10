@@ -1151,6 +1151,33 @@ describe('useBooking — the corners', () => {
     }
   });
 
+  it('leaves a restored mode the default picked to the default, so editing the party re-decides it', async () => {
+    const togetherConfig = {
+      ...PARITY_CONFIG,
+      party: { ...PARITY_CONFIG.party, adultTogether: true },
+    };
+    stubApi();
+    location.search = '?resume=1';
+    drafts.stashDraft({
+      items: [
+        { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: false },
+        { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: true },
+      ],
+      resourceId: null,
+      partyMode: 'parallel',
+      partyModeChosen: false,
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    });
+    const { result } = renderHook(() => useBooking(options({ config: togetherConfig })));
+    await waitFor(() => expect(result.current.state.items).toHaveLength(2));
+    expect(result.current.state.partyMode).toBe('parallel');
+    expect(result.current.state.partyModeChosen).not.toBe(true);
+    act(() => result.current.people.choosePeople([{ key: 'guest:1' }, { key: 'guest:2' }], false));
+    expect(result.current.state.partyMode).toBe('sequential');
+  });
+
   it('comes back from Vipps with nothing to rebuild', async () => {
     stubApi();
     location.search = '?resume=1';
