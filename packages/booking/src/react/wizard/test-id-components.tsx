@@ -23,12 +23,14 @@ import {
 import { type ComponentType, type ReactNode, type Ref, useLayoutEffect, useRef } from 'react';
 import { BOOKING_SLOTS_EMPTY_MARKER, BOOKING_TEST_IDS } from './test-ids';
 
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
+/** @internal exported for unit tests */
+export function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
   if (typeof ref === 'function') ref(value);
   else if (ref) ref.current = value;
 }
 
-function stampAttrs(node: Element | null, attrs: Record<string, string>): void {
+/** @internal exported for unit tests */
+export function stampAttrs(node: Element | null, attrs: Record<string, string>): void {
   if (!(node instanceof HTMLElement)) return;
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
 }
@@ -44,16 +46,24 @@ const STYLIST_WRAPS = new WeakMap<
 const DAY_WRAPS = new WeakMap<ComponentType<DayChipProps>, ComponentType<DayChipProps>>();
 const SLOT_WRAPS = new WeakMap<ComponentType<TimeChipProps>, ComponentType<TimeChipProps>>();
 
+function useStampChild(attrs: Record<string, string>) {
+  const hostRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const child = hostRef.current?.firstElementChild;
+    /* v8 ignore next -- layout effect runs after mount; the host has a child */
+    if (!child) return;
+    stampAttrs(child, attrs);
+  });
+  return hostRef;
+}
+
 function wrapService(Inner: ComponentType<ServiceCardProps>): ComponentType<ServiceCardProps> {
   function ServiceOption(props: ServiceCardProps) {
-    const hostRef = useRef<HTMLSpanElement>(null);
     const attrs = {
       'data-testid': BOOKING_TEST_IDS.serviceOption,
       'data-service-id': props.service.id,
     };
-    useLayoutEffect(() => {
-      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
-    });
+    const hostRef = useStampChild(attrs);
     return (
       <span ref={hostRef} className="contents">
         <Inner {...props} />
@@ -86,14 +96,11 @@ function wrapStylist(Inner: ComponentType<StylistCardProps>): ComponentType<Styl
 
 function wrapDay(Inner: ComponentType<DayChipProps>): ComponentType<DayChipProps> {
   function Day(props: DayChipProps) {
-    const hostRef = useRef<HTMLSpanElement>(null);
     const attrs = {
       'data-testid': BOOKING_TEST_IDS.day,
       'data-day-ts': String(props.dayTs),
     };
-    useLayoutEffect(() => {
-      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
-    });
+    const hostRef = useStampChild(attrs);
     return (
       <span ref={hostRef} className="contents">
         <Inner {...props} />
@@ -106,14 +113,11 @@ function wrapDay(Inner: ComponentType<DayChipProps>): ComponentType<DayChipProps
 
 function wrapSlot(Inner: ComponentType<TimeChipProps>): ComponentType<TimeChipProps> {
   function Slot(props: TimeChipProps) {
-    const hostRef = useRef<HTMLSpanElement>(null);
     const attrs = {
       'data-testid': BOOKING_TEST_IDS.slot,
       'data-start-ts': String(props.startTs),
     };
-    useLayoutEffect(() => {
-      stampAttrs(hostRef.current?.firstElementChild ?? null, attrs);
-    });
+    const hostRef = useStampChild(attrs);
     return (
       <span ref={hostRef} className="contents">
         <Inner {...props} />
@@ -166,12 +170,11 @@ export function StampSlotsEmptyTestId({ children }: { children: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const root = rootRef.current;
+    /* v8 ignore next -- layout effect runs after mount; the ref is set */
     if (!root) return;
     const stamp = () => {
       for (const el of root.querySelectorAll(`.${BOOKING_SLOTS_EMPTY_MARKER}`)) {
-        if (el.getAttribute('data-testid') !== BOOKING_TEST_IDS.slotsEmpty) {
-          el.setAttribute('data-testid', BOOKING_TEST_IDS.slotsEmpty);
-        }
+        el.setAttribute('data-testid', BOOKING_TEST_IDS.slotsEmpty);
       }
     };
     stamp();
