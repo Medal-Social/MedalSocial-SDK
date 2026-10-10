@@ -176,7 +176,7 @@ describe('salon window', () => {
 /**
  * A 62-calendar-day window that crosses a DST fall-back is longer than
  * 62 × 24h. The availability routes refuse anything past that millisecond
- * bound, so `window()` clamps `toTs` — otherwise Cool Kids' maxed
+ * bound, so `window()` clamps `toTs` — otherwise a site with maxed
  * `rangeDays: 62` 400s every autumn and the wizard shows the slots-error copy.
  */
 describe('salon window — 62-day DST clamp', () => {
