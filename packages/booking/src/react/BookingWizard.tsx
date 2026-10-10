@@ -67,6 +67,7 @@ import {
   stylistFace,
   weekendNoteFor,
 } from './wizard/adapters';
+import { useWallClock } from './wizard/wall-clock';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
 
 export interface BookingWizardProps extends BookingOverrides {
@@ -547,11 +548,13 @@ function WhenStep({ booking, resolved }: StepProps) {
   const party = booking.derived.party;
   const items = state.items;
   const phone = config.contact.phone;
+  const now = useWallClock(slots.fromTs);
   return (
     <>
       <StylistScreen
         labels={screenLabels(labels)}
         format={format}
+        now={now}
         // Not deduplicated: a named stylist has to cover every service of every
         // line — a person's extras included, as their visit is one stylist's.
         serviceIds={items.flatMap((item) => visitServicesOf(item).map((service) => service.id))}
@@ -598,6 +601,7 @@ function WhenStep({ booking, resolved }: StepProps) {
           openDays={schedule.openDays}
           stylistName={catalogue.chosenStylistName}
           takenSlotTs={slots.takenSlotTs}
+          now={now}
           phone={phone}
           weekendNote={(dayTs) => weekendNoteFor(kit, party ? items : items.slice(0, 1), dayTs)}
           onPick={booking.pickSlot}
