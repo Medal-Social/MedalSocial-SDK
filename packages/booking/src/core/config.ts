@@ -96,6 +96,15 @@ export interface BookingConfig {
      * each person ticks up to this many, done back to back as one visit.
      */
     maxServicesPerPerson: number;
+    /**
+     * A party with a grown-up in it starts «Samtidig» (`partyMode:
+     * 'parallel'`): the child in one chair, the parent in the next, done
+     * together. Only until the parent picks a mode, or a stylist link names
+     * one stylist (one stylist cannot cut two people at once). Needs
+     * `allowParallel`. Off by default: everyone else keeps «Rett etter
+     * hverandre».
+     */
+    adultTogether: boolean;
   };
   /** The bookable window and the page's prefetch. */
   window: { rangeDays: number; prefetchLimit: number; prefetchCategory: string | null };
@@ -226,7 +235,13 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       { key: 'annet', audience: 'any' },
     ],
     fallbackCategory: 'annet',
-    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
+    party: {
+      maxPeople: 3,
+      allowParallel: true,
+      askWhoFirst: true,
+      maxServicesPerPerson: 1,
+      adultTogether: false,
+    },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
       { key: 'formiddag', from: 0, to: 12 },
@@ -395,6 +410,7 @@ const schema = z
       allowParallel: z.boolean(),
       askWhoFirst: z.boolean(),
       maxServicesPerPerson: z.number().int().min(1).max(4),
+      adultTogether: z.boolean(),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(62),

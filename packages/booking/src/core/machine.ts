@@ -191,6 +191,12 @@ export interface WizardState {
    */
   stylistAnswered: boolean;
   partyMode: 'sequential' | 'parallel';
+  /**
+   * The parent chose `partyMode` themselves (`setPartyMode`, or a party
+   * slot found in that mode), so `party.adultTogether` no longer picks it
+   * for them. Absent = not chosen.
+   */
+  partyModeChosen?: boolean;
   startTs: number | null;
   resolvedResourceId: string | null;
   /**
@@ -1222,11 +1228,29 @@ export function createWizard(config: WizardConfig): Wizard {
     // The stylist preference stays: every service chosen for a NEW person goes
     // through `pickServiceFor`, which releases a stylist who cannot do it —
     // adding a sibling is not a change of mind about Sara.
-    return {
+    return withAdultTogether({
       ...withParty(state, people, choices, extras),
       step: action.advance ? 'service' : state.step,
       error: null,
-    };
+    });
+  }
+
+  /**
+   * `party.adultTogether`: a party with a grown-up in it starts «Samtidig»,
+   * and goes back to «Rett etter hverandre» when the grown-up leaves it —
+   * until the parent picks a mode, which is theirs from then on. A named
+   * stylist keeps the party one after another: one stylist cannot cut two
+   * people at once, and the parent asked for that one.
+   */
+  function withAdultTogether(state: WizardState): WizardState {
+    const { adultTogether, allowParallel } = config.party;
+    if (!adultTogether || !allowParallel || state.partyModeChosen) return state;
+    const together =
+      state.people.length > 1 &&
+      state.people.some((person) => person.adult) &&
+      state.resourceId === null;
+    const mode = together ? 'parallel' : 'sequential';
+    return mode === state.partyMode ? state : { ...state, ...clearedSlot, partyMode: mode };
   }
 
   /** The held link service, if it suits this person: kids' cuts for children only. */
@@ -1462,7 +1486,14 @@ export function createWizard(config: WizardConfig): Wizard {
         // hverandre» seats the second child half an hour after the first, and the
         // same hour in parallel seats them together with a different stylist. The
         // instant may survive the switch; the seating never does.
-        return { ...state, ...clearedSlot, ...preference, partyMode: action.mode, error: null };
+        return {
+          ...state,
+          ...clearedSlot,
+          ...preference,
+          partyMode: action.mode,
+          partyModeChosen: true,
+          error: null,
+        };
       }
 
       case 'pickPartySlot':
@@ -1480,6 +1511,7 @@ export function createWizard(config: WizardConfig): Wizard {
           // the mode the visitor chose on step 2 — accepting step 3's parallel
           // alternative is a change of mind about both at once.
           partyMode: action.mode,
+          partyModeChosen: true,
           // The whole visit's stylist where there is one — a sequential party is
           // one person, back to back — and `null` where there is not, which is
           // every parallel party. A parallel visit has two stylists and naming
