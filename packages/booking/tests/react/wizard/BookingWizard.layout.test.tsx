@@ -381,6 +381,29 @@ describe('BookingWizard — the restore gate', () => {
     expect(serviceStepRenders.count).toBe(0);
   });
 
+  it('replays on a browser without AbortSignal.timeout (Safari before 16)', async () => {
+    // The call threw there, so the replay never left and a booking the
+    // visitor had made was shown as «we do not know yet».
+    const original = AbortSignal.timeout;
+    Object.defineProperty(AbortSignal, 'timeout', { value: undefined, configurable: true });
+    try {
+      const { bodies } = stubApi();
+      rememberPending(
+        { nonce: 'n1' },
+        { submission: { items: [] } as never, submitted: SUBMITTED }
+      );
+
+      render(wizard());
+
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      expect(
+        await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' })
+      ).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(AbortSignal, 'timeout', { value: original, configurable: true });
+    }
+  });
+
   it('gives a replay that never answers 15 s, then settles on the ambiguous state', async () => {
     // The gate is bounded: a create request that hangs would otherwise hold
     // the skeleton up for ever. The timeout's signal is taken over so the test

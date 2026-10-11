@@ -140,6 +140,19 @@ function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
 /** How long a replayed submission may take before the restore gate gives up. */
 const REPLAY_TIMEOUT_MS = 15_000;
 
+/**
+ * `AbortSignal.timeout` where the browser has it, a timer-driven controller
+ * where it does not. Safari only gained it in 16, and a booking resumed on an
+ * older iPhone threw on the call and showed «we do not know yet» instead of
+ * asking.
+ */
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 /** The three reads the time step waits on. */
 export type BookingReadEndpoint = 'availability' | 'resources' | 'schedule';
 
@@ -1612,7 +1625,7 @@ export function useBooking(options: UseBookingOptions) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...submission, window: { fromTs, toTs } }),
-        ...(sendOptions?.replay === true ? { signal: AbortSignal.timeout(REPLAY_TIMEOUT_MS) } : {}),
+        ...(sendOptions?.replay === true ? { signal: timeoutSignal(REPLAY_TIMEOUT_MS) } : {}),
       });
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
