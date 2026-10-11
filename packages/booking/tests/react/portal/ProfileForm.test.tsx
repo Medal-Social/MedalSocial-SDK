@@ -119,7 +119,9 @@ describe('ProfileForm', () => {
     const last = screen.getByLabelText('Etternavn');
     expect(first).toHaveValue('Kari');
     expect(last).toHaveValue('Nordmann');
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    // The phone field re-formats what Medal handed back in an effect, a render
+    // after the notice: under load the assertion could run between the two.
+    await waitFor(() => expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000'));
     // The notice is about the name fields, and only them.
     expect(first.getAttribute('aria-describedby')).toContain(notice.id);
     expect(last.getAttribute('aria-describedby')).toContain(notice.id);
