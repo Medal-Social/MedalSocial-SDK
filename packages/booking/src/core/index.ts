@@ -36,6 +36,7 @@ export * from './portal/return-path';
 export * from './portal/session-cookie';
 export * from './portal/vipps-link';
 export * from './portal/vipps-return';
+export * from './range';
 export * from './rebook-store';
 export * from './restore-gate';
 export * from './stores';

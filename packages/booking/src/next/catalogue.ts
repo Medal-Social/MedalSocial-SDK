@@ -32,6 +32,7 @@
 
 import { createClock } from '../core/clock';
 import type { BookingConfig } from '../core/config';
+import { MAX_RANGE_MS } from '../core/range';
 import { visitKeyOfIds } from '../core/visit';
 import type { MedalResource, MedalScheduleDay, MedalService, MedalSlot } from '../core/wire';
 import type { MedalSeam, RangeArgs } from './medal';
@@ -44,10 +45,6 @@ const SLOTS_TTL_S = 30;
 /** The slot key step, and the catalogue's time bucket. */
 const SLOT_KEY_STEP_MS = 30 * 1000;
 const CATALOGUE_BUCKET_MS = 5 * 60 * 1000;
-
-/** How far ahead a cached read may reach; beyond it the read is live. Matches
- * the 62-day range bound the routes put on a query string. */
-const MAX_KEY_AHEAD_MS = 62 * 24 * 60 * 60 * 1000;
 
 /** `{ fresh: true }` skips the cache for one read and writes no entry. Server
  * callers only — the create route's live re-read after a `slotTaken`; no
@@ -121,7 +118,8 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
    * - `from` is `slotKeyStart` (the later of it and now, floored to 30 s);
    * - `to` rounded UP to a local midnight — the booking page's window already
    *   ends on one, so it is unchanged there;
-   * - a key reaching more than 62 days ahead is not cached at all;
+   * - a key reaching further ahead than the routes' range bound
+   *   (`MAX_RANGE_MS`) is not cached at all;
    * - a stylist-narrowed read (the manage page's) is not cached at all.
    *
    * The caller's real bounds are applied to the answer afterwards.
@@ -130,7 +128,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
     if (args.resourceId) return null;
     const fromTs = slotKeyStart(args.fromTs, now);
     const toTs = roundUpToDay(args.toTs);
-    const limit = now + MAX_KEY_AHEAD_MS;
+    const limit = now + MAX_RANGE_MS;
     if (fromTs > limit || toTs > limit || toTs <= fromTs) return null;
     return { fromTs, toTs };
   }

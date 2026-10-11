@@ -17,7 +17,15 @@
  */
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
@@ -131,6 +139,43 @@ function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
 
 /** How long a replayed submission may take before the restore gate gives up. */
 const REPLAY_TIMEOUT_MS = 15_000;
+
+/**
+ * `AbortSignal.timeout` where the browser has it, a timer-driven controller
+ * where it does not. Safari only gained it in 16, and a booking resumed on an
+ * older iPhone threw on the call and showed «we do not know yet» instead of
+ * asking.
+ */
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
+  const controller = new AbortController();
+  setTimeout(controller.abort.bind(controller), ms);
+  return controller.signal;
+}
+
+/** The three reads the time step waits on. */
+export type BookingReadEndpoint = 'availability' | 'resources' | 'schedule';
+
+/** A read the wizard could not use: its endpoint, and the HTTP status (`null`: no answer at all). */
+export interface BookingReadError {
+  endpoint: BookingReadEndpoint;
+  status: number | null;
+  /** Bumped per failure, so two identical failures are two events. */
+  seq: number;
+}
+
+/** A non-2xx answer, keeping the status a monitoring tap reports. */
+class ReadFailure extends Error {
+  constructor(
+    readonly endpoint: BookingReadEndpoint,
+    readonly status: number
+  ) {
+    super(`${endpoint} ${status}`);
+  }
+}
+
+/** The seed's schedules once a retry has moved the window past them. */
+const NO_SEEDED_SCHEDULE: Record<string, BookingDayDto[]> = {};
 
 /** «hydrated» only ever flips once; `useSyncExternalStore` wants a subscription. */
 function noSubscription(): () => void {
@@ -650,8 +695,10 @@ export function useBooking(options: UseBookingOptions) {
     [family]
   );
 
-  // Pinned once: the seeded slots and the day strip describe the same days.
-  const [fromTs] = useState(() => options.seed.fromTs ?? Date.now());
+  // Pinned: the seeded slots and the day strip describe the same days. Moved
+  // only by a retry on a later business day (`refresh`), which drops the seed
+  // with it — a tab left open overnight would otherwise ask about yesterday.
+  const [fromTs, setFromTs] = useState(() => options.seed.fromTs ?? Date.now());
   const { toTs, days } = useMemo(() => clock.window(fromTs, rangeDays), [clock, fromTs, rangeDays]);
   /** The business date the ages on steps 1 and 2 are read on: the chosen day, else today. */
   const ageDayKey = clock.dayKey(state.startTs ?? fromTs);
@@ -703,7 +750,10 @@ export function useBooking(options: UseBookingOptions) {
   const [seededNextAvailable, setSeededNextAvailable] = useState(() =>
     options.seed.resources ? (options.seed.nextAvailable ?? {}) : {}
   );
-  const [seededSchedule] = useState(() => options.seed.schedules ?? {});
+  const [initialSchedule] = useState(() => options.seed.schedules ?? {});
+  /** Set once a retry has moved the window past the seed's day; the seed no longer answers. */
+  const [seedRetired, setSeedRetired] = useState(false);
+  const seededSchedule = seedRetired ? NO_SEEDED_SCHEDULE : initialSchedule;
   /** The last «next available» answer, and for WHICH visit (its key). */
   const [fetchedNextAvailable, setFetchedNextAvailable] = useState<{
     key: string;
@@ -1111,6 +1161,19 @@ export function useBooking(options: UseBookingOptions) {
   const missingKey = basketVisits.filter((key) => !(key in slots)).join('|');
   /** Bumped to ask for the openings again after a failure. */
   const [slotsAttempt, setSlotsAttempt] = useState(0);
+  /**
+   * The last read that failed, for the monitoring tap (`onEvent`). Every
+   * failure here used to be swallowed into a card: the visitor saw «Vi får
+   * ikke hentet ledige tider», and nobody else ever learnt that they had.
+   */
+  const [readError, setReadError] = useState<BookingReadError | null>(null);
+  const noteReadError = useCallback((endpoint: BookingReadEndpoint, error: unknown) => {
+    setReadError((previous) => ({
+      endpoint,
+      status: error instanceof ReadFailure ? error.status : null,
+      seq: (previous?.seq ?? 0) + 1,
+    }));
+  }, []);
   const api = config.paths.api;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
@@ -1121,29 +1184,38 @@ export function useBooking(options: UseBookingOptions) {
     setSlotsFailed(false);
 
     (async () => {
-      try {
-        const fetched = await Promise.all(
-          wanted.map(async (key) => {
-            const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
-            if (!response.ok) throw new Error(`availability ${response.status}`);
-            const body = (await response.json()) as { slots?: BookingSlotDto[] };
-            // Stored under the WHOLE visit's key — the key it is read back by.
-            return [key, body.slots ?? []] as const;
-          })
-        );
-        if (cancelled) return;
+      // Settled one by one: a party of three whose third visit failed keeps the
+      // two answers it has, and the retry asks only for the one still missing.
+      const settled = await Promise.allSettled(
+        wanted.map(async (key) => {
+          const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
+          if (!response.ok) throw new ReadFailure('availability', response.status);
+          const body = (await response.json()) as { slots?: BookingSlotDto[] };
+          // Stored under the WHOLE visit's key — the key it is read back by.
+          return [key, body.slots ?? []] as const;
+        })
+      );
+      if (cancelled) return;
+      const fetched = settled.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : []
+      );
+      if (fetched.length > 0) {
         setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
-      } catch {
-        // Nothing is cached on a failure; the step says so rather than «full».
-        if (!cancelled) setSlotsFailed(true);
+      }
+      // Nothing is cached for a failed visit; the step says so rather than «full».
+      const failure = settled.find((result) => result.status === 'rejected');
+      if (failure) {
+        setSlotsFailed(true);
+        noteReadError('availability', failure.reason);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, missingKey, fromTs, toTs, slotsAttempt]);
+  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
     if (primaryVisit === null) return;
     if (primaryVisit in seededNextAvailable) return;
@@ -1152,7 +1224,7 @@ export function useBooking(options: UseBookingOptions) {
     (async () => {
       try {
         const response = await fetch(`${api}/resources?${windowQuery(primaryVisit, fromTs, toTs)}`);
-        if (!response.ok) throw new Error(`resources ${response.status}`);
+        if (!response.ok) throw new ReadFailure('resources', response.status);
         const body = (await response.json()) as {
           resources?: BookingResourceDto[];
           nextAvailableTs?: Record<string, number>;
@@ -1161,9 +1233,10 @@ export function useBooking(options: UseBookingOptions) {
         setResources(body.resources ?? []);
         setResourcesKnown(true);
         setFetchedNextAvailable({ key: primaryVisit, times: body.nextAvailableTs ?? {} });
-      } catch {
+      } catch (error) {
         // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
         if (!cancelled) {
+          noteReadError('resources', error);
           setResourcesKnown(true);
           setFetchedNextAvailable({ key: primaryVisit, times: {} });
         }
@@ -1173,7 +1246,7 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable]);
+  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt, noteReadError]);
 
   /**
    * The stylist half of a «book again» link, once a list for its service has
@@ -1268,6 +1341,7 @@ export function useBooking(options: UseBookingOptions) {
     scheduleFailedFor,
   ]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
     if (primaryVisit === null || scheduleKey === null) return;
     // The seed already answers «first available». A named stylist always asks.
@@ -1284,14 +1358,15 @@ export function useBooking(options: UseBookingOptions) {
         const response = await fetch(
           `${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs, resourceId)}`
         );
-        if (!response.ok) throw new Error(`schedule ${response.status}`);
+        if (!response.ok) throw new ReadFailure('schedule', response.status);
         const body = (await response.json()) as { days?: BookingDayDto[] };
         if (cancelled) return;
         setFetchedSchedule({ key, days: body.days ?? [] });
-      } catch {
+      } catch (error) {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
         if (!cancelled) {
+          noteReadError('schedule', error);
           setScheduleFailedFor(key);
           // The previous success for this stylist is stale once this read failed.
           setFetchedSchedule((current) => (current?.key === key ? null : current));
@@ -1302,7 +1377,40 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededSchedule, state.resourceId, scheduleKey]);
+  }, [
+    api,
+    primaryVisit,
+    fromTs,
+    toTs,
+    seededSchedule,
+    state.resourceId,
+    scheduleKey,
+    slotsAttempt,
+    noteReadError,
+  ]);
+
+  /**
+   * «Prøv igjen»: ask for the openings, the stylists and the hours again.
+   *
+   * The seed's stylists and hours are answers too, so a retry asks them again
+   * rather than trusting the page's copy of them. A page left open past
+   * midnight also starts a fresh window from now — a retry that resent the
+   * same request would get the same answer, and yesterday's window would
+   * offer hours that are gone and stop a day short — dropping every opening
+   * with it, since they describe the old window.
+   */
+  const refresh = useCallback(() => {
+    const now = Date.now();
+    setSeededNextAvailable({});
+    setSeedRetired(true);
+    if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
+      setSlots({});
+      setFetchedNextAvailable(null);
+      setFetchedSchedule(null);
+      setFromTs(now);
+    }
+    setSlotsAttempt((n) => n + 1);
+  }, [clock, fromTs]);
 
   /** A stylist's display name for an id; `''` from Medal reads as none. */
   const resolveStylistName = useMemo(
@@ -1519,7 +1627,7 @@ export function useBooking(options: UseBookingOptions) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...submission, window: { fromTs, toTs } }),
-        ...(sendOptions?.replay === true ? { signal: AbortSignal.timeout(REPLAY_TIMEOUT_MS) } : {}),
+        ...(sendOptions?.replay === true ? { signal: timeoutSignal(REPLAY_TIMEOUT_MS) } : {}),
       });
       const payload = (await response.json().catch(() => null)) as {
         error?: string;
@@ -1870,8 +1978,9 @@ export function useBooking(options: UseBookingOptions) {
     submissionNonce,
     confirmed,
     startOver,
-    /** Ask for the openings again after a failure. */
-    refresh: () => setSlotsAttempt((n) => n + 1),
+    refresh,
+    /** The last read that failed (`onEvent`'s `read_error`). */
+    readError,
     restore: { hydrated, restoring, linked, resuming },
   };
 }

@@ -18,7 +18,13 @@ import { type CreateBookingBody, MedalConfigError } from '../medal';
 import { PortalSessionExpiredError } from '../portal/medal-portal';
 import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
-import { bookingErrorResponse, isSlotTaken, MAX_EXTRA_SERVICES, parseRange } from './shared';
+import {
+  bookingErrorResponse,
+  forgetBookedSlots,
+  isSlotTaken,
+  MAX_EXTRA_SERVICES,
+  parseRange,
+} from './shared';
 
 /**
  * What the wizard submits. Every optional field here is one `WizardState`
@@ -550,8 +556,7 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     // The slots just taken are in the slot cache and in this colo's booking
     // seeds; expire both so neither this parent going back nor the next
     // visitor is offered them again.
-    rt.catalogue.expireSlots(bookedServiceIds(mapped.body));
-    await rt.seed.expireBookingSeeds(bookedServiceIds(mapped.body));
+    await forgetBookedSlots(rt, bookedServiceIds(mapped.body));
     // ONE BOOKING PER LINE, each with its own DISTINCT id, or no confirmation: a short
     // answer would hand the wizard lines with no booking behind them (and
     // calendar entries with no UID of their own). Something may be booked, so
@@ -593,9 +598,7 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     // SLOT_TAKEN means the cache offered a slot that was already gone. Expired
     // so the time step this visitor is sent back to is drawn from a live read.
     if (isSlotTaken(error)) {
-      const serviceIds = bookedServiceIds(mapped.body);
-      rt.catalogue.expireSlots(serviceIds);
-      await rt.seed.expireBookingSeeds(serviceIds);
+      await forgetBookedSlots(rt, bookedServiceIds(mapped.body));
       // And the answer carries the live openings, so the wizard redraws the
       // time step from them rather than re-reading through the cache.
       const freshSlots = await liveSlotsFor(

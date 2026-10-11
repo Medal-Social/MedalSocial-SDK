@@ -515,17 +515,28 @@ class BookingsEvents {
   }
 }
 
+/**
+ * Per-call control for the catalogue and calendar reads: a `signal` that
+ * cancels the request, its retries and any `Retry-After` wait — a page that
+ * can only wait so long for an answer ends the whole read, not just its own
+ * wait for it.
+ */
+export type BookingReadOptions = Pick<RequestOptions, "signal">;
+
 /** The bookable service catalogue. */
 class BookingServices {
   constructor(private client: BaseClient) {}
 
   /** List the bookable service catalogue. Active-only unless asked otherwise. */
-  async list(options?: ListBookingServicesOptions): Promise<ApiResponse<BookingService[]>> {
+  async list(
+    options?: ListBookingServicesOptions,
+    request?: BookingReadOptions,
+  ): Promise<ApiResponse<BookingService[]>> {
     const params: Record<string, string | undefined> = {};
     if (options?.include_inactive !== undefined) {
       params.include_inactive = String(options.include_inactive);
     }
-    return this.client.get("/api/v1/bookings/services", params);
+    return this.client.get("/api/v1/bookings/services", params, request);
   }
 }
 
@@ -534,8 +545,8 @@ class BookingResources {
   constructor(private client: BaseClient) {}
 
   /** List the bookable resources — staff, rooms, and equipment. */
-  async list(): Promise<ApiResponse<BookingResource[]>> {
-    return this.client.get("/api/v1/bookings/resources");
+  async list(request?: BookingReadOptions): Promise<ApiResponse<BookingResource[]>> {
+    return this.client.get("/api/v1/bookings/resources", undefined, request);
   }
 }
 
@@ -618,13 +629,16 @@ export class Bookings {
   }
 
   /** List the bookable service catalogue. Active-only unless asked otherwise. */
-  async listServices(options?: ListBookingServicesOptions): Promise<ApiResponse<BookingService[]>> {
-    return this.services.list(options);
+  async listServices(
+    options?: ListBookingServicesOptions,
+    request?: BookingReadOptions,
+  ): Promise<ApiResponse<BookingService[]>> {
+    return this.services.list(options, request);
   }
 
   /** List the bookable resources — staff, rooms, and equipment. */
-  async listResources(): Promise<ApiResponse<BookingResource[]>> {
-    return this.resources.list();
+  async listResources(request?: BookingReadOptions): Promise<ApiResponse<BookingResource[]>> {
+    return this.resources.list(request);
   }
 
   /**
@@ -632,7 +646,10 @@ export class Bookings {
    * time off, buffers, and existing bookings at the moment of the call — they
    * are not held, so a slot can be taken before you book it.
    */
-  async availability(options: BookingAvailabilityOptions): Promise<ApiResponse<BookingSlot[]>> {
+  async availability(
+    options: BookingAvailabilityOptions,
+    request?: BookingReadOptions,
+  ): Promise<ApiResponse<BookingSlot[]>> {
     const params: Record<string, string | undefined> = {
       service_id: options.service_id,
       from_ts: String(options.from_ts),
@@ -642,7 +659,7 @@ export class Bookings {
     if (options.extra_service_ids?.length) {
       params.extra_service_ids = options.extra_service_ids.join(",");
     }
-    return this.client.get("/api/v1/bookings/availability", params);
+    return this.client.get("/api/v1/bookings/availability", params, request);
   }
 
   /**
@@ -652,7 +669,10 @@ export class Bookings {
    * array. A date absent from this list is closed; on a listed date, compare
    * `last_start_ts` against the clock to tell "too late today" from "full".
    */
-  async schedule(options: BookingScheduleOptions): Promise<ApiResponse<BookingScheduleDay[]>> {
+  async schedule(
+    options: BookingScheduleOptions,
+    request?: BookingReadOptions,
+  ): Promise<ApiResponse<BookingScheduleDay[]>> {
     const params: Record<string, string | undefined> = {
       service_id: options.service_id,
       from_ts: String(options.from_ts),
@@ -662,7 +682,7 @@ export class Bookings {
     if (options.extra_service_ids?.length) {
       params.extra_service_ids = options.extra_service_ids.join(",");
     }
-    return this.client.get("/api/v1/bookings/schedule", params);
+    return this.client.get("/api/v1/bookings/schedule", params, request);
   }
 
   /**

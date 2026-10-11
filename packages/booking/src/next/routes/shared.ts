@@ -25,6 +25,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
+import { MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
 import type { BookingRuntime } from '../runtime';
 
@@ -141,28 +142,38 @@ export async function knownExtraServiceIds(
 }
 
 /**
- * The engine's «that slot is no longer free».
- *
- * It arrives as `CONFLICT` with `SLOT_TAKEN` in the message: the SDK exposes no
- * finer code (`MedalApiError.code` is the generic `CONFLICT`, shared with a
- * duplicate key and an unseatable party). The message is read HERE and nowhere
- * else, so the day the engine grows a structured code there is one line to
- * change.
+ * The engine's refusals that all mean «that time cannot be booked — pick
+ * another»: taken, already passed, beyond the booking horizon, off the slot
+ * grid. Each is answered the same way — fresh openings, back to the time step —
+ * because the visitor's only move is a different time. Read as anything else,
+ * the wizard said «Prøv en gang til» and kept the hour, and every retry was
+ * refused again: a tab left open overnight offers hours that have passed.
  */
-export function isSlotTaken(error: unknown): boolean {
-  return (
-    error instanceof MedalApiError &&
-    error.code === 'CONFLICT' &&
-    error.message.includes('SLOT_TAKEN')
-  );
+const PICK_ANOTHER_TIME = new Set(['slot_taken', 'in_past', 'outside_horizon', 'off_grid']);
+
+/** The same refusals by their message prefix, for an engine that sends no `details.reason`. */
+const PICK_ANOTHER_TIME_MESSAGE = /\b(?:SLOT_TAKEN|IN_PAST|OUTSIDE_HORIZON|OFF_GRID)\b/;
+
+/** `error.details.reason` — the engine's structured refusal, when it sent one. */
+function refusalReason(error: MedalApiError): string | null {
+  const details = error.details;
+  if (typeof details !== 'object' || details === null || !('reason' in details)) return null;
+  return typeof details.reason === 'string' ? details.reason : null;
 }
 
 /**
- * 62 days. A bound on what a visitor-controlled query string may ask the site
- * to fetch on their behalf — not the engine's own limit, which clamps rather
- * than refuses. The wizard asks for a week at a time.
+ * The engine's «that time is no longer bookable» (see `PICK_ANOTHER_TIME`).
+ *
+ * It arrives as `CONFLICT`, a code shared with a duplicate key and an
+ * unseatable party. The reason is read HERE and nowhere else: structured when
+ * the engine sends one, else the message prefix it has always carried.
  */
-const MAX_RANGE_MS = 62 * 24 * 60 * 60 * 1000;
+export function isSlotTaken(error: unknown): boolean {
+  if (!(error instanceof MedalApiError) || error.code !== 'CONFLICT') return false;
+  const reason = refusalReason(error);
+  if (reason !== null) return PICK_ANOTHER_TIME.has(reason);
+  return PICK_ANOTHER_TIME_MESSAGE.test(error.message);
+}
 
 /**
  * Epoch milliseconds or an ISO 8601 string — the same two forms the engine's
@@ -200,10 +211,42 @@ export function parseRange(
   if (toTs <= fromTs) {
     return { error: bookingErrorResponse('invalidInput', 400, 'to_ts must be after from_ts') };
   }
+  // A bound on what a visitor-controlled query string may ask the site to
+  // fetch on their behalf — not the engine's own limit, which clamps rather
+  // than refuses. It admits the widest window a valid config can produce,
+  // DST hour included (`core/range.ts`).
   if (toTs - fromTs > MAX_RANGE_MS) {
-    return { error: bookingErrorResponse('invalidInput', 400, 'Range must not exceed 62 days') };
+    return {
+      error: bookingErrorResponse(
+        'invalidInput',
+        400,
+        `Range must not exceed ${MAX_RANGE_DAYS} days`
+      ),
+    };
   }
   return { fromTs, toTs };
+}
+
+/**
+ * Expire the slot cache and this colo's booking seeds for services just
+ * booked, moved or cancelled.
+ *
+ * Never throws. The write has already happened when this runs, and a cache
+ * that could not be told must not turn it into an error: the visitor would be
+ * told a booking failed that exists, and might book it again. The worst a
+ * failure here costs is a stale opening for a few minutes, which Medal's own
+ * check at the next submit refuses.
+ */
+export async function forgetBookedSlots(
+  rt: BookingRuntime,
+  serviceIds: readonly string[]
+): Promise<void> {
+  try {
+    rt.catalogue.expireSlots([...serviceIds]);
+    await rt.seed.expireBookingSeeds([...serviceIds]);
+  } catch (error) {
+    rt.logger.error({ err: error }, 'Could not expire the booking caches after a write');
+  }
 }
 
 /** SHA-256, hex — for idempotency keys that must never carry what they hash. */

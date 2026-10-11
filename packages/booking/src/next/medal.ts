@@ -21,7 +21,7 @@ import type {
   CreateBookingInput,
   RecordConsentInput,
 } from '@medalsocial/sdk';
-import { Medal, MedalApiError } from '@medalsocial/sdk';
+import { Medal, MedalApiError, MedalTimeoutError } from '@medalsocial/sdk';
 import type {
   MedalManageSummary,
   MedalResource,
@@ -189,9 +189,46 @@ function rangeParams(args: RangeArgs) {
   };
 }
 
+/**
+ * One attempt at a catalogue or calendar read. The SDK's default is 30 s with
+ * two retries — over a minute and a half of a parent looking at a skeleton
+ * before the page can say «ring oss». A Medal that has not answered a read in
+ * a few seconds is not going to answer this visitor.
+ */
+const READ_ATTEMPT_TIMEOUT_MS = 4_000;
+
+/**
+ * The whole read, retries and any `Retry-After` wait included. The SDK honours
+ * `Retry-After` uncapped, so a 429 could otherwise park the read for as long
+ * as the server asked.
+ */
+const READ_DEADLINE_MS = 8_000;
+
+/**
+ * A read bounded by `READ_DEADLINE_MS`. The deadline aborts the SDK call
+ * itself — its attempt, its retries and any `Retry-After` wait — so a read the
+ * visitor has stopped waiting for sends nothing more upstream. It ends with
+ * the SDK's own `MedalTimeoutError`.
+ */
+async function withinDeadline<T>(
+  read: (request: { signal: AbortSignal }) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new MedalTimeoutError(READ_DEADLINE_MS)),
+    READ_DEADLINE_MS
+  );
+  try {
+    return await read({ signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
   let cached: { key: string; base: string; medal: Medal } | null = null;
-  let cachedQuick: { key: string; base: string; timeout: number; medal: Medal } | null = null;
+  /** One client per timeout: the reads and the Vipps calls use different ones. */
+  const quick = new Map<number, { key: string; base: string; medal: Medal }>();
 
   function readConfig(): { key: string; base: string } | null {
     const key = read(options.apiKey);
@@ -218,20 +255,11 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
   function requireMedalWithTimeout(timeout: number): Medal {
     const config = readConfig();
     if (!config) throw new MedalConfigError('The Medal API key is not configured');
-    if (
-      cachedQuick &&
-      cachedQuick.key === config.key &&
-      cachedQuick.base === config.base &&
-      cachedQuick.timeout === timeout
-    ) {
-      return cachedQuick.medal;
-    }
-    cachedQuick = {
-      ...config,
-      timeout,
-      medal: new Medal(config.key, { baseUrl: config.base, timeout }),
-    };
-    return cachedQuick.medal;
+    const known = quick.get(timeout);
+    if (known && known.key === config.key && known.base === config.base) return known.medal;
+    const medal = new Medal(config.key, { baseUrl: config.base, timeout });
+    quick.set(timeout, { ...config, medal });
+    return medal;
   }
 
   function requireMedalConfig(): { key: string; base: string } {
@@ -240,6 +268,9 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
     return config;
   }
 
+  /** The client for a read a visitor is waiting on. */
+  const reader = () => requireMedalWithTimeout(READ_ATTEMPT_TIMEOUT_MS);
+
   return {
     getMedal,
     requireMedal,
@@ -247,16 +278,24 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
     requireMedalConfig,
 
     async listServices() {
-      return unwrap(await requireMedal().bookings.listServices(), '/api/v1/bookings/services');
+      return unwrap(
+        await withinDeadline((request) => reader().bookings.listServices(undefined, request)),
+        '/api/v1/bookings/services'
+      );
     },
 
     async listResources() {
-      return unwrap(await requireMedal().bookings.listResources(), '/api/v1/bookings/resources');
+      return unwrap(
+        await withinDeadline((request) => reader().bookings.listResources(request)),
+        '/api/v1/bookings/resources'
+      );
     },
 
     async listAvailability(args) {
       return unwrap(
-        await requireMedal().bookings.availability(rangeParams(args)),
+        await withinDeadline((request) =>
+          reader().bookings.availability(rangeParams(args), request)
+        ),
         '/api/v1/bookings/availability'
       );
     },
@@ -267,7 +306,7 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
      */
     async listSchedule(args) {
       return unwrap(
-        await requireMedal().bookings.schedule(rangeParams(args)),
+        await withinDeadline((request) => reader().bookings.schedule(rangeParams(args), request)),
         '/api/v1/bookings/schedule'
       );
     },
