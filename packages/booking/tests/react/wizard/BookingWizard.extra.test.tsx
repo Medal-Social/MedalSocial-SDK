@@ -1178,6 +1178,35 @@ describe('useBooking — the corners', () => {
     expect(result.current.state.partyMode).toBe('sequential');
   });
 
+  it('releases a restored seat stylist who left the roster or no longer does that visit, and says so', async () => {
+    for (const wish of ['res-gone', OLA.id]) {
+      stubApi();
+      location.search = '?resume=1';
+      drafts.stashDraft({
+        items: [
+          { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: false },
+          { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: true },
+        ],
+        resourceId: null,
+        partyMode: 'parallel',
+        seatResourceIds: [wish, null],
+        startTs: null,
+        resolvedResourceId: null,
+        partyResourceIds: null,
+      });
+      const resources = [BJARNE, { ...OLA, serviceIds: [SMALL.id] }, NAMELESS];
+      const { result, unmount } = renderHook(() =>
+        useBooking(
+          options({ seed: { services: [KIDS, SMALL, PHONE_ONLY], resources, fromTs: NOW } })
+        )
+      );
+      await waitFor(() => expect(result.current.state.items).toHaveLength(2));
+      await waitFor(() => expect(result.current.state).not.toHaveProperty('seatResourceIds'));
+      expect(result.current.catalogue.stylistNotice).toBe(TEST_LABELS['wizard.stylistGone']);
+      unmount();
+    }
+  });
+
   it('saves and restores each person’s own stylist in a party seen at once', async () => {
     stubApi();
     location.search = '?resume=1';
