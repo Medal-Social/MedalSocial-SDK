@@ -774,6 +774,57 @@ describe("bookings", () => {
     expect(seen).toEqual(["svc_2,svc_3", "svc_2", null]);
   });
 
+  it("hands a caller's signal to every catalogue and calendar read", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => mockJson({ data: [] }));
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    const reason = new Error("gone");
+    const request = { signal: AbortSignal.abort(reason) };
+    const window = { service_id: "svc_1", from_ts: 1780000000000, to_ts: 1780086400000 };
+
+    // An already-aborted signal stops each read before it connects — which it
+    // can only do if the read passed the signal on.
+    await expect(medal.bookings.listServices(undefined, request)).rejects.toBe(reason);
+    await expect(medal.bookings.listResources(request)).rejects.toBe(reason);
+    await expect(medal.bookings.availability(window, request)).rejects.toBe(reason);
+    await expect(medal.bookings.schedule(window, request)).rejects.toBe(reason);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ends a read waiting out Retry-After when the caller's signal aborts, with no later attempt", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+        async () =>
+          new Response(JSON.stringify({ error: { code: "RATE_LIMITED", message: "slow down" } }), {
+            status: 429,
+            headers: { "content-type": "application/json", "retry-after": "60" },
+          }),
+      );
+      const medal = new Medal("medal_test", { baseUrl: BASE });
+      const controller = new AbortController();
+      const outcome = medal.bookings
+        .availability(
+          { service_id: "svc_1", from_ts: 1780000000000, to_ts: 1780086400000 },
+          { signal: controller.signal },
+        )
+        .then(
+          () => "answered",
+          (error: unknown) => error,
+        );
+      await vi.advanceTimersByTimeAsync(1_000);
+      const reason = new Error("deadline");
+      controller.abort(reason);
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(await outcome).toBe(reason);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("books one person several services as one item (extra_service_ids)", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       const body = JSON.parse(String(init?.body));

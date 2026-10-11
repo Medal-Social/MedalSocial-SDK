@@ -489,6 +489,59 @@ describe('POST /api/booking/create', () => {
     expect((await response.json()).error).toBe('slotTaken');
   });
 
+  it.each([
+    ['in_past', 'IN_PAST: the requested time has already passed'],
+    ['outside_horizon', 'OUTSIDE_HORIZON: bookings can be made up to 60 days ahead'],
+    ['off_grid', 'OFF_GRID: bookings start every 30 minutes'],
+  ])(
+    'answers a %s refusal like a taken slot, so the visitor picks another time',
+    async (reason, message) => {
+      // A tab left open overnight offers hours that have passed. As a plain
+      // `conflict` the wizard said «Prøv en gang til» and kept the hour, and
+      // every retry was refused the same way.
+      vi.mocked(createBooking).mockRejectedValueOnce(
+        new MedalApiError(409, 'CONFLICT', message, { reason })
+      );
+
+      const response = await POST(validRequest());
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).error).toBe('slotTaken');
+    }
+  );
+
+  it('reads the refusal from the message when the engine sends no reason', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'IN_PAST: the requested time has already passed')
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('slotTaken');
+  });
+
+  it('falls back to the message when the reason is not a string', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN: gone', { reason: 42 })
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('slotTaken');
+  });
+
+  it('keeps a conflict with another reason a conflict, whatever its message says', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN mentioned in passing', {
+        reason: 'party_limit',
+      })
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('conflict');
+  });
+
   it('keeps a non-slot conflict distinct, because the wizard answers them differently', async () => {
     // `slotTaken` sends the visitor back to step 3 with the neighbouring times
     // highlighted. Any other 409 — a duplicate submission, a party the engine
@@ -575,6 +628,18 @@ describe('POST /api/booking/create', () => {
     // A mailing-list entry for an appointment that never existed is a consent
     // the customer did not give.
     expect(recordConsent).not.toHaveBeenCalled();
+  });
+
+  it('answers a booking that happened with 201 even when the caches cannot be told', async () => {
+    // The expiry ran inside the success path: a cache adapter that threw
+    // turned a booking Medal had made into a 502, and the visitor was told it
+    // failed — and might book it again.
+    expireBookingSeeds.mockRejectedValueOnce(new Error('KV is down'));
+
+    const response = await POST(validRequest());
+
+    expect(response.status).toBe(201);
+    expect((await response.json()).bookings).toHaveLength(1);
   });
 
   it('never lets a failed consent write take the booking down with it', async () => {

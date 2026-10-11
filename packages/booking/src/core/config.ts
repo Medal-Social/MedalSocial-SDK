@@ -16,6 +16,7 @@
 
 import { z } from 'zod';
 import type { BookingLabels } from './labels';
+import { MAX_RANGE_DAYS } from './range';
 
 /** A service group, in display order. Medal's free-string `category` maps onto `key`. */
 export interface BookingCategory {
@@ -419,7 +420,7 @@ const schema = z
       adultTogether: z.boolean(),
     }),
     window: z.object({
-      rangeDays: z.number().int().min(1).max(62),
+      rangeDays: z.number().int().min(1).max(MAX_RANGE_DAYS),
       prefetchLimit: z.number().int().min(0).max(20),
       prefetchCategory: lowerKey.nullable(),
     }),

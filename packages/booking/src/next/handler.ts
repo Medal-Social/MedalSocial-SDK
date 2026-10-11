@@ -146,10 +146,66 @@ export interface BookingHandler {
   DELETE(request: Request): Promise<Response>;
 }
 
+/**
+ * Answers that are part of the flow rather than a fault: a taken slot or a
+ * replayed submission (409), an expired portal session (401), a manage link or
+ * path that no longer resolves (404). Counted at `info`; everything else is
+ * `warn`, and a 5xx is `error`.
+ */
+const EXPECTED_STATUSES = new Set([401, 404, 409]);
+
+/**
+ * The refusal's code from a response body: `error` on the booking routes,
+ * `reason` on the portal routes — both fixed codes. Nothing else in the body
+ * is read.
+ */
+export function failureCode(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const { error, reason } = body as { error?: unknown; reason?: unknown };
+  if (typeof error === 'string') return error;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+/**
+ * One line per refused or failed answer, so a fault shows in the site's logs
+ * the night it starts. The route had every 400 to itself: when the range guard
+ * refused every unseeded service for eight weeks of nights, nothing anywhere
+ * said so.
+ *
+ * Only the route, the method, the status and the response's error CODE go out.
+ * Not its `message`: most are the package's fixed strings, but the portal's
+ * person route relays the engine's validation text about what the visitor
+ * typed. The rate limiter's own 429 is not logged at all — the requests it
+ * refuses are the flood, and a line each would bury the faults.
+ */
+async function logFailure(
+  rt: BookingRuntime,
+  route: string,
+  method: Method,
+  response: Response
+): Promise<void> {
+  const { status } = response;
+  if (status < 400) return;
+  let code: string | undefined;
+  try {
+    code = failureCode(await response.clone().json());
+  } catch {
+    // A body that is not JSON still gets its line, without the code.
+  }
+  const meta = { route, method, status, code };
+  const line = `booking ${method} ${route} answered ${status}`;
+  if (status >= 500) rt.logger.error(meta, line);
+  else if (EXPECTED_STATUSES.has(status)) rt.logger.info(meta, line);
+  else rt.logger.warn(meta, line);
+}
+
 /** The handler over an existing runtime (what `createBookingServer` shares). */
 export function createBookingHandlerFor(rt: BookingRuntime): BookingHandler {
-  async function handle(method: Method, request: Request): Promise<Response> {
-    const found = match(rt, new URL(request.url).pathname);
+  async function dispatch(
+    method: Method,
+    request: Request,
+    found: Match | 'malformed' | null
+  ): Promise<Response | null> {
     if (found === 'malformed')
       return bookingErrorResponse('invalidInput', 400, 'path is malformed');
     if (found === null) return bookingErrorResponse('notFound', 404);
@@ -159,13 +215,27 @@ export function createBookingHandlerFor(rt: BookingRuntime): BookingHandler {
       response.headers.set('Allow', Object.keys(found.routes).join(', '));
       return response;
     }
-    if (rt.options.rateLimit && (await rt.options.rateLimit(found.scope, request))) {
+    if (rt.options.rateLimit && (await rt.options.rateLimit(found.scope, request))) return null;
+    return route(rt, request, found.segment);
+  }
+
+  async function handle(method: Method, request: Request): Promise<Response> {
+    const found = match(rt, new URL(request.url).pathname);
+    const response = await dispatch(method, request, found);
+    if (response === null) {
+      // Refused by the site's rate limiter: answered, never logged (`logFailure`).
       return NextResponse.json(
         { error: 'rateLimited' },
         { status: 429, headers: { 'Cache-Control': 'no-store' } }
       );
     }
-    return route(rt, request, found.segment);
+    // A path the package does not know is logged under a fixed label, never by
+    // its path: an unmatched path can still carry a manage token
+    // (`manage/<token>/x`). A client and a server on different package versions
+    // look exactly like this, which is why it is logged at all.
+    const route = found === 'malformed' ? 'malformed' : found === null ? 'unmatched' : found.scope;
+    await logFailure(rt, route, method, response);
+    return response;
   }
 
   return {

@@ -9,6 +9,7 @@
  * re-render keeps the same kit).
  */
 
+import type { ComponentProps } from 'react';
 import { resolveBookingConfig } from '../../src/core/config';
 import type {
   BookingDayDto,
@@ -37,6 +38,8 @@ export interface LegacyWizardProps {
   accountRequired?: boolean;
   /** Render without the login actions — a site that wired none. */
   noActions?: boolean;
+  /** The monitoring tap. */
+  onEvent?: ComponentProps<typeof PackageWizard>['onEvent'];
 }
 
 const CONFIGS = new Map<string, ReturnType<typeof resolveBookingConfig>>();
@@ -82,6 +85,7 @@ export function BookingWizard({
   guardian,
   accountRequired = false,
   noActions = false,
+  onEvent,
 }: LegacyWizardProps) {
   return (
     <PackageWizard
@@ -98,6 +102,7 @@ export function BookingWizard({
       }}
       rangeDays={rangeDays}
       guardian={guardian}
+      onEvent={onEvent}
     />
   );
 }

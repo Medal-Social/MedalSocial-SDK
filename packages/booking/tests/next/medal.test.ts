@@ -375,3 +375,76 @@ describe("redactSession (the create route's forwarded session)", () => {
     expect(deepest.message).toContain(SECRET);
   });
 });
+
+describe('medal-client — reads a visitor is waiting on', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('gives up on a read that has not answered in eight seconds', async () => {
+    // The SDK's default is 30 s an attempt with two retries: a Medal that
+    // stopped answering held the booking page on its skeleton for over a
+    // minute and a half before it could say «ring oss».
+    vi.useFakeTimers();
+    vi.stubEnv('MEDAL_API_KEY', 'mk_live_deadline');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError'))
+            );
+          })
+      )
+    );
+
+    const read = listAvailability({ serviceId: 'svc', fromTs: 0, toTs: 1 });
+    const outcome = read.then(
+      () => 'answered',
+      (error: Error) => error.name
+    );
+    await vi.advanceTimersByTimeAsync(8_000);
+
+    expect(await outcome).toBe('MedalTimeoutError');
+  });
+
+  it('does not wait out a long Retry-After: the whole read has the same eight seconds', async () => {
+    // The SDK honours `Retry-After` uncapped. A 429 asking for a minute would
+    // otherwise park the read — and the visitor — for that minute.
+    vi.useFakeTimers();
+    vi.stubEnv('MEDAL_API_KEY', 'mk_live_retry_after');
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        { error: { code: 'RATE_LIMITED', message: 'slow down' } },
+        { status: 429, headers: { 'retry-after': '60' } }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const outcome = listServices().then(
+      () => 'answered',
+      (error: Error) => error.name
+    );
+    await vi.advanceTimersByTimeAsync(8_000);
+
+    expect(await outcome).toBe('MedalTimeoutError');
+    // The deadline cancelled the SDK's wait, not just ours: no attempt follows.
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps one quick client per timeout, so the reads and Vipps do not evict each other', () => {
+    vi.stubEnv('MEDAL_API_KEY', 'mk_live_quick');
+    const seam = createMedalSeam({ apiKey: () => process.env.MEDAL_API_KEY });
+
+    const reads = seam.requireMedalWithTimeout(4_000);
+    const vipps = seam.requireMedalWithTimeout(10_000);
+
+    expect(seam.requireMedalWithTimeout(4_000)).toBe(reads);
+    expect(seam.requireMedalWithTimeout(10_000)).toBe(vipps);
+    expect(reads).not.toBe(vipps);
+  });
+});
