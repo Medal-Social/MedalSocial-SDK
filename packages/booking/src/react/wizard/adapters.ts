@@ -332,6 +332,21 @@ export function seatChoices(
   });
 }
 
+/**
+ * What the stylist step's party gets for «who cuts whom»: the seats and their
+ * callback with `config.screens.seatStylists`, and only while the party is seen
+ * at once. One after another is one stylist for the whole visit, chosen in the
+ * list itself, so a seat has nothing of its own to choose.
+ */
+export function stylistSeats(
+  kit: BookingKit,
+  state: WizardState,
+  onSeat: (index: number, resourceId: string | null) => void
+): { seats?: ReturnType<typeof seatChoices>; onSeat?: typeof onSeat } {
+  if (!kit.config.screens.seatStylists || state.partyMode !== 'parallel') return {};
+  return { seats: seatChoices(kit, state), onSeat };
+}
+
 /** The grown-up's seat a guest books with (`guestChoices` and `guestParty` share it). */
 export const GUEST_ADULT_SEAT = { key: 'adult', adult: true } as const;
 

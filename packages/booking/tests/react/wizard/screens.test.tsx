@@ -353,6 +353,16 @@ describe('BookingWizard — config.screens', () => {
     expect(within(second).queryByRole('option', { name: /Ada/ })).toBeNull();
   });
 
+  it('offers no per-seat stylist one after another', async () => {
+    stubApi();
+    location.search = `antall=2&tjeneste=${GUTTEKLIPP.id}`;
+    renderWizard();
+    await screen.findByRole('heading', { level: 2, name: L['time.heading'] });
+    // The party starts «rett etter hverandre»: one stylist for the whole visit.
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByText(L['stylist.party.seatsHeading'])).toBeNull();
+  });
+
   it('changes nothing for a site that asks for none of them', async () => {
     stubApi();
     renderWizard(null);
