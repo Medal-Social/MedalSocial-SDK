@@ -4,7 +4,7 @@ import { toManageDto } from '../manage-dto';
 import { MedalConfigError } from '../medal';
 import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
-import { bookingErrorResponse, digestOf, isSlotTaken } from './shared';
+import { bookingErrorResponse, digestOf, forgetBookedSlots, isSlotTaken } from './shared';
 
 /**
  * The two things the manage page can DO: call off an appointment, or move it.
@@ -113,13 +113,14 @@ function manageErrorResponse(rt: BookingRuntime, error: unknown, action: string)
     if (error.status === 404) {
       return bookingErrorResponse('notFound', 404);
     }
+    if (error.code === 'CONFLICT' && error.message.includes('WINDOW_PASSED')) {
+      return bookingErrorResponse('windowPassed', 409);
+    }
+    // Before the code check: a «pick another time» refusal is any 409.
+    if (isSlotTaken(error)) {
+      return bookingErrorResponse('slotTaken', 409);
+    }
     if (error.code === 'CONFLICT') {
-      if (error.message.includes('WINDOW_PASSED')) {
-        return bookingErrorResponse('windowPassed', 409);
-      }
-      if (isSlotTaken(error)) {
-        return bookingErrorResponse('slotTaken', 409);
-      }
       return bookingErrorResponse('conflict', 409);
     }
     if (error.code === 'VALIDATION_ERROR' || error.code === 'INVALID_INPUT') {
@@ -161,8 +162,7 @@ async function expireAfterWrite(
 ): Promise<void> {
   const id = await serviceId;
   if (id === null) return;
-  rt.catalogue.expireSlots([id]);
-  await rt.seed.expireBookingSeeds([id]);
+  await forgetBookedSlots(rt, [id]);
 }
 
 /**

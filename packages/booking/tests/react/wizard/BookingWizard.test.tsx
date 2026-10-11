@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -749,6 +749,225 @@ describe('BookingWizard', () => {
     expect(await screen.findByRole('button', { name: '13:00' })).toBeInTheDocument();
     expect(screen.queryByText(/Vi får ikke hentet ledige tider/)).toBeNull();
     expect(calls).toBe(2);
+  });
+
+  it('retries from now, not from the page load, once the business day has moved on', async () => {
+    // The window is pinned to the seed so the strip and the seeded slots agree.
+    // A retry that kept it would resend the request that just failed — the 400
+    // that answered it would answer again — and a tab left open overnight would
+    // keep asking about yesterday. The hours and the stylists are asked again
+    // too: a retry that refreshed only the openings left those two stale.
+    const asked: { path: string; from: number }[] = [];
+    let failing = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        asked.push({ path: url.pathname, from: Number(url.searchParams.get('from_ts')) });
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          if (failing) return { ok: false, status: 400, json: async () => ({}) };
+          return ok({ slots: [slot(3, 13, SARA.id)] });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    expect(await screen.findByText(/Vi får ikke hentet ledige tider/)).toBeInTheDocument();
+
+    const tomorrow = osloTs(3, 0, 30);
+    vi.spyOn(Date, 'now').mockReturnValue(tomorrow);
+    failing = false;
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    expect(await screen.findByRole('button', { name: '13:00' })).toBeInTheDocument();
+    const askedFromTomorrow = (path: string) =>
+      asked.filter((call) => call.path.startsWith(path) && call.from === tomorrow);
+    expect(askedFromTomorrow('/api/booking/availability')).toHaveLength(1);
+    expect(askedFromTomorrow('/api/booking/schedule').length).toBeGreaterThan(0);
+    expect(askedFromTomorrow('/api/booking/resources').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the visits that answered when one of a party fails, and asks only for the rest', async () => {
+    // `Promise.all` threw the whole family's answers away for one failure, so
+    // the retry fetched every visit again — and one that kept failing hid the
+    // openings the others already had.
+    const perService: Record<string, number> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          const id = url.searchParams.get('service_id') ?? '';
+          perService[id] = (perService[id] ?? 0) + 1;
+          if (id === JENTEKLIPP.id && perService[id] === 1) {
+            return { ok: false, status: 503, json: async () => ({}) };
+          }
+          return ok({
+            slots: [id === JENTEKLIPP.id ? slot(2, 13, SARA.id, 30) : slot(2, 13, SARA.id)],
+          });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    expect(await screen.findByText(/Vi får ikke hentet ledige tider/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() => expect(perService[JENTEKLIPP.id]).toBe(2));
+    expect(perService[GUTTEKLIPP.id]).toBe(1);
+    expect(screen.queryByText(/Vi får ikke hentet ledige tider/)).toBeNull();
+  });
+
+  it('reports a failed read to the monitoring tap, once per failure', async () => {
+    // The card is all the visitor sees; without this nobody else learns that
+    // the time step could not be drawn.
+    stubApi({ availabilityStatus: 400 });
+    const onEvent = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    const reads = () => onEvent.mock.calls.filter(([event]) => event.type === 'read_error');
+    expect(reads()).toEqual([[{ type: 'read_error', endpoint: 'availability', status: 400 }]]);
+
+    // A site's inline `onEvent` is a new function on every parent render; the
+    // same failure is still one event.
+    rerender(
+      <BookingWizard
+        services={[GUTTEKLIPP, JENTEKLIPP, HULL_I_ORENE]}
+        phone="22 33 44 55"
+        rangeStart={NOW}
+        rangeDays={7}
+        onEvent={(event) => onEvent(event)}
+      />
+    );
+    expect(reads()).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+    await waitFor(() => expect(reads()).toHaveLength(2));
+  });
+
+  it('reports every visit of a party that failed, not only the first', async () => {
+    // Two failures in one batch are two updates React may render as one; each
+    // is still its own event.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/availability')) {
+          return { ok: false, status: 503, json: async () => ({}) };
+        }
+        if (pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const onEvent = vi.fn();
+    const reads = () => onEvent.mock.calls.filter(([event]) => event.type === 'read_error');
+    const user = userEvent.setup();
+    renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    // Gutteklipp's lone read before the sibling joined, then the party's batch
+    // of two — one event per failed visit, three in all (a last-error slot
+    // reported two).
+    await waitFor(() => expect(reads()).toHaveLength(3));
+  });
+
+  it('shows the stylists loading after an overnight retry until the new window answers', async () => {
+    // The roster is asked again for the new window; the old list must not sit
+    // there as a loaded answer meanwhile.
+    let releaseResources: (() => void) | null = null;
+    let day = 2;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/availability')) {
+          if (day === 2) return { ok: false, status: 400, json: async () => ({}) };
+          return ok({ slots: [slot(3, 13, SARA.id)] });
+        }
+        if (pathname.startsWith('/api/booking/resources')) {
+          if (day === 2) return ok({ resources: [SARA] });
+          await new Promise<void>((resolve) => {
+            releaseResources = resolve;
+          });
+          return ok({ resources: [SARA] });
+        }
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    expect(await screen.findByRole('radio', { name: /Sara/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    day = 3;
+    vi.spyOn(Date, 'now').mockReturnValue(osloTs(3, 0, 30));
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() => expect(releaseResources).not.toBeNull());
+    expect(screen.queryByRole('radio', { name: /Sara/ })).toBeNull();
+    await act(async () => releaseResources?.());
+    expect(await screen.findByRole('radio', { name: /Sara/ })).toBeInTheDocument();
+  });
+
+  it('reports a read that got no answer at all with no status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        if (pathname.startsWith('/api/booking/availability')) throw new TypeError('offline');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const onEvent = vi.fn();
+    const user = userEvent.setup();
+    renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'read_error',
+      endpoint: 'availability',
+      status: null,
+    });
   });
 
   it('says the openings could not be read rather than that the salon is full', async () => {
@@ -1943,6 +2162,58 @@ describe('BookingWizard prefetch', () => {
    * With fresh slots on the 409 it is recomputed from them, and nothing is
    * read — otherwise Sara's card keeps promising an hour just refused.
    */
+  it('asks the seeded stylists and hours again on a retry, not just the openings', async () => {
+    // The seed is an answer too. A retry that re-read only the openings left
+    // the page's copy of the stylists and the hours in place, however stale.
+    const asked: string[] = [];
+    let jenteFails = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const id = url.searchParams.get('service_id');
+        asked.push(`${url.pathname} ${id}`);
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          if (id === JENTEKLIPP.id && jenteFails) {
+            jenteFails = false;
+            return { ok: false, status: 503, json: async () => ({}) };
+          }
+          return ok({ slots: [slot(2, 13, SARA.id, 30)] });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard(SEEDED);
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+    const seededReads = () =>
+      asked.filter(
+        (call) =>
+          call === `/api/booking/resources ${GUTTEKLIPP.id}` ||
+          call === `/api/booking/schedule ${GUTTEKLIPP.id}`
+      );
+    expect(seededReads()).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() =>
+      expect(new Set(seededReads())).toEqual(
+        new Set([
+          `/api/booking/resources ${GUTTEKLIPP.id}`,
+          `/api/booking/schedule ${GUTTEKLIPP.id}`,
+        ])
+      )
+    );
+  });
+
   it('recomputes «Neste ledige» from the slotTaken’s fresh slots, without a request', async () => {
     const { urls } = stubApi({
       createStatus: 409,
