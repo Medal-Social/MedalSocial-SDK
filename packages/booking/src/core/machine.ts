@@ -1330,7 +1330,10 @@ export function createWizard(config: WizardConfig): Wizard {
   }
 
   function reduce(state: WizardState, action: WizardAction): WizardState {
-    return carrySeatResources(state, reduceStep(state, action));
+    // Only a login's re-seat renames the SAME person in place; anywhere else a
+    // new key at an index is somebody new, who must not inherit a wish.
+    const renames = action.type === 'unseatPeople' || action.type === 'seatFamily';
+    return carrySeatResources(state, reduceStep(state, action), renames);
   }
 
   /**
@@ -1339,10 +1342,14 @@ export function createWizard(config: WizardConfig): Wizard {
    * «adult» becomes «self») without the basket changing, and a choice left under
    * the old key would vanish from the selector and the search yet still block
    * that stylist for everyone. So after every step: a key that survives keeps
-   * its choice, a seat whose key was renamed in place takes the old key's
-   * choice, and anything else is dropped.
+   * its choice, a seat a login renamed in place takes the old key's choice,
+   * and anything else is dropped — a newcomer on step 1 never inherits one.
    */
-  function carrySeatResources(before: WizardState, after: WizardState): WizardState {
+  function carrySeatResources(
+    before: WizardState,
+    after: WizardState,
+    renames: boolean
+  ): WizardState {
     const wishes = after.seatResourceIds;
     if (wishes === undefined || after.people === before.people) return after;
     const current = new Set(after.people.map((person) => person.key));
@@ -1351,7 +1358,7 @@ export function createWizard(config: WizardConfig): Wizard {
       const own = wishes[person.key];
       const previous = before.people[index]?.key;
       const renamed =
-        previous !== undefined && previous !== person.key && !current.has(previous)
+        renames && previous !== undefined && previous !== person.key && !current.has(previous)
           ? wishes[previous]
           : undefined;
       const wish = own ?? renamed;
