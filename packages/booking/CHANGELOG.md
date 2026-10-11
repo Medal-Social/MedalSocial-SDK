@@ -1,5 +1,25 @@
 # @medalsocial/booking
 
+## 0.4.1
+
+### Patch Changes
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - Outage-hardening follow-ups: every failed visit in a party's batch reaches `onEvent` as its own `read_error` (the controller's `readError` is now `readErrors`, a short queue). An overnight «Prøv igjen» shows the stylists loading until the new window answers. Portal refusals are logged with their `reason` code.
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - Outage hardening after a production incident where the DST hour pushed the widest booking window past the routes' 62 × 24 h range guard, so every unseeded service answered 400 between 00:00 and 01:00 for eight weeks of nights.
+  
+  - The read routes admit the widest window a valid config can build, DST hour included. One module (`core/range.ts`, exporting `MAX_RANGE_DAYS` and `MAX_RANGE_MS`) owns the bound for the config schema, `parseRange` and the catalogue cache horizon.
+  - «Prøv igjen» re-reads the openings, the stylists and the hours, seeded ones included. If the business day has moved on, it starts a fresh window from now. A party keeps the visits that answered and asks only for the ones that failed.
+  - Medal's `in_past`, `outside_horizon` and `off_grid` refusals take the slot-taken path (fresh openings, back to the time step) rather than an endless «Prøv en gang til».
+  - Every answer ≥ 400 is logged through the site's logger with the route (a fixed label for malformed or unmatched paths), method, status and error code. The message is never logged, and neither are the rate limiter's own 429s. `onEvent` gains `{ type: 'read_error', endpoint, status }`, once per failure.
+  - Catalogue and calendar reads give up after 4 s per attempt and 8 s in total, instead of the SDK's 30 s × 3 with an uncapped `Retry-After`. The deadline aborts the SDK call itself, so nothing more is sent upstream.
+  - A booking that happened is never answered as a failure because a cache could not be expired.
+  - A pending booking resumes on browsers without `AbortSignal.timeout` (Safari < 16).
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - `isSlotTaken` reads Medal's «pick another time» refusals defensively: any 409 (not only code `CONFLICT`), `details.reason` in any case, and the message prefix when there is no reason. A change of spelling on the engine side now degrades to fresh openings, never to a retry loop.
+- Updated dependencies [[`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e)]:
+  - @medalsocial/sdk@1.15.0
+
 ## 0.4.0
 
 ### Minor Changes

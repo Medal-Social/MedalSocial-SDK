@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.15.0
+
+### Minor Changes
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - `bookings.listServices`, `listResources`, `availability` and `schedule` (and `bookings.services.list` / `bookings.resources.list`) take an optional `{ signal }` (`BookingReadOptions`). Aborting it cancels the request, its retries and any `Retry-After` wait, so a caller with a deadline ends the whole read instead of only its own wait.
+
 ## 1.14.0
 
 ### Minor Changes
