@@ -841,7 +841,7 @@ describe('BookingWizard', () => {
     stubApi({ availabilityStatus: 400 });
     const onEvent = vi.fn();
     const user = userEvent.setup();
-    renderWizard({ onEvent });
+    const { rerender } = renderWizard({ onEvent });
 
     await pickGutteklipp(user);
     await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
@@ -850,8 +850,48 @@ describe('BookingWizard', () => {
     const reads = () => onEvent.mock.calls.filter(([event]) => event.type === 'read_error');
     expect(reads()).toEqual([[{ type: 'read_error', endpoint: 'availability', status: 400 }]]);
 
+    // A site's inline `onEvent` is a new function on every parent render; the
+    // same failure is still one event.
+    rerender(
+      <BookingWizard
+        services={[GUTTEKLIPP, JENTEKLIPP, HULL_I_ORENE]}
+        phone="22 33 44 55"
+        rangeStart={NOW}
+        rangeDays={7}
+        onEvent={(event) => onEvent(event)}
+      />
+    );
+    expect(reads()).toHaveLength(1);
+
     await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
     await waitFor(() => expect(reads()).toHaveLength(2));
+  });
+
+  it('reports a read that got no answer at all with no status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        if (pathname.startsWith('/api/booking/availability')) throw new TypeError('offline');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const onEvent = vi.fn();
+    const user = userEvent.setup();
+    renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'read_error',
+      endpoint: 'availability',
+      status: null,
+    });
   });
 
   it('says the openings could not be read rather than that the salon is full', async () => {
@@ -2046,6 +2086,58 @@ describe('BookingWizard prefetch', () => {
    * With fresh slots on the 409 it is recomputed from them, and nothing is
    * read — otherwise Sara's card keeps promising an hour just refused.
    */
+  it('asks the seeded stylists and hours again on a retry, not just the openings', async () => {
+    // The seed is an answer too. A retry that re-read only the openings left
+    // the page's copy of the stylists and the hours in place, however stale.
+    const asked: string[] = [];
+    let jenteFails = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const id = url.searchParams.get('service_id');
+        asked.push(`${url.pathname} ${id}`);
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          if (id === JENTEKLIPP.id && jenteFails) {
+            jenteFails = false;
+            return { ok: false, status: 503, json: async () => ({}) };
+          }
+          return ok({ slots: [slot(2, 13, SARA.id, 30)] });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard(SEEDED);
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+    const seededReads = () =>
+      asked.filter(
+        (call) =>
+          call === `/api/booking/resources ${GUTTEKLIPP.id}` ||
+          call === `/api/booking/schedule ${GUTTEKLIPP.id}`
+      );
+    expect(seededReads()).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() =>
+      expect(new Set(seededReads())).toEqual(
+        new Set([
+          `/api/booking/resources ${GUTTEKLIPP.id}`,
+          `/api/booking/schedule ${GUTTEKLIPP.id}`,
+        ])
+      )
+    );
+  });
+
   it('recomputes «Neste ledige» from the slotTaken’s fresh slots, without a request', async () => {
     const { urls } = stubApi({
       createStatus: 409,

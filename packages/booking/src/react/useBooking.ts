@@ -149,7 +149,7 @@ const REPLAY_TIMEOUT_MS = 15_000;
 function timeoutSignal(ms: number): AbortSignal {
   if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms);
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), ms);
+  setTimeout(controller.abort.bind(controller), ms);
   return controller.signal;
 }
 
@@ -1392,19 +1392,21 @@ export function useBooking(options: UseBookingOptions) {
   /**
    * «Prøv igjen»: ask for the openings, the stylists and the hours again.
    *
-   * A retry that sent the same request would get the same answer, so a page
-   * left open past midnight starts a fresh window from now — yesterday's would
-   * offer hours that are gone and stop a day short. The seed describes the old
-   * window, so it goes with it and everything is fetched for the new one.
+   * The seed's stylists and hours are answers too, so a retry asks them again
+   * rather than trusting the page's copy of them. A page left open past
+   * midnight also starts a fresh window from now — a retry that resent the
+   * same request would get the same answer, and yesterday's window would
+   * offer hours that are gone and stop a day short — dropping every opening
+   * with it, since they describe the old window.
    */
   const refresh = useCallback(() => {
     const now = Date.now();
+    setSeededNextAvailable({});
+    setSeedRetired(true);
     if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
       setSlots({});
-      setSeededNextAvailable({});
       setFetchedNextAvailable(null);
       setFetchedSchedule(null);
-      setSeedRetired(true);
       setFromTs(now);
     }
     setSlotsAttempt((n) => n + 1);

@@ -520,6 +520,16 @@ describe('POST /api/booking/create', () => {
     expect((await response.json()).error).toBe('slotTaken');
   });
 
+  it('falls back to the message when the reason is not a string', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN: gone', { reason: 42 })
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('slotTaken');
+  });
+
   it('keeps a conflict with another reason a conflict, whatever its message says', async () => {
     vi.mocked(createBooking).mockRejectedValueOnce(
       new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN mentioned in passing', {

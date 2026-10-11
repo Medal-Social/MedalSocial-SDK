@@ -238,6 +238,50 @@ describe('createBookingHandler — failures leave a line in the logs', () => {
     expect((await response.json()).error).toBe('invalidInput');
   });
 
+  it('logs the code, never the message: some messages carry what the visitor typed', async () => {
+    const { handler, logger } = loggedHandler();
+
+    await handler.GET(get('/api/booking/availability?service_id=svc-1&from_ts=2000&to_ts=1000'));
+
+    const [meta] = logger.warn.mock.calls[0];
+    expect(meta).not.toHaveProperty('message');
+  });
+
+  it('logs the refusals made before any route runs, under fixed labels', async () => {
+    const { handler, logger } = loggedHandler();
+
+    await handler.GET(get('/api/booking/manage/%E0%A4%A'));
+    await handler.DELETE(get('/api/booking/services'));
+    // Never the path itself: an unmatched path can still carry a manage token.
+    await handler.GET(get('/api/booking/manage/secret-token/extra'));
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'malformed', status: 400 }),
+      expect.any(String)
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'booking/services', status: 405 }),
+      expect.any(String)
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'unmatched', status: 404 }),
+      'booking GET unmatched answered 404'
+    );
+    expect(JSON.stringify(logger.info.mock.calls)).not.toContain('secret-token');
+  });
+
+  it('does not log what the rate limiter refuses: that is the flood', async () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const { handler } = handlerWith({ logger, rateLimit: async () => true });
+
+    const response = await handler.GET(get('/api/booking/services'));
+
+    expect(response.status).toBe(429);
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
   it('logs a failed upstream read as an error', async () => {
     const { handler, parts, logger } = loggedHandler();
     parts.catalogue.cachedServices.mockRejectedValueOnce(new Error('Medal is down'));

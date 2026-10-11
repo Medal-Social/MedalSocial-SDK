@@ -238,9 +238,13 @@ function BookingWizardShell(props: BookingWizardProps) {
   }, [state.error, onEvent]);
   // The monitoring tap for a failed read — what the visitor saw as «Vi får ikke
   // hentet ledige tider». Once per failure (`seq`), not per render.
+  // Keyed on `seq` in a ref, like `lastError` above: the effect also re-runs when
+  // an inline `onEvent` changes identity, which must not report the failure again.
   const { readError } = booking;
+  const lastReadSeq = useRef(0);
   useEffect(() => {
-    if (readError !== null) {
+    if (readError !== null && readError.seq !== lastReadSeq.current) {
+      lastReadSeq.current = readError.seq;
       onEvent?.({ type: 'read_error', endpoint: readError.endpoint, status: readError.status });
     }
   }, [readError, onEvent]);

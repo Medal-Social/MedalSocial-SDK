@@ -203,6 +203,7 @@ export type {
   operations as OpenApiOperations,
   paths as OpenApiPaths,
 } from "./openapi.generated";
+export type { BookingReadOptions } from "./resources/bookings";
 // Resource class re-exports (for advanced usage)
 export { Bookings } from "./resources/bookings";
 export { CapabilityConfirmations } from "./resources/capability-confirmations";

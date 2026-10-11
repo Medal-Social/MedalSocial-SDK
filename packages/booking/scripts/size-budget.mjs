@@ -116,10 +116,14 @@ const BUDGETS = [
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
     // Measured 17.08 KB.
+    // Raised 17.5 → 17.9 KB for the outage hardening: «Prøv igjen» re-reads
+    // everything from a fresh window after midnight, a party keeps the visits
+    // that answered, failed reads reach `onEvent`, and the replay works without
+    // `AbortSignal.timeout`. Measured 17.68 KB.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 17.5 * 1024,
+    gzipBytes: 17.9 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -133,9 +137,13 @@ const BUDGETS = [
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
     // Measured 25.56 KB.
+    // Raised 26.0 → 26.5 KB for the outage hardening: «Prøv igjen» re-reads
+    // everything from a fresh window after midnight, a party keeps the visits
+    // that answered, failed reads reach `onEvent`, and the replay works without
+    // `AbortSignal.timeout`. Measured 26.32 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 26 * 1024,
+    gzipBytes: 26.5 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -159,10 +167,14 @@ const BUDGETS = [
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
     // Measured 17.23 KB.
+    // Raised 17.6 → 18.0 KB for the outage hardening: «Prøv igjen» re-reads
+    // everything from a fresh window after midnight, a party keeps the visits
+    // that answered, failed reads reach `onEvent`, and the replay works without
+    // `AbortSignal.timeout`. Measured 17.82 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 17.6 * 1024,
+    gzipBytes: 18.0 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -174,9 +186,13 @@ const BUDGETS = [
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
     // Measured 25.68 KB.
+    // Raised 26.1 → 26.6 KB for the outage hardening: «Prøv igjen» re-reads
+    // everything from a fresh window after midnight, a party keeps the visits
+    // that answered, failed reads reach `onEvent`, and the replay works without
+    // `AbortSignal.timeout`. Measured 26.44 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 26.1 * 1024,
+    gzipBytes: 26.6 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -199,10 +215,14 @@ const BUDGETS = [
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
     // Measured 22.41 KB.
+    // Raised 22.9 → 23.1 KB for the outage hardening: «Prøv igjen» re-reads
+    // everything from a fresh window after midnight, a party keeps the visits
+    // that answered, failed reads reach `onEvent`, and the replay works without
+    // `AbortSignal.timeout`. Measured 22.98 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 22.9 * 1024,
+    gzipBytes: 23.1 * 1024,
   },
 ];
 

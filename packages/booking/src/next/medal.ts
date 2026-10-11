@@ -204,14 +204,22 @@ const READ_ATTEMPT_TIMEOUT_MS = 4_000;
  */
 const READ_DEADLINE_MS = 8_000;
 
-/** A read bounded by `READ_DEADLINE_MS`; past it, a `MedalTimeoutError` like the SDK's own. */
-async function withinDeadline<T>(read: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new MedalTimeoutError(READ_DEADLINE_MS)), READ_DEADLINE_MS);
-  });
+/**
+ * A read bounded by `READ_DEADLINE_MS`. The deadline aborts the SDK call
+ * itself — its attempt, its retries and any `Retry-After` wait — so a read the
+ * visitor has stopped waiting for sends nothing more upstream. It ends with
+ * the SDK's own `MedalTimeoutError`.
+ */
+async function withinDeadline<T>(
+  read: (request: { signal: AbortSignal }) => Promise<T>
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new MedalTimeoutError(READ_DEADLINE_MS)),
+    READ_DEADLINE_MS
+  );
   try {
-    return await Promise.race([read, deadline]);
+    return await read({ signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -271,21 +279,23 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
 
     async listServices() {
       return unwrap(
-        await withinDeadline(reader().bookings.listServices()),
+        await withinDeadline((request) => reader().bookings.listServices(undefined, request)),
         '/api/v1/bookings/services'
       );
     },
 
     async listResources() {
       return unwrap(
-        await withinDeadline(reader().bookings.listResources()),
+        await withinDeadline((request) => reader().bookings.listResources(request)),
         '/api/v1/bookings/resources'
       );
     },
 
     async listAvailability(args) {
       return unwrap(
-        await withinDeadline(reader().bookings.availability(rangeParams(args))),
+        await withinDeadline((request) =>
+          reader().bookings.availability(rangeParams(args), request)
+        ),
         '/api/v1/bookings/availability'
       );
     },
@@ -296,7 +306,7 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
      */
     async listSchedule(args) {
       return unwrap(
-        await withinDeadline(reader().bookings.schedule(rangeParams(args))),
+        await withinDeadline((request) => reader().bookings.schedule(rangeParams(args), request)),
         '/api/v1/bookings/schedule'
       );
     },
