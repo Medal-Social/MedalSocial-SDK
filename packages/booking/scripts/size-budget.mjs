@@ -120,10 +120,13 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 17.68 KB.
+    // Raised 17.9 → 18.4 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 17.95 KB.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 17.9 * 1024,
+    gzipBytes: 18.4 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -141,9 +144,12 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 26.32 KB.
+    // Raised 26.5 → 27.2 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 26.76 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 26.5 * 1024,
+    gzipBytes: 27.2 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -171,10 +177,13 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 17.82 KB.
+    // Raised 18.0 → 18.5 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 18.09 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 18.0 * 1024,
+    gzipBytes: 18.5 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -190,9 +199,12 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 26.44 KB.
+    // Raised 26.6 → 27.3 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 26.88 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 26.6 * 1024,
+    gzipBytes: 27.3 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -219,10 +231,13 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 22.98 KB.
+    // Raised 23.1 → 23.7 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 23.31 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 23.1 * 1024,
+    gzipBytes: 23.7 * 1024,
   },
 ];
 

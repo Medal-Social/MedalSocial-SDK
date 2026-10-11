@@ -95,6 +95,7 @@ describe('resolveBookingConfig — screens', () => {
       guestParty: false,
       childMenuFirst: false,
       wideLayouts: false,
+      seatStylists: false,
     });
   });
 

@@ -100,6 +100,7 @@ built-in packs carry their words; override them with `labels`.
 | `guestParty` | A guest picks a number of children and «me too» instead of the chips, so a parent and child book together without an account; the step opens with one child seated (also in the server render) (`who.party.*`) |
 | `childMenuFirst` | A child's service list leads with the children's and anyone's groups; grown-ups' groups move below the «usually not for this age» divider |
 | `wideLayouts` | The stylist step keeps its row of faces at every width, with the chosen stylist's bio under it; the time step puts the days beside the times on an iPad and shows the week as a grid of times on a desktop (`time.week.*` labels) |
+| `seatStylists` | A family seen at once can ask for a stylist per person («who cuts whom», `stylist.party.seat*` labels); the rest are seated with anyone free at that minute |
 
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
