@@ -751,6 +751,90 @@ describe('BookingWizard', () => {
     expect(calls).toBe(2);
   });
 
+  it('retries from now, not from the page load, once the business day has moved on', async () => {
+    // The window is pinned to the seed so the strip and the seeded slots agree.
+    // A retry that kept it would resend the request that just failed — the 400
+    // that answered it would answer again — and a tab left open overnight would
+    // keep asking about yesterday. The hours and the stylists are asked again
+    // too: a retry that refreshed only the openings left those two stale.
+    const asked: { path: string; from: number }[] = [];
+    let failing = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        asked.push({ path: url.pathname, from: Number(url.searchParams.get('from_ts')) });
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          if (failing) return { ok: false, status: 400, json: async () => ({}) };
+          return ok({ slots: [slot(3, 13, SARA.id)] });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    expect(await screen.findByText(/Vi får ikke hentet ledige tider/)).toBeInTheDocument();
+
+    const tomorrow = osloTs(3, 0, 30);
+    vi.spyOn(Date, 'now').mockReturnValue(tomorrow);
+    failing = false;
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    expect(await screen.findByRole('button', { name: '13:00' })).toBeInTheDocument();
+    const askedFromTomorrow = (path: string) =>
+      asked.filter((call) => call.path.startsWith(path) && call.from === tomorrow);
+    expect(askedFromTomorrow('/api/booking/availability')).toHaveLength(1);
+    expect(askedFromTomorrow('/api/booking/schedule').length).toBeGreaterThan(0);
+    expect(askedFromTomorrow('/api/booking/resources').length).toBeGreaterThan(0);
+  });
+
+  it('keeps the visits that answered when one of a party fails, and asks only for the rest', async () => {
+    // `Promise.all` threw the whole family's answers away for one failure, so
+    // the retry fetched every visit again — and one that kept failing hid the
+    // openings the others already had.
+    const perService: Record<string, number> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (url.pathname.startsWith('/api/booking/availability')) {
+          const id = url.searchParams.get('service_id') ?? '';
+          perService[id] = (perService[id] ?? 0) + 1;
+          if (id === JENTEKLIPP.id && perService[id] === 1) {
+            return { ok: false, status: 503, json: async () => ({}) };
+          }
+          return ok({
+            slots: [id === JENTEKLIPP.id ? slot(2, 13, SARA.id, 30) : slot(2, 13, SARA.id)],
+          });
+        }
+        if (url.pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (url.pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    expect(await screen.findByText(/Vi får ikke hentet ledige tider/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() => expect(perService[JENTEKLIPP.id]).toBe(2));
+    expect(perService[GUTTEKLIPP.id]).toBe(1);
+    expect(screen.queryByText(/Vi får ikke hentet ledige tider/)).toBeNull();
+  });
+
   it('says the openings could not be read rather than that the salon is full', async () => {
     // «Fullt» is a claim about the salon. A failed fetch is a claim about us,
     // and telling a parent the chair is taken when it is free is the worse of

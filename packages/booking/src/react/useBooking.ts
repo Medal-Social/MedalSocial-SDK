@@ -17,7 +17,15 @@
  */
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
@@ -131,6 +139,9 @@ function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
 
 /** How long a replayed submission may take before the restore gate gives up. */
 const REPLAY_TIMEOUT_MS = 15_000;
+
+/** The seed's schedules once a retry has moved the window past them. */
+const NO_SEEDED_SCHEDULE: Record<string, BookingDayDto[]> = {};
 
 /** «hydrated» only ever flips once; `useSyncExternalStore` wants a subscription. */
 function noSubscription(): () => void {
@@ -650,8 +661,10 @@ export function useBooking(options: UseBookingOptions) {
     [family]
   );
 
-  // Pinned once: the seeded slots and the day strip describe the same days.
-  const [fromTs] = useState(() => options.seed.fromTs ?? Date.now());
+  // Pinned: the seeded slots and the day strip describe the same days. Moved
+  // only by a retry on a later business day (`refresh`), which drops the seed
+  // with it — a tab left open overnight would otherwise ask about yesterday.
+  const [fromTs, setFromTs] = useState(() => options.seed.fromTs ?? Date.now());
   const { toTs, days } = useMemo(() => clock.window(fromTs, rangeDays), [clock, fromTs, rangeDays]);
   /** The business date the ages on steps 1 and 2 are read on: the chosen day, else today. */
   const ageDayKey = clock.dayKey(state.startTs ?? fromTs);
@@ -703,7 +716,10 @@ export function useBooking(options: UseBookingOptions) {
   const [seededNextAvailable, setSeededNextAvailable] = useState(() =>
     options.seed.resources ? (options.seed.nextAvailable ?? {}) : {}
   );
-  const [seededSchedule] = useState(() => options.seed.schedules ?? {});
+  const [initialSchedule] = useState(() => options.seed.schedules ?? {});
+  /** Set once a retry has moved the window past the seed's day; the seed no longer answers. */
+  const [seedRetired, setSeedRetired] = useState(false);
+  const seededSchedule = seedRetired ? NO_SEEDED_SCHEDULE : initialSchedule;
   /** The last «next available» answer, and for WHICH visit (its key). */
   const [fetchedNextAvailable, setFetchedNextAvailable] = useState<{
     key: string;
@@ -1121,22 +1137,26 @@ export function useBooking(options: UseBookingOptions) {
     setSlotsFailed(false);
 
     (async () => {
-      try {
-        const fetched = await Promise.all(
-          wanted.map(async (key) => {
-            const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
-            if (!response.ok) throw new Error(`availability ${response.status}`);
-            const body = (await response.json()) as { slots?: BookingSlotDto[] };
-            // Stored under the WHOLE visit's key — the key it is read back by.
-            return [key, body.slots ?? []] as const;
-          })
-        );
-        if (cancelled) return;
+      // Settled one by one: a party of three whose third visit failed keeps the
+      // two answers it has, and the retry asks only for the one still missing.
+      const settled = await Promise.allSettled(
+        wanted.map(async (key) => {
+          const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
+          if (!response.ok) throw new Error(`availability ${response.status}`);
+          const body = (await response.json()) as { slots?: BookingSlotDto[] };
+          // Stored under the WHOLE visit's key — the key it is read back by.
+          return [key, body.slots ?? []] as const;
+        })
+      );
+      if (cancelled) return;
+      const fetched = settled.flatMap((result) =>
+        result.status === 'fulfilled' ? [result.value] : []
+      );
+      if (fetched.length > 0) {
         setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
-      } catch {
-        // Nothing is cached on a failure; the step says so rather than «full».
-        if (!cancelled) setSlotsFailed(true);
       }
+      // Nothing is cached for a failed visit; the step says so rather than «full».
+      if (fetched.length < wanted.length) setSlotsFailed(true);
     })();
 
     return () => {
@@ -1144,6 +1164,7 @@ export function useBooking(options: UseBookingOptions) {
     };
   }, [api, missingKey, fromTs, toTs, slotsAttempt]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
     if (primaryVisit === null) return;
     if (primaryVisit in seededNextAvailable) return;
@@ -1173,7 +1194,7 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable]);
+  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt]);
 
   /**
    * The stylist half of a «book again» link, once a list for its service has
@@ -1268,6 +1289,7 @@ export function useBooking(options: UseBookingOptions) {
     scheduleFailedFor,
   ]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
     if (primaryVisit === null || scheduleKey === null) return;
     // The seed already answers «first available». A named stylist always asks.
@@ -1302,7 +1324,37 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededSchedule, state.resourceId, scheduleKey]);
+  }, [
+    api,
+    primaryVisit,
+    fromTs,
+    toTs,
+    seededSchedule,
+    state.resourceId,
+    scheduleKey,
+    slotsAttempt,
+  ]);
+
+  /**
+   * «Prøv igjen»: ask for the openings, the stylists and the hours again.
+   *
+   * A retry that sent the same request would get the same answer, so a page
+   * left open past midnight starts a fresh window from now — yesterday's would
+   * offer hours that are gone and stop a day short. The seed describes the old
+   * window, so it goes with it and everything is fetched for the new one.
+   */
+  const refresh = useCallback(() => {
+    const now = Date.now();
+    if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
+      setSlots({});
+      setSeededNextAvailable({});
+      setFetchedNextAvailable(null);
+      setFetchedSchedule(null);
+      setSeedRetired(true);
+      setFromTs(now);
+    }
+    setSlotsAttempt((n) => n + 1);
+  }, [clock, fromTs]);
 
   /** A stylist's display name for an id; `''` from Medal reads as none. */
   const resolveStylistName = useMemo(
@@ -1870,8 +1922,7 @@ export function useBooking(options: UseBookingOptions) {
     submissionNonce,
     confirmed,
     startOver,
-    /** Ask for the openings again after a failure. */
-    refresh: () => setSlotsAttempt((n) => n + 1),
+    refresh,
     restore: { hydrated, restoring, linked, resuming },
   };
 }
