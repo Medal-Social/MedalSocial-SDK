@@ -96,6 +96,15 @@ export interface BookingConfig {
      * each person ticks up to this many, done back to back as one visit.
      */
     maxServicesPerPerson: number;
+    /**
+     * A party with a grown-up in it starts «Samtidig» (`partyMode:
+     * 'parallel'`): the child in one chair, the parent in the next, done
+     * together. Only until the parent picks a mode, or a stylist link names
+     * one stylist (one stylist cannot cut two people at once). Needs
+     * `allowParallel`. Off by default: everyone else keeps «Rett etter
+     * hverandre».
+     */
+    adultTogether: boolean;
   };
   /** The bookable window and the page's prefetch. */
   window: { rangeDays: number; prefetchLimit: number; prefetchCategory: string | null };
@@ -145,6 +154,10 @@ export interface BookingConfig {
    * - `childMenuFirst` — a child's service list leads with the children's and
    *   anyone's groups; the grown-ups' groups move below the «usually not for
    *   this age» divider, still one tap away.
+   * - `wideLayouts` — the stylist step keeps its row of faces at every width
+   *   (the chosen stylist's bio under it), and the time step goes
+   *   `layout="adaptive"`: days beside the times on an iPad, the whole week as
+   *   a grid of times on a desktop. Needs the `time.week.*` labels.
    */
   screens: {
     recap: boolean;
@@ -156,6 +169,7 @@ export interface BookingConfig {
     stylistEdgeFade: boolean;
     guestParty: boolean;
     childMenuFirst: boolean;
+    wideLayouts: boolean;
   };
   consent: {
     termsUrl: string | null;
@@ -226,7 +240,13 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       { key: 'annet', audience: 'any' },
     ],
     fallbackCategory: 'annet',
-    party: { maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 },
+    party: {
+      maxPeople: 3,
+      allowParallel: true,
+      askWhoFirst: true,
+      maxServicesPerPerson: 1,
+      adultTogether: false,
+    },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
       { key: 'formiddag', from: 0, to: 12 },
@@ -247,6 +267,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       stylistEdgeFade: false,
       guestParty: false,
       childMenuFirst: false,
+      wideLayouts: false,
     },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
@@ -395,6 +416,7 @@ const schema = z
       allowParallel: z.boolean(),
       askWhoFirst: z.boolean(),
       maxServicesPerPerson: z.number().int().min(1).max(4),
+      adultTogether: z.boolean(),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(62),
@@ -439,6 +461,7 @@ const schema = z
       stylistEdgeFade: z.boolean(),
       guestParty: z.boolean(),
       childMenuFirst: z.boolean(),
+      wideLayouts: z.boolean(),
     }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),

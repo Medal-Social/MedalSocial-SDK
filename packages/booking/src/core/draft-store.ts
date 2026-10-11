@@ -74,6 +74,11 @@ export interface WizardDraft {
   /** The visitor's preference — `null` is «Første ledige». */
   resourceId: string | null;
   partyMode: 'sequential' | 'parallel';
+  /**
+   * The parent picked `partyMode` (not `party.adultTogether`). Absent in a
+   * draft written before the field existed, which restores as chosen.
+   */
+  partyModeChosen?: boolean;
   startTs: number | null;
   /** Who the chosen slot resolved to, which is what gets submitted. */
   resolvedResourceId: string | null;
@@ -139,6 +144,9 @@ function asDraft(value: unknown, now: number): WizardDraft | null {
     items,
     resourceId: typeof draft.resourceId === 'string' ? draft.resourceId : null,
     partyMode: draft.partyMode === 'parallel' ? 'parallel' : 'sequential',
+    ...(typeof draft.partyModeChosen === 'boolean'
+      ? { partyModeChosen: draft.partyModeChosen }
+      : {}),
     startTs: visitsWhole && typeof draft.startTs === 'number' ? draft.startTs : null,
     resolvedResourceId:
       typeof draft.resolvedResourceId === 'string' ? draft.resolvedResourceId : null,

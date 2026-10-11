@@ -103,8 +103,8 @@ importers:
         version: 0.0.1
     devDependencies:
       '@medalsocial/meda':
-        specifier: ^3.7.0
-        version: 3.7.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^3.8.0
+        version: 3.8.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.2)
@@ -1154,8 +1154,8 @@ packages:
       three:
         optional: true
 
-  '@medalsocial/meda@3.7.0':
-    resolution: {integrity: sha512-m9ErLPaVTBVITEOeq27J5YxQAJOfy1vWfe8oNr4o4+yY5qjBx7GDFHgtJ9tBwP/xs6AqEs3Oqet8WuAdH0DVeg==}
+  '@medalsocial/meda@3.8.0':
+    resolution: {integrity: sha512-+FyS9JJ9qenSBLf21hZvhJybnEoWuEDgnad6GR8Zw0E4haWtoon7HYx9Du90Nonezuvmzzg55h5FW8KM4V+98Q==}
     engines: {node: '>=22'}
     peerDependencies:
       '@dnd-kit/core': ^6.3.1
@@ -4430,7 +4430,7 @@ snapshots:
       - '@types/react-dom'
       - date-fns
 
-  '@medalsocial/meda@3.7.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@medalsocial/meda@3.8.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.49.0(@types/react@19.3.0)(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@base-ui/react': 1.8.0(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       class-variance-authority: 0.7.1

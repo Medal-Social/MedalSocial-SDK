@@ -73,7 +73,7 @@ its own values in.
 | `paths` | `/bestill`, `/bestill/administrer`, `/min-side`, `/api/booking`, … | The URLs the site serves |
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
-| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1 }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste») |
+| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel` |
 | `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
@@ -99,6 +99,7 @@ built-in packs carry their words; override them with `labels`.
 | `stylistEdgeFade` | The phone's sideways stylist row fades at its edge |
 | `guestParty` | A guest picks a number of children and «me too» instead of the chips, so a parent and child book together without an account; the step opens with one child seated (also in the server render) (`who.party.*`) |
 | `childMenuFirst` | A child's service list leads with the children's and anyone's groups; grown-ups' groups move below the «usually not for this age» divider |
+| `wideLayouts` | The stylist step keeps its row of faces at every width, with the chosen stylist's bio under it; the time step puts the days beside the times on an iPad and shows the week as a grid of times on a desktop (`time.week.*` labels) |
 
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
