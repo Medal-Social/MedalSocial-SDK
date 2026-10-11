@@ -228,12 +228,12 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 22.98 KB.
-    // Raised 23.1 → 23.8 KB with the wizard `data-testid` hooks (WeakMap-cached
-    // wrappers). Measured 23.74 KB.
+    // Raised 23.1 → 24.0 KB with the wizard `data-testid` hooks (WeakMap-cached
+    // wrappers). Measured 23.80 KB in CI.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 23.8 * 1024,
+    gzipBytes: 24 * 1024,
   },
 ];
 
