@@ -1,5 +1,15 @@
 # @medalsocial/booking
 
+## 0.4.0
+
+### Minor Changes
+
+- [#212](https://github.com/Medal-Social/MedalSocial-SDK/pull/212) [`7504690`](https://github.com/Medal-Social/MedalSocial-SDK/commit/75046906f272e3e0c74d97801cc06d9825020c74) Thanks [@adaadev](https://github.com/adaadev)! - Config `screens.wideLayouts` (default `false`): the stylist step keeps its row of faces at every width, with the chosen stylist's bio under it, and the time step uses the adaptive layout. On an iPad the days sit beside the times; on a desktop the whole week is a grid of times. Built-in nb/en words for `time.week.none` and `time.week.more`.
+  
+  Requires `@medalsocial/meda` ^3.8.0.
+
+- [#212](https://github.com/Medal-Social/MedalSocial-SDK/pull/212) [`7504690`](https://github.com/Medal-Social/MedalSocial-SDK/commit/75046906f272e3e0c74d97801cc06d9825020c74) Thanks [@adaadev](https://github.com/adaadev)! - Config `party.adultTogether` (default `false`): a party with a grown-up in it starts «Samtidig», side by side, and goes back to «Rett etter hverandre» when the grown-up leaves it. It stops deciding once the parent picks a mode or a party slot, and a party with a named stylist stays one after another, including a stylist a link names after the party is seated («Første ledige» gives «Samtidig» back). A restored draft keeps a mode the parent picked; one the default picked stays the default's. New optional `WizardState.partyModeChosen` and `WizardDraft.partyModeChosen`.
+
 ## 0.3.1
 
 ### Patch Changes
