@@ -375,3 +375,51 @@ describe("redactSession (the create route's forwarded session)", () => {
     expect(deepest.message).toContain(SECRET);
   });
 });
+
+describe('medal-client — reads a visitor is waiting on', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('gives up on a read that has not answered in eight seconds', async () => {
+    // The SDK's default is 30 s an attempt with two retries: a Medal that
+    // stopped answering held the booking page on its skeleton for over a
+    // minute and a half before it could say «ring oss».
+    vi.useFakeTimers();
+    vi.stubEnv('MEDAL_API_KEY', 'mk_live_deadline');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('aborted', 'AbortError'))
+            );
+          })
+      )
+    );
+
+    const read = listAvailability({ serviceId: 'svc', fromTs: 0, toTs: 1 });
+    const outcome = read.then(
+      () => 'answered',
+      (error: Error) => error.name
+    );
+    await vi.advanceTimersByTimeAsync(8_000);
+
+    expect(await outcome).toBe('MedalTimeoutError');
+  });
+
+  it('keeps one quick client per timeout, so the reads and Vipps do not evict each other', () => {
+    vi.stubEnv('MEDAL_API_KEY', 'mk_live_quick');
+    const seam = createMedalSeam({ apiKey: () => process.env.MEDAL_API_KEY });
+
+    const reads = seam.requireMedalWithTimeout(4_000);
+    const vipps = seam.requireMedalWithTimeout(10_000);
+
+    expect(seam.requireMedalWithTimeout(4_000)).toBe(reads);
+    expect(seam.requireMedalWithTimeout(10_000)).toBe(vipps);
+    expect(reads).not.toBe(vipps);
+  });
+});
