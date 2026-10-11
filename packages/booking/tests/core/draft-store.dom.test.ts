@@ -98,6 +98,15 @@ describe('draft-store', () => {
     expect(takeDraft(NOW)?.resourceId).toBe('res-marcus');
   });
 
+  it('keeps whether the parent chose the party mode, and leaves an older draft without it', () => {
+    for (const chosen of [true, false]) {
+      stashDraft(draft({ partyMode: 'parallel', partyModeChosen: chosen }), NOW);
+      expect(takeDraft(NOW + MINUTE)?.partyModeChosen).toBe(chosen);
+    }
+    stashDraft(draft(), NOW);
+    expect(takeDraft(NOW + MINUTE)).not.toHaveProperty('partyModeChosen');
+  });
+
   it('keeps whether each line is a grown-up, and reads an older draft as unknown', () => {
     stashDraft(
       draft({

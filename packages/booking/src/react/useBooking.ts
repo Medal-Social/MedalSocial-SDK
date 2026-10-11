@@ -887,8 +887,13 @@ export function useBooking(options: UseBookingOptions) {
     // them) and before the stylist, so no toggle is refused for a preference
     // the draft is about to restore anyway.
     const wholeVisits = restoreExtras(draft, resolved as BookingServiceDto[], bookable);
-    // Before the stylist: `setPartyMode('parallel')` drops the preference.
-    if (draft.partyMode === 'parallel') dispatch({ type: 'setPartyMode', mode: 'parallel' });
+    // Before the stylist: `setPartyMode('parallel')` drops the preference. A
+    // mode the parent picked comes back as theirs, either way, so
+    // `party.adultTogether` cannot re-decide it; one the default picked is
+    // re-derived from the same seats, and stays the default's to change.
+    if (draft.partyModeChosen !== false) {
+      dispatch({ type: 'setPartyMode', mode: draft.partyMode });
+    }
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
     draft.items.forEach((item, index) => {
       // A reseated child's name and year are the family's own, already on the line.
@@ -1000,6 +1005,7 @@ export function useBooking(options: UseBookingOptions) {
       }),
       resourceId: state.resourceId,
       partyMode: state.partyMode,
+      partyModeChosen: state.partyModeChosen === true,
       startTs: state.startTs,
       resolvedResourceId: state.resolvedResourceId,
       partyResourceIds: state.partyResourceIds,
@@ -1012,6 +1018,7 @@ export function useBooking(options: UseBookingOptions) {
     state.people,
     state.resourceId,
     state.partyMode,
+    state.partyModeChosen,
     state.startTs,
     state.resolvedResourceId,
     state.partyResourceIds,

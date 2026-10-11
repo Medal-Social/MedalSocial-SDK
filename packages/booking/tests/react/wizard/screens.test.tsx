@@ -112,6 +112,7 @@ const ALL_ON = {
   stylistEdgeFade: true,
   guestParty: true,
   childMenuFirst: true,
+  wideLayouts: true,
 };
 
 function renderWizard(screens: Partial<typeof ALL_ON> | null = ALL_ON) {
@@ -309,6 +310,29 @@ describe('BookingWizard — config.screens', () => {
     expect(within(below).getByText('Herreklipp')).toBeInTheDocument();
     expect(within(below).queryByText('Gutteklipp')).toBeNull();
     expect(divider).toBeInTheDocument();
+  });
+
+  it('keeps the stylist row at every width and lays the time step out for wide screens', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderWizard();
+    await toTimeStep(user);
+
+    expect(screen.getByTestId('stylist-options').className).not.toContain('md:flex-col');
+    expect(screen.getByTestId('time-columns')).toBeInTheDocument();
+    // The week grid, with the pack's own words for an empty day.
+    expect(screen.getByTestId('time-week')).toBeInTheDocument();
+  });
+
+  it('keeps the phone stack and the md column of stylist cards without wideLayouts', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderWizard({ ...ALL_ON, wideLayouts: false });
+    await toTimeStep(user);
+
+    expect(screen.getByTestId('stylist-options').className).toContain('md:flex-col');
+    expect(screen.queryByTestId('time-columns')).toBeNull();
+    expect(screen.queryByTestId('time-week')).toBeNull();
   });
 
   it('changes nothing for a site that asks for none of them', async () => {
