@@ -12,6 +12,7 @@ import {
   initialState,
   type WizardPerson,
   type WizardService,
+  type WizardState,
 } from '../../src/core/machine';
 
 const ADULT: WizardPerson = { key: 'adult', adult: true };
@@ -116,5 +117,139 @@ describe('party.adultTogether — a stylist named after the seats', () => {
     const named = together.reduce(picked, { type: 'pickResource', resourceId: 'res-ada' });
     expect(named.partyMode).toBe('sequential');
     expect(named.partyModeChosen).toBe(true);
+  });
+});
+
+describe('pickSeatResource', () => {
+  const two = () => {
+    let state = seat(together, [guestChild(1), ADULT]);
+    state = together.reduce(state, { type: 'pickServiceFor', index: 0, service: KLIPP });
+    return together.reduce(state, { type: 'pickServiceFor', index: 1, service: KLIPP });
+  };
+
+  it('keeps a stylist per seat, clears the slot, and lets «anyone» release it', () => {
+    const timed = together.reduce(two(), {
+      type: 'pickPartySlot',
+      startTs: Date.parse('2026-09-08T13:00:00+02:00'),
+      resourceIds: ['res-a', 'res-b'],
+      mode: 'parallel',
+    });
+    const asked = together.reduce(timed, {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    expect(asked.seatResourceIds).toEqual({ 'guest:1': 'res-ada' });
+    expect(asked.startTs).toBeNull();
+    const released = together.reduce(asked, {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: null,
+    });
+    expect(released).not.toHaveProperty('seatResourceIds');
+  });
+
+  it('refuses a stylist somebody else in the party asked for', () => {
+    const asked = together.reduce(two(), {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    expect(
+      together.reduce(asked, { type: 'pickSeatResource', index: 1, resourceId: 'res-ada' })
+    ).toBe(asked);
+    // Re-affirming one's own is fine.
+    expect(
+      together.reduce(asked, { type: 'pickSeatResource', index: 0, resourceId: 'res-ada' })
+        .seatResourceIds
+    ).toEqual({ 'guest:1': 'res-ada' });
+  });
+
+  it('ignores a seat that is not there', () => {
+    const state = two();
+    expect(
+      together.reduce(state, { type: 'pickSeatResource', index: 5, resourceId: 'res-ada' })
+    ).toBe(state);
+  });
+
+  it('drops the wishes when the basket changes', () => {
+    const asked = together.reduce(two(), {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    const changed = together.reduce(asked, {
+      type: 'choosePeople',
+      people: [guestChild(1), guestChild(2)],
+    });
+    expect(changed).not.toHaveProperty('seatResourceIds');
+  });
+});
+
+describe('pickSeatResource — wishes follow the person through a re-key', () => {
+  function family(people: WizardPerson[]) {
+    let state = together.reduce(initialState(), { type: 'choosePeople', people });
+    people.forEach((_, index) => {
+      state = together.reduce(state, { type: 'pickServiceFor', index, service: KLIPP });
+    });
+    return state;
+  }
+  const MIA: WizardPerson = { key: 'p:mia', name: 'Mia', birthYear: 2019, personId: 'mia' };
+
+  it('carries a saved child’s wish to the guest chair a login turns it into', () => {
+    let state = family([MIA, ADULT]);
+    state = together.reduce(state, { type: 'pickSeatResource', index: 0, resourceId: 'res-sara' });
+    const unseated = together.reduce(state, { type: 'unseatPeople', keys: ['p:mia'] });
+    const chair = unseated.people[0].key;
+    expect(chair).not.toBe('p:mia');
+    expect(unseated.seatResourceIds).toEqual({ [chair]: 'res-sara' });
+    // Picking Sara again for that seat is a re-affirmation, not a clash.
+    expect(
+      together.reduce(unseated, { type: 'pickSeatResource', index: 0, resourceId: 'res-sara' })
+        .seatResourceIds
+    ).toEqual({ [chair]: 'res-sara' });
+  });
+
+  it('carries the guest grown-up’s wish when a login makes it «self»', () => {
+    let state = family([guestChild(1), ADULT]);
+    state = together.reduce(state, { type: 'pickSeatResource', index: 1, resourceId: 'res-bo' });
+    const seated = together.reduce(state, { type: 'seatFamily', keep: ['guest:1'] });
+    expect(seated.people[1].key).toBe('self');
+    expect(seated.seatResourceIds).toEqual({ self: 'res-bo' });
+  });
+
+  it('never lets a wish of someone no longer seated block a stylist', () => {
+    const state: WizardState = {
+      ...family([guestChild(1), ADULT]),
+      seatResourceIds: { 'p:gone': 'res-sara' },
+    };
+    const picked = together.reduce(state, {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-sara',
+    });
+    expect(picked.seatResourceIds).toEqual({ 'guest:1': 'res-sara' });
+  });
+
+  it('drops a wish nobody seated can carry when a login re-keys the party', () => {
+    const state: WizardState = {
+      ...family([MIA, ADULT]),
+      seatResourceIds: { 'p:gone': 'res-sara' },
+    };
+    const unseated = together.reduce(state, { type: 'unseatPeople', keys: ['p:mia'] });
+    expect(unseated.people[0].key).not.toBe('p:mia');
+    expect(unseated).not.toHaveProperty('seatResourceIds');
+  });
+
+  it('keeps a wish whose person survives a reorder, and drops one with no seat left', () => {
+    let state = family([guestChild(1), guestChild(2)]);
+    state = together.reduce(state, { type: 'pickSeatResource', index: 1, resourceId: 'res-bo' });
+    const swapped = together.reduce(state, {
+      type: 'choosePeople',
+      people: [state.people[1], state.people[0]],
+    });
+    expect(swapped.seatResourceIds).toEqual({ 'guest:2': 'res-bo' });
+    const fewer = together.reduce(state, { type: 'choosePeople', people: [state.people[0]] });
+    expect(fewer).not.toHaveProperty('seatResourceIds');
   });
 });

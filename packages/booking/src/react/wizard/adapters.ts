@@ -306,6 +306,32 @@ export function partySizeWord(labels: Readonly<BookingLabels>, size: number): st
   return labelText(labels[`wizard.party.sizeWord.${suffix}`]) || undefined;
 }
 
+/**
+ * «Who cuts whom» (`config.screens.seatStylists`): one entry per person in
+ * basket order — who sits there (the same words as the service step's tabs),
+ * every service of their visit, and the stylist they asked for.
+ */
+export function seatChoices(
+  kit: BookingKit,
+  state: WizardState
+): Array<{ who: string; serviceIds: string[]; resourceId: string | null }> {
+  const { labels } = kit;
+  return state.items.map((item, index) => {
+    const person = state.people[index];
+    let who: string;
+    if (person?.adult) {
+      who = labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult']);
+    } else {
+      who = person?.name ?? fill(labels['wizard.party.child'], { n: index + 1 });
+    }
+    return {
+      who,
+      serviceIds: visitServicesOf(item).map((service) => service.id),
+      resourceId: (person && state.seatResourceIds?.[person.key]) ?? null,
+    };
+  });
+}
+
 /** The grown-up's seat a guest books with (`guestChoices` and `guestParty` share it). */
 export const GUEST_ADULT_SEAT = { key: 'adult', adult: true } as const;
 

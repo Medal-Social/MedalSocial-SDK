@@ -213,6 +213,12 @@ export interface WizardState {
    * the confirmation card cannot disagree about who is cutting whose hair.
    */
   partyResourceIds: string[] | null;
+  /**
+   * Seen at once: the stylist a person asked for, by their seat key («who cuts
+   * whom»). A person not in it is seated with anyone free. Dropped whenever the
+   * basket changes, as the stylist was chosen for that visit. Absent = none.
+   */
+  seatResourceIds?: Readonly<Record<string, string>>;
   contact: { phone: string; name: string; email: string };
   notes: string;
   consentTerms: boolean;
@@ -385,6 +391,12 @@ export type WizardAction =
    * the stylist.
    */
   | { type: 'setPartyMode'; mode: WizardState['partyMode'] }
+  /**
+   * Seen at once: the person at `index`'s own stylist (`null` = anyone). Refused for a
+   * stylist already asked for by somebody else in the party — one stylist
+   * cannot cut two people at once. The slot goes, as with `pickResource`.
+   */
+  | { type: 'pickSeatResource'; index: number; resourceId: string | null }
   /**
    * A whole family seated in one tap: the instant the visit starts and the
    * stylist each child got.
@@ -737,7 +749,9 @@ function withParty(
       )
     : [];
   const changed = basketOf(items) !== basketOf(state.items);
-  return { ...state, people, choices, extras: aligned, items, ...(changed ? clearedSlot : {}) };
+  if (!changed) return { ...state, people, choices, extras: aligned, items };
+  const { seatResourceIds: _released, ...rest } = state;
+  return { ...rest, people, choices, extras: aligned, items, ...clearedSlot };
 }
 
 /** The people behind a basket built without step 1 — a link, a restored draft. */
@@ -1316,6 +1330,38 @@ export function createWizard(config: WizardConfig): Wizard {
   }
 
   function reduce(state: WizardState, action: WizardAction): WizardState {
+    return carrySeatResources(state, reduceStep(state, action));
+  }
+
+  /**
+   * «Who cuts whom» follows the person, not the key. A login re-keys seats
+   * (`unseatPeople`, `seatFamily`: a guest chair becomes the family's child,
+   * «adult» becomes «self») without the basket changing, and a choice left under
+   * the old key would vanish from the selector and the search yet still block
+   * that stylist for everyone. So after every step: a key that survives keeps
+   * its choice, a seat whose key was renamed in place takes the old key's
+   * choice, and anything else is dropped.
+   */
+  function carrySeatResources(before: WizardState, after: WizardState): WizardState {
+    const wishes = after.seatResourceIds;
+    if (wishes === undefined || after.people === before.people) return after;
+    const current = new Set(after.people.map((person) => person.key));
+    const carried: Record<string, string> = {};
+    after.people.forEach((person, index) => {
+      const own = wishes[person.key];
+      const previous = before.people[index]?.key;
+      const renamed =
+        previous !== undefined && previous !== person.key && !current.has(previous)
+          ? wishes[previous]
+          : undefined;
+      const wish = own ?? renamed;
+      if (wish !== undefined) carried[person.key] = wish;
+    });
+    const { seatResourceIds: _stale, ...rest } = after;
+    return Object.keys(carried).length > 0 ? { ...rest, seatResourceIds: carried } : rest;
+  }
+
+  function reduceStep(state: WizardState, action: WizardAction): WizardState {
     switch (action.type) {
       case 'startOver':
         // `initialState()` rather than a hand-written blank: a field added there
@@ -1497,6 +1543,31 @@ export function createWizard(config: WizardConfig): Wizard {
           ...preference,
           partyMode: action.mode,
           partyModeChosen: true,
+          error: null,
+        };
+      }
+
+      case 'pickSeatResource': {
+        const key = state.people[action.index]?.key;
+        if (key === undefined) return state;
+        // Only people still seated can hold a stylist: anything else is pruned.
+        const seated = new Set(state.people.map((person) => person.key));
+        const current = Object.fromEntries(
+          Object.entries(state.seatResourceIds ?? {}).filter(([other]) => seated.has(other))
+        );
+        if (action.resourceId === null) delete current[key];
+        else {
+          const takenBy = Object.entries(current).find(
+            ([other, id]) => id === action.resourceId && other !== key
+          );
+          if (takenBy) return state;
+          current[key] = action.resourceId;
+        }
+        const { seatResourceIds: _previous, ...rest } = state;
+        return {
+          ...rest,
+          ...clearedSlot,
+          ...(Object.keys(current).length > 0 ? { seatResourceIds: current } : {}),
           error: null,
         };
       }
