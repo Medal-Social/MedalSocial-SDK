@@ -8,6 +8,7 @@ import {
   recapProps,
   seatChoices,
   stylistFace,
+  stylistSeats,
 } from '../../../src/react/wizard/adapters';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
@@ -146,5 +147,31 @@ describe('seatChoices', () => {
   it('names a grown-up guest seat', () => {
     const seats = seatChoices(kit, seated([guestChild(1), { key: 'adult', adult: true }]));
     expect(seats[1].who).toBe(TEST_LABELS['people.adult']);
+  });
+});
+
+describe('stylistSeats', () => {
+  const on = createBookingKit(
+    { ...PARITY_CONFIG, screens: { ...PARITY_CONFIG.screens, seatStylists: true } },
+    TEST_LABELS
+  );
+  const two = () => {
+    let state = reduce(initialState(), {
+      type: 'choosePeople',
+      people: [guestChild(1), guestChild(2)],
+    });
+    state = reduce(state, { type: 'pickServiceFor', index: 0, service: KLIPP });
+    return reduce(state, { type: 'pickServiceFor', index: 1, service: KLIPP });
+  };
+  const onSeat = () => undefined;
+
+  it('offers the seats only seen at once, and only with the switch on', () => {
+    const sequential = two();
+    const parallel = reduce(sequential, { type: 'setPartyMode', mode: 'parallel' });
+    expect(stylistSeats(on, sequential, onSeat)).toEqual({});
+    expect(stylistSeats(kit, parallel, onSeat)).toEqual({});
+    const seen = stylistSeats(on, parallel, onSeat);
+    expect(seen.seats).toHaveLength(2);
+    expect(seen.onSeat).toBe(onSeat);
   });
 });
