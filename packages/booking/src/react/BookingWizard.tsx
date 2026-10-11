@@ -583,6 +583,7 @@ function WhenStep({ booking, resolved }: StepProps) {
         onPick={booking.pickResource}
         firstAvailableFaces={config.screens.firstAvailableFaces}
         edgeFade={config.screens.stylistEdgeFade}
+        row={config.screens.wideLayouts}
         party={
           party
             ? {
@@ -628,6 +629,7 @@ function WhenStep({ booking, resolved }: StepProps) {
               : undefined
           }
           dayFullness={config.screens.dayFullness}
+          layout={config.screens.wideLayouts ? 'adaptive' : 'stack'}
           party={
             party
               ? {

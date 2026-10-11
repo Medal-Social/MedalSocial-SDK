@@ -155,6 +155,10 @@ export interface BookingConfig {
    * - `childMenuFirst` — a child's service list leads with the children's and
    *   anyone's groups; the grown-ups' groups move below the «usually not for
    *   this age» divider, still one tap away.
+   * - `wideLayouts` — the stylist step keeps its row of faces at every width
+   *   (the chosen stylist's bio under it), and the time step goes
+   *   `layout="adaptive"`: days beside the times on an iPad, the whole week as
+   *   a grid of times on a desktop. Needs the `time.week.*` labels.
    */
   screens: {
     recap: boolean;
@@ -166,6 +170,7 @@ export interface BookingConfig {
     stylistEdgeFade: boolean;
     guestParty: boolean;
     childMenuFirst: boolean;
+    wideLayouts: boolean;
   };
   consent: {
     termsUrl: string | null;
@@ -263,6 +268,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       stylistEdgeFade: false,
       guestParty: false,
       childMenuFirst: false,
+      wideLayouts: false,
     },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
@@ -456,6 +462,7 @@ const schema = z
       stylistEdgeFade: z.boolean(),
       guestParty: z.boolean(),
       childMenuFirst: z.boolean(),
+      wideLayouts: z.boolean(),
     }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),
