@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -865,6 +865,82 @@ describe('BookingWizard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
     await waitFor(() => expect(reads()).toHaveLength(2));
+  });
+
+  it('reports every visit of a party that failed, not only the first', async () => {
+    // Two failures in one batch are two updates React may render as one; each
+    // is still its own event.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/availability')) {
+          return { ok: false, status: 503, json: async () => ({}) };
+        }
+        if (pathname.startsWith('/api/booking/resources')) return ok({ resources: [SARA] });
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const onEvent = vi.fn();
+    const reads = () => onEvent.mock.calls.filter(([event]) => event.type === 'read_error');
+    const user = userEvent.setup();
+    renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await addSibling(user, /Jenteklipp/);
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await user.click(await screen.findByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    // Gutteklipp's lone read before the sibling joined, then the party's batch
+    // of two — one event per failed visit, three in all (a last-error slot
+    // reported two).
+    await waitFor(() => expect(reads()).toHaveLength(3));
+  });
+
+  it('shows the stylists loading after an overnight retry until the new window answers', async () => {
+    // The roster is asked again for the new window; the old list must not sit
+    // there as a loaded answer meanwhile.
+    let releaseResources: (() => void) | null = null;
+    let day = 2;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+        if (pathname.startsWith('/api/booking/availability')) {
+          if (day === 2) return { ok: false, status: 400, json: async () => ({}) };
+          return ok({ slots: [slot(3, 13, SARA.id)] });
+        }
+        if (pathname.startsWith('/api/booking/resources')) {
+          if (day === 2) return ok({ resources: [SARA] });
+          await new Promise<void>((resolve) => {
+            releaseResources = resolve;
+          });
+          return ok({ resources: [SARA] });
+        }
+        if (pathname.startsWith('/api/booking/schedule')) return ok({ days: AN_OPEN_WEEK });
+        return ok({});
+      })
+    );
+    const user = userEvent.setup();
+    renderWizard();
+
+    await pickGutteklipp(user);
+    expect(await screen.findByRole('radio', { name: /Sara/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    day = 3;
+    vi.spyOn(Date, 'now').mockReturnValue(osloTs(3, 0, 30));
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+
+    await waitFor(() => expect(releaseResources).not.toBeNull());
+    expect(screen.queryByRole('radio', { name: /Sara/ })).toBeNull();
+    await act(async () => releaseResources?.());
+    expect(await screen.findByRole('radio', { name: /Sara/ })).toBeInTheDocument();
   });
 
   it('reports a read that got no answer at all with no status', async () => {

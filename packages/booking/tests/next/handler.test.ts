@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBookingHandlerFor } from '../../src/next/handler';
+import { createBookingHandlerFor, failureCode } from '../../src/next/handler';
 import { testCookieJar, testRuntime } from '../support/next-runtime';
 
 /**
@@ -238,6 +238,19 @@ describe('createBookingHandler — failures leave a line in the logs', () => {
     expect((await response.json()).error).toBe('invalidInput');
   });
 
+  it("logs a portal refusal by its reason, the portal routes' own code", async () => {
+    const { handler, logger } = loggedHandler();
+
+    // A body that is not the verify shape: the portal's 400 `{ reason: 'invalid' }`.
+    const response = await handler.POST(post('/api/portal/login/verify'));
+
+    expect(response.status).toBe(400);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'portal/login/verify', status: 400, code: 'invalid' }),
+      expect.any(String)
+    );
+  });
+
   it('logs the code, never the message: some messages carry what the visitor typed', async () => {
     const { handler, logger } = loggedHandler();
 
@@ -310,5 +323,15 @@ describe('createBookingHandler — failures leave a line in the logs', () => {
     );
     expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('failureCode', () => {
+  it("reads `error`, else the portal's `reason`, and nothing else", () => {
+    expect(failureCode({ error: 'invalidInput', reason: 'invalid' })).toBe('invalidInput');
+    expect(failureCode({ ok: false, reason: 'throttled' })).toBe('throttled');
+    expect(failureCode({ error: 42, reason: 7, message: 'what they typed' })).toBeUndefined();
+    expect(failureCode(null)).toBeUndefined();
+    expect(failureCode('nope')).toBeUndefined();
   });
 });

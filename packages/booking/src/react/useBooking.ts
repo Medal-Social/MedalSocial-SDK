@@ -164,6 +164,9 @@ export interface BookingReadError {
   seq: number;
 }
 
+/** How many failed reads the controller keeps for the monitoring tap. */
+const READ_ERRORS_KEPT = 20;
+
 /** A non-2xx answer, keeping the status a monitoring tap reports. */
 class ReadFailure extends Error {
   constructor(
@@ -1166,13 +1169,15 @@ export function useBooking(options: UseBookingOptions) {
    * failure here used to be swallowed into a card: the visitor saw «Vi får
    * ikke hentet ledige tider», and nobody else ever learnt that they had.
    */
-  const [readError, setReadError] = useState<BookingReadError | null>(null);
+  const [readErrors, setReadErrors] = useState<readonly BookingReadError[]>([]);
+  // A queue, not a last-error slot: two visits failing in one batch are two
+  // updates React may render as one, and the second must still be reported.
   const noteReadError = useCallback((endpoint: BookingReadEndpoint, error: unknown) => {
-    setReadError((previous) => ({
-      endpoint,
-      status: error instanceof ReadFailure ? error.status : null,
-      seq: (previous?.seq ?? 0) + 1,
-    }));
+    setReadErrors((previous) => {
+      const seq = (previous[previous.length - 1]?.seq ?? 0) + 1;
+      const next = { endpoint, status: error instanceof ReadFailure ? error.status : null, seq };
+      return [...previous.slice(-(READ_ERRORS_KEPT - 1)), next];
+    });
   }, []);
   const api = config.paths.api;
 
@@ -1203,11 +1208,11 @@ export function useBooking(options: UseBookingOptions) {
         setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
       }
       // Nothing is cached for a failed visit; the step says so rather than «full».
-      const failure = settled.find((result) => result.status === 'rejected');
-      if (failure) {
-        setSlotsFailed(true);
-        noteReadError('availability', failure.reason);
+      // Each failed visit is its own report.
+      for (const result of settled) {
+        if (result.status === 'rejected') noteReadError('availability', result.reason);
       }
+      if (fetched.length < wanted.length) setSlotsFailed(true);
     })();
 
     return () => {
@@ -1405,6 +1410,9 @@ export function useBooking(options: UseBookingOptions) {
     setSeedRetired(true);
     if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
       setSlots({});
+      // The stylists are asked again for the new window; until they answer the
+      // step shows them loading rather than yesterday's list as current.
+      setResourcesKnown(false);
       setFetchedNextAvailable(null);
       setFetchedSchedule(null);
       setFromTs(now);
@@ -1979,8 +1987,8 @@ export function useBooking(options: UseBookingOptions) {
     confirmed,
     startOver,
     refresh,
-    /** The last read that failed (`onEvent`'s `read_error`). */
-    readError,
+    /** The recent reads that failed, oldest first (`onEvent`'s `read_error`). */
+    readErrors,
     restore: { hydrated, restoring, linked, resuming },
   };
 }

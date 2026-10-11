@@ -240,14 +240,15 @@ function BookingWizardShell(props: BookingWizardProps) {
   // hentet ledige tider». Once per failure (`seq`), not per render.
   // Keyed on `seq` in a ref, like `lastError` above: the effect also re-runs when
   // an inline `onEvent` changes identity, which must not report the failure again.
-  const { readError } = booking;
+  const { readErrors } = booking;
   const lastReadSeq = useRef(0);
   useEffect(() => {
-    if (readError !== null && readError.seq !== lastReadSeq.current) {
-      lastReadSeq.current = readError.seq;
-      onEvent?.({ type: 'read_error', endpoint: readError.endpoint, status: readError.status });
+    for (const failure of readErrors) {
+      if (failure.seq <= lastReadSeq.current) continue;
+      lastReadSeq.current = failure.seq;
+      onEvent?.({ type: 'read_error', endpoint: failure.endpoint, status: failure.status });
     }
-  }, [readError, onEvent]);
+  }, [readErrors, onEvent]);
   const confirmedCount = confirmed?.bookings.length ?? 0;
   useEffect(() => {
     if (confirmedCount > 0) onEvent?.({ type: 'submit_ok', bookings: confirmedCount });
