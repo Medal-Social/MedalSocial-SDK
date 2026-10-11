@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { guestChild, type WizardService } from '../../../src/core/machine';
+import { guestChild, type WizardPerson, type WizardService } from '../../../src/core/machine';
 import type { BookingResourceDto } from '../../../src/core/types';
 import { createBookingKit } from '../../../src/react/kit';
 import { mergeLabels } from '../../../src/react/labels';
-import { partySizeWord, recapProps, stylistFace } from '../../../src/react/wizard/adapters';
+import {
+  partySizeWord,
+  recapProps,
+  seatChoices,
+  stylistFace,
+} from '../../../src/react/wizard/adapters';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
 
@@ -109,5 +114,37 @@ describe('recapProps', () => {
     const untimed = recapProps(kit, oneVisit(), RESOURCES, slots);
     expect(untimed.alternatives).toEqual([]);
     expect(untimed.lines[0]?.stylist).toBeNull();
+  });
+});
+
+describe('seatChoices', () => {
+  function seated(people: WizardPerson[]) {
+    let state = reduce(initialState(), { type: 'choosePeople', people });
+    people.forEach((_, index) => {
+      state = reduce(state, { type: 'pickServiceFor', index, service: KLIPP });
+    });
+    return state;
+  }
+
+  it('names each seat as the service step does, with its visit and its own stylist', () => {
+    let state = seated([
+      guestChild(1),
+      { key: 'p:mia', name: 'Mia', birthYear: 2019, personId: 'mia' },
+      { key: 'self', adult: true },
+    ]);
+    state = reduce(state, { type: 'pickSeatResource', index: 1, resourceId: 'res-ada' });
+    const seats = seatChoices(kit, state);
+    expect(seats.map((seat) => seat.who)).toEqual([
+      String(TEST_LABELS['wizard.party.child']).replace('{n}', '1'),
+      'Mia',
+      TEST_LABELS['people.self'],
+    ]);
+    expect(seats.map((seat) => seat.resourceId)).toEqual([null, 'res-ada', null]);
+    expect(seats[0].serviceIds).toEqual([KLIPP.id]);
+  });
+
+  it('names a grown-up guest seat', () => {
+    const seats = seatChoices(kit, seated([guestChild(1), { key: 'adult', adult: true }]));
+    expect(seats[1].who).toBe(TEST_LABELS['people.adult']);
   });
 });

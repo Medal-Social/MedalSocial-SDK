@@ -159,6 +159,8 @@ export interface BookingConfig {
    *   (the chosen stylist's bio under it), and the time step goes
    *   `layout="adaptive"`: days beside the times on an iPad, the whole week as
    *   a grid of times on a desktop. Needs the `time.week.*` labels.
+   * - `seatStylists` — a family seen at once can ask for a stylist per person
+   *   («who cuts whom»); the rest are seated with anyone free at that minute.
    */
   screens: {
     recap: boolean;
@@ -171,6 +173,7 @@ export interface BookingConfig {
     guestParty: boolean;
     childMenuFirst: boolean;
     wideLayouts: boolean;
+    seatStylists: boolean;
   };
   consent: {
     termsUrl: string | null;
@@ -269,6 +272,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       guestParty: false,
       childMenuFirst: false,
       wideLayouts: false,
+      seatStylists: false,
     },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
@@ -463,6 +467,7 @@ const schema = z
       guestParty: z.boolean(),
       childMenuFirst: z.boolean(),
       wideLayouts: z.boolean(),
+      seatStylists: z.boolean(),
     }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),

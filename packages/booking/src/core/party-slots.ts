@@ -182,13 +182,18 @@ function seatSequentially(
 function seatInParallel(
   items: WizardItem[],
   starts: number[],
-  index: ReturnType<typeof indexAvailability>
+  index: ReturnType<typeof indexAvailability>,
+  preferred: readonly (string | null)[] = []
 ): string[] | null {
   const taken = new Set<string>();
 
   function assign(position: number): string[] | null {
     if (position === items.length) return [];
-    for (const resourceId of index.resourceOrder) {
+    // A person with a stylist of their own is seated with that one or not at
+    // all; everyone else with anyone free at the minute.
+    const wanted = preferred[position] ?? null;
+    const candidates = wanted === null ? index.resourceOrder : [wanted];
+    for (const resourceId of candidates) {
       if (taken.has(resourceId)) continue;
       if (!index.free(visitKey(items[position]), resourceId, starts[position])) continue;
       taken.add(resourceId);
@@ -212,17 +217,24 @@ function seatInParallel(
 export function findPartySlots(
   items: WizardItem[],
   slotsByService: SlotsByService,
-  mode: WizardState['partyMode']
+  mode: WizardState['partyMode'],
+  /**
+   * Seen at once: each line's own stylist, in basket order, `null` for
+   * anyone. Ignored one after another, where the visit has one stylist.
+   */
+  seatResourceIds: readonly (string | null)[] = []
 ): PartySlot[] {
   if (items.length === 0) return [];
 
   const index = indexAvailability(slotsByService);
-  const seat = mode === 'parallel' ? seatInParallel : seatSequentially;
   const found: PartySlot[] = [];
 
   for (const startTs of candidateStarts(items, slotsByService)) {
     const starts = itemStartTimes(items, startTs, mode);
-    const resourceIds = seat(items, starts, index);
+    const resourceIds =
+      mode === 'parallel'
+        ? seatInParallel(items, starts, index, seatResourceIds)
+        : seatSequentially(items, starts, index);
     if (resourceIds === null) continue;
     found.push({
       startTs,

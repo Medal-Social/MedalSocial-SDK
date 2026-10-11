@@ -948,6 +948,12 @@ export function useBooking(options: UseBookingOptions) {
       dispatch({ type: 'setPartyMode', mode: draft.partyMode });
     }
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
+    // After the seats and the mode: each person's own stylist, by their seat.
+    draft.seatResourceIds?.forEach((resourceId, index) => {
+      if (resourceId !== null) {
+        dispatch({ type: 'pickSeatResource', index, resourceId });
+      }
+    });
     draft.items.forEach((item, index) => {
       // A reseated child's name and year are the family's own, already on the line.
       if (reseated.has(index)) return;
@@ -1059,6 +1065,9 @@ export function useBooking(options: UseBookingOptions) {
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       partyModeChosen: state.partyModeChosen === true,
+      ...(state.seatResourceIds
+        ? { seatResourceIds: state.people.map((p) => state.seatResourceIds?.[p.key] ?? null) }
+        : {}),
       startTs: state.startTs,
       resolvedResourceId: state.resolvedResourceId,
       partyResourceIds: state.partyResourceIds,
@@ -1072,6 +1081,7 @@ export function useBooking(options: UseBookingOptions) {
     state.resourceId,
     state.partyMode,
     state.partyModeChosen,
+    state.seatResourceIds,
     state.startTs,
     state.resolvedResourceId,
     state.partyResourceIds,
@@ -1453,6 +1463,40 @@ export function useBooking(options: UseBookingOptions) {
     setStylistNotice(labelText(labels['wizard.stylistGone']));
   }, [labels, resourcesKnown, resources, state.step, state.resourceId, state.items]);
 
+  /**
+   * The same for «who cuts whom»: a person's own stylist who has left the
+   * roster, or no longer does that person's visit (a draft restored after a
+   * Vipps round trip), would leave the seat with nobody to seat it and the
+   * family with no times at all. Released to anyone, and said so.
+   */
+  useEffect(() => {
+    if (!resourcesKnown || resources.length === 0 || state.step !== 'when') return;
+    const wishes = state.seatResourceIds;
+    if (wishes === undefined) return;
+    let released = false;
+    state.people.forEach((person, index) => {
+      const wish = wishes[person.key];
+      const item = state.items[index];
+      if (wish === undefined || item === undefined) return;
+      const chosen = resources.find((resource) => resource.id === wish);
+      const covers =
+        chosen !== undefined &&
+        visitServicesOf(item).every((service) => chosen.serviceIds.includes(service.id));
+      if (covers) return;
+      dispatch({ type: 'pickSeatResource', index, resourceId: null });
+      released = true;
+    });
+    if (released) setStylistNotice(labelText(labels['wizard.stylistGone']));
+  }, [
+    labels,
+    resourcesKnown,
+    resources,
+    state.step,
+    state.seatResourceIds,
+    state.people,
+    state.items,
+  ]);
+
   /** The open dates with the cutoffs pulled back to fit the WHOLE visit (the safe direction). */
   const openDaysForVisit = useMemo(() => {
     if (openDays === null) return null;
@@ -1497,19 +1541,31 @@ export function useBooking(options: UseBookingOptions) {
     [kit, party, state.partyMode, haveEveryService, state.items, basketSlots]
   );
 
+  /** Each line's own stylist, in basket order, for a party seen at once. */
+  const seatResourceIds = useMemo(
+    () => state.people.map((person) => state.seatResourceIds?.[person.key] ?? null),
+    [state.people, state.seatResourceIds]
+  );
   const partySlots = useMemo(
     () =>
-      party ? kit.partySlots.findPartySlots(state.items, preferredSlots, state.partyMode) : [],
-    [kit, party, state.items, preferredSlots, state.partyMode]
+      party
+        ? kit.partySlots.findPartySlots(
+            state.items,
+            preferredSlots,
+            state.partyMode,
+            seatResourceIds
+          )
+        : [],
+    [kit, party, state.items, preferredSlots, state.partyMode, seatResourceIds]
   );
 
   /** The parallel visits, for the day with nothing back to back — over UNFILTERED slots. */
   const partyAlternatives = useMemo(
     () =>
       party && state.partyMode === 'sequential'
-        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel')
+        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel', seatResourceIds)
         : [],
-    [kit, party, state.items, basketSlots, state.partyMode]
+    [kit, party, state.items, basketSlots, state.partyMode, seatResourceIds]
   );
 
   const singleSlots = useMemo(() => {
