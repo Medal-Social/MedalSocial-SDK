@@ -142,20 +142,37 @@ export async function knownExtraServiceIds(
 }
 
 /**
- * The engine's «that slot is no longer free».
+ * The engine's refusals that all mean «that time cannot be booked — pick
+ * another»: taken, already passed, beyond the booking horizon, off the slot
+ * grid. Each is answered the same way — fresh openings, back to the time step —
+ * because the visitor's only move is a different time. Read as anything else,
+ * the wizard said «Prøv en gang til» and kept the hour, and every retry was
+ * refused again: a tab left open overnight offers hours that have passed.
+ */
+const PICK_ANOTHER_TIME = new Set(['slot_taken', 'in_past', 'outside_horizon', 'off_grid']);
+
+/** The same refusals by their message prefix, for an engine that sends no `details.reason`. */
+const PICK_ANOTHER_TIME_MESSAGE = /\b(?:SLOT_TAKEN|IN_PAST|OUTSIDE_HORIZON|OFF_GRID)\b/;
+
+/** `error.details.reason` — the engine's structured refusal, when it sent one. */
+function refusalReason(error: MedalApiError): string | null {
+  const details = error.details;
+  if (typeof details !== 'object' || details === null || !('reason' in details)) return null;
+  return typeof details.reason === 'string' ? details.reason : null;
+}
+
+/**
+ * The engine's «that time is no longer bookable» (see `PICK_ANOTHER_TIME`).
  *
- * It arrives as `CONFLICT` with `SLOT_TAKEN` in the message: the SDK exposes no
- * finer code (`MedalApiError.code` is the generic `CONFLICT`, shared with a
- * duplicate key and an unseatable party). The message is read HERE and nowhere
- * else, so the day the engine grows a structured code there is one line to
- * change.
+ * It arrives as `CONFLICT`, a code shared with a duplicate key and an
+ * unseatable party. The reason is read HERE and nowhere else: structured when
+ * the engine sends one, else the message prefix it has always carried.
  */
 export function isSlotTaken(error: unknown): boolean {
-  return (
-    error instanceof MedalApiError &&
-    error.code === 'CONFLICT' &&
-    error.message.includes('SLOT_TAKEN')
-  );
+  if (!(error instanceof MedalApiError) || error.code !== 'CONFLICT') return false;
+  const reason = refusalReason(error);
+  if (reason !== null) return PICK_ANOTHER_TIME.has(reason);
+  return PICK_ANOTHER_TIME_MESSAGE.test(error.message);
 }
 
 /**

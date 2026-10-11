@@ -489,6 +489,49 @@ describe('POST /api/booking/create', () => {
     expect((await response.json()).error).toBe('slotTaken');
   });
 
+  it.each([
+    ['in_past', 'IN_PAST: the requested time has already passed'],
+    ['outside_horizon', 'OUTSIDE_HORIZON: bookings can be made up to 60 days ahead'],
+    ['off_grid', 'OFF_GRID: bookings start every 30 minutes'],
+  ])(
+    'answers a %s refusal like a taken slot, so the visitor picks another time',
+    async (reason, message) => {
+      // A tab left open overnight offers hours that have passed. As a plain
+      // `conflict` the wizard said «Prøv en gang til» and kept the hour, and
+      // every retry was refused the same way.
+      vi.mocked(createBooking).mockRejectedValueOnce(
+        new MedalApiError(409, 'CONFLICT', message, { reason })
+      );
+
+      const response = await POST(validRequest());
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).error).toBe('slotTaken');
+    }
+  );
+
+  it('reads the refusal from the message when the engine sends no reason', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'IN_PAST: the requested time has already passed')
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('slotTaken');
+  });
+
+  it('keeps a conflict with another reason a conflict, whatever its message says', async () => {
+    vi.mocked(createBooking).mockRejectedValueOnce(
+      new MedalApiError(409, 'CONFLICT', 'SLOT_TAKEN mentioned in passing', {
+        reason: 'party_limit',
+      })
+    );
+
+    const response = await POST(validRequest());
+
+    expect((await response.json()).error).toBe('conflict');
+  });
+
   it('keeps a non-slot conflict distinct, because the wizard answers them differently', async () => {
     // `slotTaken` sends the visitor back to step 3 with the neighbouring times
     // highlighted. Any other 409 — a duplicate submission, a party the engine
