@@ -71,9 +71,11 @@ export * from './dist/react/link/index.mjs';`;
 const BUDGETS = [
   {
     // Everything `/core` exports, config resolution (zod schema) included.
+    // Raised 16 → 16.5 KB for `screens.seatStylists`: the per-seat search
+    // option and the wishes carried through a login's re-key. Measured 16.16 KB.
     name: '@medalsocial/booking/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 16 * 1024,
+    gzipBytes: 16.5 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.

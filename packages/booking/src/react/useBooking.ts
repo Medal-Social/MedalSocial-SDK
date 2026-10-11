@@ -1529,9 +1529,9 @@ export function useBooking(options: UseBookingOptions) {
   const partyAlternatives = useMemo(
     () =>
       party && state.partyMode === 'sequential'
-        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel')
+        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel', seatResourceIds)
         : [],
-    [kit, party, state.items, basketSlots, state.partyMode]
+    [kit, party, state.items, basketSlots, state.partyMode, seatResourceIds]
   );
 
   const singleSlots = useMemo(() => {
