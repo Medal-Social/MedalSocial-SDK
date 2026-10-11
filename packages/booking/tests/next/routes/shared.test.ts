@@ -54,5 +54,10 @@ describe('isSlotTaken', () => {
     expect(
       isSlotTaken(new MedalApiError(422, 'VALIDATION_ERROR', 'x', { reason: 'in_past' }))
     ).toBe(false);
+    // Only a 409 is ever one, whatever its code says.
+    expect(isSlotTaken(new MedalApiError(400, 'CONFLICT', 'x', { reason: 'slot_taken' }))).toBe(
+      false
+    );
+    expect(isSlotTaken(new MedalApiError(422, 'CONFLICT', 'IN_PAST: gone'))).toBe(false);
   });
 });

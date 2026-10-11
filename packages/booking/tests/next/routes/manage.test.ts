@@ -289,6 +289,18 @@ describe('POST /api/booking/manage/[token] — the slot cache', () => {
     expect(expireBookingSeeds).toHaveBeenCalledWith(['svc-gutt']);
   });
 
+  it('answers a move refused as «pick another time» under any 409 code with slotTaken', async () => {
+    // A 409 under another code used to fall through to a 502 «upstreamError».
+    vi.mocked(rescheduleManage).mockRejectedValue(
+      new MedalApiError(409, 'SLOT_CONFLICT', 'refused', { reason: 'in_past' })
+    );
+
+    const response = await post({ action: 'reschedule', startTs: 1_800_000_000_000 });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe('slotTaken');
+  });
+
   it('leaves the cache alone when the write failed', async () => {
     vi.mocked(cancelManage).mockRejectedValue(
       new MedalApiError(409, 'CONFLICT', 'CANCEL_WINDOW_PASSED')

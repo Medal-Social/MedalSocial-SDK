@@ -113,13 +113,14 @@ function manageErrorResponse(rt: BookingRuntime, error: unknown, action: string)
     if (error.status === 404) {
       return bookingErrorResponse('notFound', 404);
     }
+    if (error.code === 'CONFLICT' && error.message.includes('WINDOW_PASSED')) {
+      return bookingErrorResponse('windowPassed', 409);
+    }
+    // Before the code check: a «pick another time» refusal is any 409.
+    if (isSlotTaken(error)) {
+      return bookingErrorResponse('slotTaken', 409);
+    }
     if (error.code === 'CONFLICT') {
-      if (error.message.includes('WINDOW_PASSED')) {
-        return bookingErrorResponse('windowPassed', 409);
-      }
-      if (isSlotTaken(error)) {
-        return bookingErrorResponse('slotTaken', 409);
-      }
       return bookingErrorResponse('conflict', 409);
     }
     if (error.code === 'VALIDATION_ERROR' || error.code === 'INVALID_INPUT') {

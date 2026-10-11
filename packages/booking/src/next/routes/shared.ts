@@ -149,14 +149,13 @@ export async function knownExtraServiceIds(
  * the wizard said «Prøv en gang til» and kept the hour, and every retry was
  * refused again: a tab left open overnight offers hours that have passed.
  *
- * The engine's contract (Medal-Social/medal-monorepo): `requireSlotResource`
- * in `apps/convex/bookings/bookings.ts` throws all four as
- * `bookingError(ErrorCode.CONFLICT, '<reason>', '<REASON>: …')`, and
- * `apps/convex/bookings/lib/apiErrors.ts` surfaces the reason as
- * `error.details.reason` on a 409. Read defensively anyway — by status as
- * well as code, the reason in any case, the message prefix when there is no
- * reason — so a change of spelling there degrades to «pick another time»,
- * never to a retry loop.
+ * The API answers all four with HTTP 409 and code `CONFLICT`, the reason in
+ * `error.details.reason` (lower case) and the same word upper-cased as the
+ * message prefix (`IN_PAST: …`). Read defensively anyway — any 409 whatever
+ * its code, the reason in any case, the message prefix when there is no
+ * reason — so a change of spelling upstream degrades to «pick another time»,
+ * never to a retry loop. Only a 409 is ever one: a 400 or 422 is a request
+ * the visitor's next tap cannot fix by picking a time.
  */
 const PICK_ANOTHER_TIME = new Set(['slot_taken', 'in_past', 'outside_horizon', 'off_grid']);
 
@@ -173,13 +172,11 @@ function refusalReason(error: MedalApiError): string | null {
 /**
  * The engine's «that time is no longer bookable» (see `PICK_ANOTHER_TIME`).
  *
- * It arrives as a 409 `CONFLICT`, shared with a duplicate key and an
- * unseatable party. The reason is read HERE and nowhere else: structured when
+ * It arrives as a 409, shared with a duplicate key and an unseatable party. The reason is read HERE and nowhere else: structured when
  * the engine sends one, else the message prefix it has always carried.
  */
 export function isSlotTaken(error: unknown): boolean {
-  if (!(error instanceof MedalApiError)) return false;
-  if (error.code !== 'CONFLICT' && error.status !== 409) return false;
+  if (!(error instanceof MedalApiError) || error.status !== 409) return false;
   const reason = refusalReason(error);
   if (reason !== null) return PICK_ANOTHER_TIME.has(reason);
   return PICK_ANOTHER_TIME_MESSAGE.test(error.message);
