@@ -241,6 +241,19 @@ describe('pickSeatResource — wishes follow the person through a re-key', () =>
     expect(unseated).not.toHaveProperty('seatResourceIds');
   });
 
+  it('never gives a newcomer on step 1 the stylist of the person they replaced', () => {
+    let state = family([guestChild(1), guestChild(2)]);
+    state = together.reduce(state, { type: 'pickSeatResource', index: 0, resourceId: 'res-sara' });
+    // Same service, same basket: only who sits there changed.
+    const replaced = together.reduce(state, {
+      type: 'choosePeople',
+      people: [{ ...MIA, key: 'p:mia' }, state.people[1]],
+      services: [KLIPP],
+    });
+    expect(replaced.people[0].key).toBe('p:mia');
+    expect(replaced).not.toHaveProperty('seatResourceIds');
+  });
+
   it('keeps a wish whose person survives a reorder, and drops one with no seat left', () => {
     let state = family([guestChild(1), guestChild(2)]);
     state = together.reduce(state, { type: 'pickSeatResource', index: 1, resourceId: 'res-bo' });
