@@ -148,28 +148,38 @@ export async function knownExtraServiceIds(
  * because the visitor's only move is a different time. Read as anything else,
  * the wizard said «Prøv en gang til» and kept the hour, and every retry was
  * refused again: a tab left open overnight offers hours that have passed.
+ *
+ * The engine's contract (Medal-Social/medal-monorepo): `requireSlotResource`
+ * in `apps/convex/bookings/bookings.ts` throws all four as
+ * `bookingError(ErrorCode.CONFLICT, '<reason>', '<REASON>: …')`, and
+ * `apps/convex/bookings/lib/apiErrors.ts` surfaces the reason as
+ * `error.details.reason` on a 409. Read defensively anyway — by status as
+ * well as code, the reason in any case, the message prefix when there is no
+ * reason — so a change of spelling there degrades to «pick another time»,
+ * never to a retry loop.
  */
 const PICK_ANOTHER_TIME = new Set(['slot_taken', 'in_past', 'outside_horizon', 'off_grid']);
 
 /** The same refusals by their message prefix, for an engine that sends no `details.reason`. */
 const PICK_ANOTHER_TIME_MESSAGE = /\b(?:SLOT_TAKEN|IN_PAST|OUTSIDE_HORIZON|OFF_GRID)\b/;
 
-/** `error.details.reason` — the engine's structured refusal, when it sent one. */
+/** `error.details.reason` in lower case — the engine's structured refusal, when it sent one. */
 function refusalReason(error: MedalApiError): string | null {
   const details = error.details;
   if (typeof details !== 'object' || details === null || !('reason' in details)) return null;
-  return typeof details.reason === 'string' ? details.reason : null;
+  return typeof details.reason === 'string' ? details.reason.toLowerCase() : null;
 }
 
 /**
  * The engine's «that time is no longer bookable» (see `PICK_ANOTHER_TIME`).
  *
- * It arrives as `CONFLICT`, a code shared with a duplicate key and an
+ * It arrives as a 409 `CONFLICT`, shared with a duplicate key and an
  * unseatable party. The reason is read HERE and nowhere else: structured when
  * the engine sends one, else the message prefix it has always carried.
  */
 export function isSlotTaken(error: unknown): boolean {
-  if (!(error instanceof MedalApiError) || error.code !== 'CONFLICT') return false;
+  if (!(error instanceof MedalApiError)) return false;
+  if (error.code !== 'CONFLICT' && error.status !== 409) return false;
   const reason = refusalReason(error);
   if (reason !== null) return PICK_ANOTHER_TIME.has(reason);
   return PICK_ANOTHER_TIME_MESSAGE.test(error.message);

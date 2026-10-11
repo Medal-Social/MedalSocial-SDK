@@ -41,4 +41,18 @@ describe('isSlotTaken', () => {
     expect(isSlotTaken(conflict('OUTSIDE_HORIZON: 60 days', { reason: 7 }))).toBe(true);
     expect(isSlotTaken(conflict('DUPLICATE_IDEMPOTENCY_KEY', null))).toBe(false);
   });
+
+  it('is not thrown by a change of spelling or code on the engine side', () => {
+    // Upper-case reasons, and a 409 under another code, still mean «pick
+    // another time» — never a retry loop.
+    expect(isSlotTaken(new MedalApiError(409, 'CONFLICT', 'whatever', { reason: 'IN_PAST' }))).toBe(
+      true
+    );
+    expect(isSlotTaken(new MedalApiError(409, 'SLOT_CONFLICT', 'OFF_GRID: every 30'))).toBe(true);
+    // A 409 that is none of them stays a conflict; another status is never one.
+    expect(isSlotTaken(new MedalApiError(409, 'IDEMPOTENCY_IN_PROGRESS', 'in flight'))).toBe(false);
+    expect(
+      isSlotTaken(new MedalApiError(422, 'VALIDATION_ERROR', 'x', { reason: 'in_past' }))
+    ).toBe(false);
+  });
 });
