@@ -227,6 +227,28 @@ export function parseRange(
   return { fromTs, toTs };
 }
 
+/**
+ * Expire the slot cache and this colo's booking seeds for services just
+ * booked, moved or cancelled.
+ *
+ * Never throws. The write has already happened when this runs, and a cache
+ * that could not be told must not turn it into an error: the visitor would be
+ * told a booking failed that exists, and might book it again. The worst a
+ * failure here costs is a stale opening for a few minutes, which Medal's own
+ * check at the next submit refuses.
+ */
+export async function forgetBookedSlots(
+  rt: BookingRuntime,
+  serviceIds: readonly string[]
+): Promise<void> {
+  try {
+    rt.catalogue.expireSlots([...serviceIds]);
+    await rt.seed.expireBookingSeeds([...serviceIds]);
+  } catch (error) {
+    rt.logger.error({ err: error }, 'Could not expire the booking caches after a write');
+  }
+}
+
 /** SHA-256, hex — for idempotency keys that must never carry what they hash. */
 export async function digestOf(input: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));

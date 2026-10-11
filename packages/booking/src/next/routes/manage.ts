@@ -4,7 +4,7 @@ import { toManageDto } from '../manage-dto';
 import { MedalConfigError } from '../medal';
 import { readBoundedText } from '../request';
 import type { BookingRuntime } from '../runtime';
-import { bookingErrorResponse, digestOf, isSlotTaken } from './shared';
+import { bookingErrorResponse, digestOf, forgetBookedSlots, isSlotTaken } from './shared';
 
 /**
  * The two things the manage page can DO: call off an appointment, or move it.
@@ -161,8 +161,7 @@ async function expireAfterWrite(
 ): Promise<void> {
   const id = await serviceId;
   if (id === null) return;
-  rt.catalogue.expireSlots([id]);
-  await rt.seed.expireBookingSeeds([id]);
+  await forgetBookedSlots(rt, [id]);
 }
 
 /**

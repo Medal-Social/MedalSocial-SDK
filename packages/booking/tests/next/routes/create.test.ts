@@ -620,6 +620,18 @@ describe('POST /api/booking/create', () => {
     expect(recordConsent).not.toHaveBeenCalled();
   });
 
+  it('answers a booking that happened with 201 even when the caches cannot be told', async () => {
+    // The expiry ran inside the success path: a cache adapter that threw
+    // turned a booking Medal had made into a 502, and the visitor was told it
+    // failed — and might book it again.
+    expireBookingSeeds.mockRejectedValueOnce(new Error('KV is down'));
+
+    const response = await POST(validRequest());
+
+    expect(response.status).toBe(201);
+    expect((await response.json()).bookings).toHaveLength(1);
+  });
+
   it('never lets a failed consent write take the booking down with it', async () => {
     // The likeliest cause is mundane and permanent: this endpoint is scoped
     // `write:contacts`, and a MEDAL_API_KEY minted for bookings alone 403s here
