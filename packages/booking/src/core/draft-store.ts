@@ -79,6 +79,8 @@ export interface WizardDraft {
    * draft written before the field existed, which restores as chosen.
    */
   partyModeChosen?: boolean;
+  /** Seen at once: each line's own stylist, by line index (`null` = anyone). Absent before the field existed. */
+  seatResourceIds?: Array<string | null>;
   startTs: number | null;
   /** Who the chosen slot resolved to, which is what gets submitted. */
   resolvedResourceId: string | null;
@@ -146,6 +148,11 @@ function asDraft(value: unknown, now: number): WizardDraft | null {
     partyMode: draft.partyMode === 'parallel' ? 'parallel' : 'sequential',
     ...(typeof draft.partyModeChosen === 'boolean'
       ? { partyModeChosen: draft.partyModeChosen }
+      : {}),
+    ...(Array.isArray(draft.seatResourceIds) &&
+    draft.seatResourceIds.length === items.length &&
+    draft.seatResourceIds.every((id) => id === null || typeof id === 'string')
+      ? { seatResourceIds: draft.seatResourceIds }
       : {}),
     startTs: visitsWhole && typeof draft.startTs === 'number' ? draft.startTs : null,
     resolvedResourceId:

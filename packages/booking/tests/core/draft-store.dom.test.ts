@@ -107,6 +107,17 @@ describe('draft-store', () => {
     expect(takeDraft(NOW + MINUTE)).not.toHaveProperty('partyModeChosen');
   });
 
+  it('keeps each line’s own stylist, and drops a malformed or mismatched list', () => {
+    stashDraft(draft({ partyMode: 'parallel', seatResourceIds: ['res-sara'] }), NOW);
+    expect(takeDraft(NOW + MINUTE)?.seatResourceIds).toEqual(['res-sara']);
+    stashDraft(draft({ seatResourceIds: ['res-sara', null] }), NOW);
+    expect(takeDraft(NOW + MINUTE)).not.toHaveProperty('seatResourceIds');
+    stashDraft(draft({ seatResourceIds: [7 as unknown as string] }), NOW);
+    expect(takeDraft(NOW + MINUTE)).not.toHaveProperty('seatResourceIds');
+    stashDraft(draft(), NOW);
+    expect(takeDraft(NOW + MINUTE)).not.toHaveProperty('seatResourceIds');
+  });
+
   it('keeps whether each line is a grown-up, and reads an older draft as unknown', () => {
     stashDraft(
       draft({

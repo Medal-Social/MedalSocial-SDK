@@ -1178,6 +1178,31 @@ describe('useBooking — the corners', () => {
     expect(result.current.state.partyMode).toBe('sequential');
   });
 
+  it('saves and restores each person’s own stylist in a party seen at once', async () => {
+    stubApi();
+    location.search = '?resume=1';
+    drafts.stashDraft({
+      items: [
+        { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: false },
+        { serviceId: KIDS.id, bookedForName: null, bookedForBirthYear: null, adult: true },
+      ],
+      resourceId: null,
+      partyMode: 'parallel',
+      seatResourceIds: [BJARNE.id, null],
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    });
+    const { result } = renderHook(() => useBooking(options()));
+    await waitFor(() => expect(result.current.state.items).toHaveLength(2));
+    expect(result.current.state.seatResourceIds).toEqual({ 'guest:1': BJARNE.id });
+    await waitFor(() =>
+      expect(
+        JSON.parse(String(window.sessionStorage.getItem(drafts.DRAFT_STORAGE_KEY))).seatResourceIds
+      ).toEqual([BJARNE.id, null])
+    );
+  });
+
   it('comes back from Vipps with nothing to rebuild', async () => {
     stubApi();
     location.search = '?resume=1';

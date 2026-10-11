@@ -118,3 +118,69 @@ describe('party.adultTogether — a stylist named after the seats', () => {
     expect(named.partyModeChosen).toBe(true);
   });
 });
+
+describe('pickSeatResource', () => {
+  const two = () => {
+    let state = seat(together, [guestChild(1), ADULT]);
+    state = together.reduce(state, { type: 'pickServiceFor', index: 0, service: KLIPP });
+    return together.reduce(state, { type: 'pickServiceFor', index: 1, service: KLIPP });
+  };
+
+  it('keeps a stylist per seat, clears the slot, and lets «anyone» release it', () => {
+    const timed = together.reduce(two(), {
+      type: 'pickPartySlot',
+      startTs: Date.parse('2026-09-08T13:00:00+02:00'),
+      resourceIds: ['res-a', 'res-b'],
+      mode: 'parallel',
+    });
+    const asked = together.reduce(timed, {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    expect(asked.seatResourceIds).toEqual({ 'guest:1': 'res-ada' });
+    expect(asked.startTs).toBeNull();
+    const released = together.reduce(asked, {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: null,
+    });
+    expect(released).not.toHaveProperty('seatResourceIds');
+  });
+
+  it('refuses a stylist somebody else in the party asked for', () => {
+    const asked = together.reduce(two(), {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    expect(
+      together.reduce(asked, { type: 'pickSeatResource', index: 1, resourceId: 'res-ada' })
+    ).toBe(asked);
+    // Re-affirming one's own is fine.
+    expect(
+      together.reduce(asked, { type: 'pickSeatResource', index: 0, resourceId: 'res-ada' })
+        .seatResourceIds
+    ).toEqual({ 'guest:1': 'res-ada' });
+  });
+
+  it('ignores a seat that is not there', () => {
+    const state = two();
+    expect(
+      together.reduce(state, { type: 'pickSeatResource', index: 5, resourceId: 'res-ada' })
+    ).toBe(state);
+  });
+
+  it('drops the wishes when the basket changes', () => {
+    const asked = together.reduce(two(), {
+      type: 'pickSeatResource',
+      index: 0,
+      resourceId: 'res-ada',
+    });
+    const changed = together.reduce(asked, {
+      type: 'choosePeople',
+      people: [guestChild(1), guestChild(2)],
+    });
+    expect(changed).not.toHaveProperty('seatResourceIds');
+  });
+});

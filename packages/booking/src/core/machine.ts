@@ -213,6 +213,12 @@ export interface WizardState {
    * the confirmation card cannot disagree about who is cutting whose hair.
    */
   partyResourceIds: string[] | null;
+  /**
+   * Seen at once: the stylist a person asked for, by their seat key («who cuts
+   * whom»). A person not in it is seated with anyone free. Dropped whenever the
+   * basket changes, as the stylist was chosen for that visit. Absent = none.
+   */
+  seatResourceIds?: Readonly<Record<string, string>>;
   contact: { phone: string; name: string; email: string };
   notes: string;
   consentTerms: boolean;
@@ -385,6 +391,12 @@ export type WizardAction =
    * the stylist.
    */
   | { type: 'setPartyMode'; mode: WizardState['partyMode'] }
+  /**
+   * Seen at once: the person at `index`'s own stylist (`null` = anyone). Refused for a
+   * stylist already asked for by somebody else in the party — one stylist
+   * cannot cut two people at once. The slot goes, as with `pickResource`.
+   */
+  | { type: 'pickSeatResource'; index: number; resourceId: string | null }
   /**
    * A whole family seated in one tap: the instant the visit starts and the
    * stylist each child got.
@@ -737,7 +749,9 @@ function withParty(
       )
     : [];
   const changed = basketOf(items) !== basketOf(state.items);
-  return { ...state, people, choices, extras: aligned, items, ...(changed ? clearedSlot : {}) };
+  if (!changed) return { ...state, people, choices, extras: aligned, items };
+  const { seatResourceIds: _released, ...rest } = state;
+  return { ...rest, people, choices, extras: aligned, items, ...clearedSlot };
 }
 
 /** The people behind a basket built without step 1 — a link, a restored draft. */
@@ -1497,6 +1511,27 @@ export function createWizard(config: WizardConfig): Wizard {
           ...preference,
           partyMode: action.mode,
           partyModeChosen: true,
+          error: null,
+        };
+      }
+
+      case 'pickSeatResource': {
+        const key = state.people[action.index]?.key;
+        if (key === undefined) return state;
+        const current = { ...(state.seatResourceIds ?? {}) };
+        if (action.resourceId === null) delete current[key];
+        else {
+          const takenBy = Object.entries(current).find(
+            ([other, id]) => id === action.resourceId && other !== key
+          );
+          if (takenBy) return state;
+          current[key] = action.resourceId;
+        }
+        const { seatResourceIds: _previous, ...rest } = state;
+        return {
+          ...rest,
+          ...clearedSlot,
+          ...(Object.keys(current).length > 0 ? { seatResourceIds: current } : {}),
           error: null,
         };
       }
