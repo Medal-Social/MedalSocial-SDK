@@ -835,6 +835,25 @@ describe('BookingWizard', () => {
     expect(screen.queryByText(/Vi får ikke hentet ledige tider/)).toBeNull();
   });
 
+  it('reports a failed read to the monitoring tap, once per failure', async () => {
+    // The card is all the visitor sees; without this nobody else learns that
+    // the time step could not be drawn.
+    stubApi({ availabilityStatus: 400 });
+    const onEvent = vi.fn();
+    const user = userEvent.setup();
+    renderWizard({ onEvent });
+
+    await pickGutteklipp(user);
+    await user.click(screen.getByRole('radio', { name: /Første ledige/ }));
+    await screen.findByText(/Vi får ikke hentet ledige tider/);
+
+    const reads = () => onEvent.mock.calls.filter(([event]) => event.type === 'read_error');
+    expect(reads()).toEqual([[{ type: 'read_error', endpoint: 'availability', status: 400 }]]);
+
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+    await waitFor(() => expect(reads()).toHaveLength(2));
+  });
+
   it('says the openings could not be read rather than that the salon is full', async () => {
     // «Fullt» is a claim about the salon. A failed fetch is a claim about us,
     // and telling a parent the chair is taken when it is free is the worse of

@@ -146,6 +146,46 @@ export interface BookingHandler {
   DELETE(request: Request): Promise<Response>;
 }
 
+/**
+ * Answers that are part of the flow rather than a fault: a taken slot or a
+ * replayed submission (409), an expired portal session (401), a manage link
+ * that no longer resolves (404). Counted at `info`; everything else is `warn`,
+ * and a 5xx is `error`.
+ */
+const EXPECTED_STATUSES = new Set([401, 404, 409]);
+
+/**
+ * One line per refused or failed answer, so a fault shows in the site's logs
+ * the night it starts. The route had every 400 to itself: when the range guard
+ * refused every unseeded service for eight weeks of nights, nothing anywhere
+ * said so. Only the route, the status and the response's own error code and
+ * message go out — those are the package's fixed strings, never what the
+ * visitor typed.
+ */
+async function logFailure(
+  rt: BookingRuntime,
+  scope: string,
+  method: Method,
+  response: Response
+): Promise<void> {
+  const { status } = response;
+  if (status < 400) return;
+  let code: unknown;
+  let message: unknown;
+  try {
+    const body = (await response.clone().json()) as { error?: unknown; message?: unknown };
+    code = body.error;
+    message = body.message;
+  } catch {
+    // A body that is not JSON still gets its line, without the code.
+  }
+  const meta = { route: scope, method, status, code, message };
+  const line = `booking ${method} ${scope} answered ${status}`;
+  if (status >= 500) rt.logger.error(meta, line);
+  else if (EXPECTED_STATUSES.has(status)) rt.logger.info(meta, line);
+  else rt.logger.warn(meta, line);
+}
+
 /** The handler over an existing runtime (what `createBookingServer` shares). */
 export function createBookingHandlerFor(rt: BookingRuntime): BookingHandler {
   async function handle(method: Method, request: Request): Promise<Response> {
@@ -159,13 +199,15 @@ export function createBookingHandlerFor(rt: BookingRuntime): BookingHandler {
       response.headers.set('Allow', Object.keys(found.routes).join(', '));
       return response;
     }
-    if (rt.options.rateLimit && (await rt.options.rateLimit(found.scope, request))) {
-      return NextResponse.json(
-        { error: 'rateLimited' },
-        { status: 429, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
-    return route(rt, request, found.segment);
+    const response =
+      rt.options.rateLimit && (await rt.options.rateLimit(found.scope, request))
+        ? NextResponse.json(
+            { error: 'rateLimited' },
+            { status: 429, headers: { 'Cache-Control': 'no-store' } }
+          )
+        : await route(rt, request, found.segment);
+    await logFailure(rt, found.scope, method, response);
+    return response;
   }
 
   return {

@@ -207,3 +207,64 @@ describe('createBookingHandler — everything else', () => {
     expect((await other.POST(post('/portal/session/touch'))).status).toBe(401);
   });
 });
+
+describe('createBookingHandler — failures leave a line in the logs', () => {
+  function loggedHandler() {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const { handler, parts } = handlerWith({ logger });
+    return { handler, parts, logger };
+  }
+
+  it('warns on a refused read with the route, the status and the code', async () => {
+    // The range guard refused every unseeded service for eight weeks of
+    // nights, and nothing anywhere said so: the 400 went to the browser only.
+    const { handler, logger } = loggedHandler();
+
+    const response = await handler.GET(
+      get('/api/booking/availability?service_id=svc-1&from_ts=2000&to_ts=1000')
+    );
+
+    expect(response.status).toBe(400);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: 'booking/availability',
+        method: 'GET',
+        status: 400,
+        code: 'invalidInput',
+      }),
+      'booking GET booking/availability answered 400'
+    );
+    // The visitor still gets the body: logging read a clone.
+    expect((await response.json()).error).toBe('invalidInput');
+  });
+
+  it('logs a failed upstream read as an error', async () => {
+    const { handler, parts, logger } = loggedHandler();
+    parts.catalogue.cachedServices.mockRejectedValueOnce(new Error('Medal is down'));
+
+    const response = await handler.GET(get('/api/booking/services'));
+
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'booking/services', status: response.status }),
+      expect.any(String)
+    );
+  });
+
+  it('counts an answer that is part of the flow at info, and a success not at all', async () => {
+    const { handler, logger } = loggedHandler();
+
+    await handler.GET(get('/api/booking/services'));
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+
+    // A stylist who has left the roster is an old link, not a fault.
+    expect((await handler.GET(get('/api/booking/avatar/res-gone'))).status).toBe(404);
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 404 }),
+      expect.any(String)
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+});

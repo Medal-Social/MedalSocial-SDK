@@ -140,6 +140,27 @@ function draftItem(item: WizardItem, idOnly = false): WizardDraftItem {
 /** How long a replayed submission may take before the restore gate gives up. */
 const REPLAY_TIMEOUT_MS = 15_000;
 
+/** The three reads the time step waits on. */
+export type BookingReadEndpoint = 'availability' | 'resources' | 'schedule';
+
+/** A read the wizard could not use: its endpoint, and the HTTP status (`null`: no answer at all). */
+export interface BookingReadError {
+  endpoint: BookingReadEndpoint;
+  status: number | null;
+  /** Bumped per failure, so two identical failures are two events. */
+  seq: number;
+}
+
+/** A non-2xx answer, keeping the status a monitoring tap reports. */
+class ReadFailure extends Error {
+  constructor(
+    readonly endpoint: BookingReadEndpoint,
+    readonly status: number
+  ) {
+    super(`${endpoint} ${status}`);
+  }
+}
+
 /** The seed's schedules once a retry has moved the window past them. */
 const NO_SEEDED_SCHEDULE: Record<string, BookingDayDto[]> = {};
 
@@ -1127,6 +1148,19 @@ export function useBooking(options: UseBookingOptions) {
   const missingKey = basketVisits.filter((key) => !(key in slots)).join('|');
   /** Bumped to ask for the openings again after a failure. */
   const [slotsAttempt, setSlotsAttempt] = useState(0);
+  /**
+   * The last read that failed, for the monitoring tap (`onEvent`). Every
+   * failure here used to be swallowed into a card: the visitor saw «Vi får
+   * ikke hentet ledige tider», and nobody else ever learnt that they had.
+   */
+  const [readError, setReadError] = useState<BookingReadError | null>(null);
+  const noteReadError = useCallback((endpoint: BookingReadEndpoint, error: unknown) => {
+    setReadError((previous) => ({
+      endpoint,
+      status: error instanceof ReadFailure ? error.status : null,
+      seq: (previous?.seq ?? 0) + 1,
+    }));
+  }, []);
   const api = config.paths.api;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
@@ -1142,7 +1176,7 @@ export function useBooking(options: UseBookingOptions) {
       const settled = await Promise.allSettled(
         wanted.map(async (key) => {
           const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
-          if (!response.ok) throw new Error(`availability ${response.status}`);
+          if (!response.ok) throw new ReadFailure('availability', response.status);
           const body = (await response.json()) as { slots?: BookingSlotDto[] };
           // Stored under the WHOLE visit's key — the key it is read back by.
           return [key, body.slots ?? []] as const;
@@ -1156,13 +1190,17 @@ export function useBooking(options: UseBookingOptions) {
         setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
       }
       // Nothing is cached for a failed visit; the step says so rather than «full».
-      if (fetched.length < wanted.length) setSlotsFailed(true);
+      const failure = settled.find((result) => result.status === 'rejected');
+      if (failure) {
+        setSlotsFailed(true);
+        noteReadError('availability', failure.reason);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, missingKey, fromTs, toTs, slotsAttempt]);
+  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
@@ -1173,7 +1211,7 @@ export function useBooking(options: UseBookingOptions) {
     (async () => {
       try {
         const response = await fetch(`${api}/resources?${windowQuery(primaryVisit, fromTs, toTs)}`);
-        if (!response.ok) throw new Error(`resources ${response.status}`);
+        if (!response.ok) throw new ReadFailure('resources', response.status);
         const body = (await response.json()) as {
           resources?: BookingResourceDto[];
           nextAvailableTs?: Record<string, number>;
@@ -1182,9 +1220,10 @@ export function useBooking(options: UseBookingOptions) {
         setResources(body.resources ?? []);
         setResourcesKnown(true);
         setFetchedNextAvailable({ key: primaryVisit, times: body.nextAvailableTs ?? {} });
-      } catch {
+      } catch (error) {
         // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
         if (!cancelled) {
+          noteReadError('resources', error);
           setResourcesKnown(true);
           setFetchedNextAvailable({ key: primaryVisit, times: {} });
         }
@@ -1194,7 +1233,7 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt]);
+  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt, noteReadError]);
 
   /**
    * The stylist half of a «book again» link, once a list for its service has
@@ -1306,14 +1345,15 @@ export function useBooking(options: UseBookingOptions) {
         const response = await fetch(
           `${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs, resourceId)}`
         );
-        if (!response.ok) throw new Error(`schedule ${response.status}`);
+        if (!response.ok) throw new ReadFailure('schedule', response.status);
         const body = (await response.json()) as { days?: BookingDayDto[] };
         if (cancelled) return;
         setFetchedSchedule({ key, days: body.days ?? [] });
-      } catch {
+      } catch (error) {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
         if (!cancelled) {
+          noteReadError('schedule', error);
           setScheduleFailedFor(key);
           // The previous success for this stylist is stale once this read failed.
           setFetchedSchedule((current) => (current?.key === key ? null : current));
@@ -1333,6 +1373,7 @@ export function useBooking(options: UseBookingOptions) {
     state.resourceId,
     scheduleKey,
     slotsAttempt,
+    noteReadError,
   ]);
 
   /**
@@ -1923,6 +1964,8 @@ export function useBooking(options: UseBookingOptions) {
     confirmed,
     startOver,
     refresh,
+    /** The last read that failed (`onEvent`'s `read_error`). */
+    readError,
     restore: { hydrated, restoring, linked, resuming },
   };
 }

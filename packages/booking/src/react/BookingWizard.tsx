@@ -48,6 +48,7 @@ import { screenLabels } from './screen-labels';
 import {
   type BookingConfirmation,
   type BookingController,
+  type BookingReadEndpoint,
   type BookingSeed,
   useBooking,
 } from './useBooking';
@@ -98,7 +99,9 @@ type BookingGuardianProp = Parameters<typeof useBooking>[0]['guardian'];
 export type BookingWizardEvent =
   | { type: 'step'; step: WizardStep | 'confirmed' }
   | { type: 'submit_ok'; bookings: number }
-  | { type: 'submit_error'; code: NonNullable<WizardState['error']> };
+  | { type: 'submit_error'; code: NonNullable<WizardState['error']> }
+  /** A read the time step waits on failed: `status` is `null` when nothing answered. */
+  | { type: 'read_error'; endpoint: BookingReadEndpoint; status: number | null };
 
 /** The bundler's build mode, which it inlines; absent outside a bundler. */
 declare const process: { env: { NODE_ENV?: string } } | undefined;
@@ -233,6 +236,14 @@ function BookingWizardShell(props: BookingWizardProps) {
     }
     lastError.current = state.error;
   }, [state.error, onEvent]);
+  // The monitoring tap for a failed read — what the visitor saw as «Vi får ikke
+  // hentet ledige tider». Once per failure (`seq`), not per render.
+  const { readError } = booking;
+  useEffect(() => {
+    if (readError !== null) {
+      onEvent?.({ type: 'read_error', endpoint: readError.endpoint, status: readError.status });
+    }
+  }, [readError, onEvent]);
   const confirmedCount = confirmed?.bookings.length ?? 0;
   useEffect(() => {
     if (confirmedCount > 0) onEvent?.({ type: 'submit_ok', bookings: confirmedCount });
