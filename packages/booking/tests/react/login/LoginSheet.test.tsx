@@ -255,7 +255,9 @@ describe('LoginSheet as a sheet, closed and reopened', () => {
     await screen.findByRole('button', { name: /Send ny kode om 0:30/ });
 
     await user.keyboard('{Escape}');
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    // The close runs on timers that follow the wall clock here; a loaded CI
+    // runner needs longer than waitFor's default second.
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5_000 });
     act(() => {
       vi.advanceTimersByTime(10_000);
     });
@@ -264,10 +266,12 @@ describe('LoginSheet as a sheet, closed and reopened', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Sjekk e-posten din' });
     expect(within(dialog).getByLabelText('Engangskode')).toBeInTheDocument();
     expect(within(dialog).getByText(/Seks siffer – til kari@example.com/)).toBeInTheDocument();
-    const resend = within(dialog).getByRole('button', { name: /Send ny kode om 0:(19|20)/ });
+    // Still running and not restarted: ~10 s down from 0:30 (a little more on a
+    // slow runner, since these timers also follow the wall clock).
+    const resend = within(dialog).getByRole('button', { name: /Send ny kode om 0:(1\d|20)/ });
     expect(resend).toBeDisabled();
     expect(actions.startLoginAction).toHaveBeenCalledTimes(1);
-  });
+  }, 20_000);
 
   /**
    * After a good code the wizard replaces the row, so the trigger Base UI

@@ -66,6 +66,7 @@ import {
   serviceFitsFor,
   serviceScreenBase,
   stylistFace,
+  stylistSeats,
   weekendNoteFor,
 } from './wizard/adapters';
 import { useWallClock } from './wizard/wall-clock';
@@ -596,6 +597,9 @@ function WhenStep({ booking, resolved }: StepProps) {
                   parallel: wizard.visitMinutes(items, 'parallel'),
                 },
                 onMode: (mode) => booking.dispatch({ type: 'setPartyMode', mode }),
+                ...stylistSeats(kit, state, (index, resourceId) =>
+                  booking.dispatch({ type: 'pickSeatResource', index, resourceId })
+                ),
               }
             : undefined
         }

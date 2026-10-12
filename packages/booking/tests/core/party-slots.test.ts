@@ -149,6 +149,42 @@ describe('findPartySlots — sequential', () => {
 });
 
 describe('findPartySlots — parallel', () => {
+  it('seats a person who asked for a stylist with that one only, the rest with anyone', () => {
+    const catalogue = {
+      [GUTTEKLIPP.id]: slots(
+        ['res-marcus', '15:00'],
+        ['res-sara', '15:00'],
+        ['res-marcus', '16:00']
+      ),
+      [JENTEKLIPP.id]: slots(['res-sara', '15:00'], ['res-marcus', '15:00'], ['res-sara', '16:00']),
+    };
+    // Without a wish, the first stylist in order takes the first child.
+    expect(stylistsOf(findPartySlots([JONAS, EMMA], catalogue, 'parallel')[0])).toEqual([
+      'res-marcus',
+      'res-sara',
+    ]);
+    // Jonas asked for Sara: Marcus takes Emma at 15:00; at 16:00 Sara is not free for Jonas.
+    const wished = findPartySlots([JONAS, EMMA], catalogue, 'parallel', ['res-sara', null]);
+    expect(wished.map((slot) => [slot.startTs, stylistsOf(slot)])).toEqual([
+      [at('15:00'), ['res-sara', 'res-marcus']],
+    ]);
+  });
+
+  it('finds nothing at a minute the asked-for stylist is not free, and ignores wishes back to back', () => {
+    const catalogue = {
+      [GUTTEKLIPP.id]: slots(['res-marcus', '15:00']),
+      [JENTEKLIPP.id]: slots(['res-sara', '15:00']),
+    };
+    expect(findPartySlots([JONAS, EMMA], catalogue, 'parallel', ['res-sara', null])).toEqual([]);
+    const backToBack = {
+      [GUTTEKLIPP.id]: slots(['res-sara', '15:00']),
+      [JENTEKLIPP.id]: slots(['res-sara', '15:30']),
+    };
+    expect(
+      findPartySlots([JONAS, EMMA], backToBack, 'sequential', ['res-marcus', null])
+    ).toHaveLength(1);
+  });
+
   it('pairs two different stylists free at the same instant', () => {
     const found = findPartySlots(
       [JONAS, EMMA],
