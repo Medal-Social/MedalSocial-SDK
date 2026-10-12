@@ -1,5 +1,19 @@
 # @medalsocial/booking
 
+## 0.5.0
+
+### Minor Changes
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - Config `screens.seatStylists` (default `false`): when a family is seen at once, each person can ask for their own stylist («who cuts whom»), and the search seats everyone else with whoever is free at that minute. New `WizardState.seatResourceIds` and `pickSeatResource` action, kept in drafts and dropped when the basket changes. `findPartySlots` takes per-seat preferences. Built-in nb/en `stylist.party.seat*` words.
+  
+  Requires `@medalsocial/meda` ^3.9.0.
+
+### Patch Changes
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - A person who replaces someone on step 1 no longer inherits that person's «who cuts whom» stylist. A choice only moves to a new seat key when a login renames the same person.
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - The stylist step's «who cuts whom» seats are passed only while the party is seen at once. One after another is one stylist for the whole visit, so the wizard no longer depends on the screen hiding them.
+
 ## 0.4.1
 
 ### Patch Changes
