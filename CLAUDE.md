@@ -162,6 +162,15 @@ npm blocks unpublish after 72 hours. **Releases are roll-forward only** — fix
 on `dev`, promote again, publish a new patch. Treat the promote as the point of
 no return and make sure CI is green before merging, not after.
 
+### Dependabot PRs
+
+`.github/dependabot.yml` sends weekly grouped version updates to `dev`.
+**Security** updates ignore `target-branch` and are opened against `prod` (the
+default branch). Do not merge those: the next promotion swaps in `dev`'s tree
+and the fix disappears. Apply the bump on `dev` (a scoped override in
+`pnpm-workspace.yaml` for a transitive package), promote, and close the `prod`
+PR — the alert closes once `prod` carries the fix.
+
 ## Release Pipeline
 
 Publishing uses **Changesets** with **npm OIDC trusted publishing** — no static `NPM_TOKEN` is needed.
