@@ -60,6 +60,8 @@ export interface CoreLabels {
   'people.self': BookingLabel;
   /** A guest grown-up's seat. */
   'people.adult': BookingLabel;
+  /** `{count} voksne` — two or more guest grown-ups. */
+  'people.adults': BookingLabel;
 }
 
 /** Per-key copy for config-defined groups: `daypart.<key>`, `category.<key>`. */
@@ -86,6 +88,7 @@ const NB: BookingLabels = {
   'people.children': '{count} barn',
   'people.self': 'Meg selv',
   'people.adult': 'Voksen',
+  'people.adults': '{count} voksne',
   'daypart.formiddag': 'Formiddag',
   'daypart.ettermiddag': 'Ettermiddag',
   'daypart.kveld': 'Kveld',
@@ -107,6 +110,7 @@ const EN: BookingLabels = {
   'people.children': '{count} children',
   'people.self': 'Me',
   'people.adult': 'Adult',
+  'people.adults': '{count} adults',
   'daypart.morning': 'Morning',
   'daypart.afternoon': 'Afternoon',
   'daypart.evening': 'Evening',

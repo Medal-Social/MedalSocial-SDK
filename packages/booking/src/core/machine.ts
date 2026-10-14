@@ -81,7 +81,21 @@ export const SELF_KEY = 'self';
  * towards the three.
  */
 export function isGuestSeat(person: WizardPerson): boolean {
-  return person.key.startsWith('guest:') || person.key.startsWith('new:') || person.key === 'adult';
+  return (
+    person.key.startsWith('guest:') ||
+    person.key.startsWith('new:') ||
+    person.key === 'adult' ||
+    person.key.startsWith('adult:')
+  );
+}
+
+/** A guest grown-up's seat, 1-based: `adult`, then `adult:2`, `adult:3`. */
+export function guestAdult(n: number): WizardPerson & { adult: true } {
+  return n === 1 ? { key: 'adult', adult: true } : { key: `adult:${n}`, adult: true };
+}
+
+function isGuestAdult(person: WizardPerson): boolean {
+  return person.key === 'adult' || person.key.startsWith('adult:');
 }
 
 export interface WizardService {
@@ -1197,7 +1211,13 @@ export interface Wizard {
     resolveStylistName: (resourceId: string) => string | null,
     now?: number
   ): { line: string; detail: string };
+  /**
+   * What the desktop panel says: who (`null` before anybody), and the visit's
+   * services with its minutes (`null` before a service).
+   */
+  panelParts(state: WizardState): { who: string | null; services: string | null };
   guestChild: typeof guestChild;
+  guestAdult: typeof guestAdult;
   isGuestSeat: typeof isGuestSeat;
 }
 
@@ -1884,14 +1904,20 @@ export function createWizard(config: WizardConfig): Wizard {
   /** «Theo, Emma», «2 barn», «Voksen» — who the visit is for, before what. */
   function peopleLabel(people: readonly WizardPerson[]): string {
     const guests = people.filter((person) => person.key.startsWith('guest:')).length;
+    // A guest's grown-ups are counted, like the children: «1 barn, 2 voksne».
+    const adults = people.filter((person) => !person.name && isGuestAdult(person)).length;
     const parts = people
-      .filter((person) => !person.key.startsWith('guest:'))
+      .filter(
+        (person) => !person.key.startsWith('guest:') && (person.name || !isGuestAdult(person))
+      )
       .map(
         (person) =>
           person.name ??
           labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
       );
     if (guests > 0) parts.unshift(fill(labels['people.children'], { count: guests }));
+    if (adults === 1) parts.push(labelText(labels['people.adult']));
+    if (adults > 1) parts.push(fill(labels['people.adults'], { count: adults }));
     return parts.join(', ');
   }
 
@@ -2000,6 +2026,19 @@ export function createWizard(config: WizardConfig): Wizard {
     };
   }
 
+  function panelParts(state: WizardState): { who: string | null; services: string | null } {
+    const who = state.people.length > 0 ? peopleLabel(state.people) : null;
+    const service = serviceLabel(state);
+    if (service === null) return { who, services: null };
+    // A family's label already ends in its total minutes.
+    if (showsPartyMode(state)) return { who, services: service };
+    const minutes = visitMinutes(state.items, state.partyMode);
+    return {
+      who,
+      services: `${service}${SEPARATOR}${fill(labels['summary.totalMinutes'], { minutes })}`,
+    };
+  }
+
   return {
     maxPeople,
     initialState,
@@ -2018,7 +2057,9 @@ export function createWizard(config: WizardConfig): Wizard {
     itemResourceIds,
     summaryLine,
     summaryParts,
+    panelParts,
     guestChild,
+    guestAdult,
     isGuestSeat,
   };
 }

@@ -13,6 +13,8 @@
 
 import {
   BookingButton,
+  BookingPanel,
+  type BookingPanelNote,
   BookingRecap,
   Confirmation,
   DetailsScreen,
@@ -338,91 +340,109 @@ function BookingWizardShell(props: BookingWizardProps) {
       />
     ) : null;
 
+  const desktopPanel = kit.config.screens.desktopPanel;
   return shell(
-    <div className="space-y-8">
-      <WizardHeader
-        kit={kit}
-        state={state}
-        submitting={booking.submitting}
-        onGo={(step) => booking.dispatch({ type: 'goToStep', step })}
-      />
-
-      {/* The machine's error, on the steps that have nowhere else to put it. */}
-      {state.error !== null &&
-        state.step !== 'details' &&
-        state.step !== 'when' &&
-        !multiSelect && (
-          <p
-            role="alert"
-            className={
-              resolved.classNames.wizard?.alert ??
-              'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
-            }
-          >
-            {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
-          </p>
-        )}
-
-      {/* What is being booked, first: above the login offer and the form. */}
-      {state.step === 'details' && !gated && kit.config.screens.recap && (
-        <RecapStep booking={booking} resolved={resolved} />
-      )}
-
-      {state.step === 'details' && loginRow}
-
-      {/* The gate takes a Vipps confirm code itself, in place of the form. */}
-      {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && !gated && (
-        <LoginSheet
-          {...overridesOf(props)}
-          actions={props.actions as NonNullable<BookingWizardProps['actions']>}
-          presentation="sheet"
-          trigger={false}
-          vippsConfirm={booking.login.vippsConfirm}
-          resumePath={booking.login.resumePath}
-          onSignedIn={onSignedIn}
+    <div
+      className={
+        desktopPanel
+          ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-10'
+          : undefined
+      }
+    >
+      <div className="min-w-0 space-y-8">
+        <WizardHeader
+          kit={kit}
+          state={state}
+          submitting={booking.submitting}
+          answers={booking.derived.panelParts}
+          onGo={(step) => booking.dispatch({ type: 'goToStep', step })}
         />
-      )}
 
-      {/* One box per step, keyed by it, so a step arriving is a mount. */}
-      <div
-        key={state.step}
-        data-booking-step={state.step}
-        data-animate={stepsMoved ? '' : undefined}
-        className="space-y-8"
-      >
-        {state.step === 'who' && (
-          <WhoStep booking={booking} resolved={resolved} loginRow={loginRow} />
+        {/* The machine's error, on the steps that have nowhere else to put it. */}
+        {state.error !== null &&
+          state.step !== 'details' &&
+          state.step !== 'when' &&
+          !multiSelect && (
+            <p
+              role="alert"
+              className={
+                resolved.classNames.wizard?.alert ??
+                'rounded-lg border border-destructive/40 bg-destructive/10 px-5 py-3 text-sm'
+              }
+            >
+              {wizardErrorText(labels, state.error, kit.config.party.maxServicesPerPerson)}
+            </p>
+          )}
+
+        {/* What is being booked, first: above the login offer and the form. */}
+        {state.step === 'details' && !gated && kit.config.screens.recap && (
+          <RecapStep booking={booking} resolved={resolved} />
         )}
-        {state.step === 'service' && (
-          <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+
+        {state.step === 'details' && loginRow}
+
+        {/* The gate takes a Vipps confirm code itself, in place of the form. */}
+        {loginOffered && booking.login.vippsConfirm !== null && signedIn === null && !gated && (
+          <LoginSheet
+            {...overridesOf(props)}
+            actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+            presentation="sheet"
+            trigger={false}
+            vippsConfirm={booking.login.vippsConfirm}
+            resumePath={booking.login.resumePath}
+            onSignedIn={onSignedIn}
+          />
         )}
-        {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
-        {state.step === 'details' &&
-          (gated ? (
-            <AccountGate
-              booking={booking}
-              resolved={resolved}
-              actions={props.actions as NonNullable<BookingWizardProps['actions']>}
-              overrides={props}
-              onSignedIn={onSignedIn}
+
+        {/* One box per step, keyed by it, so a step arriving is a mount. */}
+        <div
+          key={state.step}
+          data-booking-step={state.step}
+          data-animate={stepsMoved ? '' : undefined}
+          className="space-y-8"
+        >
+          {state.step === 'who' && (
+            <WhoStep booking={booking} resolved={resolved} loginRow={loginRow} />
+          )}
+          {state.step === 'service' && (
+            <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+          )}
+          {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
+          {state.step === 'details' &&
+            (gated ? (
+              <AccountGate
+                booking={booking}
+                resolved={resolved}
+                actions={props.actions as NonNullable<BookingWizardProps['actions']>}
+                overrides={props}
+                onSignedIn={onSignedIn}
+              />
+            ) : (
+              <DetailsStep booking={booking} resolved={resolved} />
+            ))}
+        </div>
+
+        {!multiSelect && (
+          // `contents`: the bar stays sticky to the page; from `lg` the panel says it.
+          <div className={desktopPanel ? 'contents lg:hidden' : 'contents'}>
+            <SummaryBar
+              {...(kit.config.screens.summaryDetail
+                ? booking.derived.summaryParts
+                : { line: booking.derived.summary })}
+              canAdvance={booking.derived.canAdvance}
+              step={state.step}
+              onNext={booking.next}
+              hideNextWhenDisabled={kit.config.screens.hideDisabledNext}
+              labels={screenLabels(labels)}
+              classNames={resolved.classNames.summary}
             />
-          ) : (
-            <DetailsStep booking={booking} resolved={resolved} />
-          ))}
+          </div>
+        )}
       </div>
-
-      {!multiSelect && (
-        <SummaryBar
-          {...(kit.config.screens.summaryDetail
-            ? booking.derived.summaryParts
-            : { line: booking.derived.summary })}
-          canAdvance={booking.derived.canAdvance}
-          step={state.step}
-          onNext={booking.next}
-          hideNextWhenDisabled={kit.config.screens.hideDisabledNext}
-          labels={screenLabels(labels)}
-          classNames={resolved.classNames.summary}
-        />
+      {desktopPanel && (
+        <div className="hidden lg:sticky lg:top-24 lg:block">
+          <PanelStep booking={booking} multiSelect={multiSelect} />
+        </div>
       )}
     </div>
   );
@@ -465,6 +485,7 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
               child: kit.wizard.guestChild,
               adult: GUEST_ADULT_SEAT,
               startEmpty: kit.config.party.guestStartEmpty,
+              ...(kit.config.screens.adultStepper ? { adults: kit.wizard.guestAdult } : {}),
             }
           : undefined
       }
@@ -502,6 +523,11 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
       services={catalogue.services}
       {...serviceScreenBase(kit)}
       serviceFits={serviceFitsFor(kit, state.people.map(ageOf), state.people)}
+      searchFor={
+        kit.config.screens.serviceSearch
+          ? (index: number) => state.people[index]?.adult === true
+          : undefined
+      }
       initialCategory={catalogue.deepLinkCategory}
       onPick={(service) => pickFor(0, service, () => booking.pickService(service))}
       suggestion={single ? people.suggestionFor(single) : null}
@@ -810,9 +836,32 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
   // Read once, so «today» cannot become «tomorrow» halfway down the card.
   const [now] = useState(() => Date.now());
   const confirmation = booking.confirmed as BookingConfirmation;
+  const props = confirmationProps(kit, confirmation, siteUrl);
+  const hero = kit.config.screens.bookedHero;
+  const { address, mapsUrl } = kit.config.contact;
+  const hours = kit.config.policy.freeChangeHours;
+  const photoOf = (name: string | null) =>
+    name === null
+      ? null
+      : (booking.catalogue.resources.find((resource) => resource.name === name)?.photoUrl ?? null);
   return (
     <Confirmation
-      {...confirmationProps(kit, confirmation, siteUrl)}
+      {...props}
+      {...(hero
+        ? {
+            layout: 'hero' as const,
+            lines: props.lines.map((line) => ({
+              ...line,
+              stylistPhotoUrl: photoOf(line.stylistName),
+            })),
+            directionsHref:
+              mapsUrl ??
+              (address
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+                : null),
+            freeChangeUntilTs: hours === null ? null : props.startTs - hours * 60 * 60_000,
+          }
+        : {})}
       onStartOver={booking.startOver}
       now={now}
       format={kit.format}
@@ -914,11 +963,13 @@ function WizardHeader({
   kit,
   state,
   submitting,
+  answers,
   onGo,
 }: {
   kit: BookingKit;
   state: WizardState;
   submitting: boolean;
+  answers: { who: string | null; services: string | null };
   onGo: (step: WizardStep) => void;
 }) {
   const { labels, wizard } = kit;
@@ -926,6 +977,19 @@ function WizardHeader({
   const index = STEPS.indexOf(state.step);
   const previous = index > 0 ? STEPS[index - 1] : null;
   const canGoBack = previous !== null && !submitting && wizard.canGoToStep(state, previous);
+  if (kit.config.screens.compactHeader) {
+    return (
+      <CompactHeader
+        kit={kit}
+        state={state}
+        submitting={submitting}
+        answers={answers}
+        canGoBack={canGoBack}
+        previous={previous}
+        onGo={onGo}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -980,6 +1044,156 @@ function WizardHeader({
         })}
       </ol>
     </div>
+  );
+}
+
+/**
+ * `screens.compactHeader`: one line under the site's own header — the way
+ * back, the steps as crumbs that carry the answers so far («1 barn · Hva»),
+ * and four small marks for how much is left. No title over the step's own
+ * question, so the first choice sits higher on a phone.
+ */
+function CompactHeader({
+  kit,
+  state,
+  submitting,
+  answers,
+  canGoBack,
+  previous,
+  onGo,
+}: {
+  kit: BookingKit;
+  state: WizardState;
+  submitting: boolean;
+  answers: { who: string | null; services: string | null };
+  canGoBack: boolean;
+  previous: WizardStep | null;
+  onGo: (step: WizardStep) => void;
+}) {
+  const { labels, wizard, format } = kit;
+  const stepLabel = (step: WizardStep) => labelText(labels[`wizard.step.${step}`]);
+  const index = STEPS.indexOf(state.step);
+  // Only a crumb behind the current step is asked, so never «details», and
+  // past the time step there is a time.
+  const answerOf = (step: WizardStep): string | null => {
+    if (step === 'who') return answers.who;
+    if (step === 'service') return answers.services;
+    return format.clock.when(state.startTs as number);
+  };
+  return (
+    <div className="flex items-center gap-3">
+      {canGoBack ? (
+        <button
+          type="button"
+          // `canGoBack` is only true with a step before this one.
+          aria-label={fill(labels['wizard.back'], { label: stepLabel(previous as WizardStep) })}
+          onClick={() => onGo(previous as WizardStep)}
+          className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:bg-muted"
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" />
+        </button>
+      ) : null}
+      <ol
+        aria-label={labelText(labels['wizard.progressLabel'])}
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-sm"
+      >
+        {STEPS.map((step, position) => {
+          const isCurrent = step === state.step;
+          const answer = position < index ? answerOf(step) : null;
+          const reachable = !submitting && !isCurrent && wizard.canGoToStep(state, step);
+          const text = answer ?? stepLabel(step);
+          return (
+            <li key={step} className="flex min-w-0 items-center gap-x-1.5">
+              {position > 0 && (
+                <span aria-hidden="true" className="text-muted-foreground">
+                  ·
+                </span>
+              )}
+              {isCurrent ? (
+                <span aria-current="step" className="font-bold">
+                  {text}
+                </span>
+              ) : reachable ? (
+                <button
+                  type="button"
+                  onClick={() => onGo(step)}
+                  className="truncate text-muted-foreground underline-offset-4 hover:underline"
+                >
+                  {answer !== null && <span className="sr-only">{stepLabel(step)}: </span>}
+                  {text}
+                </button>
+              ) : (
+                <span className="truncate text-muted-foreground">{text}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <span aria-hidden="true" className="flex shrink-0 items-center gap-1">
+        {STEPS.map((step, position) => (
+          <i
+            key={step}
+            className={`block h-1.5 w-4 rounded-full ${position <= index ? 'bg-primary' : 'bg-border'}`}
+          />
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * `screens.desktopPanel`: «Din time» beside the step from `lg` up — the same
+ * answers the summary bar holds, the total, and «continue» where the step
+ * moves on by a button (the details form has its own).
+ */
+function PanelStep({ booking, multiSelect }: { booking: BookingController; multiSelect: boolean }) {
+  const { kit, state, catalogue, slots } = booking;
+  const { labels, config } = kit;
+  const recap = useMemo(
+    () => recapProps(kit, state, catalogue.resources, slots.single),
+    [kit, state, catalogue.resources, slots.single]
+  );
+  // Who, not what: on the service step a family has people before it has items.
+  const party = state.people.length > 1 || state.items.length > 1;
+  const chosen = state.resolvedResourceId ?? state.resourceId;
+  const face = stylistFace(catalogue.resources, chosen);
+  const notes: BookingPanelNote[] = [];
+  if (config.policy.freeChangeHours !== null) {
+    notes.push({
+      kind: 'change',
+      text: fill(labels['wizard.panel.freeChange'], { hours: config.policy.freeChangeHours }),
+    });
+  }
+  const payment = labelText(labels['wizard.panel.payment']);
+  if (payment) notes.push({ kind: 'payment', text: payment });
+  if (config.contact.address) notes.push({ kind: 'place', text: config.contact.address });
+  const moves = state.step !== 'details' && !multiSelect;
+  return (
+    <BookingPanel
+      labels={screenLabels(labels)}
+      format={kit.format}
+      who={booking.derived.panelParts.who}
+      services={booking.derived.panelParts.services}
+      startTs={state.startTs}
+      stylist={
+        party
+          ? undefined
+          : face && {
+              ...face,
+              firstAvailable: state.resourceId === null && state.resolvedResourceId !== null,
+            }
+      }
+      alternatives={recap.alternatives.map(({ resourceId, name, photoUrl }) => ({
+        resourceId,
+        name,
+        photoUrl,
+      }))}
+      // Alternatives exist only for a timed visit, so there is always a start to keep.
+      onSwap={(resourceId) => booking.pickSlot({ startTs: state.startTs as number, resourceId })}
+      totalOre={state.items.length > 0 ? booking.derived.total : null}
+      {...(moves ? { onContinue: booking.next, canContinue: booking.derived.canAdvance } : {})}
+      notes={notes}
+    />
   );
 }
 

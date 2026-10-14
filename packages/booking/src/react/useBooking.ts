@@ -926,18 +926,31 @@ export function useBooking(options: UseBookingOptions) {
       awaitingIds.current = ids.size > 0 ? ids : null;
     }
     // A guest is reseated as they left; a family's seats are its own children.
-    if (family === null && draft.items.every((item) => typeof item.adult === 'boolean')) {
+    const guestSeats =
+      family === null && draft.items.every((item) => typeof item.adult === 'boolean');
+    if (guestSeats) {
       dispatch({
         type: 'choosePeople',
-        people: draft.items.map((item, index) =>
-          item.adult ? { key: 'adult', adult: true } : wizard.guestChild(index + 1)
-        ),
+        people: (() => {
+          // Grown-ups take `adult`, `adult:2` … in the order they sat down.
+          let adults = 0;
+          return draft.items.map((item, index) =>
+            item.adult ? wizard.guestAdult(++adults) : wizard.guestChild(index + 1)
+          );
+        })(),
         advance: true,
       });
+      // Each person's service on their own seat: `pickService` keeps one
+      // person and `addService` seats the rest as children, which turned a
+      // restored «child + me» into two children.
+      resolved.forEach((service, index) => {
+        dispatch({ type: 'pickServiceFor', index, service: service as BookingServiceDto });
+      });
+    } else {
+      dispatch({ type: 'pickService', service: first });
+      // Every line resolved (checked above), so `rest` holds services only.
+      for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
     }
-    dispatch({ type: 'pickService', service: first });
-    // Every line resolved (checked above), so `rest` holds services only.
-    for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
     const reseated = reseatFamily(draft, resolved as BookingServiceDto[]);
     // After the seats are final (a reseat moves people, and their extras with
     // them) and before the stylist, so no toggle is refused for a preference
@@ -2027,6 +2040,7 @@ export function useBooking(options: UseBookingOptions) {
       total: wizard.totalPriceOre(state.items, state.startTs),
       summary: wizard.summaryLine(state, resolveStylistName),
       summaryParts: wizard.summaryParts(state, resolveStylistName),
+      panelParts: wizard.panelParts(state),
       visitEnd:
         state.startTs === null
           ? null
