@@ -1,5 +1,11 @@
 # @medalsocial/booking
 
+## 0.6.0
+
+### Minor Changes
+
+- [#228](https://github.com/Medal-Social/MedalSocial-SDK/pull/228) [`f35636a`](https://github.com/Medal-Social/MedalSocial-SDK/commit/f35636acb4e3cbe7f8d5c453e2fe4ba82ec3421c) Thanks [@adaadev](https://github.com/adaadev)! - `party.guestStartEmpty`: with `screens.guestParty`, a guest's step 1 starts with nobody instead of one child, and the child stepper goes down to 0, so a grown-up booking only for themselves is one tap. «Next» waits for an answer. Off by default. The meda peer range is now `^3.10.0`.
+
 ## 0.5.0
 
 ### Minor Changes
