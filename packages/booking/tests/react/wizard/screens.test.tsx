@@ -201,6 +201,33 @@ describe('BookingWizard — config.screens', () => {
     expect(next).not.toMatch(/\sdisabled(=""|\s|>)/);
   });
 
+  it('starts empty with party.guestStartEmpty, and a grown-up alone books in one tap', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    render(
+      <BookingWizard
+        config={resolveBookingConfig({
+          ...PARITY_CONFIG,
+          screens: { ...PARITY_CONFIG.screens, guestParty: true },
+          party: { ...PARITY_CONFIG.party, guestStartEmpty: true },
+        })}
+        labels={TEST_LABELS}
+        seed={{ services: [GUTTEKLIPP, HERREKLIPP], resources: [ADA, BO], fromTs: NOW }}
+        rangeDays={7}
+      />
+    );
+    expect(
+      await screen.findByText(L['who.party.count'].replace('{count}', '0'), {
+        selector: '.sr-only',
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: L['summary.next'] })).not.toBeEnabled();
+
+    await user.click(screen.getByRole('checkbox', { name: new RegExp(L['who.party.adult']) }));
+    await user.click(screen.getByRole('button', { name: L['summary.next'] }));
+    await screen.findByRole('heading', { level: 2, name: L['service.heading'] });
+  });
+
   it('seats the one child on a link that leaves step 1 open (a stylist), so «next» is live', async () => {
     stubApi();
     location.search = `frisor=${ADA.id}`;
