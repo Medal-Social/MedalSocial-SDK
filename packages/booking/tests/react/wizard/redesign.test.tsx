@@ -372,6 +372,21 @@ describe('BookingWizard — screens.bookedHero', () => {
     expect(screen.queryByText(/gratis til/)).toBeNull();
   });
 
+  it('promises no free change for a booking already inside the window', async () => {
+    stubApi();
+    rememberConfirmed(
+      { nonce: 'n1' },
+      {
+        bookings: [{ id: 'bk_1', manageHref: '/bestill/administrer?t=x' }],
+        // Today 13:00, booked at 08:00 with a 24-hour rule: the deadline has passed.
+        submitted: { ...SUBMITTED, startTs: osloTs(2, 13) },
+      }
+    );
+    renderWizard({ bookedHero: true }, { policy: { freeChangeHours: 24 } });
+    await screen.findByTestId('confirmation-leaf');
+    expect(screen.queryByText(/gratis til/)).toBeNull();
+  });
+
   it('has no directions without an address', async () => {
     stubApi();
     rememberConfirmed(

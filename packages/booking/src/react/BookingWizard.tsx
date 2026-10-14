@@ -839,6 +839,7 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
   const hero = kit.config.screens.bookedHero;
   const { address, mapsUrl } = kit.config.contact;
   const hours = kit.config.policy.freeChangeHours;
+  const freeUntil = hours === null ? null : props.startTs - hours * 60 * 60_000;
   // By the id each line was booked with, never by name: a display name is
   // cleaned («Bjarne (Salong Demo)» → «Bjarne») and two stylists can share one.
   const photoOf = (bookingId: string) => {
@@ -862,7 +863,9 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
               (address
                 ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
                 : null),
-            freeChangeUntilTs: hours === null ? null : props.startTs - hours * 60 * 60_000,
+            // A deadline already behind us is not a promise: a same-day booking
+            // inside the window gets no «free until».
+            freeChangeUntilTs: freeUntil !== null && freeUntil > now ? freeUntil : null,
           }
         : {})}
       onStartOver={booking.startOver}
