@@ -249,6 +249,7 @@ export function confirmationProps(
   | 'address'
   | 'calendarHref'
   | 'calendarAlt'
+  | 'calendarNewTab'
   | 'calendarFileName'
   | 'portalHref'
 > {
@@ -290,7 +291,7 @@ export function confirmationProps(
   });
   // The served file when this confirmation holds the tokens for it; a saved
   // confirmation from before keeps the `data:` file.
-  const { calendarHref, calendarAlt } = calendarLinks({
+  const { calendarHref, calendarAlt, calendarNewTab } = calendarLinks({
     platform,
     events,
     dataHref: kit.ics.icsDataUrl(kit.ics.buildIcs(events)),
@@ -307,6 +308,7 @@ export function confirmationProps(
     address: config.contact.address,
     calendarHref,
     calendarAlt,
+    calendarNewTab,
     calendarFileName: labelText(labels['wizard.ics.fileName']),
     portalHref: config.paths.portal,
   };

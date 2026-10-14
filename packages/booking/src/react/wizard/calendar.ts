@@ -63,7 +63,9 @@ export function servedCalendarHref(path: string, events: readonly IcsEvent[]): s
 
 export interface CalendarLinks {
   calendarHref: string;
-  calendarAlt: { href: string; label: string } | null;
+  /** Google's page opens beside the confirmation; the file opens in place. */
+  calendarNewTab: boolean;
+  calendarAlt: { href: string; label: string; newTab: boolean } | null;
 }
 
 /**
@@ -88,10 +90,15 @@ export function calendarLinks({
   const file = servedPath === null ? dataHref : servedCalendarHref(servedPath, events);
   const google = events.length === 1 ? googleCalendarHref(events[0] as IcsEvent) : null;
   if (platform === 'android' && google !== null) {
-    return { calendarHref: google, calendarAlt: { href: file, label: labels.file } };
+    return {
+      calendarHref: google,
+      calendarNewTab: true,
+      calendarAlt: { href: file, label: labels.file, newTab: false },
+    };
   }
   return {
     calendarHref: file,
-    calendarAlt: google === null ? null : { href: google, label: labels.google },
+    calendarNewTab: false,
+    calendarAlt: google === null ? null : { href: google, label: labels.google, newTab: true },
   };
 }

@@ -83,12 +83,16 @@ describe('calendarLinks', () => {
     const links = calendarLinks({ ...base, platform: 'apple' });
     expect(links.calendarHref.startsWith('/c/a?')).toBe(true);
     expect(links.calendarAlt?.label).toBe('Google Kalender');
+    expect(links.calendarNewTab).toBe(false);
+    expect(links.calendarAlt?.newTab).toBe(true);
   });
 
   it('gives Android Google, with the file beside it', () => {
     const links = calendarLinks({ ...base, platform: 'android' });
     expect(links.calendarHref).toMatch(/^https:\/\/calendar\.google\.com/);
     expect(links.calendarAlt?.label).toBe('Kalenderfil (.ics)');
+    expect(links.calendarNewTab).toBe(true);
+    expect(links.calendarAlt?.newTab).toBe(false);
   });
 
   it('gives a family the file everywhere: Google takes one event per link', () => {
