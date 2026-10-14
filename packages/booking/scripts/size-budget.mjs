@@ -75,7 +75,10 @@ const BUDGETS = [
     // option and the wishes carried through a login's re-key. Measured 16.16 KB.
     name: '@medalsocial/booking/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 16.5 * 1024,
+    // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 16.52 KB.
+    gzipBytes: 17.0 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -128,7 +131,10 @@ const BUDGETS = [
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 18.4 * 1024,
+    // Raised 18.4 → 19.6 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 19.13 KB.
+    gzipBytes: 19.6 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -151,7 +157,10 @@ const BUDGETS = [
     // seat adapter. Measured 26.76 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 27.2 * 1024,
+    // Raised 27.2 → 28.8 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.31 KB.
+    gzipBytes: 28.8 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -185,7 +194,10 @@ const BUDGETS = [
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 18.5 * 1024,
+    // Raised 18.5 → 19.7 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 19.27 KB.
+    gzipBytes: 19.7 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -206,7 +218,10 @@ const BUDGETS = [
     // seat adapter. Measured 26.88 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 27.3 * 1024,
+    // Raised 27.3 → 28.9 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.42 KB.
+    gzipBytes: 28.9 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -239,7 +254,10 @@ const BUDGETS = [
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 23.7 * 1024,
+    // Raised 23.7 → 25.0 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 24.49 KB.
+    gzipBytes: 25.0 * 1024,
   },
 ];
 

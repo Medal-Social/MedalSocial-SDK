@@ -51,7 +51,8 @@ describe('resolveBookingConfig', () => {
     // `null` is an answer: this site has no portal.
     expect(config.paths.portal).toBeNull();
     expect(config.dayparts).toEqual([{ key: 'all', from: 0, to: 24 }]);
-    expect(config.contact).toEqual({ phone: null, address: null, name: '' });
+    expect(config.contact).toEqual({ phone: null, address: null, name: '', mapsUrl: null });
+    expect(config.policy).toEqual({ freeChangeHours: null });
     // The return path follows the booking page it was given.
     expect(config.portal.returnPaths.exact).toEqual(['/book']);
   });

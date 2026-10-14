@@ -11,6 +11,10 @@ import type { BookingLabel } from '../../core/labels';
 export interface WizardLabels {
   /** «Bestill time» — the header's title. */
   'wizard.title': BookingLabel;
+  /** `{hours}` — the panel's change rule, «Free to change until {hours} hours before». */
+  'wizard.panel.freeChange': BookingLabel;
+  /** The panel's payment line («Pay at the salon»); empty draws none. */
+  'wizard.panel.payment': BookingLabel;
   /**
    * `{step}` of `{total}`, then the step's name: «Steg 1 av 4 · Hvem». The
    * built-in packs write it as an array, one text node per piece.
@@ -91,6 +95,8 @@ export interface WizardLabels {
 
 export const WIZARD_LABELS_NB: WizardLabels = {
   'wizard.title': 'Bestill time',
+  'wizard.panel.freeChange': 'Gratis å endre til {hours} timer før',
+  'wizard.panel.payment': '',
   'wizard.progress': ['Steg ', '{step}', ' av ', '{total}', ' · ', '{label}'],
   'wizard.progressLabel': 'Fremdrift',
   'wizard.back': 'Tilbake til {label}',
@@ -137,6 +143,8 @@ export const WIZARD_LABELS_NB: WizardLabels = {
 
 export const WIZARD_LABELS_EN: WizardLabels = {
   'wizard.title': 'Book an appointment',
+  'wizard.panel.freeChange': 'Free to change until {hours} hours before',
+  'wizard.panel.payment': '',
   'wizard.progress': ['Step ', '{step}', ' of ', '{total}', ' · ', '{label}'],
   'wizard.progressLabel': 'Progress',
   'wizard.back': 'Back to {label}',
