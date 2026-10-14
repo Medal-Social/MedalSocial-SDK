@@ -490,8 +490,11 @@ function setupFor(kit: BookingKit) {
     // link, or a link that holds a service for step 1 — starts on the common
     // answer, one child, already in the state, so the server-rendered step
     // shows «1» and a live «next». A link that seats people stays as it was.
+    // `party.guestStartEmpty` leaves it empty: the guest picks, a grown-up as
+    // readily as a child.
     if (
       config.screens.guestParty &&
+      !config.party.guestStartEmpty &&
       seated === null &&
       state.step === 'who' &&
       state.people.length === 0
