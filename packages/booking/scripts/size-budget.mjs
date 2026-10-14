@@ -75,7 +75,10 @@ const BUDGETS = [
     // option and the wishes carried through a login's re-key. Measured 16.16 KB.
     name: '@medalsocial/booking/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 16.5 * 1024,
+    // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 16.52 KB.
+    gzipBytes: 17.0 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -128,7 +131,10 @@ const BUDGETS = [
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 18.4 * 1024,
+    // Raised 18.4 → 19.6 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 19.13 KB.
+    gzipBytes: 19.6 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:

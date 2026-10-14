@@ -729,8 +729,7 @@ function RecapStep({ booking, resolved }: StepProps) {
       labels={screenLabels(kit.labels)}
       onEdit={() => booking.dispatch({ type: 'goToStep', step: 'when' })}
       alternatives={recap.alternatives}
-      // Alternatives exist only for a timed visit, so there is always a start to keep.
-      onSwap={(resourceId) => booking.pickSlot({ startTs: state.startTs as number, resourceId })}
+      onSwap={booking.swapStylist}
       classNames={resolved.classNames.recap}
     />
   );
@@ -840,10 +839,14 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
   const hero = kit.config.screens.bookedHero;
   const { address, mapsUrl } = kit.config.contact;
   const hours = kit.config.policy.freeChangeHours;
-  const photoOf = (name: string | null) =>
-    name === null
-      ? null
-      : (booking.catalogue.resources.find((resource) => resource.name === name)?.photoUrl ?? null);
+  // By the id each line was booked with, never by name: a display name is
+  // cleaned («Bjarne (Salong Demo)» → «Bjarne») and two stylists can share one.
+  const photoOf = (bookingId: string) => {
+    const index = confirmation.bookings.findIndex((booked) => booked.id === bookingId);
+    // Every confirmed line was booked, so its index has a resource.
+    const resourceId = confirmation.submitted.resourceIds[index] as string | null;
+    return stylistFace(booking.catalogue.resources, resourceId)?.photoUrl ?? null;
+  };
   return (
     <Confirmation
       {...props}
@@ -852,7 +855,7 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
             layout: 'hero' as const,
             lines: props.lines.map((line) => ({
               ...line,
-              stylistPhotoUrl: photoOf(line.stylistName),
+              stylistPhotoUrl: photoOf(line.bookingId),
             })),
             directionsHref:
               mapsUrl ??
@@ -1188,8 +1191,7 @@ function PanelStep({ booking, multiSelect }: { booking: BookingController; multi
         name,
         photoUrl,
       }))}
-      // Alternatives exist only for a timed visit, so there is always a start to keep.
-      onSwap={(resourceId) => booking.pickSlot({ startTs: state.startTs as number, resourceId })}
+      onSwap={booking.swapStylist}
       totalOre={state.items.length > 0 ? booking.derived.total : null}
       {...(moves ? { onContinue: booking.next, canContinue: booking.derived.canAdvance } : {})}
       notes={notes}

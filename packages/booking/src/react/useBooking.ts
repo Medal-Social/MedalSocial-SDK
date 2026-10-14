@@ -917,11 +917,19 @@ export function useBooking(options: UseBookingOptions) {
     const [first, ...rest] = resolved;
     if (first === undefined || resolved.some((service) => service === undefined)) return;
 
+    // A guest's seats as step 1 draws them: children and grown-ups each
+    // counted on their own (`guest:1`, `adult`, `adult:2`), so the party the
+    // visitor sees after a restore is the one a tap there would make.
+    let children = 0;
+    let adults = 0;
+    const guestSeatOf = draft.items.map((item) =>
+      item.adult ? wizard.guestAdult(++adults) : wizard.guestChild(++children)
+    );
     // Nobody to vouch for a saved child's id: its chair waits for the next login.
     if (family === null) {
       const ids = new Map<string, string>();
       draft.items.forEach((item, index) => {
-        if (item.personId && !item.adult) ids.set(wizard.guestChild(index + 1).key, item.personId);
+        if (item.personId && !item.adult) ids.set(guestSeatOf[index].key, item.personId);
       });
       awaitingIds.current = ids.size > 0 ? ids : null;
     }
@@ -929,23 +937,16 @@ export function useBooking(options: UseBookingOptions) {
     const guestSeats =
       family === null && draft.items.every((item) => typeof item.adult === 'boolean');
     if (guestSeats) {
-      dispatch({
-        type: 'choosePeople',
-        people: (() => {
-          // Grown-ups take `adult`, `adult:2` … in the order they sat down.
-          let adults = 0;
-          return draft.items.map((item, index) =>
-            item.adult ? wizard.guestAdult(++adults) : wizard.guestChild(index + 1)
-          );
-        })(),
-        advance: true,
-      });
+      dispatch({ type: 'choosePeople', people: guestSeatOf, advance: true });
       // Each person's service on their own seat: `pickService` keeps one
       // person and `addService` seats the rest as children, which turned a
       // restored «child + me» into two children.
       resolved.forEach((service, index) => {
         dispatch({ type: 'pickServiceFor', index, service: service as BookingServiceDto });
       });
+      // On to the times, as `pickService` does: a draft without one (or whose
+      // extra did not come back) is picked again there, not on step 2.
+      dispatch({ type: 'goToStep', step: 'when' });
     } else {
       dispatch({ type: 'pickService', service: first });
       // Every line resolved (checked above), so `rest` holds services only.
@@ -1941,6 +1942,20 @@ export function useBooking(options: UseBookingOptions) {
     dispatch({ type: 'pickSlot', startTs: slot.startTs, resourceId: slot.resourceId });
   }
 
+  /**
+   * «Switch to Bo» on the recap or the panel: an explicit choice, so Bo
+   * becomes the preference as well as the slot's stylist — no longer «first
+   * available», and Bo's openings if the time has to be found again.
+   */
+  function swapStylist(resourceId: string) {
+    // A swap is only offered for a timed visit, so there is a start to keep.
+    const startTs = state.startTs as number;
+    setStylistNotice(null);
+    setTakenSlotTs(null);
+    dispatch({ type: 'pickResource', resourceId });
+    dispatch({ type: 'pickSlot', startTs, resourceId });
+  }
+
   function pickPartySlot(slot: PartySlot) {
     setTakenSlotTs(null);
     dispatch({
@@ -2052,6 +2067,7 @@ export function useBooking(options: UseBookingOptions) {
     continueFromService,
     pickResource,
     pickSlot,
+    swapStylist,
     pickPartySlot,
     next,
     submit,

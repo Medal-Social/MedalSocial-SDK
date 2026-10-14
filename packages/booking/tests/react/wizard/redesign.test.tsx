@@ -247,6 +247,8 @@ describe('BookingWizard — screens.desktopPanel', () => {
     });
     await user.click(swap);
     await waitFor(() => expect(panel).toHaveTextContent('Bo Eksempel'));
+    // An explicit switch names the stylist: no longer «first available».
+    expect(panel).not.toHaveTextContent(L['panel.firstAvailable']);
   });
 
   it('has no place line without an address, and shows the time crumb on the details step', async () => {
@@ -303,6 +305,48 @@ describe('BookingWizard — screens.bookedHero', () => {
     expect(screen.getByText(/gratis til/)).toBeInTheDocument();
   });
 
+  it('finds the face by the booked stylist, not by a cleaned or shared name', async () => {
+    const VIKAR = {
+      ...BO,
+      id: 'res-vikar',
+      name: 'bo (vikar)',
+      photoUrl: '/api/booking/avatar/res-vikar',
+    };
+    const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const { pathname } = new URL(String(input), 'https://example.test');
+        if (pathname.startsWith('/api/booking/resources')) {
+          return json({ resources: [ADA, BO, VIKAR], nextAvailableTs: {} });
+        }
+        if (pathname.startsWith('/api/booking/schedule')) return json({ days: OPEN_WEEK });
+        return json({ slots: [] });
+      })
+    );
+    rememberConfirmed(
+      { nonce: 'n1' },
+      {
+        bookings: [{ id: 'bk_1', manageHref: null }],
+        submitted: { ...SUBMITTED, resourceIds: [VIKAR.id], stylistNames: ['Bo'] },
+      }
+    );
+    const config = resolveBookingConfig({
+      ...PARITY_CONFIG,
+      screens: { ...PARITY_CONFIG.screens, bookedHero: true },
+    });
+    const { container } = render(
+      <BookingWizard
+        config={config}
+        labels={TEST_LABELS}
+        seed={{ services: [GUTTEKLIPP], resources: [ADA, BO, VIKAR], fromTs: NOW }}
+        rangeDays={7}
+      />
+    );
+    await screen.findByTestId('confirmation-leaf');
+    expect(container.querySelector('img[src="/api/booking/avatar/res-vikar"]')).not.toBeNull();
+  });
+
   it('takes the site’s own maps link, and says nothing about changes without a rule', async () => {
     stubApi();
     rememberConfirmed(
@@ -334,7 +378,8 @@ describe('BookingWizard — screens.bookedHero', () => {
       { nonce: 'n1' },
       {
         bookings: [{ id: 'bk_1', manageHref: null }],
-        submitted: { ...SUBMITTED, stylistNames: [null] },
+        // A stylist the catalogue no longer has: no face, no name.
+        submitted: { ...SUBMITTED, resourceIds: ['res-gone'], stylistNames: [null] },
       }
     );
     renderWizard({ bookedHero: true }, { contact: { ...PARITY_CONFIG.contact, address: null } });
@@ -360,10 +405,42 @@ describe('BookingWizard — a restored guest party with two grown-ups', () => {
     });
     location.search = '?resume=1';
     renderWizard({ adultStepper: true, compactHeader: true });
+    // No time in the draft: back on the time step, as a one-person draft is.
+    await screen.findByRole('heading', { level: 2, name: L['time.heading'] });
     await waitFor(() =>
       expect(screen.getByRole('list', { name: L['wizard.progressLabel'] })).toHaveTextContent(
         L['people.adults'].replace('{count}', '2')
       )
     );
+  });
+
+  it('numbers a grown-up and a child each on their own seats', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    const { stashDraft } = createDraftStore(PARITY_CONFIG.storageNamespace);
+    stashDraft({
+      items: [
+        { serviceId: HERREKLIPP.id, bookedForName: null, bookedForBirthYear: null, adult: true },
+        { serviceId: GUTTEKLIPP.id, bookedForName: null, bookedForBirthYear: null, adult: false },
+      ],
+      resourceId: null,
+      partyMode: 'sequential',
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    });
+    location.search = '?resume=1';
+    renderWizard({ adultStepper: true, compactHeader: true });
+    await screen.findByRole('heading', { level: 2, name: L['time.heading'] });
+    // Step 1 shows the restored party as its own controls would make it.
+    await user.click(screen.getByRole('button', { name: new RegExp(L['wizard.step.who']) }));
+    expect(
+      await screen.findByText(L['who.party.count'].replace('{count}', '1'), {
+        selector: '.sr-only',
+      })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(L['who.party.adultCount'].replace('{count}', '1'), { selector: '.sr-only' })
+    ).toBeInTheDocument();
   });
 });
