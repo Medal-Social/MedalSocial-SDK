@@ -227,6 +227,15 @@ export const { GET, POST, DELETE } = booking.handler;
   over `https:` on the default port, never from an IP address or internal
   name and never through a redirect, and it relays only JPEG, PNG, WebP, AVIF
   and GIF. A photo anywhere else falls back to the stylist's initials.
+- **Calendar files.** `/api/booking/calendar/<token>[,<token>…]` serves the
+  visit as `text/calendar`, in place, so iOS and macOS open «Add to Calendar»
+  instead of saving a file. Each event's time, end and UID are read from Medal
+  by its manage token; only the wording (`s`, `d` per token and `l`) comes from
+  the URL, so no file exists without a real booking. `no-store`, `no-referrer`.
+  The confirmation links to it per device: the file on Apple devices and
+  desktops (Google Calendar beside it), Google Calendar on Android (the file
+  beside it). A family's visit is always the file — Google takes one event per
+  link.
 - `examples/next-booking` is a runnable site on plain `next start`.
 
 ## Development

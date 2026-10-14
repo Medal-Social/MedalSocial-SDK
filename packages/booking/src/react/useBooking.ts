@@ -115,6 +115,12 @@ export interface ConfirmedLine {
 export interface BookingConfirmation {
   bookings: Array<{ id: string; manageHref: string | null }>;
   submitted: SubmittedVisit;
+  /**
+   * The visit as a calendar file the site serves (`paths.calendarPath`), when
+   * every booking came back with a manage token. Absent on a confirmation
+   * saved before it existed: that one keeps the `data:` file.
+   */
+  calendarPath?: string | null;
 }
 
 /**
@@ -1821,9 +1827,17 @@ export function useBooking(options: UseBookingOptions) {
         id: booking.id,
         manageHref: booking.manageToken ? kit.paths.managePath(booking.manageToken) : null,
       }));
-      setConfirmed({ bookings: confirmedBookings, submitted });
+      const tokens = bookings.map((booking) => booking.manageToken);
+      const calendarPath = tokens.every((token): token is string => Boolean(token))
+        ? kit.paths.calendarPath(tokens)
+        : null;
+      setConfirmed({ bookings: confirmedBookings, submitted, calendarPath });
       // Kept, not cleared, so a refresh cannot take the manage links with it.
-      kit.attempts.rememberConfirmed(current, { bookings: confirmedBookings, submitted });
+      kit.attempts.rememberConfirmed(current, {
+        bookings: confirmedBookings,
+        submitted,
+        calendarPath,
+      });
       setPendingAttempt(null);
     } catch {
       dispatch({ type: 'submitFailed', error: 'upstreamError' });

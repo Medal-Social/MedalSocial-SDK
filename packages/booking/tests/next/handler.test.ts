@@ -94,6 +94,9 @@ describe('createBookingHandler — booking routes', () => {
     // A token that needed encoding reaches the seam decoded.
     await handler.GET(get('/api/booking/manage/a%2Bb'));
     expect(parts.medal.getManage).toHaveBeenCalledWith('a+b');
+    // The calendar file's tokens reach the seam decoded the same way.
+    await handler.GET(get('/api/booking/calendar/c%2Bd'));
+    expect(parts.medal.getManage).toHaveBeenCalledWith('c+d');
   });
 
   it('routes create and manage writes on POST', async () => {

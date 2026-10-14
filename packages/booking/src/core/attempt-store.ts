@@ -97,7 +97,12 @@ export interface BookingAttempt {
   /** Sent, with no answer yet seen. Replayed on the next load. */
   pending?: { submission: BookingSubmission; submitted: SubmittedVisit };
   /** Answered. Kept so a refresh cannot take the manage links with it. */
-  confirmed?: { bookings: ConfirmedBooking[]; submitted: SubmittedVisit };
+  confirmed?: {
+    bookings: ConfirmedBooking[];
+    submitted: SubmittedVisit;
+    /** The served calendar file (`paths.calendarPath`); absent on older saves. */
+    calendarPath?: string | null;
+  };
 }
 
 interface StoredAttempt extends BookingAttempt {

@@ -71,6 +71,7 @@ import {
   stylistSeats,
   weekendNoteFor,
 } from './wizard/adapters';
+import { calendarPlatform } from './wizard/calendar';
 import { useWallClock } from './wizard/wall-clock';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
 
@@ -835,7 +836,11 @@ function ConfirmationStep({ booking, resolved, siteUrl }: StepProps & { siteUrl?
   // Read once, so «today» cannot become «tomorrow» halfway down the card.
   const [now] = useState(() => Date.now());
   const confirmation = booking.confirmed as BookingConfirmation;
-  const props = confirmationProps(kit, confirmation, siteUrl);
+  // Which calendar this device opens best; read once, in the browser.
+  // A confirmation only ever renders in the browser (it comes back from the
+  // create call or from session storage), so `navigator` is there.
+  const [platform] = useState(() => calendarPlatform(globalThis.navigator));
+  const props = confirmationProps(kit, confirmation, siteUrl, platform);
   const hero = kit.config.screens.bookedHero;
   const { address, mapsUrl } = kit.config.contact;
   const hours = kit.config.policy.freeChangeHours;
