@@ -421,8 +421,10 @@ export const SCREEN_LABELS_NB: ScreenLabels = {
   'who.party.adultFewer': 'En voksen færre',
   'who.party.adultMore': 'En voksen til',
   'who.party.adultCount': '{count} voksne',
-  'who.party.lead': 'Opptil tre i samme bestilling.',
-  'who.party.togetherHint': 'Kommer du med barnet? Legg til deg selv, så tar vi dere samtidig.',
+  // Opt-in: empty draws nothing. A site that writes it knows its own limit
+  // (`party.maxPeople`) and whether a grown-up is seen alongside.
+  'who.party.lead': '',
+  'who.party.togetherHint': '',
   'service.search': 'Søk etter behandling …',
   'service.searchLabel': 'Søk i behandlingene',
   'service.searchEmpty': 'Ingen behandling passer «{query}».',
@@ -855,8 +857,8 @@ export const SCREEN_LABELS_EN: ScreenLabels = {
   'who.party.adultFewer': 'One adult fewer',
   'who.party.adultMore': 'One more adult',
   'who.party.adultCount': '{count} adults',
-  'who.party.lead': 'Up to three in one booking.',
-  'who.party.togetherHint': 'Coming with your child? Add yourself and we see you at the same time.',
+  'who.party.lead': '',
+  'who.party.togetherHint': '',
   'service.search': 'Search services …',
   'service.searchLabel': 'Search the services',
   'service.searchEmpty': 'No service matches «{query}».',

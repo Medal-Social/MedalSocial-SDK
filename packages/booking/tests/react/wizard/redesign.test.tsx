@@ -149,6 +149,14 @@ describe('BookingWizard — screens.adultStepper', () => {
     expect(crumbs).toHaveTextContent(L['people.adults'].replace('{count}', '2'));
   });
 
+  it('adds no step-1 sentences of its own: a site writes them for its own limit', async () => {
+    stubApi();
+    renderWizard({}, { party: { ...PARITY_CONFIG.party, maxPeople: 2 } });
+    await screen.findByRole('checkbox', { name: new RegExp(L['who.party.adult']) });
+    expect(screen.queryByText(/tre i samme bestilling/i)).toBeNull();
+    expect(screen.queryByText(/Kommer du med barnet/)).toBeNull();
+  });
+
   it('keeps the check row without the switch', async () => {
     stubApi();
     renderWizard();
