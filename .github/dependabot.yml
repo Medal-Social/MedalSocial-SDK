@@ -1,0 +1,37 @@
+# Keeps the security tab at zero: a weekly, grouped update PR into `dev`
+# (the branch every change lands on first; `prod` only moves by promotion).
+# Security updates are not delayed by the schedule or the cooldown.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    # pnpm refuses versions younger than its release-age window anyway; this
+    # stops Dependabot proposing one the install would then reject.
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    groups:
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+      minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    commit-message:
+      prefix: chore(deps)
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci(deps)
