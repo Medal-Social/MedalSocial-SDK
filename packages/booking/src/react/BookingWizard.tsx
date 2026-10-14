@@ -461,7 +461,11 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
       onAddChild={people.addChild}
       guestParty={
         kit.config.screens.guestParty
-          ? { child: kit.wizard.guestChild, adult: GUEST_ADULT_SEAT }
+          ? {
+              child: kit.wizard.guestChild,
+              adult: GUEST_ADULT_SEAT,
+              startEmpty: kit.config.party.guestStartEmpty,
+            }
           : undefined
       }
       loginRow={loginRow}

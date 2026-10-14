@@ -106,6 +106,13 @@ export interface BookingConfig {
      * hverandre».
      */
     adultTogether: boolean;
+    /**
+     * With `screens.guestParty`: a guest's step 1 starts with nobody instead
+     * of one child, and the child stepper goes down to 0 — for a salon where a
+     * grown-up booking for themselves is as common as a child. «Next» waits
+     * for an answer. Off by default.
+     */
+    guestStartEmpty: boolean;
   };
   /** The bookable window and the page's prefetch. */
   window: { rangeDays: number; prefetchLimit: number; prefetchCategory: string | null };
@@ -250,6 +257,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       askWhoFirst: true,
       maxServicesPerPerson: 1,
       adultTogether: false,
+      guestStartEmpty: false,
     },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
@@ -422,6 +430,7 @@ const schema = z
       askWhoFirst: z.boolean(),
       maxServicesPerPerson: z.number().int().min(1).max(4),
       adultTogether: z.boolean(),
+      guestStartEmpty: z.boolean(),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(MAX_RANGE_DAYS),
