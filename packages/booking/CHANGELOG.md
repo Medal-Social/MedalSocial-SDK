@@ -1,5 +1,15 @@
 # @medalsocial/booking
 
+## 0.7.0
+
+### Minor Changes
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - «Add to calendar» works on phones. The confirmation no longer links a `data:` file (which iPhones saved to Files, in-app browsers blocked and Android's Google Calendar cannot open): a new route `<api>/calendar/<tokens>` serves the visit as `text/calendar` in place, built entirely on the server (Medal by the bookings' manage tokens, the new `ics.*` labels, `contact.address`), and the link is chosen per device — the file on Apple devices and desktops with Google Calendar beside it, Google Calendar on Android with the file beside it. A confirmation saved before this keeps the `data:` file. Needs `@medalsocial/meda` 3.12 (`calendarAlt`, `calendarNewTab`); peer range `^3.12.0`.
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - A second grown-up stays in the booking under a family. With `screens.adultStepper`, a logged-in parent's step 1 draws «Voksne» as the same stepper a guest's does (meda 3.13, new `who.family.adults` label in the built-in packs), with «Meg selv» as its first seat. `isGuestSeat` no longer claims `adult:2` and up, so a guest who picks two grown-ups and then logs in keeps both, a switch to another account keeps them, and a resumed draft seats its grown-ups as «Meg selv» and `adult:2` rather than as children. A calendar event whose end Medal could not give is written without `DTEND`, an instant, instead of a zero-length event (RFC 5545 wants DTEND after DTSTART). Needs `@medalsocial/meda` 3.13; peer range `^3.13.0`.
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - The redesign's remaining screens, each behind a `config.screens` switch (all off by default): `adultStepper` (grown-ups as a number beside the children, so two grown-ups book together), `compactHeader` (one line of crumbs carrying the answers, no title over the question), `serviceSearch` (a search field on a grown-up's list), `bookedHero` (the confirmation with a large day leaf, calendar and directions buttons and until when a change is free) and `desktopPanel` (a sticky «your appointment» panel beside the step from `lg` up). New config: `contact.mapsUrl` and `policy.freeChangeHours`. Fixes a restored guest party coming back with every person after the first as a child. Needs `@medalsocial/meda` 3.11.
+
 ## 0.6.0
 
 ### Minor Changes
