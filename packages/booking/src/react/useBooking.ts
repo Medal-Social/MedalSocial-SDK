@@ -922,17 +922,61 @@ export function useBooking(options: UseBookingOptions) {
   };
 
   /**
+   * The draft as today's rules can seat it. The site may have changed while
+   * the visitor was at Vipps: a lower `party.maxPeople`, a lower
+   * `maxPerBooking`, or `screens.adultStepper` switched off — after which a
+   * second grown-up is a seat no step 1 can draw or untick. Seated whole, such
+   * a party is refused whole and the visit is lost, so each line that no
+   * longer fits is left out instead, and the rest come back. The hour goes
+   * with any line left out: it was free for the visit as it was.
+   */
+  const fitDraft = (
+    draft: WizardDraft,
+    bookable: ReadonlyMap<string, BookingServiceDto>
+  ): WizardDraft => {
+    const kept: number[] = [];
+    const takers = new Map<string, number>();
+    let grownUps = 0;
+    draft.items.forEach((item, index) => {
+      if (kept.length >= config.party.maxPeople) return;
+      if (item.adult === true && grownUps > 0 && !config.screens.adultStepper) return;
+      const taken = takers.get(item.serviceId) ?? 0;
+      // Every line's service is bookable: `restoreDraft` checked before fitting.
+      if (taken + 1 > (bookable.get(item.serviceId) as BookingServiceDto).maxPerBooking) return;
+      takers.set(item.serviceId, taken + 1);
+      if (item.adult === true) grownUps += 1;
+      kept.push(index);
+    });
+    if (kept.length === draft.items.length) return draft;
+    return {
+      ...draft,
+      items: kept.map((index) => draft.items[index]),
+      seatResourceIds: draft.seatResourceIds?.filter((_, index) => kept.includes(index)),
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    };
+  };
+
+  /**
    * The booking a Vipps login interrupted, rebuilt through the machine's own
    * actions — so it obeys every rule a tapped one does — and trusting nothing
    * beyond the catalogue.
    */
-  const restoreDraft = (draft: WizardDraft) => {
+  const restoreDraft = (saved: WizardDraft) => {
     const bookable = new Map(
       services.filter((service) => service.bookableOnline).map((service) => [service.id, service])
     );
-    const resolved = draft.items.map((item) => bookable.get(item.serviceId));
+    if (saved.items.length === 0 || saved.items.some((item) => !bookable.has(item.serviceId))) {
+      return;
+    }
+    // Never empty: the first line always fits.
+    const draft = fitDraft(saved, bookable);
+    const resolved = draft.items.map((item) => bookable.get(item.serviceId)) as [
+      BookingServiceDto,
+      ...BookingServiceDto[],
+    ];
     const [first, ...rest] = resolved;
-    if (first === undefined || resolved.some((service) => service === undefined)) return;
 
     // The seats as step 1 draws them: children and grown-ups each counted on
     // their own (`guest:1`, `adult`, `adult:2`), so the party the visitor sees

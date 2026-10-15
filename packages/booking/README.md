@@ -28,7 +28,7 @@ to the page that imports it: use `/react/wizard` on a booking page and
 does not matter.
 
 Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
-and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.2 and `lucide-react` (all
+and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.13 and `lucide-react` (all
 three needed by `/react`).
 
 ## Configuration
@@ -87,7 +87,7 @@ its own values in.
 
 ### Opt-in screens (`screens`)
 
-Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.7). The
+Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.13, the peer range). The
 built-in packs carry their words; override them with `labels`.
 
 | Switch | What the parent sees |

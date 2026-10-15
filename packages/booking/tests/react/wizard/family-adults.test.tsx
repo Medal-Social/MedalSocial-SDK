@@ -15,6 +15,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+import { resolveBookingConfig } from '../../../src/core/config';
 import { createDraftStore } from '../../../src/core/draft-store';
 import type { BookingGuardian, BookingServiceDto } from '../../../src/core/types';
 import { useBooking } from '../../../src/react/useBooking';
@@ -44,20 +45,27 @@ const GUTTEKLIPP: BookingServiceDto = {
   category: 'barn',
 };
 
+// Synthetic people only: this repository is public.
 const GUARDIAN: BookingGuardian = {
-  firstName: 'Kari',
+  firstName: 'Parent A',
   lastName: null,
-  email: 'kari@example.test',
-  phone: '40000000',
-  family: [{ name: 'Theo', birthYear: 2019, personId: 'p-theo' }],
+  email: 'parent-a@example.test',
+  phone: '00000000',
+  family: [{ name: 'Child A', birthYear: 2019, personId: 'p-child-a' }],
 };
-const OTHER: BookingGuardian = { ...GUARDIAN, email: 'ola@example.test', family: [] };
+const OTHER: BookingGuardian = { ...GUARDIAN, email: 'parent-b@example.test', family: [] };
 
 const SELF = { key: 'self', adult: true };
 const SECOND = { key: 'adult:2', adult: true };
 
+/** The site these grown-ups were seated on: «Voksen» is a number. */
+const STEPPER_CONFIG = resolveBookingConfig({
+  ...PARITY_CONFIG,
+  screens: { ...PARITY_CONFIG.screens, guestParty: true, adultStepper: true },
+});
+
 const options = (extra: Partial<Parameters<typeof useBooking>[0]> = {}) => ({
-  config: PARITY_CONFIG,
+  config: STEPPER_CONFIG,
   labels: TEST_LABELS,
   seed: { services: [HERREKLIPP, GUTTEKLIPP], resources: [], fromTs: NOW },
   ...extra,
@@ -112,7 +120,7 @@ describe('useBooking — a second grown-up under a family', () => {
       items: [
         { ...line, serviceId: HERREKLIPP.id, adult: true },
         { ...line, serviceId: HERREKLIPP.id, adult: true },
-        { ...line, serviceId: GUTTEKLIPP.id, adult: false, personId: 'p-theo' },
+        { ...line, serviceId: GUTTEKLIPP.id, adult: false, personId: 'p-child-a' },
       ],
       resourceId: null,
       partyMode: 'sequential',
@@ -123,7 +131,7 @@ describe('useBooking — a second grown-up under a family', () => {
     location.search = '?resume=1';
     const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
     await waitFor(() =>
-      expect(keys(result.current.state.people)).toEqual(['self', 'adult:2', 'p:p-theo'])
+      expect(keys(result.current.state.people)).toEqual(['self', 'adult:2', 'p:p-child-a'])
     );
     expect(result.current.state.choices.map((service) => service?.id)).toEqual([
       HERREKLIPP.id,
@@ -133,12 +141,12 @@ describe('useBooking — a second grown-up under a family', () => {
     expect(result.current.state.step).toBe('when');
   });
 
-  it('rebuilds a draft from before the adult flag as it always did: children, Theo by id', async () => {
+  it('rebuilds a draft from before the adult flag as it always did: children, the child by id', async () => {
     const { stashDraft } = createDraftStore(PARITY_CONFIG.storageNamespace);
     const line = { bookedForName: null, bookedForBirthYear: null };
     stashDraft({
       items: [
-        { ...line, serviceId: GUTTEKLIPP.id, personId: 'p-theo' },
+        { ...line, serviceId: GUTTEKLIPP.id, personId: 'p-child-a' },
         { ...line, serviceId: GUTTEKLIPP.id },
       ],
       resourceId: null,
@@ -149,7 +157,9 @@ describe('useBooking — a second grown-up under a family', () => {
     });
     location.search = '?resume=1';
     const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
-    await waitFor(() => expect(keys(result.current.state.people)).toEqual(['p:p-theo', 'guest:2']));
+    await waitFor(() =>
+      expect(keys(result.current.state.people)).toEqual(['p:p-child-a', 'guest:2'])
+    );
   });
 
   it('never claims a grown-up’s line for a saved child, whatever id it carries', async () => {
@@ -161,7 +171,7 @@ describe('useBooking — a second grown-up under a family', () => {
           bookedForName: null,
           bookedForBirthYear: null,
           adult: true,
-          personId: 'p-theo',
+          personId: 'p-child-a',
         },
       ],
       resourceId: null,
@@ -173,5 +183,84 @@ describe('useBooking — a second grown-up under a family', () => {
     location.search = '?resume=1';
     const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
     await waitFor(() => expect(keys(result.current.state.people)).toEqual(['self']));
+  });
+});
+
+describe('useBooking — a draft the site has changed under', () => {
+  const HOUR = Date.parse('2026-09-02T13:00:00+02:00');
+  const line = { bookedForName: null, bookedForBirthYear: null };
+  const stash = (
+    items: Parameters<ReturnType<typeof createDraftStore>['stashDraft']>[0]['items']
+  ) => {
+    createDraftStore(PARITY_CONFIG.storageNamespace).stashDraft({
+      items,
+      resourceId: null,
+      partyMode: 'sequential',
+      startTs: HOUR,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+      seatResourceIds: items.map((_, index) => `res-${index}`),
+    });
+    location.search = '?resume=1';
+  };
+  const TWO_GROWN_UPS_AND_A_CHILD = [
+    { ...line, serviceId: HERREKLIPP.id, adult: true },
+    { ...line, serviceId: HERREKLIPP.id, adult: true },
+    { ...line, serviceId: GUTTEKLIPP.id, adult: false },
+  ];
+
+  it('comes back whole, hour and all, when it still fits', async () => {
+    stash(TWO_GROWN_UPS_AND_A_CHILD);
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN })));
+    await waitFor(() => expect(result.current.state.startTs).toBe(HOUR));
+    expect(keys(result.current.state.people)).toEqual(['self', 'adult:2', 'guest:1']);
+  });
+
+  it('leaves out a second grown-up once «Voksen» is no longer a number, and the hour with it', async () => {
+    stash(TWO_GROWN_UPS_AND_A_CHILD);
+    const config = resolveBookingConfig({
+      ...PARITY_CONFIG,
+      screens: { ...PARITY_CONFIG.screens, guestParty: true },
+    });
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN, config })));
+    await waitFor(() => expect(keys(result.current.state.people)).toEqual(['self', 'guest:1']));
+    expect(result.current.state.choices.map((service) => service?.id)).toEqual([
+      HERREKLIPP.id,
+      GUTTEKLIPP.id,
+    ]);
+    expect(result.current.state.startTs).toBeNull();
+  });
+
+  it('keeps the lines that still fit a lower party limit, rather than none', async () => {
+    stash(TWO_GROWN_UPS_AND_A_CHILD);
+    const config = resolveBookingConfig({
+      ...STEPPER_CONFIG,
+      party: { ...STEPPER_CONFIG.party, maxPeople: 2 },
+    });
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN, config })));
+    await waitFor(() => expect(keys(result.current.state.people)).toEqual(['self', 'adult:2']));
+    expect(result.current.state.startTs).toBeNull();
+  });
+
+  it('keeps the lines a service can still take, in their order', async () => {
+    stash(TWO_GROWN_UPS_AND_A_CHILD);
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          guardian: GUARDIAN,
+          seed: {
+            services: [{ ...HERREKLIPP, maxPerBooking: 1 }, GUTTEKLIPP],
+            resources: [],
+            fromTs: NOW,
+          },
+        })
+      )
+    );
+    await waitFor(() => expect(keys(result.current.state.people)).toEqual(['self', 'guest:1']));
+    expect(result.current.state.choices.map((service) => service?.id)).toEqual([
+      HERREKLIPP.id,
+      GUTTEKLIPP.id,
+    ]);
+    expect(result.current.state.startTs).toBeNull();
   });
 });
