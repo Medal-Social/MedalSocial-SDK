@@ -62,6 +62,12 @@ export interface CoreLabels {
   'people.adult': BookingLabel;
   /** `{count} voksne` — two or more guest grown-ups. */
   'people.adults': BookingLabel;
+  /** The served calendar file's event title: `{service}` `{business}`. */
+  'ics.title': BookingLabel;
+  /** The same for a named person: `{service}` `{name}` `{business}`. */
+  'ics.titleFor': BookingLabel;
+  /** The event's notes: `{url}`, the booking's own change link. */
+  'ics.manage': BookingLabel;
 }
 
 /** Per-key copy for config-defined groups: `daypart.<key>`, `category.<key>`. */
@@ -89,6 +95,9 @@ const NB: BookingLabels = {
   'people.self': 'Meg selv',
   'people.adult': 'Voksen',
   'people.adults': '{count} voksne',
+  'ics.title': '{service} hos {business}',
+  'ics.titleFor': '{service} for {name} hos {business}',
+  'ics.manage': 'Endre eller avbestill: {url}',
   'daypart.formiddag': 'Formiddag',
   'daypart.ettermiddag': 'Ettermiddag',
   'daypart.kveld': 'Kveld',
@@ -111,6 +120,9 @@ const EN: BookingLabels = {
   'people.self': 'Me',
   'people.adult': 'Adult',
   'people.adults': '{count} adults',
+  'ics.title': '{service} at {business}',
+  'ics.titleFor': '{service} for {name} at {business}',
+  'ics.manage': 'Change or cancel: {url}',
   'daypart.morning': 'Morning',
   'daypart.afternoon': 'Afternoon',
   'daypart.evening': 'Evening',

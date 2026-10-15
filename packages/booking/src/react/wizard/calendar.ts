@@ -45,22 +45,6 @@ export function googleCalendarHref(event: IcsEvent): string {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-/**
- * The served calendar file with the site's own words on it: the server reads
- * the times from Medal by the tokens in `path`, and takes the title (`s`) and
- * notes (`d`) per booking, and the place (`l`), from here.
- */
-export function servedCalendarHref(path: string, events: readonly IcsEvent[]): string {
-  const params = new URLSearchParams();
-  for (const event of events) {
-    params.append('s', event.summary);
-    params.append('d', event.description ?? '');
-  }
-  const location = events[0]?.location;
-  if (location) params.set('l', location);
-  return `${path}?${params.toString()}`;
-}
-
 export interface CalendarLinks {
   calendarHref: string;
   /** Google's page opens beside the confirmation; the file opens in place. */
@@ -72,23 +56,28 @@ export interface CalendarLinks {
  * The confirmation's calendar link for this device, and the other way in
  * beside it. Google takes one event per link, so a family's visit is only
  * ever offered as the file.
+ *
+ * `googleEvents` are the same visit WITHOUT the change link in the notes: that
+ * link is a bearer credential, and Google would receive it in the URL before
+ * the visitor decided to save anything. The served file needs no words from
+ * here — the server writes its own.
  */
 export function calendarLinks({
   platform,
-  events,
+  googleEvents,
   dataHref,
   servedPath,
   labels,
 }: {
   platform: CalendarPlatform;
-  events: readonly IcsEvent[];
+  googleEvents: readonly IcsEvent[];
   /** The `data:` file: what a confirmation saved before the served file existed falls back to. */
   dataHref: string;
   servedPath: string | null;
   labels: { google: string; file: string };
 }): CalendarLinks {
-  const file = servedPath === null ? dataHref : servedCalendarHref(servedPath, events);
-  const google = events.length === 1 ? googleCalendarHref(events[0] as IcsEvent) : null;
+  const file = servedPath ?? dataHref;
+  const google = googleEvents.length === 1 ? googleCalendarHref(googleEvents[0] as IcsEvent) : null;
   if (platform === 'android' && google !== null) {
     return {
       calendarHref: google,

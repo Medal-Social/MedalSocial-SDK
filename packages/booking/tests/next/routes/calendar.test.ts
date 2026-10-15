@@ -1,14 +1,20 @@
 import { MedalApiError } from '@medalsocial/sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MedalConfigError } from '../../../src/next/medal';
 import { calendarRoute } from '../../../src/next/routes/calendar';
 import { testRuntime } from '../../support/next-runtime';
 import { PARITY_CONFIG } from '../../support/parity-config';
 
 /**
- * `GET <api>/calendar/<tokens>`: a calendar file a phone opens in place, its
- * events read from Medal by manage token, only the wording from the URL.
+ * `GET <api>/calendar/<tokens>`: a calendar file a phone opens in place,
+ * every word and time in it the server's own — Medal's booking, the site's
+ * labels and address. Only the tokens come from the URL.
  */
+
+/** Manage tokens are HMAC-SHA256 in base64url: 43 characters. */
+const tok = (seed: string) => seed.padEnd(43, 'x');
+const A = tok('aaaa');
+const B = tok('bbbb');
 
 function summary(id: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -32,79 +38,113 @@ function summary(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-function route(getManage: (token: string) => Promise<unknown>, config = PARITY_CONFIG) {
-  const rt = testRuntime({ medal: { getManage: vi.fn(getManage) } as never }, { config });
-  return (segment: string, query = '') =>
+function route(
+  getManage: (token: string) => Promise<unknown>,
+  options: Parameters<typeof testRuntime>[1] = {}
+) {
+  const medal = { getManage: vi.fn(getManage) };
+  const rt = testRuntime({ medal: medal as never }, options);
+  const call = (segment: string, query = '') =>
     calendarRoute(
       rt,
       new Request(`https://salong.example/api/booking/calendar/x${query}`),
       segment
     );
+  return { call, medal };
 }
 
-const lines = (body: string) => body.split('\r\n');
+/** The file's lines, unfolded (RFC 5545 folds a long line with CRLF + space). */
+const lines = (body: string) => body.replace(/\r\n /g, '').split('\r\n');
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('calendarRoute', () => {
-  it('serves one event per token, in place, never stored', async () => {
-    const call = route(async (token) => summary(`bk-${token}`));
-    const response = await call('a,b', '?s=Barneklipp+for+Jonas&d=&s=Barneklipp+for+Emma&d=Notat');
+  it('serves one event per booking, in place, never stored', async () => {
+    const { call } = route(async (token) =>
+      summary(`bk-${token.slice(0, 4)}`, token === B ? { booked_for_name: 'Emma' } : {})
+    );
+    const response = await call(`${A},${B}`);
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
     expect(response.headers.get('Content-Disposition')).toMatch(/^inline/);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
     expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
     const body = lines(await response.text());
-    expect(body.filter((line) => line.startsWith('UID:'))).toEqual(['UID:bk-a', 'UID:bk-b']);
-    expect(body).toContain('SUMMARY:Barneklipp for Jonas');
-    expect(body).toContain('SUMMARY:Barneklipp for Emma');
-    expect(body).toContain('DESCRIPTION:Notat');
-    // The place falls back to the site's own address.
+    expect(body.filter((line) => line.startsWith('UID:'))).toEqual(['UID:bk-aaaa', 'UID:bk-bbbb']);
+    // The site's own words: its labels, its name, its address.
+    expect(body).toContain('SUMMARY:Barneklipp hos Salong Demo');
+    expect(body).toContain('SUMMARY:Barneklipp for Emma hos Salong Demo');
     expect(body.some((line) => line.startsWith('LOCATION:Torget 1'))).toBe(true);
-  });
-
-  it('takes the time from Medal, not from the URL, and the place from the hint', async () => {
-    const call = route(async () => summary('bk-1'));
-    const body = lines(await (await call('a', '?s=Klipp&l=Schous+plass+6')).text());
+    expect(body.some((line) => line.includes(`/bestill/administrer/${A}`))).toBe(true);
     expect(body).toContain('DTSTART:20261020T110000Z');
-    expect(body).toContain('LOCATION:Schous plass 6');
   });
 
-  it('names the event after the service and the business without a hint', async () => {
-    const call = route(async () => summary('bk-1'));
-    const body = lines(await (await call('a')).text());
-    expect(body).toContain('SUMMARY:Barneklipp – Salong Demo');
-    expect(body.some((line) => line.startsWith('DESCRIPTION'))).toBe(false);
+  it('takes nothing from the query string but ignores it', async () => {
+    const { call } = route(async () => summary('bk-1'));
+    const body = lines(await (await call(A, '?s=Ring+oss&l=Et+annet+sted&d=evil')).text());
+    expect(body.some((line) => /Ring oss|Et annet sted|evil/.test(line))).toBe(false);
+  });
+
+  it('refuses a token that is not a manage token, before asking Medal', async () => {
+    const { call, medal } = route(async () => summary('bk-1'));
+    for (const segment of ['', 'short', `${A},bad token`, `${A},`, 'a'.repeat(129)]) {
+      expect((await call(segment)).status).toBe(404);
+    }
+    expect(medal.getManage).not.toHaveBeenCalled();
+  });
+
+  it('refuses more tokens than a booking can seat', async () => {
+    const { call, medal } = route(async () => summary('bk-1'));
+    const many = Array.from({ length: PARITY_CONFIG.party.maxPeople + 1 }, (_, n) => tok(`t${n}`));
+    expect((await call(many.join(','))).status).toBe(404);
+    expect(medal.getManage).not.toHaveBeenCalled();
+  });
+
+  it('counts each token past the first against the rate limiter', async () => {
+    const rateLimit = vi.fn(async () => false);
+    const { call } = route(async () => summary('bk-1'), { rateLimit });
+    await call(`${A},${B}`);
+    expect(rateLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimit).toHaveBeenCalledWith('booking/calendar', expect.any(Request));
+
+    const limited = route(async () => summary('bk-1'), { rateLimit: vi.fn(async () => true) });
+    const response = await limited.call(`${A},${B}`);
+    expect(response.status).toBe(429);
+    expect(limited.medal.getManage).not.toHaveBeenCalled();
   });
 
   it('leaves out a revoked or cancelled booking, and 404s when none is left', async () => {
-    const call = route(async (token) => {
-      if (token === 'gone') throw new MedalApiError(404, 'NOT_FOUND', 'gone');
-      if (token === 'null') return summary('bk-x', { start_ts: null });
+    const { call } = route(async (token) => {
+      if (token === A) throw new MedalApiError(404, 'NOT_FOUND', 'gone');
+      if (token === B) return summary('bk-x', { start_ts: null });
       return summary('bk-c', { status: 'cancelled' });
     });
-    const response = await call('gone,null,cancelled');
+    const response = await call(`${A},${B},${tok('cccc')}`);
     expect(response.status).toBe(404);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(response.headers.get('Content-Type')).toMatch(/json/);
   });
 
-  it('404s for no token or more than a booking can hold', async () => {
-    const call = route(async () => summary('bk-1'));
-    expect((await call('')).status).toBe(404);
-    expect((await call(Array.from({ length: 21 }, (_, n) => `t${n}`).join(','))).status).toBe(404);
+  it('gives up after one deadline for the whole file', async () => {
+    vi.useFakeTimers();
+    const { call } = route(() => new Promise(() => {}));
+    const pending = call(`${A},${B}`);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect((await pending).status).toBe(504);
   });
 
   it('answers a Medal failure the way the catalogue routes do', async () => {
-    expect(
-      (await route(async () => Promise.reject(new MedalConfigError('no key')))('a')).status
-    ).toBe(503);
-    expect((await route(async () => Promise.reject(new Error('down')))('a')).status).toBe(502);
+    expect((await route(() => Promise.reject(new MedalConfigError('no key'))).call(A)).status).toBe(
+      503
+    );
+    expect((await route(() => Promise.reject(new Error('down'))).call(A)).status).toBe(502);
   });
 
-  it('places nothing without a hint or an address', async () => {
+  it('places nothing without an address, and links from the request’s origin without a base URL', async () => {
     const config = { ...PARITY_CONFIG, contact: { ...PARITY_CONFIG.contact, address: null } };
-    const call = route(async () => summary('bk-1'), config);
-    const body = lines(await (await call('a')).text());
+    const { call } = route(async () => summary('bk-1'), { config, baseUrl: undefined });
+    const body = lines(await (await call(A)).text());
     expect(body.some((line) => line.startsWith('LOCATION'))).toBe(false);
   });
 });

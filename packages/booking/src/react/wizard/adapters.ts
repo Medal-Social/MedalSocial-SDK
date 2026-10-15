@@ -291,9 +291,16 @@ export function confirmationProps(
   });
   // The served file when this confirmation holds the tokens for it; a saved
   // confirmation from before keeps the `data:` file.
+  // Google's copy has the price but never the change link (a bearer credential).
+  const googleEvents = events.map((event, index) => ({
+    ...event,
+    description: fill(labels['wizard.ics.price'], {
+      price: format.price((lines[index] as (typeof lines)[number]).priceOre),
+    }),
+  }));
   const { calendarHref, calendarAlt, calendarNewTab } = calendarLinks({
     platform,
-    events,
+    googleEvents,
     dataHref: kit.ics.icsDataUrl(kit.ics.buildIcs(events)),
     servedPath: typeof confirmation.calendarPath === 'string' ? confirmation.calendarPath : null,
     labels: {

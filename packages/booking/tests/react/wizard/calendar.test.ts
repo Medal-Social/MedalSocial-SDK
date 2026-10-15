@@ -4,7 +4,6 @@ import {
   calendarLinks,
   calendarPlatform,
   googleCalendarHref,
-  servedCalendarHref,
 } from '../../../src/react/wizard/calendar';
 
 const EVENT: IcsEvent = {
@@ -52,28 +51,9 @@ describe('googleCalendarHref', () => {
   });
 });
 
-describe('servedCalendarHref', () => {
-  it('carries the words per booking and the place once', () => {
-    const href = servedCalendarHref('/api/booking/calendar/a,b', [
-      EVENT,
-      { ...EVENT, uid: 'bk-2', description: undefined, location: undefined },
-    ]);
-    const url = new URL(href, 'https://salong.example');
-    expect(url.pathname).toBe('/api/booking/calendar/a,b');
-    expect(url.searchParams.getAll('s')).toHaveLength(2);
-    expect(url.searchParams.getAll('d')).toEqual([EVENT.description, '']);
-    expect(url.searchParams.get('l')).toBe('Torget 1, 0001 Oslo');
-  });
-
-  it('names no place when the first event has none', () => {
-    const href = servedCalendarHref('/c/a', [{ ...EVENT, location: undefined }]);
-    expect(new URL(href, 'https://x.example').searchParams.has('l')).toBe(false);
-  });
-});
-
 describe('calendarLinks', () => {
   const base = {
-    events: [EVENT],
+    googleEvents: [EVENT],
     dataHref: 'data:text/calendar,x',
     servedPath: '/c/a',
     labels: LABELS,
@@ -81,7 +61,7 @@ describe('calendarLinks', () => {
 
   it('gives an iPhone the served file, with Google beside it', () => {
     const links = calendarLinks({ ...base, platform: 'apple' });
-    expect(links.calendarHref.startsWith('/c/a?')).toBe(true);
+    expect(links.calendarHref).toBe('/c/a');
     expect(links.calendarAlt?.label).toBe('Google Kalender');
     expect(links.calendarNewTab).toBe(false);
     expect(links.calendarAlt?.newTab).toBe(true);
@@ -96,8 +76,8 @@ describe('calendarLinks', () => {
   });
 
   it('gives a family the file everywhere: Google takes one event per link', () => {
-    const links = calendarLinks({ ...base, events: [EVENT, EVENT], platform: 'android' });
-    expect(links.calendarHref.startsWith('/c/a?')).toBe(true);
+    const links = calendarLinks({ ...base, googleEvents: [EVENT, EVENT], platform: 'android' });
+    expect(links.calendarHref).toBe('/c/a');
     expect(links.calendarAlt).toBeNull();
   });
 
