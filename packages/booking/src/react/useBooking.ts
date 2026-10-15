@@ -924,7 +924,7 @@ export function useBooking(options: UseBookingOptions) {
   /**
    * The draft as today's rules can seat it. The site may have changed while
    * the visitor was at Vipps: a lower `party.maxPeople`, a lower
-   * `maxPerBooking`, or `screens.adultStepper` switched off — after which a
+   * `maxPerBooking`, or `screens.adultStepper` / `guestParty` off — after which a
    * second grown-up is a seat no step 1 can draw or untick. Seated whole, such
    * a party is refused whole and the visit is lost, so each line that no
    * longer fits is left out instead, and the rest come back. The hour goes
@@ -934,12 +934,15 @@ export function useBooking(options: UseBookingOptions) {
     draft: WizardDraft,
     bookable: ReadonlyMap<string, BookingServiceDto>
   ): WizardDraft => {
+    // The «Voksne» stepper step 1 draws — the guest's, and «Meg selv»'s
+    // under a family — exists only with both switches (`BookingWizard`).
+    const countsGrownUps = config.screens.guestParty && config.screens.adultStepper;
     const kept: number[] = [];
     const takers = new Map<string, number>();
     let grownUps = 0;
     draft.items.forEach((item, index) => {
       if (kept.length >= config.party.maxPeople) return;
-      if (item.adult === true && grownUps > 0 && !config.screens.adultStepper) return;
+      if (item.adult === true && grownUps > 0 && !countsGrownUps) return;
       const taken = takers.get(item.serviceId) ?? 0;
       // Every line's service is bookable: `restoreDraft` checked before fitting.
       if (taken + 1 > (bookable.get(item.serviceId) as BookingServiceDto).maxPerBooking) return;

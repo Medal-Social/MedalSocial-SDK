@@ -231,6 +231,17 @@ describe('useBooking — a draft the site has changed under', () => {
     expect(result.current.state.startTs).toBeNull();
   });
 
+  it('leaves out a second grown-up when the party controls are off, even with the stepper on', async () => {
+    stash(TWO_GROWN_UPS_AND_A_CHILD);
+    const config = resolveBookingConfig({
+      ...PARITY_CONFIG,
+      screens: { ...PARITY_CONFIG.screens, guestParty: false, adultStepper: true },
+    });
+    const { result } = renderHook(() => useBooking(options({ guardian: GUARDIAN, config })));
+    await waitFor(() => expect(keys(result.current.state.people)).toEqual(['self', 'guest:1']));
+    expect(result.current.state.startTs).toBeNull();
+  });
+
   it('keeps the lines that still fit a lower party limit, rather than none', async () => {
     stash(TWO_GROWN_UPS_AND_A_CHILD);
     const config = resolveBookingConfig({
