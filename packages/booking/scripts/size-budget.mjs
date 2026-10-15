@@ -134,7 +134,9 @@ const BUDGETS = [
     // Raised 18.4 → 19.6 KB for the redesign's opt-in wiring (grown-up seats,
     // the panel's words, compact header, booked hero, guest-party restore):
     // measured 19.13 KB.
-    gzipBytes: 19.6 * 1024,
+    // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.70 KB.
+    gzipBytes: 20.2 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -160,7 +162,9 @@ const BUDGETS = [
     // Raised 27.2 → 28.8 KB for the redesign's opt-in wiring (grown-ups stepper,
     // compact header, «Din time» panel, booked hero, guest-party restore):
     // measured 28.31 KB.
-    gzipBytes: 28.8 * 1024,
+    // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.86 KB.
+    gzipBytes: 29.4 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -197,7 +201,9 @@ const BUDGETS = [
     // Raised 18.5 → 19.7 KB for the redesign's opt-in wiring (grown-ups stepper,
     // compact header, «Din time» panel, booked hero, guest-party restore):
     // measured 19.27 KB.
-    gzipBytes: 19.7 * 1024,
+    // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.82 KB.
+    gzipBytes: 20.3 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -221,7 +227,9 @@ const BUDGETS = [
     // Raised 27.3 → 28.9 KB for the redesign's opt-in wiring (grown-ups stepper,
     // compact header, «Din time» panel, booked hero, guest-party restore):
     // measured 28.42 KB.
-    gzipBytes: 28.9 * 1024,
+    // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.96 KB.
+    gzipBytes: 29.5 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -257,7 +265,9 @@ const BUDGETS = [
     // Raised 23.7 → 25.0 KB for the redesign's opt-in wiring (grown-ups stepper,
     // compact header, «Din time» panel, booked hero, guest-party restore):
     // measured 24.49 KB.
-    gzipBytes: 25.0 * 1024,
+    // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 25.11 KB.
+    gzipBytes: 25.6 * 1024,
   },
 ];
 

@@ -15,6 +15,10 @@ export interface WizardLabels {
   'wizard.panel.freeChange': BookingLabel;
   /** The panel's payment line («Pay at the salon»); empty draws none. */
   'wizard.panel.payment': BookingLabel;
+  /** The confirmation's second calendar link, to Google Calendar. */
+  'wizard.calendar.google': BookingLabel;
+  /** The confirmation's second calendar link, to the calendar file (Android). */
+  'wizard.calendar.file': BookingLabel;
   /**
    * `{step}` of `{total}`, then the step's name: «Steg 1 av 4 · Hvem». The
    * built-in packs write it as an array, one text node per piece.
@@ -97,6 +101,8 @@ export const WIZARD_LABELS_NB: WizardLabels = {
   'wizard.title': 'Bestill time',
   'wizard.panel.freeChange': 'Gratis å endre til {hours} timer før',
   'wizard.panel.payment': '',
+  'wizard.calendar.google': 'Google Kalender',
+  'wizard.calendar.file': 'Kalenderfil (.ics)',
   'wizard.progress': ['Steg ', '{step}', ' av ', '{total}', ' · ', '{label}'],
   'wizard.progressLabel': 'Fremdrift',
   'wizard.back': 'Tilbake til {label}',
@@ -145,6 +151,8 @@ export const WIZARD_LABELS_EN: WizardLabels = {
   'wizard.title': 'Book an appointment',
   'wizard.panel.freeChange': 'Free to change until {hours} hours before',
   'wizard.panel.payment': '',
+  'wizard.calendar.google': 'Google Calendar',
+  'wizard.calendar.file': 'Calendar file (.ics)',
   'wizard.progress': ['Step ', '{step}', ' of ', '{total}', ' · ', '{label}'],
   'wizard.progressLabel': 'Progress',
   'wizard.back': 'Back to {label}',

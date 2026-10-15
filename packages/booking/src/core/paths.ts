@@ -22,6 +22,15 @@ function managePath(config: PathsConfig, token: string): string {
   return `${config.paths.manage}/${encodeURIComponent(token)}`;
 }
 
+/**
+ * The visit as a calendar file (`<api>/calendar/<token>,<token>`): the manage
+ * tokens, encoded and joined, in seat order. Like a manage link it is a
+ * bearer credential, so only the confirmation that holds the tokens builds it.
+ */
+function calendarPath(config: PathsConfig, tokens: readonly string[]): string {
+  return `${config.paths.api}/calendar/${tokens.map(encodeURIComponent).join(',')}`;
+}
+
 /** A path as a regex source, so a `.` in a configured path means a dot. */
 function escapeRegExp(path: string): string {
   return path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -67,6 +76,7 @@ function isPortalPath(config: PathsConfig, pathname: string | null | undefined):
 
 export interface Paths {
   managePath(token: string): string;
+  calendarPath(tokens: readonly string[]): string;
   isManagePath(pathname: string | null | undefined): boolean;
   isPortalPath(pathname: string | null | undefined): boolean;
 }
@@ -74,6 +84,7 @@ export interface Paths {
 export function createPaths(config: PathsConfig): Paths {
   return {
     managePath: (token) => managePath(config, token),
+    calendarPath: (tokens) => calendarPath(config, tokens),
     isManagePath: (pathname) => isManagePath(config, pathname),
     isPortalPath: (pathname) => isPortalPath(config, pathname),
   };

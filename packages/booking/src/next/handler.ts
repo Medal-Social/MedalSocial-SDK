@@ -25,6 +25,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { calendarRoute } from './routes/calendar';
 import {
   availabilityRoute,
   avatarRoute,
@@ -68,6 +69,7 @@ const BOOKING_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
 
 const BOOKING_PARAM_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
   avatar: { GET: (rt, request, segment) => avatarRoute(rt, request, segment) },
+  calendar: { GET: (rt, request, segment) => calendarRoute(rt, request, segment) },
   manage: {
     GET: (rt, request, segment) => manageSummaryRoute(rt, request, segment),
     POST: (rt, request, segment) => manageRoute(rt, request, segment),
