@@ -75,7 +75,10 @@ const BUDGETS = [
     // option and the wishes carried through a login's re-key. Measured 16.16 KB.
     name: '@medalsocial/booking/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 16.5 * 1024,
+    // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 16.52 KB.
+    gzipBytes: 17.0 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -128,7 +131,12 @@ const BUDGETS = [
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 18.4 * 1024,
+    // Raised 18.4 → 19.6 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 19.13 KB.
+    // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.70 KB.
+    gzipBytes: 20.2 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -151,7 +159,12 @@ const BUDGETS = [
     // seat adapter. Measured 26.76 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 27.2 * 1024,
+    // Raised 27.2 → 28.8 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.31 KB.
+    // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.86 KB.
+    gzipBytes: 29.4 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -185,7 +198,12 @@ const BUDGETS = [
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 18.5 * 1024,
+    // Raised 18.5 → 19.7 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 19.27 KB.
+    // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.82 KB.
+    gzipBytes: 20.3 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -206,7 +224,12 @@ const BUDGETS = [
     // seat adapter. Measured 26.88 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 27.3 * 1024,
+    // Raised 27.3 → 28.9 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.42 KB.
+    // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.96 KB.
+    gzipBytes: 29.5 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -239,7 +262,12 @@ const BUDGETS = [
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 23.7 * 1024,
+    // Raised 23.7 → 25.0 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 24.49 KB.
+    // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 25.11 KB.
+    gzipBytes: 25.6 * 1024,
   },
 ];
 

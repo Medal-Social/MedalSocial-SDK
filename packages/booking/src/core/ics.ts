@@ -139,7 +139,10 @@ function eventLines(event: IcsEvent): (string | null)[] {
     `SEQUENCE:${event.sequence ?? 0}`,
     `DTSTAMP:${utcStamp(event.stampTs ?? Date.now())}`,
     `DTSTART:${utcStamp(event.startTs)}`,
-    `DTEND:${utcStamp(event.endTs)}`,
+    // RFC 5545 wants DTEND later than DTSTART. An end Medal could not give
+    // (the manage summary's start-plus-nothing) is left out instead: a
+    // DATE-TIME event without one is that instant, still in the calendar.
+    event.endTs > event.startTs ? `DTEND:${utcStamp(event.endTs)}` : null,
     textProperty('SUMMARY', event.summary),
     textProperty('DESCRIPTION', event.description),
     textProperty('LOCATION', event.location),

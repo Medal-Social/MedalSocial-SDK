@@ -28,7 +28,7 @@ to the page that imports it: use `/react/wizard` on a booking page and
 does not matter.
 
 Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
-and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.2 and `lucide-react` (all
+and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.13 and `lucide-react` (all
 three needed by `/react`).
 
 ## Configuration
@@ -77,6 +77,8 @@ its own values in.
 | `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
+| `contact` | `{ phone: null, address: null, name: '', mapsUrl: null }` | The business's own contact; `mapsUrl` is the booked screen's directions link (`null` searches a map for `address`) |
+| `policy` | `{ freeChangeHours: null }` | A change or cancellation is free until this many hours before; the booked screen and the desktop panel say so |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |
 | `screens` | every switch `false` | Opt-in screen features, below; nothing changes for a site that sets none |
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |
@@ -85,7 +87,7 @@ its own values in.
 
 ### Opt-in screens (`screens`)
 
-Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.7). The
+Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.13, the peer range). The
 built-in packs carry their words; override them with `labels`.
 
 | Switch | What the parent sees |
@@ -101,6 +103,11 @@ built-in packs carry their words; override them with `labels`.
 | `childMenuFirst` | A child's service list leads with the children's and anyone's groups; grown-ups' groups move below the «usually not for this age» divider |
 | `wideLayouts` | The stylist step keeps its row of faces at every width, with the chosen stylist's bio under it; the time step puts the days beside the times on an iPad and shows the week as a grid of times on a desktop (`time.week.*` labels) |
 | `seatStylists` | A family seen at once can ask for a stylist per person («who cuts whom», `stylist.party.seat*` labels); the rest are seated with anyone free at that minute |
+| `adultStepper` | With `guestParty`, «adult» is a number beside «children» (two grown-ups in one booking), `who.party.adult*` labels. A logged-in parent's «Meg selv» row is the same stepper (`who.family.adults`), «Meg selv» its first seat, so a second grown-up survives a login, an account switch and a resumed draft. The step's lead (`who.party.lead`) and «come along» hint (`who.party.togetherHint`) are empty in the built-in packs: a site writes them for its own `maxPeople` |
+| `compactHeader` | The header is one line of crumbs carrying the answers so far («1 child · What»), with no title over the step's question |
+| `serviceSearch` | A grown-up's service list gets a search field (`service.search*` labels) |
+| `bookedHero` | The confirmation leads with the day as a large leaf, calendar and directions buttons and until when a change is free (`contact.mapsUrl`, `policy.freeChangeHours`) |
+| `desktopPanel` | From `lg` up, a sticky «your appointment» panel beside the step replaces the summary bar (`panel.*`, `wizard.panel.*` labels) |
 
 A site moving onto the package keeps its live sessions, drafts and cache
 entries by passing the paths, cookie names and storage namespace it already
@@ -220,6 +227,20 @@ export const { GET, POST, DELETE } = booking.handler;
   over `https:` on the default port, never from an IP address or internal
   name and never through a redirect, and it relays only JPEG, PNG, WebP, AVIF
   and GIF. A photo anywhere else falls back to the stylist's initials.
+- **Calendar files.** `/api/booking/calendar/<token>[,<token>…]` serves the
+  visit as `text/calendar`, in place, so iOS and macOS open «Add to Calendar»
+  instead of saving a file. Everything in it is the server's: each event's
+  time, end and UID read from Medal by its manage token, the title and change
+  link from the `ics.*` labels (set your words in the server config's `labels`;
+  the wizard's `wizard.ics.*` only shape the `data:` fallback and Google
+  Calendar), the place from `contact.address` (set it in the server config for
+  a location). Only manage-token-shaped segments reach Medal,
+  a family's tokens are read at once under one 10 s deadline, and each token
+  past the first counts against `rateLimit`. `no-store`, `no-referrer`.
+  The confirmation links to it per device: the file on Apple devices and
+  desktops (Google Calendar beside it), Google Calendar on Android (the file
+  beside it). Google never receives the change link. A family's visit is always
+  the file — Google takes one event per link.
 - `examples/next-booking` is a runnable site on plain `next start`.
 
 ## Development

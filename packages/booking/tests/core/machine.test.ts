@@ -1630,6 +1630,8 @@ describe('wizard machine: seatFamily and addPerson', () => {
     expect(isGuestSeat(guestChild(2))).toBe(true);
     expect(isGuestSeat({ key: 'new:1:0', name: 'Mia' })).toBe(true);
     expect(isGuestSeat({ key: 'adult', adult: true })).toBe(true);
+    // The «Voksen» stepper's later seats: a parent's step 1 draws them too.
+    expect(isGuestSeat({ key: 'adult:2', adult: true })).toBe(false);
     expect(isGuestSeat(THEO)).toBe(false);
     expect(isGuestSeat({ key: 'self', adult: true })).toBe(false);
   });
@@ -1663,6 +1665,25 @@ describe('wizard machine: seatFamily and addPerson', () => {
     expect(next.people).toEqual([{ key: 'self', adult: true }]);
     expect(next.choices).toEqual([GUTTEKLIPP]);
     expect(next.step).toBe('who');
+  });
+
+  it('keeps a second grown-up behind «Meg selv», with both their services', () => {
+    let state = reduce(initialState(), {
+      type: 'choosePeople',
+      people: [guestChild(1), { key: 'adult', adult: true }, { key: 'adult:2', adult: true }],
+      advance: true,
+    });
+    state = reduce(state, { type: 'pickServiceFor', index: 1, service: GUTTEKLIPP });
+    state = reduce(state, { type: 'pickServiceFor', index: 2, service: GUTTEKLIPP });
+    state = reduce(state, { type: 'goToStep', step: 'service' });
+
+    const next = reduce(state, { type: 'seatFamily' });
+
+    expect(next.people).toEqual([
+      { key: 'self', adult: true },
+      { key: 'adult:2', adult: true },
+    ]);
+    expect(next.choices).toEqual([GUTTEKLIPP, GUTTEKLIPP]);
   });
 
   it('leaves a basket with an hour alone — from step 3 on, the seats are chairs', () => {

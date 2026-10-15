@@ -1256,14 +1256,12 @@ describe('BookingWizard submission', () => {
     ).toHaveAttribute('href', '/bestill/administrer/tok-emma');
 
     // And each child's calendar entry is keyed to that child's OWN booking:
-    // the manage page emits its reschedule under the id of the booking it
-    // manages, so a family whose entries all carried the first child's id could
-    // never be moved one at a time.
+    // the served calendar file names each child's own token, in seat order, and
+    // the server keys each event to the booking that token reads (its UID) —
+    // so a family's entries can be moved one at a time.
     const href =
       screen.getByRole('link', { name: 'Legg til i kalender' }).getAttribute('href') ?? '';
-    const ics = decodeURIComponent(href.replace(/^data:text\/calendar;charset=utf-8,/, ''));
-    const uids = ics.split('\r\n').filter((line) => line.startsWith('UID:'));
-    expect(uids).toEqual(['UID:bk-jonas', 'UID:bk-emma']);
+    expect(href.split('?')[0]).toBe('/api/booking/calendar/tok-jonas,tok-emma');
   });
 
   it('sends the nonce, so a double-tapped «Bekreft» derives one idempotency key', async () => {

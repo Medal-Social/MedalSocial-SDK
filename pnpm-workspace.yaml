@@ -2,10 +2,16 @@ packages:
   - "packages/*"
   - "examples/*"
 
-# Only one override survives. Everything else this file used to pin now
-# resolves to the patched version on its own.
+# Overrides hold the patched version of a transitive dependency until its
+# parent ships one; drop each once `pnpm audit` is clean without it.
 overrides:
   js-yaml: 4.3.2 # GHSA-2883-xcg3-v3hh, via @commitlint/cli and openapi-typescript
+  # Patched versions for transitive dependencies whose parents pin an older one.
+  # Each is scoped to the vulnerable versions only, so a newer major (undici 8)
+  # is left alone.
+  'sharp@<0.35.5': ^0.35.5 # GHSA-wq5f-xc86-pv6w, GHSA-rgj7-g3m4-5g8c, via miniflare
+  'undici@>=7.0.0 <7.29.1': ^7.29.1 # GHSA-rfgv-xxqx-mfg5 and 14 more, via miniflare
+  'source-map-js@<1.2.2': ^1.2.2 # GHSA-68fv-2mgg-jv7q, via vite > postcss
 
 # Neither package needs its lifecycle scripts to install correctly, and running
 # them would execute third-party code at install time.
@@ -19,4 +25,4 @@ allowBuilds:
 # First-party: meda is released from Medal-Social/meda; the booking package
 # tracks its booking screens release by release, inside the age window.
 minimumReleaseAgeExclude:
-  - '@medalsocial/meda@3.6.0 || 3.7.0 || 3.8.0 || 3.9.0 || 3.10.0'
+  - '@medalsocial/meda@3.6.0 || 3.7.0 || 3.8.0 || 3.9.0 || 3.10.0 || 3.11.0 || 3.12.0 || 3.13.0'

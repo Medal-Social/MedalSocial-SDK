@@ -1,0 +1,39 @@
+# Keeps the dependencies current: a weekly, grouped update PR into `dev`
+# (the branch every change lands on first; `prod` only moves by promotion).
+#
+# Security updates are NOT covered by `target-branch`: GitHub raises those
+# against the default branch (`prod`). Never merge one there — the next
+# promotion replaces prod with dev's tree and drops it. Apply the same bump on
+# `dev` (or let this weekly PR carry it) and close the prod one; see CLAUDE.md.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    # pnpm refuses versions younger than its release-age window anyway; this
+    # stops Dependabot proposing one the install would then reject.
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: chore(deps)
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci(deps)
