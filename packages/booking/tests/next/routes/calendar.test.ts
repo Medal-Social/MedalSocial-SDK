@@ -89,6 +89,13 @@ describe('calendarRoute', () => {
     }
   });
 
+  it('writes no DTEND for a booking Medal gave no end, so no calendar refuses it', async () => {
+    const { call } = route(async () => summary('bk-1', { end_ts: null }));
+    const body = lines(await (await call(A)).text());
+    expect(body).toContain('DTSTART:20261020T110000Z');
+    expect(body.some((line) => line.startsWith('DTEND'))).toBe(false);
+  });
+
   it('takes nothing from the query string but ignores it', async () => {
     const { call } = route(async () => summary('bk-1'));
     const body = lines(await (await call(A, '?s=Ring+oss&l=Et+annet+sted&d=evil')).text());

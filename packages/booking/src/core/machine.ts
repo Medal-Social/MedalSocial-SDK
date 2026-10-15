@@ -78,15 +78,12 @@ export const SELF_KEY = 'self';
  * named in the guest sheet (`new:…`), the «Voksen» chip's `adult`. A parent's
  * step 1 draws cards for saved children and «Meg selv» and nothing else — so
  * one of these under a family is a seat nobody can see or untick, counting
- * towards the three.
+ * towards the three. Not the «Voksen» stepper's seats 2 and up (`adult:2`):
+ * a parent's step 1 draws that stepper too, «Meg selv» being its seat 1, so a
+ * second grown-up stays seated across a login (`seatFamily`).
  */
 export function isGuestSeat(person: WizardPerson): boolean {
-  return (
-    person.key.startsWith('guest:') ||
-    person.key.startsWith('new:') ||
-    person.key === 'adult' ||
-    person.key.startsWith('adult:')
-  );
+  return person.key.startsWith('guest:') || person.key.startsWith('new:') || person.key === 'adult';
 }
 
 /** A guest grown-up's seat, 1-based: `adult`, then `adult:2`, `adult:3`. */
@@ -349,7 +346,8 @@ export type WizardAction =
   /**
    * The parent's family has appeared (a login, a guardian read after the
    * first render) or step 1 is shown again under it: the guest seats go —
-   * see `isGuestSeat` — and a guest «Voksen» becomes «Meg selv». Only while
+   * see `isGuestSeat` — and a guest «Voksen» becomes «Meg selv»; the other
+   * grown-ups (`adult:2`) stay, as the stepper's seats after it. Only while
    * nothing is held on them (steps 1 and 2); from the hour on they are real
    * chairs with a time, and «Bekreft» names them. A party emptied by it goes
    * back to step 1, where the children are. A guest chair in `keep` stays:
