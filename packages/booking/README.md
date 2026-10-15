@@ -231,8 +231,10 @@ export const { GET, POST, DELETE } = booking.handler;
   visit as `text/calendar`, in place, so iOS and macOS open «Add to Calendar»
   instead of saving a file. Everything in it is the server's: each event's
   time, end and UID read from Medal by its manage token, the title and change
-  link from the `ics.*` labels, the place from `contact.address` (set it in the
-  server config for a location). Only manage-token-shaped segments reach Medal,
+  link from the `ics.*` labels (set your words in the server config's `labels`;
+  the wizard's `wizard.ics.*` only shape the `data:` fallback and Google
+  Calendar), the place from `contact.address` (set it in the server config for
+  a location). Only manage-token-shaped segments reach Medal,
   a family's tokens are read at once under one 10 s deadline, and each token
   past the first counts against `rateLimit`. `no-store`, `no-referrer`.
   The confirmation links to it per device: the file on Apple devices and

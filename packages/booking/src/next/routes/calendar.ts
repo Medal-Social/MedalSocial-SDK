@@ -1,7 +1,8 @@
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
 import { createIcs, type IcsEvent } from '../../core/ics';
-import { fill, resolveLabels } from '../../core/labels';
+import { fill, labelText, resolveLabels } from '../../core/labels';
+import { UNKNOWN_SERVICE } from '../../core/unknown-service';
 import { toManageDto } from '../manage-dto';
 import type { BookingRuntime } from '../runtime';
 import { catalogueErrorResponse } from './shared';
@@ -108,7 +109,12 @@ export async function calendarRoute(
       startTs: booking.startTs,
       endTs: booking.endTs,
       summary: fill(labels[booking.bookedForName ? 'ics.titleFor' : 'ics.title'], {
-        service: booking.serviceName,
+        // Medal's own name for the visit — every service in it, joined
+        // («Klipp + Vask») — or the site's word when the service is gone.
+        service:
+          !booking.serviceName || booking.serviceName === UNKNOWN_SERVICE
+            ? labelText(labels['ics.serviceFallback'])
+            : booking.serviceName,
         name: booking.bookedForName ?? '',
         business,
       }),

@@ -81,6 +81,14 @@ describe('calendarRoute', () => {
     expect(body).toContain('DTSTART:20261020T110000Z');
   });
 
+  it('puts the site’s word in place of a service that has left the catalogue', async () => {
+    for (const name of [null, 'Unknown service']) {
+      const { call } = route(async () => summary('bk-1', { service_name: name }));
+      const body = lines(await (await call(A)).text());
+      expect(body).toContain('SUMMARY:Time hos Salong Demo');
+    }
+  });
+
   it('takes nothing from the query string but ignores it', async () => {
     const { call } = route(async () => summary('bk-1'));
     const body = lines(await (await call(A, '?s=Ring+oss&l=Et+annet+sted&d=evil')).text());
