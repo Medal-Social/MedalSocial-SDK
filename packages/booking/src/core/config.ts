@@ -120,8 +120,18 @@ export interface BookingConfig {
   dayparts: BookingDaypart[];
   /** Set = the booking path hands off (307) to this URL instead of rendering. */
   handoffUrl: string | null;
-  /** The business's own contact, for «call us» and the unavailable screen. */
-  contact: { phone: string | null; address: string | null; name: string };
+  /**
+   * The business's own contact, for «call us» and the unavailable screen.
+   * `mapsUrl` is the directions link (`screens.bookedHero`); `null` derives a
+   * map search for `address`.
+   */
+  contact: { phone: string | null; address: string | null; name: string; mapsUrl: string | null };
+  /**
+   * The booking rules a visitor is told about. `freeChangeHours`: a change or
+   * cancellation is free until this many hours before the start (the booked
+   * screen and the desktop panel say so); `null` says nothing.
+   */
+  policy: { freeChangeHours: number | null };
   portal: {
     enabled: boolean;
     methods: Array<'email_code' | 'vipps'>;
@@ -168,6 +178,17 @@ export interface BookingConfig {
    *   a grid of times on a desktop. Needs the `time.week.*` labels.
    * - `seatStylists` — a family seen at once can ask for a stylist per person
    *   («who cuts whom»); the rest are seated with anyone free at that minute.
+   * - `adultStepper` — with `guestParty`, «adult» is a number beside
+   *   «children» (two grown-ups in one booking) rather than one check row.
+   * - `compactHeader` — the header is one line of crumbs that carry the
+   *   answers so far («1 child · What»), without the «Book» title over the
+   *   step's own question.
+   * - `serviceSearch` — a grown-up's service list gets a search field.
+   * - `bookedHero` — the confirmation leads with the day as a large leaf,
+   *   with calendar and directions as buttons (see `contact.mapsUrl` and
+   *   `policy.freeChangeHours`).
+   * - `desktopPanel` — from `lg` up, a sticky «your appointment» panel beside
+   *   the step replaces the summary bar.
    */
   screens: {
     recap: boolean;
@@ -181,6 +202,11 @@ export interface BookingConfig {
     childMenuFirst: boolean;
     wideLayouts: boolean;
     seatStylists: boolean;
+    adultStepper: boolean;
+    compactHeader: boolean;
+    serviceSearch: boolean;
+    bookedHero: boolean;
+    desktopPanel: boolean;
   };
   consent: {
     termsUrl: string | null;
@@ -266,7 +292,8 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       { key: 'kveld', from: 17, to: 24 },
     ],
     handoffUrl: null,
-    contact: { phone: null, address: null, name: '' },
+    contact: { phone: null, address: null, name: '', mapsUrl: null },
+    policy: { freeChangeHours: null },
     portal: { enabled: false, methods: ['email_code'], cookieName: 'booking_portal' },
     account: { required: false },
     screens: {
@@ -281,6 +308,11 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       childMenuFirst: false,
       wideLayouts: false,
       seatStylists: false,
+      adultStepper: false,
+      compactHeader: false,
+      serviceSearch: false,
+      bookedHero: false,
+      desktopPanel: false,
     },
     consent: { termsUrl: null, marketing: null },
     storageNamespace: 'medal',
@@ -451,6 +483,15 @@ const schema = z
       phone: z.string().nullable(),
       address: z.string().nullable(),
       name: z.string(),
+      mapsUrl: z.url({ protocol: /^https?$/ }).nullable(),
+    }),
+    policy: z.object({
+      freeChangeHours: z
+        .number()
+        .int()
+        .min(0)
+        .max(24 * 60)
+        .nullable(),
     }),
     portal: z.object({
       enabled: z.boolean(),
@@ -477,6 +518,11 @@ const schema = z
       childMenuFirst: z.boolean(),
       wideLayouts: z.boolean(),
       seatStylists: z.boolean(),
+      adultStepper: z.boolean(),
+      compactHeader: z.boolean(),
+      serviceSearch: z.boolean(),
+      bookedHero: z.boolean(),
+      desktopPanel: z.boolean(),
     }),
     consent: z.object({
       termsUrl: z.string().min(1).nullable(),

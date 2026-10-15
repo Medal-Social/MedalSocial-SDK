@@ -22,6 +22,7 @@ import type {
   RecordConsentInput,
 } from '@medalsocial/sdk';
 import { Medal, MedalApiError, MedalTimeoutError } from '@medalsocial/sdk';
+import { UNKNOWN_SERVICE } from '../core/unknown-service';
 import type {
   MedalManageSummary,
   MedalResource,
@@ -347,7 +348,7 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
       return {
         ...summary,
         status: summary.status,
-        service_name: summary.service_name ?? 'Unknown service',
+        service_name: summary.service_name ?? UNKNOWN_SERVICE,
         resource_name: summary.resource_name ?? 'Unknown resource',
       };
     },
