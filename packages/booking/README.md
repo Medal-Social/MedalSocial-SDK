@@ -28,7 +28,7 @@ to the page that imports it: use `/react/wizard` on a booking page and
 does not matter.
 
 Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
-and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.2 and `lucide-react` (all
+and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.13 and `lucide-react` (all
 three needed by `/react`).
 
 ## Configuration
@@ -87,7 +87,7 @@ its own values in.
 
 ### Opt-in screens (`screens`)
 
-Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.7). The
+Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.13, the peer range). The
 built-in packs carry their words; override them with `labels`.
 
 | Switch | What the parent sees |
@@ -103,7 +103,7 @@ built-in packs carry their words; override them with `labels`.
 | `childMenuFirst` | A child's service list leads with the children's and anyone's groups; grown-ups' groups move below the «usually not for this age» divider |
 | `wideLayouts` | The stylist step keeps its row of faces at every width, with the chosen stylist's bio under it; the time step puts the days beside the times on an iPad and shows the week as a grid of times on a desktop (`time.week.*` labels) |
 | `seatStylists` | A family seen at once can ask for a stylist per person («who cuts whom», `stylist.party.seat*` labels); the rest are seated with anyone free at that minute |
-| `adultStepper` | With `guestParty`, «adult» is a number beside «children» (two grown-ups in one booking), `who.party.adult*` labels. The step's lead (`who.party.lead`) and «come along» hint (`who.party.togetherHint`) are empty in the built-in packs: a site writes them for its own `maxPeople` |
+| `adultStepper` | With `guestParty`, «adult» is a number beside «children» (two grown-ups in one booking), `who.party.adult*` labels. A logged-in parent's «Meg selv» row is the same stepper (`who.family.adults`), «Meg selv» its first seat, so a second grown-up survives a login, an account switch and a resumed draft. The step's lead (`who.party.lead`) and «come along» hint (`who.party.togetherHint`) are empty in the built-in packs: a site writes them for its own `maxPeople` |
 | `compactHeader` | The header is one line of crumbs carrying the answers so far («1 child · What»), with no title over the step's question |
 | `serviceSearch` | A grown-up's service list gets a search field (`service.search*` labels) |
 | `bookedHero` | The confirmation leads with the day as a large leaf, calendar and directions buttons and until when a change is free (`contact.mapsUrl`, `policy.freeChangeHours`) |

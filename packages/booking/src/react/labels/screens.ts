@@ -421,6 +421,8 @@ export const SCREEN_LABELS_NB: ScreenLabels = {
   'who.party.adultFewer': 'En voksen færre',
   'who.party.adultMore': 'En voksen til',
   'who.party.adultCount': '{count} voksne',
+  // A logged-in parent's «Meg selv» row as the same stepper (`adultStepper`).
+  'who.family.adults': 'Voksne',
   // Opt-in: empty draws nothing. A site that writes it knows its own limit
   // (`party.maxPeople`) and whether a grown-up is seen alongside.
   'who.party.lead': '',
@@ -857,6 +859,7 @@ export const SCREEN_LABELS_EN: ScreenLabels = {
   'who.party.adultFewer': 'One adult fewer',
   'who.party.adultMore': 'One more adult',
   'who.party.adultCount': '{count} adults',
+  'who.family.adults': 'Adults',
   'who.party.lead': '',
   'who.party.togetherHint': '',
   'service.search': 'Search services …',

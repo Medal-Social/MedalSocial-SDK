@@ -671,7 +671,9 @@ export function useBooking(options: UseBookingOptions) {
       if (
         at !== -1 ||
         (switched &&
-          person.key !== SELF_KEY &&
+          // Grown-ups — «Meg selv» and the stepper's `adult:2` — are nobody's
+          // saved child: whoever is logged in, they are the same chair.
+          !person.adult &&
           (person.personId !== undefined || !wizard.isGuestSeat(person)))
       ) {
         keys.push(person.key);
@@ -846,16 +848,25 @@ export function useBooking(options: UseBookingOptions) {
    * a hand-edited jar — is ignored, and its line restores as a name and a year
    * exactly as a draft without ids does. Returns the reseated line indexes.
    */
-  const reseatFamily = (draft: WizardDraft, lines: BookingServiceDto[]): Set<number> => {
+  const reseatFamily = (
+    draft: WizardDraft,
+    lines: BookingServiceDto[],
+    seats: readonly WizardPerson[] | null
+  ): Set<number> => {
     const reseated = new Set<number>();
     if (family === null) return reseated;
     const keys = new Set<string>();
-    // The seats `pickService` / `addService` just built (`peopleFor`), for the
-    // lines that are not reseated. A parent known at mount starts with nobody
-    // seated (`initialWizardState`), so every one of them is a guest chair.
+    // The seats just built, for the lines that are not reseated: the draft's
+    // own (`seats`), or — a draft without adult flags — those `pickService` /
+    // `addService` made (`peopleFor`). A parent known at mount starts with
+    // nobody seated (`initialWizardState`), so each of those is a guest chair.
+    // A grown-up's line is never a saved child's.
     const people = draft.items.map((item, index) => {
-      const built = wizard.guestChild(index + 1);
-      const at = item.personId ? family.findIndex((child) => child.personId === item.personId) : -1;
+      const built = seats?.[index] ?? wizard.guestChild(index + 1);
+      const at =
+        item.personId && !item.adult
+          ? family.findIndex((child) => child.personId === item.personId)
+          : -1;
       const child = at === -1 ? null : personForChild(family[at], at);
       if (child === null || keys.has(child.key)) {
         keys.add(built.key);
@@ -911,26 +922,79 @@ export function useBooking(options: UseBookingOptions) {
   };
 
   /**
+   * The draft as today's rules can seat it. The site may have changed while
+   * the visitor was at Vipps: a lower `party.maxPeople`, a lower
+   * `maxPerBooking`, or `screens.adultStepper` / `guestParty` off — after which a
+   * second grown-up is a seat no step 1 can draw or untick. Seated whole, such
+   * a party is refused whole and the visit is lost, so each line that no
+   * longer fits is left out instead, and the rest come back. The hour goes
+   * with any line left out: it was free for the visit as it was.
+   */
+  const fitDraft = (
+    draft: WizardDraft,
+    bookable: ReadonlyMap<string, BookingServiceDto>
+  ): WizardDraft => {
+    // The «Voksne» stepper step 1 draws — the guest's, and «Meg selv»'s
+    // under a family — exists only with both switches (`BookingWizard`).
+    const countsGrownUps = config.screens.guestParty && config.screens.adultStepper;
+    const kept: number[] = [];
+    const takers = new Map<string, number>();
+    let grownUps = 0;
+    draft.items.forEach((item, index) => {
+      if (kept.length >= config.party.maxPeople) return;
+      if (item.adult === true && grownUps > 0 && !countsGrownUps) return;
+      const taken = takers.get(item.serviceId) ?? 0;
+      // Every line's service is bookable: `restoreDraft` checked before fitting.
+      if (taken + 1 > (bookable.get(item.serviceId) as BookingServiceDto).maxPerBooking) return;
+      takers.set(item.serviceId, taken + 1);
+      if (item.adult === true) grownUps += 1;
+      kept.push(index);
+    });
+    if (kept.length === draft.items.length) return draft;
+    return {
+      ...draft,
+      items: kept.map((index) => draft.items[index]),
+      seatResourceIds: draft.seatResourceIds?.filter((_, index) => kept.includes(index)),
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    };
+  };
+
+  /**
    * The booking a Vipps login interrupted, rebuilt through the machine's own
    * actions — so it obeys every rule a tapped one does — and trusting nothing
    * beyond the catalogue.
    */
-  const restoreDraft = (draft: WizardDraft) => {
+  const restoreDraft = (saved: WizardDraft) => {
     const bookable = new Map(
       services.filter((service) => service.bookableOnline).map((service) => [service.id, service])
     );
-    const resolved = draft.items.map((item) => bookable.get(item.serviceId));
+    if (saved.items.length === 0 || saved.items.some((item) => !bookable.has(item.serviceId))) {
+      return;
+    }
+    // Never empty: the first line always fits.
+    const draft = fitDraft(saved, bookable);
+    const resolved = draft.items.map((item) => bookable.get(item.serviceId)) as [
+      BookingServiceDto,
+      ...BookingServiceDto[],
+    ];
     const [first, ...rest] = resolved;
-    if (first === undefined || resolved.some((service) => service === undefined)) return;
 
-    // A guest's seats as step 1 draws them: children and grown-ups each
-    // counted on their own (`guest:1`, `adult`, `adult:2`), so the party the
-    // visitor sees after a restore is the one a tap there would make.
+    // The seats as step 1 draws them: children and grown-ups each counted on
+    // their own (`guest:1`, `adult`, `adult:2`), so the party the visitor sees
+    // after a restore is the one a tap there would make. Under a family the
+    // first grown-up is «Meg selv», the stepper's seat 1, and the rest follow
+    // it; its children are reseated from their ids below (`reseatFamily`).
     let children = 0;
     let adults = 0;
-    const guestSeatOf = draft.items.map((item) =>
-      item.adult ? wizard.guestAdult(++adults) : wizard.guestChild(++children)
-    );
+    const guestSeatOf = draft.items.map((item) => {
+      if (!item.adult) return wizard.guestChild(++children);
+      adults += 1;
+      return family !== null && adults === 1
+        ? { key: SELF_KEY, adult: true }
+        : wizard.guestAdult(adults);
+    });
     // Nobody to vouch for a saved child's id: its chair waits for the next login.
     if (family === null) {
       const ids = new Map<string, string>();
@@ -939,10 +1003,10 @@ export function useBooking(options: UseBookingOptions) {
       });
       awaitingIds.current = ids.size > 0 ? ids : null;
     }
-    // A guest is reseated as they left; a family's seats are its own children.
-    const guestSeats =
-      family === null && draft.items.every((item) => typeof item.adult === 'boolean');
-    if (guestSeats) {
+    // Seated as they left whenever the draft says who was a grown-up; a draft
+    // from before the flag rebuilds its seats as children, the old way.
+    const flagged = draft.items.every((item) => typeof item.adult === 'boolean');
+    if (flagged) {
       dispatch({ type: 'choosePeople', people: guestSeatOf, advance: true });
       // Each person's service on their own seat: `pickService` keeps one
       // person and `addService` seats the rest as children, which turned a
@@ -958,7 +1022,11 @@ export function useBooking(options: UseBookingOptions) {
       // Every line resolved (checked above), so `rest` holds services only.
       for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
     }
-    const reseated = reseatFamily(draft, resolved as BookingServiceDto[]);
+    const reseated = reseatFamily(
+      draft,
+      resolved as BookingServiceDto[],
+      flagged ? guestSeatOf : null
+    );
     // After the seats are final (a reseat moves people, and their extras with
     // them) and before the stylist, so no toggle is refused for a preference
     // the draft is about to restore anyway.
