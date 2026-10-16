@@ -115,18 +115,25 @@ uses.
 
 ## The UI (`/react`)
 
-The screens are meda's; the package feeds them. A site needs Tailwind v4 and
-three of meda's stylesheets, and themes them with its own shadcn variables
-(`--primary`, `--card`, …):
+The screens are meda's; the package feeds them. A site needs Tailwind v4,
+three of meda's stylesheets and a `@source` for this package's own components,
+and themes them with its own shadcn variables (`--primary`, `--card`, …):
 
 ```css
 @import '@medalsocial/meda/styles/bridge.css';
 @import '@medalsocial/meda/primitives/styles.css'; /* the sheets and dialogs the screens open */
 @import '@medalsocial/meda/booking/styles.css';
+/* The wizard's own layout around meda's screens. Relative to this file. */
+@source '../node_modules/@medalsocial/booking/dist/react';
 ```
 
 Without the primitives sheet the login sheet's positioning classes are never
-generated, and it opens at the top of the page.
+generated, and it opens at the top of the page. Without the `@source` (Tailwind
+does not scan `node_modules`), the classes only this package uses are never
+generated either: the desktop «your appointment» column
+(`screens.desktopPanel`) then drops under the step. Point it at wherever your
+install puts the package, e.g. the repository root's `node_modules` in a
+hoisted monorepo.
 
 ```tsx
 // app/bestill/page.tsx — a Server Component
