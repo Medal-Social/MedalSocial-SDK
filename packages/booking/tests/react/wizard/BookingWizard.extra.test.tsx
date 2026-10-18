@@ -201,6 +201,50 @@ const SUBMITTED = (names: Array<string | undefined>) => ({
 });
 
 describe('BookingWizard — the override ladder', () => {
+  it('keeps known time chips usable while loading more dates and after a distant read fails', async () => {
+    let finish: (value: StubResponse) => void = () => {};
+    const pending = new Promise<StubResponse>((resolve) => {
+      finish = resolve;
+    });
+    stubApi({ availability: () => pending });
+    location.search = '?kategori=barn';
+    const user = userEvent.setup();
+    render(
+      wizard({
+        seed: {
+          services: [KIDS],
+          resources: [BJARNE],
+          fromTs: NOW,
+          toTs: NOW + 31 * 86400000,
+          maxAdvanceDays: 90,
+          slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+          schedules: { [KIDS.id]: OPEN_WEEK },
+        },
+        components: {
+          ServiceCard: ({ service, onPick }) => (
+            <button type="button" onClick={onPick}>
+              card:{service.name}
+            </button>
+          ),
+          TimeChip: ({ label, onPick }) => (
+            <button type="button" onClick={onPick}>
+              chip:{label}
+            </button>
+          ),
+        },
+      })
+    );
+    await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
+    expect(await screen.findByRole('button', { name: 'chip:13:00' })).toBeEnabled();
+    expect(screen.getByText('Henter ledige tider …')).toBeInTheDocument();
+    await act(async () => {
+      finish({ ok: false, status: 503, json: async () => ({}) });
+    });
+    expect(await screen.findByRole('button', { name: 'Prøv igjen' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'chip:13:00' }));
+    expect(await screen.findByRole('heading', { name: 'Nesten ferdig!' })).toBeInTheDocument();
+  });
+
   it('hands each card renderer to the screen that draws it', async () => {
     stubApi();
     const user = userEvent.setup();
@@ -578,7 +622,14 @@ describe('useBooking — the corners', () => {
           )
             return { ok: false, status: 503, json: async () => ({}) };
           if (url.pathname.endsWith('/create'))
-            return { ok: false, status: 409, json: async () => ({ error: 'slotTaken' }) };
+            return {
+              ok: false,
+              status: 409,
+              json: async () => ({
+                error: 'slotTaken',
+                ...(failTail ? { freshSlots: { [KIDS.id]: [] } } : {}),
+              }),
+            };
           return {
             ok: true,
             status: 200,
@@ -606,6 +657,13 @@ describe('useBooking — the corners', () => {
       act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
       act(() => result.current.pickService(KIDS));
       await waitFor(() => expect(result.current.slots.ready).toBe(true));
+      await waitFor(() =>
+        expect(asked.filter((url) => url.pathname.endsWith('/availability'))).toHaveLength(2)
+      );
+      await waitFor(() => expect(result.current.schedule.openDays).toEqual(OPEN_WEEK));
+      await waitFor(() =>
+        expect(result.current.slots.nextAvailableTs[BJARNE.id]).toBe(osloTs(2, 13))
+      );
       expect(result.current.slots.single).toContainEqual(slot(2, 13, BJARNE.id));
       expect(result.current.slots.nextAvailableTs[BJARNE.id]).toBe(osloTs(2, 13));
       expect(result.current.schedule.openDays).toEqual(OPEN_WEEK);
@@ -638,8 +696,74 @@ describe('useBooking — the corners', () => {
       );
       await waitFor(() => expect(result.current.slots.single).toEqual([]));
       const retried = asked.filter((url) => url.pathname.endsWith('/availability'));
-      expect(retried).toHaveLength(3);
-      expect(Number(retried[0].searchParams.get('from_ts'))).toBe(NOW);
+      expect(retried).toHaveLength(failTail ? 0 : 3);
+      if (!failTail) expect(Number(retried[0].searchParams.get('from_ts'))).toBe(NOW);
+    }
+  );
+
+  it.each(['availability', 'schedule'])(
+    'keeps the seeded month bookable while %s waits or fails, then resumes the unread range',
+    async (endpoint) => {
+      const asked: URL[] = [];
+      let finishFirst: (value: unknown) => void = () => {};
+      let failTail = true;
+      const first = new Promise((resolve) => {
+        finishFirst = resolve;
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: unknown) => {
+          const url = new URL(String(input), 'https://example.test');
+          asked.push(url);
+          if (url.pathname.endsWith(`/${endpoint}`)) {
+            const from = Number(url.searchParams.get('from_ts'));
+            if (from === NOW + 31 * 86400000) return first;
+            if (failTail) return { ok: false, status: 503 };
+          }
+          return {
+            ok: true,
+            json: async () => ({ slots: [], days: OPEN_WEEK, resources: [BJARNE] }),
+          };
+        })
+      );
+      const { result } = renderHook(() =>
+        useBooking(
+          options({
+            seed: {
+              services: [KIDS],
+              resources: [BJARNE],
+              fromTs: NOW,
+              toTs: NOW + 31 * 86400000,
+              maxAdvanceDays: 90,
+              slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+              schedules: { [KIDS.id]: OPEN_WEEK },
+              nextAvailable: { [KIDS.id]: { [BJARNE.id]: osloTs(2, 13) } },
+            },
+          })
+        )
+      );
+      act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+      act(() => result.current.pickService(KIDS));
+      expect(result.current.slots.ready).toBe(true);
+      expect(result.current.slots.loadingMore).toBe(true);
+      expect(result.current.slots.single).toContainEqual(slot(2, 13, BJARNE.id));
+      expect(result.current.slots.days.length).toBeLessThanOrEqual(31);
+      await act(async () => {
+        finishFirst({ ok: true, json: async () => ({ slots: [] }) });
+      });
+      await waitFor(() => expect(result.current.slots.failed).toBe(true));
+      expect(result.current.slots.ready).toBe(true);
+      expect(result.current.slots.single).toContainEqual(slot(2, 13, BJARNE.id));
+      expect(result.current.slots.days.length).toBeLessThanOrEqual(62);
+      asked.length = 0;
+      failTail = false;
+      act(() => result.current.refresh());
+      await waitFor(() => expect(result.current.slots.loadingMore).toBe(false));
+      expect(result.current.slots.failed).toBe(false);
+      const resumed = asked.filter((url) => url.pathname.endsWith(`/${endpoint}`));
+      expect(resumed).toHaveLength(1);
+      expect(Number(resumed[0].searchParams.get('from_ts'))).toBe(NOW + 62 * 86400000);
+      expect(result.current.slots.days).toHaveLength(91);
     }
   );
 

@@ -705,6 +705,15 @@ function WhenStep({ booking, resolved }: StepProps) {
         />
       )}
 
+      {slots.ready && slots.failed ? (
+        <SlotsUnavailable kit={kit} onRetry={booking.refresh} />
+      ) : null}
+      {slots.ready && slots.loadingMore ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {screenLabels(labels)['time.loading']}
+        </p>
+      ) : null}
+
       {/* Once, outside the skeleton-or-step switch, so a re-read cannot remount it. */}
       <TakenToast labels={screenLabels(labels)} takenSlotTs={slots.takenSlotTs} />
     </>

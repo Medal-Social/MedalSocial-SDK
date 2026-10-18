@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryCacheAdapter } from '../../src/next/cache/memory';
 import { loadBookingPage } from '../../src/next/loaders';
 import { policySeed } from '../../src/next/policy-window';
@@ -25,6 +25,10 @@ function runtime(days = 90) {
 }
 
 describe('saved customer booking horizon', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-03T10:00:00Z'));
+  });
   afterEach(() => vi.useRealTimers());
   it.each(['2026-01-01T22:30:00Z', '2026-09-01T22:30:00Z'])(
     'includes the exact cutoff across daylight saving from %s',
@@ -72,8 +76,8 @@ describe('saved customer booking horizon', () => {
         ? rt
         : testRuntime({ medal: rt.medal, catalogue: rt.catalogue }, rt.options);
       const pageSeed = await policySeed(pageRuntime);
-      const key = pageSeed.seedKeyAt('service', Date.now())!;
-      const latest = pageSeed.seedLatestKeyAt('service', Date.now())!;
+      const key = pageSeed.seedKeyAt('service', Date.now()) ?? '';
+      const latest = pageSeed.seedLatestKeyAt('service', Date.now()) ?? '';
       expect(key).toContain('/91/');
       expect(key).not.toBe(rt.seed.seedKeyAt('service', Date.now()));
       const edge = rt.options.cache.edge;
@@ -99,7 +103,7 @@ describe('saved customer booking horizon', () => {
     vi.spyOn(rt.catalogue, 'cachedServices').mockResolvedValue([]);
     getPolicy.mockRejectedValue(new Error('policy unavailable'));
     await expect(forgetBookedSlots(rt, ['service'])).resolves.toBeUndefined();
-    expect(await rt.options.cache.edge.get(rt.seed.expiryMarkerKey('service')!)).toBeDefined();
+    expect(await rt.options.cache.edge.get(rt.seed.expiryMarkerKey('service') ?? '')).toBeDefined();
     expect(rt.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
       'Could not expire the booking caches after a write'
