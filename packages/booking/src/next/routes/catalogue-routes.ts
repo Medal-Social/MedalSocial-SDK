@@ -94,7 +94,7 @@ export async function resourcesRoute(rt: BookingRuntime, request: Request): Prom
   let serviceId: string | null = null;
   let extraServiceIds: string[] = [];
   if (rawServiceId) {
-    const parsed = parseRange(searchParams);
+    const parsed = parseRange(searchParams, rt.config.window.followPolicy);
     if ('error' in parsed) return parsed.error;
     range = parsed;
     const known = await knownServiceId(rt, rawServiceId);
@@ -142,7 +142,7 @@ export async function availabilityRoute(rt: BookingRuntime, request: Request): P
     return bookingErrorResponse('invalidInput', 400, 'service_id is required');
   }
 
-  const range = parseRange(searchParams);
+  const range = parseRange(searchParams, rt.config.window.followPolicy);
   if ('error' in range) return range.error;
 
   const known = await knownServiceId(rt, rawServiceId);
@@ -187,7 +187,7 @@ export async function scheduleRoute(rt: BookingRuntime, request: Request): Promi
     return bookingErrorResponse('invalidInput', 400, 'service_id is required');
   }
 
-  const range = parseRange(searchParams);
+  const range = parseRange(searchParams, rt.config.window.followPolicy);
   if ('error' in range) return range.error;
 
   const known = await knownServiceId(rt, rawServiceId);

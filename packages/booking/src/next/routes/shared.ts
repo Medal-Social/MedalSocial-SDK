@@ -25,7 +25,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
-import { MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
+import { MAX_POLICY_RANGE_MS, MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
 import type { BookingRuntime } from '../runtime';
 
@@ -202,7 +202,8 @@ function parseTimestamp(raw: string | null): number | null {
  * opaque 502 pointing at Medal for a typo in our own query string.
  */
 export function parseRange(
-  searchParams: URLSearchParams
+  searchParams: URLSearchParams,
+  followPolicy = false
 ): { fromTs: number; toTs: number } | { error: NextResponse } {
   const fromTs = parseTimestamp(searchParams.get('from_ts'));
   const toTs = parseTimestamp(searchParams.get('to_ts'));
@@ -222,12 +223,12 @@ export function parseRange(
   // fetch on their behalf — not the engine's own limit, which clamps rather
   // than refuses. It admits the widest window a valid config can produce,
   // DST hour included (`core/range.ts`).
-  if (toTs - fromTs > MAX_RANGE_MS) {
+  if (toTs - fromTs > (followPolicy ? MAX_POLICY_RANGE_MS : MAX_RANGE_MS)) {
     return {
       error: bookingErrorResponse(
         'invalidInput',
         400,
-        `Range must not exceed ${MAX_RANGE_DAYS} days`
+        `Range must not exceed ${followPolicy ? 402 : MAX_RANGE_DAYS} days`
       ),
     };
   }

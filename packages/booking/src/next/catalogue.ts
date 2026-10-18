@@ -32,7 +32,7 @@
 
 import { createClock } from '../core/clock';
 import type { BookingConfig } from '../core/config';
-import { MAX_RANGE_MS } from '../core/range';
+import { MAX_POLICY_RANGE_MS, MAX_RANGE_MS } from '../core/range';
 import { visitKeyOfIds } from '../core/visit';
 import type { MedalResource, MedalScheduleDay, MedalService, MedalSlot } from '../core/wire';
 import type { MedalSeam, RangeArgs } from './medal';
@@ -90,7 +90,8 @@ export interface Catalogue {
 }
 
 export interface CatalogueOptions {
-  config: Pick<BookingConfig, 'timeZone' | 'locale' | 'dayparts'>;
+  config: Pick<BookingConfig, 'timeZone' | 'locale' | 'dayparts'> &
+    Partial<Pick<BookingConfig, 'window'>>;
   cache: { data: BookingCacheAdapter; prefix: string };
   logger: BookingLogger;
 }
@@ -128,7 +129,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
     if (args.resourceId) return null;
     const fromTs = slotKeyStart(args.fromTs, now);
     const toTs = roundUpToDay(args.toTs);
-    const limit = now + MAX_RANGE_MS;
+    const limit = now + (options.config.window?.followPolicy ? MAX_POLICY_RANGE_MS : MAX_RANGE_MS);
     if (fromTs > limit || toTs > limit || toTs <= fromTs) return null;
     return { fromTs, toTs };
   }

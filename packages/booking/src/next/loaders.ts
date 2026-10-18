@@ -21,6 +21,7 @@ import type { BookingGuardian, BookingManageDto, BookingServiceDto } from '../co
 import { toManageDto } from './manage-dto';
 import { MedalApiError } from './medal';
 import { timed } from './options';
+import { policySeed } from './policy-window';
 import { PortalSessionExpiredError } from './portal/medal-portal';
 import type { VippsLinkFlash } from './portal/vipps-flash';
 import { portalEnabled } from './routes/vipps-return';
@@ -130,9 +131,12 @@ export async function loadBookingPage(
   const { query } = rt.config;
   const named = single(searchParams[query.rebookService]) ?? single(searchParams[query.service]);
 
+  let rangeDays = rt.seed.RANGE_DAYS;
   const loadSeed = async (): Promise<BookingSeed | null> => {
     try {
-      return await rt.seed.loadBookingSeed(named);
+      const source = await policySeed(rt);
+      rangeDays = source.RANGE_DAYS;
+      return await source.loadBookingSeed(named);
     } catch (error) {
       rt.logger.error({ err: error }, 'Could not read the service catalogue for the booking page');
       return null;
@@ -158,7 +162,7 @@ export async function loadBookingPage(
     guardian,
     config: rt.config,
     contact,
-    rangeDays: rt.seed.RANGE_DAYS,
+    rangeDays,
   };
 }
 

@@ -688,6 +688,31 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_BookingCreateResult"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/bookings/policy:
+    get:
+      tags: [Bookings]
+      operationId: getBookingPolicy
+      summary: Read the saved customer booking horizon
+      description: Requires read:bookings. Returns only the authenticated workspace's public horizon, without caching.
+      responses:
+        "200":
+          description: Current customer booking limit.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [max_advance_days]
+                    properties:
+                      max_advance_days:
+                        type: integer
+                        minimum: 1
+                        maximum: 400
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/bookings/services:
     get:
       tags: [Bookings]

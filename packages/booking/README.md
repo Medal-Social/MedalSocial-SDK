@@ -261,3 +261,7 @@ repository is public: no customer names, copy or data in any file
 ## License
 
 Apache-2.0
+
+### Follow the saved booking horizon
+
+Set `window.followPolicy: true` to use the workspace booking setting instead of a fixed `rangeDays`. The server loads `GET /api/v1/bookings/policy` on each booking-page request; a saved value of 90 includes the last partially bookable date. The API still enforces the exact cutoff. Requests use the existing bounded availability chunks, and cached seeds are separated by window length. If policy loading fails, the page reports unavailable rather than showing a stale fixed limit. Deploy the policy API before enabling this option on a site.

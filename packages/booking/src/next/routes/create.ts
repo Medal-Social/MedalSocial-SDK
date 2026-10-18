@@ -84,7 +84,8 @@ function slotWindow(
   const toTs = raw?.toTs;
   if (typeof fromTs === 'number' && typeof toTs === 'number') {
     const parsed = parseRange(
-      new URLSearchParams({ from_ts: String(fromTs), to_ts: String(toTs) })
+      new URLSearchParams({ from_ts: String(fromTs), to_ts: String(toTs) }),
+      rt.config.window.followPolicy
     );
     if (!('error' in parsed)) return parsed;
   }

@@ -217,6 +217,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   const { edge } = options.cache;
   const SEED_PATH = options.cache.edgePrefix ?? DEFAULT_EDGE_PREFIX;
   const RANGE_DAYS = config.window.rangeDays;
+  const windowKey = config.window.followPolicy ? `${RANGE_DAYS}/` : '';
   const PREFETCH_LIMIT = config.window.prefetchLimit;
   const clock = createClock(config);
   const { toBookingServiceDto, toBookingResourceDto } = createDto(config);
@@ -307,13 +308,15 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   /** One prefetch set's seed kept past its bucket, for the same local day. */
   function seedLatestKeyAt(key: string, now: number): string | null {
     if (key === '') return null;
-    return keyed((base) => `${base}/seed-latest/${clock.dayKey(now)}/${key}`);
+    return keyed((base) => `${base}/seed-latest/${windowKey}${clock.dayKey(now)}/${key}`);
   }
 
   /** The seed key for one prefetch set at one instant. */
   function seedKeyAt(key: string, now: number): string | null {
     if (key === '') return null;
-    return keyed((base) => `${base}/seed/${clock.dayKey(now)}/${key}/${seedBucket(now)}`);
+    return keyed(
+      (base) => `${base}/seed/${windowKey}${clock.dayKey(now)}/${key}/${seedBucket(now)}`
+    );
   }
 
   async function edgeRead<T>(key: string): Promise<T | undefined> {
