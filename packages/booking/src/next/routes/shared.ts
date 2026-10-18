@@ -27,6 +27,7 @@ import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
 import { MAX_POLICY_RANGE_MS, MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
+import { policySeed } from '../policy-window';
 import type { BookingRuntime } from '../runtime';
 
 export function bookingErrorResponse(code: string, status: number, message?: string): NextResponse {
@@ -251,7 +252,14 @@ export async function forgetBookedSlots(
 ): Promise<void> {
   try {
     rt.catalogue.expireSlots([...serviceIds]);
+    // Mark the write even if the policy service is temporarily unavailable.
     await rt.seed.expireBookingSeeds([...serviceIds]);
+    if (rt.config.window.followPolicy) {
+      // The write may land in an isolate that has never rendered the page.
+      // Resolve its current policy key instead of relying on an in-memory seed.
+      const seed = await policySeed(rt);
+      await seed.expireBookingSeeds([...serviceIds]);
+    }
   } catch (error) {
     rt.logger.error({ err: error }, 'Could not expire the booking caches after a write');
   }

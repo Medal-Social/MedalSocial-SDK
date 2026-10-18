@@ -3,7 +3,7 @@ import { memoryCacheAdapter } from '../../src/next/cache/memory';
 import { loadBookingPage } from '../../src/next/loaders';
 import { policySeed } from '../../src/next/policy-window';
 import { nextFreeRoute } from '../../src/next/routes/catalogue-routes';
-import { parseRange } from '../../src/next/routes/shared';
+import { forgetBookedSlots, parseRange } from '../../src/next/routes/shared';
 import { testRuntime } from '../support/next-runtime';
 import { PARITY_CONFIG } from '../support/parity-config';
 
@@ -49,6 +49,62 @@ describe('saved customer booking horizon', () => {
     expect(next.RANGE_DAYS).toBe(31);
     expect(next.seedKeyAt('service', Date.now())).not.toBe(oldKey);
     expect(getPolicy).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([true, false])(
+    'expires policy seed keys on both passes, with a warm runtime: %s',
+    async (warm) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-03T10:00:00Z'));
+      const { rt, getPolicy } = runtime();
+      vi.spyOn(rt.catalogue, 'cachedServices').mockResolvedValue([
+        {
+          id: 'service',
+          name: 'Cut',
+          category: 'barn',
+          bookable_online: true,
+          duration_minutes: 30,
+          price_ore: 30000,
+        },
+      ] as never);
+      // A different runtime represents another request/isolate sharing the edge cache.
+      const pageRuntime = warm
+        ? rt
+        : testRuntime({ medal: rt.medal, catalogue: rt.catalogue }, rt.options);
+      const pageSeed = await policySeed(pageRuntime);
+      const key = pageSeed.seedKeyAt('service', Date.now())!;
+      const latest = pageSeed.seedLatestKeyAt('service', Date.now())!;
+      expect(key).toContain('/91/');
+      expect(key).not.toBe(rt.seed.seedKeyAt('service', Date.now()));
+      const edge = rt.options.cache.edge;
+      await edge.put(key, { stale: true }, 300);
+      await edge.put(latest, { stale: true }, 300);
+      await forgetBookedSlots(rt, ['service']);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(await edge.get(key)).toBeUndefined();
+      expect(await edge.get(latest)).toBeUndefined();
+      // Reproduce a seed rebuilt from a stale slot read after the first delete.
+      await edge.put(key, { rebuilt: true }, 300);
+      await edge.put(latest, { rebuilt: true }, 300);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(await edge.get(key)).toBeUndefined();
+      expect(await edge.get(latest)).toBeUndefined();
+      expect(getPolicy).toHaveBeenCalledTimes(2);
+    }
+  );
+
+  it('keeps the completed write successful and marks expiry when the policy read fails', async () => {
+    vi.useFakeTimers();
+    const { rt, getPolicy } = runtime();
+    vi.spyOn(rt.catalogue, 'cachedServices').mockResolvedValue([]);
+    getPolicy.mockRejectedValue(new Error('policy unavailable'));
+    await expect(forgetBookedSlots(rt, ['service'])).resolves.toBeUndefined();
+    expect(await rt.options.cache.edge.get(rt.seed.expiryMarkerKey('service')!)).toBeDefined();
+    expect(rt.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: expect.any(Error) }),
+      'Could not expire the booking caches after a write'
+    );
+    await vi.advanceTimersByTimeAsync(2000);
   });
 
   it('keeps static configurations unchanged', async () => {
