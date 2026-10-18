@@ -71,9 +71,14 @@ export * from './dist/react/link/index.mjs';`;
 const BUDGETS = [
   {
     // Everything `/core` exports, config resolution (zod schema) included.
+    // Raised 16 → 16.5 KB for `screens.seatStylists`: the per-seat search
+    // option and the wishes carried through a login's re-key. Measured 16.16 KB.
     name: '@medalsocial/booking/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 16 * 1024,
+    // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 16.52 KB.
+    gzipBytes: 17.0 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -120,13 +125,19 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 17.68 KB.
-    // Raised 17.9 → 18.5 KB for stable `data-testid` hooks on the wizard
-    // (step containers, service/stylist/day/slot options, slots error/empty;
-    // WeakMap-cached wrappers).
+    // Raised 17.9 → 18.4 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 17.95 KB.
     name: '@medalsocial/booking/react — booking page, own code',
     contents: WIZARD_PAGE,
     plugins: [OWN_CODE],
-    gzipBytes: 18.5 * 1024,
+    // Raised 18.4 → 19.6 KB for the redesign's opt-in wiring (grown-up seats,
+    // the panel's words, compact header, booked hero, guest-party restore):
+    // measured 19.13 KB.
+    // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.70 KB.
+    // Stable test-id wrappers add about 0.7 KB to the current design; measured 20.70 KB.
+    gzipBytes: 20.9 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -144,11 +155,18 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 26.32 KB.
-    // Raised 26.5 → 27.2 KB with the wizard `data-testid` hooks (WeakMap-cached
-    // wrappers so option identity stays stable across paints).
+    // Raised 26.5 → 27.2 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 26.76 KB.
     name: '@medalsocial/booking/react — booking page, with /core',
     contents: WIZARD_PAGE,
-    gzipBytes: 27.2 * 1024,
+    // Raised 27.2 → 28.8 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.31 KB.
+    // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.86 KB.
+    // Stable test-id wrappers add about 0.7 KB to the current design; measured 29.89 KB.
+    gzipBytes: 30.1 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -176,12 +194,19 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 17.82 KB.
-    // Raised 18.0 → 18.6 KB with the wizard `data-testid` hooks (WeakMap-cached
-    // wrappers).
+    // Raised 18.0 → 18.5 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 18.09 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, own code',
     contents: WIZARD_ENTRY,
     plugins: [OWN_CODE],
-    gzipBytes: 18.6 * 1024,
+    // Raised 18.5 → 19.7 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 19.27 KB.
+    // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 19.82 KB.
+    // Stable test-id wrappers add about 0.7 KB to the current design; measured 20.81 KB.
+    gzipBytes: 21.0 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -197,11 +222,18 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 26.44 KB.
-    // Raised 26.6 → 27.3 KB with the wizard `data-testid` hooks (WeakMap-cached
-    // wrappers so option identity stays stable across paints).
+    // Raised 26.6 → 27.3 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 26.88 KB.
     name: '@medalsocial/booking/react/wizard + /react/link — booking page, with /core',
     contents: WIZARD_ENTRY,
-    gzipBytes: 27.3 * 1024,
+    // Raised 27.3 → 28.9 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 28.42 KB.
+    // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 28.96 KB.
+    // Stable test-id wrappers add about 0.7 KB to the current design; measured 29.98 KB.
+    gzipBytes: 30.2 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -228,12 +260,19 @@ const BUDGETS = [
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
     // `AbortSignal.timeout`. Measured 22.98 KB.
-    // Raised 23.1 → 24.0 KB with the wizard `data-testid` hooks (WeakMap-cached
-    // wrappers). Measured 23.80 KB in CI.
+    // Raised 23.1 → 23.7 KB for `screens.seatStylists` (who cuts whom):
+    // the per-seat search option, the choice in state and drafts, and the
+    // seat adapter. Measured 23.31 KB.
     name: '@medalsocial/booking/react — whole entry, own code',
     contents: "export * from './dist/react/index.mjs';",
     plugins: [OWN_CODE],
-    gzipBytes: 24 * 1024,
+    // Raised 23.7 → 25.0 KB for the redesign's opt-in wiring (grown-ups stepper,
+    // compact header, «Din time» panel, booked hero, guest-party restore):
+    // measured 24.49 KB.
+    // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
+    // file, Google Calendar): measured 25.11 KB.
+    // Stable test-id wrappers add about 0.7 KB to the current design; measured 26.16 KB.
+    gzipBytes: 26.4 * 1024,
   },
 ];
 

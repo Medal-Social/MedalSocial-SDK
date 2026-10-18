@@ -115,6 +115,12 @@ export interface ConfirmedLine {
 export interface BookingConfirmation {
   bookings: Array<{ id: string; manageHref: string | null }>;
   submitted: SubmittedVisit;
+  /**
+   * The visit as a calendar file the site serves (`paths.calendarPath`), when
+   * every booking came back with a manage token. Absent on a confirmation
+   * saved before it existed: that one keeps the `data:` file.
+   */
+  calendarPath?: string | null;
 }
 
 /**
@@ -163,6 +169,9 @@ export interface BookingReadError {
   /** Bumped per failure, so two identical failures are two events. */
   seq: number;
 }
+
+/** How many failed reads the controller keeps for the monitoring tap. */
+const READ_ERRORS_KEPT = 20;
 
 /** A non-2xx answer, keeping the status a monitoring tap reports. */
 class ReadFailure extends Error {
@@ -487,8 +496,11 @@ function setupFor(kit: BookingKit) {
     // link, or a link that holds a service for step 1 — starts on the common
     // answer, one child, already in the state, so the server-rendered step
     // shows «1» and a live «next». A link that seats people stays as it was.
+    // `party.guestStartEmpty` leaves it empty: the guest picks, a grown-up as
+    // readily as a child.
     if (
       config.screens.guestParty &&
+      !config.party.guestStartEmpty &&
       seated === null &&
       state.step === 'who' &&
       state.people.length === 0
@@ -659,7 +671,9 @@ export function useBooking(options: UseBookingOptions) {
       if (
         at !== -1 ||
         (switched &&
-          person.key !== SELF_KEY &&
+          // Grown-ups — «Meg selv» and the stepper's `adult:2` — are nobody's
+          // saved child: whoever is logged in, they are the same chair.
+          !person.adult &&
           (person.personId !== undefined || !wizard.isGuestSeat(person)))
       ) {
         keys.push(person.key);
@@ -834,16 +848,25 @@ export function useBooking(options: UseBookingOptions) {
    * a hand-edited jar — is ignored, and its line restores as a name and a year
    * exactly as a draft without ids does. Returns the reseated line indexes.
    */
-  const reseatFamily = (draft: WizardDraft, lines: BookingServiceDto[]): Set<number> => {
+  const reseatFamily = (
+    draft: WizardDraft,
+    lines: BookingServiceDto[],
+    seats: readonly WizardPerson[] | null
+  ): Set<number> => {
     const reseated = new Set<number>();
     if (family === null) return reseated;
     const keys = new Set<string>();
-    // The seats `pickService` / `addService` just built (`peopleFor`), for the
-    // lines that are not reseated. A parent known at mount starts with nobody
-    // seated (`initialWizardState`), so every one of them is a guest chair.
+    // The seats just built, for the lines that are not reseated: the draft's
+    // own (`seats`), or — a draft without adult flags — those `pickService` /
+    // `addService` made (`peopleFor`). A parent known at mount starts with
+    // nobody seated (`initialWizardState`), so each of those is a guest chair.
+    // A grown-up's line is never a saved child's.
     const people = draft.items.map((item, index) => {
-      const built = wizard.guestChild(index + 1);
-      const at = item.personId ? family.findIndex((child) => child.personId === item.personId) : -1;
+      const built = seats?.[index] ?? wizard.guestChild(index + 1);
+      const at =
+        item.personId && !item.adult
+          ? family.findIndex((child) => child.personId === item.personId)
+          : -1;
       const child = at === -1 ? null : personForChild(family[at], at);
       if (child === null || keys.has(child.key)) {
         keys.add(built.key);
@@ -899,40 +922,111 @@ export function useBooking(options: UseBookingOptions) {
   };
 
   /**
+   * The draft as today's rules can seat it. The site may have changed while
+   * the visitor was at Vipps: a lower `party.maxPeople`, a lower
+   * `maxPerBooking`, or `screens.adultStepper` / `guestParty` off — after which a
+   * second grown-up is a seat no step 1 can draw or untick. Seated whole, such
+   * a party is refused whole and the visit is lost, so each line that no
+   * longer fits is left out instead, and the rest come back. The hour goes
+   * with any line left out: it was free for the visit as it was.
+   */
+  const fitDraft = (
+    draft: WizardDraft,
+    bookable: ReadonlyMap<string, BookingServiceDto>
+  ): WizardDraft => {
+    // The «Voksne» stepper step 1 draws — the guest's, and «Meg selv»'s
+    // under a family — exists only with both switches (`BookingWizard`).
+    const countsGrownUps = config.screens.guestParty && config.screens.adultStepper;
+    const kept: number[] = [];
+    const takers = new Map<string, number>();
+    let grownUps = 0;
+    draft.items.forEach((item, index) => {
+      if (kept.length >= config.party.maxPeople) return;
+      if (item.adult === true && grownUps > 0 && !countsGrownUps) return;
+      const taken = takers.get(item.serviceId) ?? 0;
+      // Every line's service is bookable: `restoreDraft` checked before fitting.
+      if (taken + 1 > (bookable.get(item.serviceId) as BookingServiceDto).maxPerBooking) return;
+      takers.set(item.serviceId, taken + 1);
+      if (item.adult === true) grownUps += 1;
+      kept.push(index);
+    });
+    if (kept.length === draft.items.length) return draft;
+    return {
+      ...draft,
+      items: kept.map((index) => draft.items[index]),
+      seatResourceIds: draft.seatResourceIds?.filter((_, index) => kept.includes(index)),
+      startTs: null,
+      resolvedResourceId: null,
+      partyResourceIds: null,
+    };
+  };
+
+  /**
    * The booking a Vipps login interrupted, rebuilt through the machine's own
    * actions — so it obeys every rule a tapped one does — and trusting nothing
    * beyond the catalogue.
    */
-  const restoreDraft = (draft: WizardDraft) => {
+  const restoreDraft = (saved: WizardDraft) => {
     const bookable = new Map(
       services.filter((service) => service.bookableOnline).map((service) => [service.id, service])
     );
-    const resolved = draft.items.map((item) => bookable.get(item.serviceId));
+    if (saved.items.length === 0 || saved.items.some((item) => !bookable.has(item.serviceId))) {
+      return;
+    }
+    // Never empty: the first line always fits.
+    const draft = fitDraft(saved, bookable);
+    const resolved = draft.items.map((item) => bookable.get(item.serviceId)) as [
+      BookingServiceDto,
+      ...BookingServiceDto[],
+    ];
     const [first, ...rest] = resolved;
-    if (first === undefined || resolved.some((service) => service === undefined)) return;
 
+    // The seats as step 1 draws them: children and grown-ups each counted on
+    // their own (`guest:1`, `adult`, `adult:2`), so the party the visitor sees
+    // after a restore is the one a tap there would make. Under a family the
+    // first grown-up is «Meg selv», the stepper's seat 1, and the rest follow
+    // it; its children are reseated from their ids below (`reseatFamily`).
+    let children = 0;
+    let adults = 0;
+    const guestSeatOf = draft.items.map((item) => {
+      if (!item.adult) return wizard.guestChild(++children);
+      adults += 1;
+      return family !== null && adults === 1
+        ? { key: SELF_KEY, adult: true }
+        : wizard.guestAdult(adults);
+    });
     // Nobody to vouch for a saved child's id: its chair waits for the next login.
     if (family === null) {
       const ids = new Map<string, string>();
       draft.items.forEach((item, index) => {
-        if (item.personId && !item.adult) ids.set(wizard.guestChild(index + 1).key, item.personId);
+        if (item.personId && !item.adult) ids.set(guestSeatOf[index].key, item.personId);
       });
       awaitingIds.current = ids.size > 0 ? ids : null;
     }
-    // A guest is reseated as they left; a family's seats are its own children.
-    if (family === null && draft.items.every((item) => typeof item.adult === 'boolean')) {
-      dispatch({
-        type: 'choosePeople',
-        people: draft.items.map((item, index) =>
-          item.adult ? { key: 'adult', adult: true } : wizard.guestChild(index + 1)
-        ),
-        advance: true,
+    // Seated as they left whenever the draft says who was a grown-up; a draft
+    // from before the flag rebuilds its seats as children, the old way.
+    const flagged = draft.items.every((item) => typeof item.adult === 'boolean');
+    if (flagged) {
+      dispatch({ type: 'choosePeople', people: guestSeatOf, advance: true });
+      // Each person's service on their own seat: `pickService` keeps one
+      // person and `addService` seats the rest as children, which turned a
+      // restored «child + me» into two children.
+      resolved.forEach((service, index) => {
+        dispatch({ type: 'pickServiceFor', index, service: service as BookingServiceDto });
       });
+      // On to the times, as `pickService` does: a draft without one (or whose
+      // extra did not come back) is picked again there, not on step 2.
+      dispatch({ type: 'goToStep', step: 'when' });
+    } else {
+      dispatch({ type: 'pickService', service: first });
+      // Every line resolved (checked above), so `rest` holds services only.
+      for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
     }
-    dispatch({ type: 'pickService', service: first });
-    // Every line resolved (checked above), so `rest` holds services only.
-    for (const service of rest as BookingServiceDto[]) dispatch({ type: 'addService', service });
-    const reseated = reseatFamily(draft, resolved as BookingServiceDto[]);
+    const reseated = reseatFamily(
+      draft,
+      resolved as BookingServiceDto[],
+      flagged ? guestSeatOf : null
+    );
     // After the seats are final (a reseat moves people, and their extras with
     // them) and before the stylist, so no toggle is refused for a preference
     // the draft is about to restore anyway.
@@ -945,6 +1039,12 @@ export function useBooking(options: UseBookingOptions) {
       dispatch({ type: 'setPartyMode', mode: draft.partyMode });
     }
     dispatch({ type: 'pickResource', resourceId: draft.resourceId });
+    // After the seats and the mode: each person's own stylist, by their seat.
+    draft.seatResourceIds?.forEach((resourceId, index) => {
+      if (resourceId !== null) {
+        dispatch({ type: 'pickSeatResource', index, resourceId });
+      }
+    });
     draft.items.forEach((item, index) => {
       // A reseated child's name and year are the family's own, already on the line.
       if (reseated.has(index)) return;
@@ -1056,6 +1156,9 @@ export function useBooking(options: UseBookingOptions) {
       resourceId: state.resourceId,
       partyMode: state.partyMode,
       partyModeChosen: state.partyModeChosen === true,
+      ...(state.seatResourceIds
+        ? { seatResourceIds: state.people.map((p) => state.seatResourceIds?.[p.key] ?? null) }
+        : {}),
       startTs: state.startTs,
       resolvedResourceId: state.resolvedResourceId,
       partyResourceIds: state.partyResourceIds,
@@ -1069,6 +1172,7 @@ export function useBooking(options: UseBookingOptions) {
     state.resourceId,
     state.partyMode,
     state.partyModeChosen,
+    state.seatResourceIds,
     state.startTs,
     state.resolvedResourceId,
     state.partyResourceIds,
@@ -1166,13 +1270,15 @@ export function useBooking(options: UseBookingOptions) {
    * failure here used to be swallowed into a card: the visitor saw «Vi får
    * ikke hentet ledige tider», and nobody else ever learnt that they had.
    */
-  const [readError, setReadError] = useState<BookingReadError | null>(null);
+  const [readErrors, setReadErrors] = useState<readonly BookingReadError[]>([]);
+  // A queue, not a last-error slot: two visits failing in one batch are two
+  // updates React may render as one, and the second must still be reported.
   const noteReadError = useCallback((endpoint: BookingReadEndpoint, error: unknown) => {
-    setReadError((previous) => ({
-      endpoint,
-      status: error instanceof ReadFailure ? error.status : null,
-      seq: (previous?.seq ?? 0) + 1,
-    }));
+    setReadErrors((previous) => {
+      const seq = (previous[previous.length - 1]?.seq ?? 0) + 1;
+      const next = { endpoint, status: error instanceof ReadFailure ? error.status : null, seq };
+      return [...previous.slice(-(READ_ERRORS_KEPT - 1)), next];
+    });
   }, []);
   const api = config.paths.api;
 
@@ -1203,11 +1309,11 @@ export function useBooking(options: UseBookingOptions) {
         setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
       }
       // Nothing is cached for a failed visit; the step says so rather than «full».
-      const failure = settled.find((result) => result.status === 'rejected');
-      if (failure) {
-        setSlotsFailed(true);
-        noteReadError('availability', failure.reason);
+      // Each failed visit is its own report.
+      for (const result of settled) {
+        if (result.status === 'rejected') noteReadError('availability', result.reason);
       }
+      if (fetched.length < wanted.length) setSlotsFailed(true);
     })();
 
     return () => {
@@ -1405,6 +1511,9 @@ export function useBooking(options: UseBookingOptions) {
     setSeedRetired(true);
     if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
       setSlots({});
+      // The stylists are asked again for the new window; until they answer the
+      // step shows them loading rather than yesterday's list as current.
+      setResourcesKnown(false);
       setFetchedNextAvailable(null);
       setFetchedSchedule(null);
       setFromTs(now);
@@ -1444,6 +1553,40 @@ export function useBooking(options: UseBookingOptions) {
     dispatch({ type: 'pickResource', resourceId: null });
     setStylistNotice(labelText(labels['wizard.stylistGone']));
   }, [labels, resourcesKnown, resources, state.step, state.resourceId, state.items]);
+
+  /**
+   * The same for «who cuts whom»: a person's own stylist who has left the
+   * roster, or no longer does that person's visit (a draft restored after a
+   * Vipps round trip), would leave the seat with nobody to seat it and the
+   * family with no times at all. Released to anyone, and said so.
+   */
+  useEffect(() => {
+    if (!resourcesKnown || resources.length === 0 || state.step !== 'when') return;
+    const wishes = state.seatResourceIds;
+    if (wishes === undefined) return;
+    let released = false;
+    state.people.forEach((person, index) => {
+      const wish = wishes[person.key];
+      const item = state.items[index];
+      if (wish === undefined || item === undefined) return;
+      const chosen = resources.find((resource) => resource.id === wish);
+      const covers =
+        chosen !== undefined &&
+        visitServicesOf(item).every((service) => chosen.serviceIds.includes(service.id));
+      if (covers) return;
+      dispatch({ type: 'pickSeatResource', index, resourceId: null });
+      released = true;
+    });
+    if (released) setStylistNotice(labelText(labels['wizard.stylistGone']));
+  }, [
+    labels,
+    resourcesKnown,
+    resources,
+    state.step,
+    state.seatResourceIds,
+    state.people,
+    state.items,
+  ]);
 
   /** The open dates with the cutoffs pulled back to fit the WHOLE visit (the safe direction). */
   const openDaysForVisit = useMemo(() => {
@@ -1489,19 +1632,31 @@ export function useBooking(options: UseBookingOptions) {
     [kit, party, state.partyMode, haveEveryService, state.items, basketSlots]
   );
 
+  /** Each line's own stylist, in basket order, for a party seen at once. */
+  const seatResourceIds = useMemo(
+    () => state.people.map((person) => state.seatResourceIds?.[person.key] ?? null),
+    [state.people, state.seatResourceIds]
+  );
   const partySlots = useMemo(
     () =>
-      party ? kit.partySlots.findPartySlots(state.items, preferredSlots, state.partyMode) : [],
-    [kit, party, state.items, preferredSlots, state.partyMode]
+      party
+        ? kit.partySlots.findPartySlots(
+            state.items,
+            preferredSlots,
+            state.partyMode,
+            seatResourceIds
+          )
+        : [],
+    [kit, party, state.items, preferredSlots, state.partyMode, seatResourceIds]
   );
 
   /** The parallel visits, for the day with nothing back to back — over UNFILTERED slots. */
   const partyAlternatives = useMemo(
     () =>
       party && state.partyMode === 'sequential'
-        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel')
+        ? kit.partySlots.findPartySlots(state.items, basketSlots, 'parallel', seatResourceIds)
         : [],
-    [kit, party, state.items, basketSlots, state.partyMode]
+    [kit, party, state.items, basketSlots, state.partyMode, seatResourceIds]
   );
 
   const singleSlots = useMemo(() => {
@@ -1740,9 +1895,17 @@ export function useBooking(options: UseBookingOptions) {
         id: booking.id,
         manageHref: booking.manageToken ? kit.paths.managePath(booking.manageToken) : null,
       }));
-      setConfirmed({ bookings: confirmedBookings, submitted });
+      const tokens = bookings.map((booking) => booking.manageToken);
+      const calendarPath = tokens.every((token): token is string => Boolean(token))
+        ? kit.paths.calendarPath(tokens)
+        : null;
+      setConfirmed({ bookings: confirmedBookings, submitted, calendarPath });
       // Kept, not cleared, so a refresh cannot take the manage links with it.
-      kit.attempts.rememberConfirmed(current, { bookings: confirmedBookings, submitted });
+      kit.attempts.rememberConfirmed(current, {
+        bookings: confirmedBookings,
+        submitted,
+        calendarPath,
+      });
       setPendingAttempt(null);
     } catch {
       dispatch({ type: 'submitFailed', error: 'upstreamError' });
@@ -1861,6 +2024,20 @@ export function useBooking(options: UseBookingOptions) {
     dispatch({ type: 'pickSlot', startTs: slot.startTs, resourceId: slot.resourceId });
   }
 
+  /**
+   * «Switch to Bo» on the recap or the panel: an explicit choice, so Bo
+   * becomes the preference as well as the slot's stylist — no longer «first
+   * available», and Bo's openings if the time has to be found again.
+   */
+  function swapStylist(resourceId: string) {
+    // A swap is only offered for a timed visit, so there is a start to keep.
+    const startTs = state.startTs as number;
+    setStylistNotice(null);
+    setTakenSlotTs(null);
+    dispatch({ type: 'pickResource', resourceId });
+    dispatch({ type: 'pickSlot', startTs, resourceId });
+  }
+
   function pickPartySlot(slot: PartySlot) {
     setTakenSlotTs(null);
     dispatch({
@@ -1960,6 +2137,7 @@ export function useBooking(options: UseBookingOptions) {
       total: wizard.totalPriceOre(state.items, state.startTs),
       summary: wizard.summaryLine(state, resolveStylistName),
       summaryParts: wizard.summaryParts(state, resolveStylistName),
+      panelParts: wizard.panelParts(state),
       visitEnd:
         state.startTs === null
           ? null
@@ -1971,6 +2149,7 @@ export function useBooking(options: UseBookingOptions) {
     continueFromService,
     pickResource,
     pickSlot,
+    swapStylist,
     pickPartySlot,
     next,
     submit,
@@ -1979,8 +2158,8 @@ export function useBooking(options: UseBookingOptions) {
     confirmed,
     startOver,
     refresh,
-    /** The last read that failed (`onEvent`'s `read_error`). */
-    readError,
+    /** The recent reads that failed, oldest first (`onEvent`'s `read_error`). */
+    readErrors,
     restore: { hydrated, restoring, linked, resuming },
   };
 }

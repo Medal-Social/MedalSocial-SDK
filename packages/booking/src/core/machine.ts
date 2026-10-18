@@ -78,10 +78,21 @@ export const SELF_KEY = 'self';
  * named in the guest sheet (`new:…`), the «Voksen» chip's `adult`. A parent's
  * step 1 draws cards for saved children and «Meg selv» and nothing else — so
  * one of these under a family is a seat nobody can see or untick, counting
- * towards the three.
+ * towards the three. Not the «Voksen» stepper's seats 2 and up (`adult:2`):
+ * a parent's step 1 draws that stepper too, «Meg selv» being its seat 1, so a
+ * second grown-up stays seated across a login (`seatFamily`).
  */
 export function isGuestSeat(person: WizardPerson): boolean {
   return person.key.startsWith('guest:') || person.key.startsWith('new:') || person.key === 'adult';
+}
+
+/** A guest grown-up's seat, 1-based: `adult`, then `adult:2`, `adult:3`. */
+export function guestAdult(n: number): WizardPerson & { adult: true } {
+  return n === 1 ? { key: 'adult', adult: true } : { key: `adult:${n}`, adult: true };
+}
+
+function isGuestAdult(person: WizardPerson): boolean {
+  return person.key === 'adult' || person.key.startsWith('adult:');
 }
 
 export interface WizardService {
@@ -213,6 +224,12 @@ export interface WizardState {
    * the confirmation card cannot disagree about who is cutting whose hair.
    */
   partyResourceIds: string[] | null;
+  /**
+   * Seen at once: the stylist a person asked for, by their seat key («who cuts
+   * whom»). A person not in it is seated with anyone free. Dropped whenever the
+   * basket changes, as the stylist was chosen for that visit. Absent = none.
+   */
+  seatResourceIds?: Readonly<Record<string, string>>;
   contact: { phone: string; name: string; email: string };
   notes: string;
   consentTerms: boolean;
@@ -329,7 +346,8 @@ export type WizardAction =
   /**
    * The parent's family has appeared (a login, a guardian read after the
    * first render) or step 1 is shown again under it: the guest seats go —
-   * see `isGuestSeat` — and a guest «Voksen» becomes «Meg selv». Only while
+   * see `isGuestSeat` — and a guest «Voksen» becomes «Meg selv»; the other
+   * grown-ups (`adult:2`) stay, as the stepper's seats after it. Only while
    * nothing is held on them (steps 1 and 2); from the hour on they are real
    * chairs with a time, and «Bekreft» names them. A party emptied by it goes
    * back to step 1, where the children are. A guest chair in `keep` stays:
@@ -385,6 +403,12 @@ export type WizardAction =
    * the stylist.
    */
   | { type: 'setPartyMode'; mode: WizardState['partyMode'] }
+  /**
+   * Seen at once: the person at `index`'s own stylist (`null` = anyone). Refused for a
+   * stylist already asked for by somebody else in the party — one stylist
+   * cannot cut two people at once. The slot goes, as with `pickResource`.
+   */
+  | { type: 'pickSeatResource'; index: number; resourceId: string | null }
   /**
    * A whole family seated in one tap: the instant the visit starts and the
    * stylist each child got.
@@ -737,7 +761,9 @@ function withParty(
       )
     : [];
   const changed = basketOf(items) !== basketOf(state.items);
-  return { ...state, people, choices, extras: aligned, items, ...(changed ? clearedSlot : {}) };
+  if (!changed) return { ...state, people, choices, extras: aligned, items };
+  const { seatResourceIds: _released, ...rest } = state;
+  return { ...rest, people, choices, extras: aligned, items, ...clearedSlot };
 }
 
 /** The people behind a basket built without step 1 — a link, a restored draft. */
@@ -1183,7 +1209,13 @@ export interface Wizard {
     resolveStylistName: (resourceId: string) => string | null,
     now?: number
   ): { line: string; detail: string };
+  /**
+   * What the desktop panel says: who (`null` before anybody), and the visit's
+   * services with its minutes (`null` before a service).
+   */
+  panelParts(state: WizardState): { who: string | null; services: string | null };
   guestChild: typeof guestChild;
+  guestAdult: typeof guestAdult;
   isGuestSeat: typeof isGuestSeat;
 }
 
@@ -1316,6 +1348,45 @@ export function createWizard(config: WizardConfig): Wizard {
   }
 
   function reduce(state: WizardState, action: WizardAction): WizardState {
+    // Only a login's re-seat renames the SAME person in place; anywhere else a
+    // new key at an index is somebody new, who must not inherit a wish.
+    const renames = action.type === 'unseatPeople' || action.type === 'seatFamily';
+    return carrySeatResources(state, reduceStep(state, action), renames);
+  }
+
+  /**
+   * «Who cuts whom» follows the person, not the key. A login re-keys seats
+   * (`unseatPeople`, `seatFamily`: a guest chair becomes the family's child,
+   * «adult» becomes «self») without the basket changing, and a choice left under
+   * the old key would vanish from the selector and the search yet still block
+   * that stylist for everyone. So after every step: a key that survives keeps
+   * its choice, a seat a login renamed in place takes the old key's choice,
+   * and anything else is dropped — a newcomer on step 1 never inherits one.
+   */
+  function carrySeatResources(
+    before: WizardState,
+    after: WizardState,
+    renames: boolean
+  ): WizardState {
+    const wishes = after.seatResourceIds;
+    if (wishes === undefined || after.people === before.people) return after;
+    const current = new Set(after.people.map((person) => person.key));
+    const carried: Record<string, string> = {};
+    after.people.forEach((person, index) => {
+      const own = wishes[person.key];
+      const previous = before.people[index]?.key;
+      const renamed =
+        renames && previous !== undefined && previous !== person.key && !current.has(previous)
+          ? wishes[previous]
+          : undefined;
+      const wish = own ?? renamed;
+      if (wish !== undefined) carried[person.key] = wish;
+    });
+    const { seatResourceIds: _stale, ...rest } = after;
+    return Object.keys(carried).length > 0 ? { ...rest, seatResourceIds: carried } : rest;
+  }
+
+  function reduceStep(state: WizardState, action: WizardAction): WizardState {
     switch (action.type) {
       case 'startOver':
         // `initialState()` rather than a hand-written blank: a field added there
@@ -1497,6 +1568,31 @@ export function createWizard(config: WizardConfig): Wizard {
           ...preference,
           partyMode: action.mode,
           partyModeChosen: true,
+          error: null,
+        };
+      }
+
+      case 'pickSeatResource': {
+        const key = state.people[action.index]?.key;
+        if (key === undefined) return state;
+        // Only people still seated can hold a stylist: anything else is pruned.
+        const seated = new Set(state.people.map((person) => person.key));
+        const current = Object.fromEntries(
+          Object.entries(state.seatResourceIds ?? {}).filter(([other]) => seated.has(other))
+        );
+        if (action.resourceId === null) delete current[key];
+        else {
+          const takenBy = Object.entries(current).find(
+            ([other, id]) => id === action.resourceId && other !== key
+          );
+          if (takenBy) return state;
+          current[key] = action.resourceId;
+        }
+        const { seatResourceIds: _previous, ...rest } = state;
+        return {
+          ...rest,
+          ...clearedSlot,
+          ...(Object.keys(current).length > 0 ? { seatResourceIds: current } : {}),
           error: null,
         };
       }
@@ -1806,14 +1902,20 @@ export function createWizard(config: WizardConfig): Wizard {
   /** «Theo, Emma», «2 barn», «Voksen» — who the visit is for, before what. */
   function peopleLabel(people: readonly WizardPerson[]): string {
     const guests = people.filter((person) => person.key.startsWith('guest:')).length;
+    // A guest's grown-ups are counted, like the children: «1 barn, 2 voksne».
+    const adults = people.filter((person) => !person.name && isGuestAdult(person)).length;
     const parts = people
-      .filter((person) => !person.key.startsWith('guest:'))
+      .filter(
+        (person) => !person.key.startsWith('guest:') && (person.name || !isGuestAdult(person))
+      )
       .map(
         (person) =>
           person.name ??
           labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
       );
     if (guests > 0) parts.unshift(fill(labels['people.children'], { count: guests }));
+    if (adults === 1) parts.push(labelText(labels['people.adult']));
+    if (adults > 1) parts.push(fill(labels['people.adults'], { count: adults }));
     return parts.join(', ');
   }
 
@@ -1922,6 +2024,19 @@ export function createWizard(config: WizardConfig): Wizard {
     };
   }
 
+  function panelParts(state: WizardState): { who: string | null; services: string | null } {
+    const who = state.people.length > 0 ? peopleLabel(state.people) : null;
+    const service = serviceLabel(state);
+    if (service === null) return { who, services: null };
+    // A family's label already ends in its total minutes.
+    if (showsPartyMode(state)) return { who, services: service };
+    const minutes = visitMinutes(state.items, state.partyMode);
+    return {
+      who,
+      services: `${service}${SEPARATOR}${fill(labels['summary.totalMinutes'], { minutes })}`,
+    };
+  }
+
   return {
     maxPeople,
     initialState,
@@ -1940,7 +2055,9 @@ export function createWizard(config: WizardConfig): Wizard {
     itemResourceIds,
     summaryLine,
     summaryParts,
+    panelParts,
     guestChild,
+    guestAdult,
     isGuestSeat,
   };
 }

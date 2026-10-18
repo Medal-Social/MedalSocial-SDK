@@ -95,6 +95,12 @@ describe('resolveBookingConfig — screens', () => {
       guestParty: false,
       childMenuFirst: false,
       wideLayouts: false,
+      seatStylists: false,
+      adultStepper: false,
+      compactHeader: false,
+      serviceSearch: false,
+      bookedHero: false,
+      desktopPanel: false,
     });
   });
 

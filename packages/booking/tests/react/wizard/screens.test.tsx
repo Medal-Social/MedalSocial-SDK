@@ -113,6 +113,7 @@ const ALL_ON = {
   guestParty: true,
   childMenuFirst: true,
   wideLayouts: true,
+  seatStylists: true,
 };
 
 function renderWizard(screens: Partial<typeof ALL_ON> | null = ALL_ON) {
@@ -198,6 +199,33 @@ describe('BookingWizard — config.screens', () => {
     const next = html.match(new RegExp(`<button[^>]*>${L['summary.next']}</button>`))?.[0] ?? '';
     expect(next).not.toBe('');
     expect(next).not.toMatch(/\sdisabled(=""|\s|>)/);
+  });
+
+  it('starts empty with party.guestStartEmpty, and a grown-up alone books in one tap', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    render(
+      <BookingWizard
+        config={resolveBookingConfig({
+          ...PARITY_CONFIG,
+          screens: { ...PARITY_CONFIG.screens, guestParty: true },
+          party: { ...PARITY_CONFIG.party, guestStartEmpty: true },
+        })}
+        labels={TEST_LABELS}
+        seed={{ services: [GUTTEKLIPP, HERREKLIPP], resources: [ADA, BO], fromTs: NOW }}
+        rangeDays={7}
+      />
+    );
+    expect(
+      await screen.findByText(L['who.party.count'].replace('{count}', '0'), {
+        selector: '.sr-only',
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: L['summary.next'] })).not.toBeEnabled();
+
+    await user.click(screen.getByRole('checkbox', { name: new RegExp(L['who.party.adult']) }));
+    await user.click(screen.getByRole('button', { name: L['summary.next'] }));
+    await screen.findByRole('heading', { level: 2, name: L['service.heading'] });
   });
 
   it('seats the one child on a link that leaves step 1 open (a stylist), so «next» is live', async () => {
@@ -333,6 +361,33 @@ describe('BookingWizard — config.screens', () => {
     expect(screen.getByTestId('stylist-options').className).toContain('md:flex-col');
     expect(screen.queryByTestId('time-columns')).toBeNull();
     expect(screen.queryByTestId('time-week')).toBeNull();
+  });
+
+  it('lets a family seen at once ask for a stylist per child', async () => {
+    stubApi();
+    location.search = `antall=2&tjeneste=${GUTTEKLIPP.id}`;
+    const user = userEvent.setup();
+    renderWizard();
+    await screen.findByRole('heading', { level: 2, name: L['time.heading'] });
+    await user.click(screen.getByRole('button', { name: /To frisører samtidig/ }));
+
+    const first = await screen.findByRole('combobox', { name: /Barn 1/ });
+    expect(screen.getByRole('combobox', { name: /Barn 2/ })).toBeInTheDocument();
+    await user.selectOptions(first, ADA.id);
+    expect(first).toHaveValue(ADA.id);
+    // Ada is the first child's now, so the second is offered the others only.
+    const second = screen.getByRole('combobox', { name: /Barn 2/ });
+    expect(within(second).queryByRole('option', { name: /Ada/ })).toBeNull();
+  });
+
+  it('offers no per-seat stylist one after another', async () => {
+    stubApi();
+    location.search = `antall=2&tjeneste=${GUTTEKLIPP.id}`;
+    renderWizard();
+    await screen.findByRole('heading', { level: 2, name: L['time.heading'] });
+    // The party starts «rett etter hverandre»: one stylist for the whole visit.
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByText(L['stylist.party.seatsHeading'])).toBeNull();
   });
 
   it('changes nothing for a site that asks for none of them', async () => {

@@ -7,6 +7,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { fill, labelText } from '../core/labels';
 import type { BookingManageDto, BookingServiceDto, BookingSlotDto } from '../core/types';
+import { UNKNOWN_SERVICE } from '../core/unknown-service';
 import { type BookingOverrides, useBookingKit } from './Provider';
 import { screenLabels } from './screen-labels';
 
@@ -19,9 +20,6 @@ const DAY_MS = 86_400_000;
  */
 const LOOK_BACK_MS = 2 * DAY_MS;
 const LOOK_AHEAD_MS = 7 * DAY_MS;
-
-/** The engine's English stand-in for a deleted catalogue row; never printed. */
-const UNKNOWN_SERVICE = 'Unknown service';
 
 const CODES: readonly string[] = [
   'windowPassed',

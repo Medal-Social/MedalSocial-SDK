@@ -27,6 +27,8 @@ describe('testid helper primitives', () => {
     expect(objectRef.current).toBe(node);
 
     assignRef(undefined, node);
+    const cleanup = vi.fn();
+    expect(assignRef(() => cleanup, node)).toBe(cleanup);
   });
 
   it('stampAttrs writes only onto HTMLElements', () => {

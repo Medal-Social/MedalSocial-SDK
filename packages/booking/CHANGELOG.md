@@ -1,5 +1,65 @@
 # @medalsocial/booking
 
+## 0.7.0
+
+### Minor Changes
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - «Add to calendar» works on phones. The confirmation no longer links a `data:` file (which iPhones saved to Files, in-app browsers blocked and Android's Google Calendar cannot open): a new route `<api>/calendar/<tokens>` serves the visit as `text/calendar` in place, built entirely on the server (Medal by the bookings' manage tokens, the new `ics.*` labels, `contact.address`), and the link is chosen per device — the file on Apple devices and desktops with Google Calendar beside it, Google Calendar on Android with the file beside it. A confirmation saved before this keeps the `data:` file. Needs `@medalsocial/meda` 3.12 (`calendarAlt`, `calendarNewTab`); peer range `^3.12.0`.
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - A second grown-up stays in the booking under a family. With `screens.adultStepper`, a logged-in parent's step 1 draws «Voksne» as the same stepper a guest's does (meda 3.13, new `who.family.adults` label in the built-in packs), with «Meg selv» as its first seat. `isGuestSeat` no longer claims `adult:2` and up, so a guest who picks two grown-ups and then logs in keeps both, a switch to another account keeps them, and a resumed draft seats its grown-ups as «Meg selv» and `adult:2` rather than as children. A calendar event whose end Medal could not give is written without `DTEND`, an instant, instead of a zero-length event (RFC 5545 wants DTEND after DTSTART). Needs `@medalsocial/meda` 3.13; peer range `^3.13.0`.
+
+- [#234](https://github.com/Medal-Social/MedalSocial-SDK/pull/234) [`08a265e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/08a265e689aaa5766b03d45afe5b4c83a36c1b3a) Thanks [@adaadev](https://github.com/adaadev)! - The redesign's remaining screens, each behind a `config.screens` switch (all off by default): `adultStepper` (grown-ups as a number beside the children, so two grown-ups book together), `compactHeader` (one line of crumbs carrying the answers, no title over the question), `serviceSearch` (a search field on a grown-up's list), `bookedHero` (the confirmation with a large day leaf, calendar and directions buttons and until when a change is free) and `desktopPanel` (a sticky «your appointment» panel beside the step from `lg` up). New config: `contact.mapsUrl` and `policy.freeChangeHours`. Fixes a restored guest party coming back with every person after the first as a child. Needs `@medalsocial/meda` 3.11.
+
+## 0.6.0
+
+### Minor Changes
+
+- [#228](https://github.com/Medal-Social/MedalSocial-SDK/pull/228) [`f35636a`](https://github.com/Medal-Social/MedalSocial-SDK/commit/f35636acb4e3cbe7f8d5c453e2fe4ba82ec3421c) Thanks [@adaadev](https://github.com/adaadev)! - `party.guestStartEmpty`: with `screens.guestParty`, a guest's step 1 starts with nobody instead of one child, and the child stepper goes down to 0, so a grown-up booking only for themselves is one tap. «Next» waits for an answer. Off by default. The meda peer range is now `^3.10.0`.
+
+## 0.5.0
+
+### Minor Changes
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - Config `screens.seatStylists` (default `false`): when a family is seen at once, each person can ask for their own stylist («who cuts whom»), and the search seats everyone else with whoever is free at that minute. New `WizardState.seatResourceIds` and `pickSeatResource` action, kept in drafts and dropped when the basket changes. `findPartySlots` takes per-seat preferences. Built-in nb/en `stylist.party.seat*` words.
+  
+  Requires `@medalsocial/meda` ^3.9.0.
+
+### Patch Changes
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - A person who replaces someone on step 1 no longer inherits that person's «who cuts whom» stylist. A choice only moves to a new seat key when a login renames the same person.
+
+- [#222](https://github.com/Medal-Social/MedalSocial-SDK/pull/222) [`685a4fb`](https://github.com/Medal-Social/MedalSocial-SDK/commit/685a4fb45914f3d8ce9a02c6092faa98b7455d7b) Thanks [@adaadev](https://github.com/adaadev)! - The stylist step's «who cuts whom» seats are passed only while the party is seen at once. One after another is one stylist for the whole visit, so the wizard no longer depends on the screen hiding them.
+
+## 0.4.1
+
+### Patch Changes
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - Outage-hardening follow-ups: every failed visit in a party's batch reaches `onEvent` as its own `read_error` (the controller's `readError` is now `readErrors`, a short queue). An overnight «Prøv igjen» shows the stylists loading until the new window answers. Portal refusals are logged with their `reason` code.
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - Outage hardening after a production incident where the DST hour pushed the widest booking window past the routes' 62 × 24 h range guard, so every unseeded service answered 400 between 00:00 and 01:00 for eight weeks of nights.
+  
+  - The read routes admit the widest window a valid config can build, DST hour included. One module (`core/range.ts`, exporting `MAX_RANGE_DAYS` and `MAX_RANGE_MS`) owns the bound for the config schema, `parseRange` and the catalogue cache horizon.
+  - «Prøv igjen» re-reads the openings, the stylists and the hours, seeded ones included. If the business day has moved on, it starts a fresh window from now. A party keeps the visits that answered and asks only for the ones that failed.
+  - Medal's `in_past`, `outside_horizon` and `off_grid` refusals take the slot-taken path (fresh openings, back to the time step) rather than an endless «Prøv en gang til».
+  - Every answer ≥ 400 is logged through the site's logger with the route (a fixed label for malformed or unmatched paths), method, status and error code. The message is never logged, and neither are the rate limiter's own 429s. `onEvent` gains `{ type: 'read_error', endpoint, status }`, once per failure.
+  - Catalogue and calendar reads give up after 4 s per attempt and 8 s in total, instead of the SDK's 30 s × 3 with an uncapped `Retry-After`. The deadline aborts the SDK call itself, so nothing more is sent upstream.
+  - A booking that happened is never answered as a failure because a cache could not be expired.
+  - A pending booking resumes on browsers without `AbortSignal.timeout` (Safari < 16).
+
+- [#214](https://github.com/Medal-Social/MedalSocial-SDK/pull/214) [`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e) Thanks [@alioftech](https://github.com/alioftech)! - `isSlotTaken` reads Medal's «pick another time» refusals defensively: any 409 (not only code `CONFLICT`), `details.reason` in any case, and the message prefix when there is no reason. A change of spelling on the engine side now degrades to fresh openings, never to a retry loop.
+- Updated dependencies [[`6afacff`](https://github.com/Medal-Social/MedalSocial-SDK/commit/6afacffc461213b95a02951f15638d3d42c1975e)]:
+  - @medalsocial/sdk@1.15.0
+
+## 0.4.0
+
+### Minor Changes
+
+- [#212](https://github.com/Medal-Social/MedalSocial-SDK/pull/212) [`7504690`](https://github.com/Medal-Social/MedalSocial-SDK/commit/75046906f272e3e0c74d97801cc06d9825020c74) Thanks [@adaadev](https://github.com/adaadev)! - Config `screens.wideLayouts` (default `false`): the stylist step keeps its row of faces at every width, with the chosen stylist's bio under it, and the time step uses the adaptive layout. On an iPad the days sit beside the times; on a desktop the whole week is a grid of times. Built-in nb/en words for `time.week.none` and `time.week.more`.
+  
+  Requires `@medalsocial/meda` ^3.8.0.
+
+- [#212](https://github.com/Medal-Social/MedalSocial-SDK/pull/212) [`7504690`](https://github.com/Medal-Social/MedalSocial-SDK/commit/75046906f272e3e0c74d97801cc06d9825020c74) Thanks [@adaadev](https://github.com/adaadev)! - Config `party.adultTogether` (default `false`): a party with a grown-up in it starts «Samtidig», side by side, and goes back to «Rett etter hverandre» when the grown-up leaves it. It stops deciding once the parent picks a mode or a party slot, and a party with a named stylist stays one after another, including a stylist a link names after the party is seated («Første ledige» gives «Samtidig» back). A restored draft keeps a mode the parent picked; one the default picked stays the default's. New optional `WizardState.partyModeChosen` and `WizardDraft.partyModeChosen`.
+
 ## 0.3.1
 
 ### Patch Changes

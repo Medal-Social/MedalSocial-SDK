@@ -1,6 +1,6 @@
 {
   "name": "@medalsocial/sdk",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "TypeScript SDK for Medal Social API — posts, emails, contacts, deals, helpdesk, webhooks, and GDPR compliance",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.24.0",
@@ -99,17 +99,17 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.14",
-    "@redocly/cli": "^2.55.0",
-    "@tanstack/intent": "0.4.0",
-    "@types/node": "^26.6.3",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@biomejs/biome": "^2.5.15",
+    "@redocly/cli": "^2.62.2",
+    "@tanstack/intent": "0.5.5",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.4",
     "jsr": "^0.14.3",
     "openapi-typescript": "^7.13.0",
-    "tsdown": "^0.23.0",
+    "tsdown": "^0.23.1",
     "typedoc": "^0.28.20",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.2",
-    "zod": "^4.6.5"
+    "vitest": "^5.0.4",
+    "zod": "^4.6.7"
   }
 }

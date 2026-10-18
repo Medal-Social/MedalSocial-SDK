@@ -25,6 +25,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { calendarRoute } from './routes/calendar';
 import {
   availabilityRoute,
   avatarRoute,
@@ -68,6 +69,7 @@ const BOOKING_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
 
 const BOOKING_PARAM_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
   avatar: { GET: (rt, request, segment) => avatarRoute(rt, request, segment) },
+  calendar: { GET: (rt, request, segment) => calendarRoute(rt, request, segment) },
   manage: {
     GET: (rt, request, segment) => manageSummaryRoute(rt, request, segment),
     POST: (rt, request, segment) => manageRoute(rt, request, segment),
@@ -155,6 +157,18 @@ export interface BookingHandler {
 const EXPECTED_STATUSES = new Set([401, 404, 409]);
 
 /**
+ * The refusal's code from a response body: `error` on the booking routes,
+ * `reason` on the portal routes — both fixed codes. Nothing else in the body
+ * is read.
+ */
+export function failureCode(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null) return undefined;
+  const { error, reason } = body as { error?: unknown; reason?: unknown };
+  if (typeof error === 'string') return error;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+/**
  * One line per refused or failed answer, so a fault shows in the site's logs
  * the night it starts. The route had every 400 to itself: when the range guard
  * refused every unseeded service for eight weeks of nights, nothing anywhere
@@ -174,9 +188,9 @@ async function logFailure(
 ): Promise<void> {
   const { status } = response;
   if (status < 400) return;
-  let code: unknown;
+  let code: string | undefined;
   try {
-    code = ((await response.clone().json()) as { error?: unknown }).error;
+    code = failureCode(await response.clone().json());
   } catch {
     // A body that is not JSON still gets its line, without the code.
   }

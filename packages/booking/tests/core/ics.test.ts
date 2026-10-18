@@ -79,6 +79,16 @@ describe('buildIcs', () => {
     expect(lines).toContain('DTSTAMP:20260829T093000Z');
   });
 
+  it('leaves DTEND out when the end is not after the start, rather than a zero-length event', () => {
+    // RFC 5545 wants DTEND later than DTSTART; without one the event is the
+    // instant, still in the calendar at its time.
+    for (const endTs of [THURSDAY_15, THURSDAY_15 - 60_000]) {
+      const lines = unfold(anEvent({ endTs }));
+      expect(lines).toContain('DTSTART:20260903T130000Z');
+      expect(lines.some((line) => line.startsWith('DTEND'))).toBe(false);
+    }
+  });
+
   it('separates every line with CRLF, which is the only separator RFC 5545 has', () => {
     const ics = anEvent();
     // A bare LF anywhere: some clients treat the whole file as one unparseable

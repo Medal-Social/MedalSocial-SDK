@@ -24,9 +24,12 @@ import { type ComponentType, type ReactNode, type Ref, useLayoutEffect, useRef }
 import { BOOKING_SLOTS_EMPTY_MARKER, BOOKING_TEST_IDS } from './test-ids';
 
 /** @internal exported for unit tests */
-export function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
-  if (typeof ref === 'function') ref(value);
-  else if (ref) ref.current = value;
+export function assignRef<T>(ref: Ref<T> | undefined, value: T | null): undefined | (() => void) {
+  if (typeof ref === 'function') {
+    const cleanup = ref(value);
+    return typeof cleanup === 'function' ? cleanup : undefined;
+  }
+  if (ref) ref.current = value;
 }
 
 /** @internal exported for unit tests */
@@ -85,7 +88,7 @@ function wrapStylist(Inner: ComponentType<StylistCardProps>): ComponentType<Styl
         {...props}
         ref={(node) => {
           stampAttrs(node, attrs);
-          assignRef(props.ref, node);
+          return assignRef(props.ref, node);
         }}
       />
     );
