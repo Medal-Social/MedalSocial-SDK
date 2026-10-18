@@ -569,6 +569,8 @@ describe('useBooking — the corners', () => {
       vi.fn(async (input: unknown) => {
         const url = new URL(String(input), 'https://example.test');
         asked.push(url);
+        if (url.pathname.endsWith('/create'))
+          return { ok: false, status: 409, json: async () => ({ error: 'slotTaken' }) };
         return {
           ok: true,
           status: 200,
@@ -584,9 +586,9 @@ describe('useBooking — the corners', () => {
             fromTs: NOW,
             toTs: NOW + 31 * 86400000,
             maxAdvanceDays: 90,
-            slots: { [KIDS.id]: [] },
-            schedules: { [KIDS.id]: [] },
-            nextAvailable: {},
+            slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+            schedules: { [KIDS.id]: OPEN_WEEK },
+            nextAvailable: { [KIDS.id]: { [BJARNE.id]: osloTs(2, 13) } },
             resources: [BJARNE],
           },
         })
@@ -596,13 +598,31 @@ describe('useBooking — the corners', () => {
     act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
     act(() => result.current.pickService(KIDS));
     await waitFor(() => expect(result.current.slots.ready).toBe(true));
+    expect(result.current.slots.single).toContainEqual(slot(2, 13, BJARNE.id));
+    expect(result.current.slots.nextAvailableTs[BJARNE.id]).toBe(osloTs(2, 13));
+    expect(result.current.schedule.openDays).toEqual(OPEN_WEEK);
     const reads = asked.filter((url) => url.pathname.endsWith('/availability'));
-    expect(reads).toHaveLength(3);
+    expect(reads).toHaveLength(2);
+    expect(Number(reads[0].searchParams.get('from_ts'))).toBe(NOW + 31 * 86400000);
     for (const url of reads)
       expect(
         Number(url.searchParams.get('to_ts')) - Number(url.searchParams.get('from_ts'))
       ).toBeLessThanOrEqual(31 * 86400000);
-    expect(Number(reads[2].searchParams.get('to_ts'))).toBe(result.current.slots.toTs);
+    expect(Number(reads[1].searchParams.get('to_ts'))).toBe(result.current.slots.toTs);
+    act(() => result.current.pickSlot(slot(2, 13, BJARNE.id)));
+    asked.length = 0;
+    await act(() =>
+      result.current.submit({
+        items: [],
+        contact: { phone: '' },
+        consentTerms: true,
+        consentMarketing: false,
+      })
+    );
+    await waitFor(() => expect(result.current.slots.single).toEqual([]));
+    const retried = asked.filter((url) => url.pathname.endsWith('/availability'));
+    expect(retried).toHaveLength(3);
+    expect(Number(retried[0].searchParams.get('from_ts'))).toBe(NOW);
   });
 
   it('zips each line to its OWN booking, and leaves out a line the answer has none for', () => {

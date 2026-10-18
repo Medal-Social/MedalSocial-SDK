@@ -766,6 +766,8 @@ export function useBooking(options: UseBookingOptions) {
    * for a person having both, whose list is the server's answer for the whole
    * visit rather than either service's own.
    */
+  const [prefetch] = useState(options.seed);
+  const prefetchToTs = prefetch.toTs ?? fromTs;
   const seedCoversWindow = options.seed.toTs === undefined || options.seed.toTs >= toTs;
   const [slots, setSlots] = useState<Record<string, readonly BookingSlotDto[]>>(() =>
     seedCoversWindow ? (options.seed.slots ?? {}) : {}
@@ -784,6 +786,8 @@ export function useBooking(options: UseBookingOptions) {
   );
   /** Set once a retry has moved the window past the seed's day; the seed no longer answers. */
   const [seedRetired, setSeedRetired] = useState(false);
+  const usablePrefetch =
+    !seedCoversWindow && !seedRetired && prefetch.fromTs === fromTs ? prefetch : undefined;
   const seededSchedule = seedRetired ? NO_SEEDED_SCHEDULE : initialSchedule;
   /** The last «next available» answer, and for WHICH visit (its key). */
   const [fetchedNextAvailable, setFetchedNextAvailable] = useState<{
@@ -1313,9 +1317,11 @@ export function useBooking(options: UseBookingOptions) {
         wanted.map(async (key) => {
           // Only selected visits are read beyond the bounded server prefetch.
           // Serial chunks keep one visitor from fanning out a year's work at once.
-          const fetchedSlots: BookingSlotDto[] = [];
+          const initial = usablePrefetch?.slots?.[key];
+          const fetchedSlots: BookingSlotDto[] = [...(initial ?? [])];
+          const readFrom = initial !== undefined ? prefetchToTs : fromTs;
           const chunkMs = maxAdvanceDays === undefined ? toTs - fromTs : 31 * 86_400_000;
-          for (let start = fromTs; start < toTs && !cancelled; start += chunkMs) {
+          for (let start = readFrom; start < toTs && !cancelled; start += chunkMs) {
             const end = Math.min(toTs, start + chunkMs);
             const response = await fetch(`${api}/availability?${windowQuery(key, start, end)}`);
             if (!response.ok) throw new ReadFailure('availability', response.status);
@@ -1344,7 +1350,17 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError, maxAdvanceDays]);
+  }, [
+    api,
+    missingKey,
+    fromTs,
+    toTs,
+    slotsAttempt,
+    noteReadError,
+    maxAdvanceDays,
+    usablePrefetch,
+    prefetchToTs,
+  ]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
@@ -1354,7 +1370,11 @@ export function useBooking(options: UseBookingOptions) {
 
     (async () => {
       try {
-        const response = await fetch(`${api}/resources?${windowQuery(primaryVisit, fromTs, toTs)}`);
+        const initial = usablePrefetch?.nextAvailable?.[primaryVisit];
+        const readFrom = initial !== undefined ? prefetchToTs : fromTs;
+        const response = await fetch(
+          `${api}/resources?${windowQuery(primaryVisit, readFrom, toTs)}`
+        );
         if (!response.ok) throw new ReadFailure('resources', response.status);
         const body = (await response.json()) as {
           resources?: BookingResourceDto[];
@@ -1363,7 +1383,11 @@ export function useBooking(options: UseBookingOptions) {
         if (cancelled) return;
         setResources(body.resources ?? []);
         setResourcesKnown(true);
-        setFetchedNextAvailable({ key: primaryVisit, times: body.nextAvailableTs ?? {} });
+        // Seeded openings are earlier than the uncovered tail.
+        setFetchedNextAvailable({
+          key: primaryVisit,
+          times: { ...body.nextAvailableTs, ...initial },
+        });
       } catch (error) {
         // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
         if (!cancelled) {
@@ -1377,7 +1401,17 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt, noteReadError]);
+  }, [
+    api,
+    primaryVisit,
+    fromTs,
+    toTs,
+    seededNextAvailable,
+    slotsAttempt,
+    noteReadError,
+    usablePrefetch,
+    prefetchToTs,
+  ]);
 
   /**
    * The stylist half of a «book again» link, once a list for its service has
@@ -1486,13 +1520,15 @@ export function useBooking(options: UseBookingOptions) {
 
     (async () => {
       try {
+        const initial = resourceId === null ? usablePrefetch?.schedules?.[primaryVisit] : undefined;
+        const readFrom = initial !== undefined ? prefetchToTs : fromTs;
         const response = await fetch(
-          `${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs, resourceId)}`
+          `${api}/schedule?${windowQuery(primaryVisit, readFrom, toTs, resourceId)}`
         );
         if (!response.ok) throw new ReadFailure('schedule', response.status);
         const body = (await response.json()) as { days?: BookingDayDto[] };
         if (cancelled) return;
-        setFetchedSchedule({ key, days: body.days ?? [] });
+        setFetchedSchedule({ key, days: [...(initial ?? []), ...(body.days ?? [])] });
       } catch (error) {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
@@ -1518,6 +1554,8 @@ export function useBooking(options: UseBookingOptions) {
     scheduleKey,
     slotsAttempt,
     noteReadError,
+    usablePrefetch,
+    prefetchToTs,
   ]);
 
   /**
@@ -1869,6 +1907,7 @@ export function useBooking(options: UseBookingOptions) {
           return;
         }
         if (payload?.error === 'slotTaken') {
+          if (!seedCoversWindow) setSeedRetired(true);
           // From the SUBMITTED visit: after a reload there is no live basket.
           setTakenSlotTs(submitted.startTs);
           // The cache goes too, or the time step reopens on the SAME chip:
@@ -1968,6 +2007,7 @@ export function useBooking(options: UseBookingOptions) {
     setPendingAttempt(null);
     // The openings were read before the booking just made: drop them.
     setSlots({});
+    setSeedRetired(true);
     setSlotsFailed(false);
     setConfirmed(null);
     setTakenSlotTs(null);
