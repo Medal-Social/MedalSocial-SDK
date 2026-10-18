@@ -799,6 +799,81 @@ describe('useBooking — the corners', () => {
     }
   );
 
+  it.each([false, true])(
+    'cancels a pending tail when a slot is taken (fresh prefix: %s)',
+    async (fresh) => {
+      let finish: (value: unknown) => void = () => {};
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      let held = false;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: unknown) => {
+          const url = new URL(String(input), 'https://example.test');
+          if (url.pathname.endsWith('/create'))
+            return {
+              ok: false,
+              status: 409,
+              json: async () => ({
+                error: 'slotTaken',
+                ...(fresh
+                  ? { freshSlots: { [KIDS.id]: [] }, freshSlotsToTs: NOW + 7 * 86400000 }
+                  : {}),
+              }),
+            };
+          if (
+            url.pathname.endsWith('/availability') &&
+            Number(url.searchParams.get('from_ts')) === NOW + 31 * 86400000 &&
+            !held
+          ) {
+            held = true;
+            return pending;
+          }
+          return {
+            ok: true,
+            json: async () => ({ slots: [], resources: [BJARNE], days: OPEN_WEEK }),
+          };
+        })
+      );
+      const { result } = renderHook(() =>
+        useBooking(
+          options({
+            seed: {
+              services: [KIDS],
+              resources: [BJARNE],
+              fromTs: NOW,
+              toTs: NOW + 31 * 86400000,
+              maxAdvanceDays: 90,
+              slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+              schedules: { [KIDS.id]: OPEN_WEEK },
+            },
+          })
+        )
+      );
+      act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+      act(() => result.current.pickService(KIDS));
+      expect(held).toBe(true);
+      expect(result.current.slots.ready).toBe(true);
+      act(() => result.current.pickSlot(slot(2, 13, BJARNE.id)));
+      await act(() =>
+        result.current.submit({
+          items: [],
+          contact: { phone: '' },
+          consentTerms: true,
+          consentMarketing: false,
+        })
+      );
+      await waitFor(() => expect(result.current.slots.days).toHaveLength(91));
+      expect(result.current.slots.single).toEqual([]);
+      await act(async () => {
+        finish({ ok: true, json: async () => ({ slots: [slot(2, 13, BJARNE.id)] }) });
+      });
+      expect(result.current.slots.single).toEqual([]);
+      expect(result.current.slots.loadingMore).toBe(false);
+    }
+  );
+
   it('restores the complete hours when switching salon to stylist and back', async () => {
     const personal = [OPEN_WEEK[3]];
     vi.stubGlobal(

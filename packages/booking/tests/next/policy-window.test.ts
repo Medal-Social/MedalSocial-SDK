@@ -116,6 +116,21 @@ describe('saved customer booking horizon', () => {
     await vi.advanceTimersByTimeAsync(2000);
   });
 
+  it('separates changed policy metadata even when DST gives both horizons the same dates', async () => {
+    vi.setSystemTime(new Date('2026-10-23T22:30:00Z'));
+    const { rt, getPolicy } = runtime(1);
+    const first = await policySeed(rt);
+    getPolicy.mockResolvedValue({ max_advance_days: 2 });
+    const second = await policySeed(rt);
+    expect(first.RANGE_DAYS).toBe(second.RANGE_DAYS);
+    expect(second.seedKeyAt('service', Date.now())).not.toBe(
+      first.seedKeyAt('service', Date.now())
+    );
+    expect(second.seedLatestKeyAt('service', Date.now())).not.toBe(
+      first.seedLatestKeyAt('service', Date.now())
+    );
+  });
+
   it('keeps static configurations unchanged', async () => {
     const rt = testRuntime();
     expect(await policySeed(rt)).toBe(rt.seed);

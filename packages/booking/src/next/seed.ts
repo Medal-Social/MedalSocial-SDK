@@ -220,7 +220,10 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   const { edge } = options.cache;
   const SEED_PATH = options.cache.edgePrefix ?? DEFAULT_EDGE_PREFIX;
   const RANGE_DAYS = config.window.rangeDays;
-  const windowKey = config.window.followPolicy ? `${RANGE_DAYS}/` : '';
+  // DST can map two saved limits to the same calendar span; retain both identities.
+  const windowKey = config.window.followPolicy
+    ? `${options.policyMaxAdvanceDays ?? RANGE_DAYS}/${RANGE_DAYS}/`
+    : '';
   const PREFETCH_LIMIT = config.window.prefetchLimit;
   const clock = createClock(config);
   const { toBookingServiceDto, toBookingResourceDto } = createDto(config);

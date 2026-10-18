@@ -1964,6 +1964,9 @@ export function useBooking(options: UseBookingOptions) {
           // replaced by the 409's live `freshSlots`, else evicted for a re-read.
           // By VISIT, as the server keys `freshSlots` and the wizard its cache.
           const lost = new Set(submitted.items.map((item) => visitKey(item)));
+          // The missing visit key may not change while a tail is in flight.
+          // Cancel that read before it can restore its pre-conflict snapshot.
+          setSlotsAttempt((attempt) => attempt + 1);
           const freshTo =
             typeof payload?.freshSlotsToTs === 'number'
               ? Math.min(payload.freshSlotsToTs, toTs)
