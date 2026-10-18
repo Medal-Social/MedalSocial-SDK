@@ -25,7 +25,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
-import { MAX_POLICY_RANGE_MS, MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
+import { MAX_POLICY_READ_MS, MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
 import { policySeed } from '../policy-window';
 import type { BookingRuntime } from '../runtime';
@@ -222,14 +222,15 @@ export function parseRange(
   }
   // A bound on what a visitor-controlled query string may ask the site to
   // fetch on their behalf — not the engine's own limit, which clamps rather
-  // than refuses. It admits the widest window a valid config can produce,
-  // DST hour included (`core/range.ts`).
-  if (toTs - fromTs > (followPolicy ? MAX_POLICY_RANGE_MS : MAX_RANGE_MS)) {
+  // than refuses. Static clients may read their configured window; policy
+  // clients load bounded chunks instead of a visitor-controlled year.
+  // Both bounds allow the DST hour (`core/range.ts`).
+  if (toTs - fromTs > (followPolicy ? MAX_POLICY_READ_MS : MAX_RANGE_MS)) {
     return {
       error: bookingErrorResponse(
         'invalidInput',
         400,
-        `Range must not exceed ${followPolicy ? 402 : MAX_RANGE_DAYS} days`
+        `Range must not exceed ${followPolicy ? 31 : MAX_RANGE_DAYS} days`
       ),
     };
   }

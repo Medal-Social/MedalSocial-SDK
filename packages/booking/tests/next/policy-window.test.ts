@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryCacheAdapter } from '../../src/next/cache/memory';
 import { loadBookingPage } from '../../src/next/loaders';
 import { policySeed } from '../../src/next/policy-window';
-import { nextFreeRoute } from '../../src/next/routes/catalogue-routes';
+import {
+  availabilityRoute,
+  nextFreeRoute,
+  resourcesRoute,
+  scheduleRoute,
+} from '../../src/next/routes/catalogue-routes';
 import { forgetBookedSlots, parseRange } from '../../src/next/routes/shared';
 import { testRuntime } from '../support/next-runtime';
 import { PARITY_CONFIG } from '../support/parity-config';
@@ -134,14 +139,36 @@ describe('saved customer booking horizon', () => {
     expect((await loadBookingPage(rt)).kind).toBe('unavailable');
   });
 
-  it('allows a policy-sized browser request while retaining the static and maximum span guards', () => {
+  it('bounds policy reads independently of the complete horizon', () => {
     const request = (days: number) =>
       new URLSearchParams({ from_ts: '1', to_ts: String(1 + days * 86400000) });
     expect(parseRange(request(91))).toHaveProperty('error');
-    expect(parseRange(request(91), true)).not.toHaveProperty('error');
-    expect(parseRange(request(401), true)).not.toHaveProperty('error');
+    expect(parseRange(request(31), true)).not.toHaveProperty('error');
+    expect(parseRange(request(31 + 1 / 24), true)).not.toHaveProperty('error');
+    expect(parseRange(request(32), true)).toHaveProperty('error');
+    expect(parseRange(request(91), true)).toHaveProperty('error');
+    expect(parseRange(request(401), true)).toHaveProperty('error');
     expect(parseRange(request(403), true)).toHaveProperty('error');
   });
+  it('rejects year-long anonymous requests before any catalogue read', async () => {
+    const { rt } = runtime(400);
+    const slots = vi.spyOn(rt.catalogue, 'cachedAvailability');
+    const hours = vi.spyOn(rt.catalogue, 'cachedSchedule');
+    const resources = vi.spyOn(rt.catalogue, 'cachedResources');
+    for (const route of [availabilityRoute, resourcesRoute, scheduleRoute]) {
+      const response = await route(
+        rt,
+        new Request(
+          `https://example.test/api/booking/read?service_id=service&from_ts=1&to_ts=${1 + 400 * 86400000}`
+        )
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(slots).not.toHaveBeenCalled();
+    expect(hours).not.toHaveBeenCalled();
+    expect(resources).not.toHaveBeenCalled();
+  });
+
   it('uses the same policy seed for next-free and fails closed on a later policy error', async () => {
     const { rt, getPolicy } = runtime();
     const source = await policySeed(rt);
