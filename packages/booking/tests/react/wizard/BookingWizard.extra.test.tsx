@@ -540,6 +540,71 @@ describe('useBooking — the corners', () => {
     ...extra,
   });
 
+  it('recomputes the cutoff date after an overnight retry across DST', () => {
+    const initial = Date.parse('2026-01-01T22:30:00Z');
+    vi.spyOn(Date, 'now').mockReturnValue(initial);
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            fromTs: initial,
+            maxAdvanceDays: 90,
+          },
+        })
+      )
+    );
+    expect(result.current.slots.days).toHaveLength(92);
+    const tomorrow = Date.parse('2026-01-02T10:00:00Z');
+    vi.spyOn(Date, 'now').mockReturnValue(tomorrow);
+    act(() => result.current.refresh());
+    expect(result.current.slots.days).toHaveLength(91);
+    expect(result.current.slots.toTs).toBeGreaterThan(tomorrow + 90 * 86400000);
+  });
+
+  it('loads only selected visits in bounded chunks when the seed covers less than the horizon', async () => {
+    const asked: URL[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        asked.push(url);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ slots: [], days: [], resources: [BJARNE] }),
+        };
+      })
+    );
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            fromTs: NOW,
+            toTs: NOW + 31 * 86400000,
+            maxAdvanceDays: 90,
+            slots: { [KIDS.id]: [] },
+            schedules: { [KIDS.id]: [] },
+            nextAvailable: {},
+            resources: [BJARNE],
+          },
+        })
+      )
+    );
+    expect(asked).toHaveLength(0);
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    await waitFor(() => expect(result.current.slots.ready).toBe(true));
+    const reads = asked.filter((url) => url.pathname.endsWith('/availability'));
+    expect(reads).toHaveLength(3);
+    for (const url of reads)
+      expect(
+        Number(url.searchParams.get('to_ts')) - Number(url.searchParams.get('from_ts'))
+      ).toBeLessThanOrEqual(31 * 86400000);
+    expect(Number(reads[2].searchParams.get('to_ts'))).toBe(result.current.slots.toTs);
+  });
+
   it('zips each line to its OWN booking, and leaves out a line the answer has none for', () => {
     const lines = confirmationLines({
       bookings: [{ id: 'bk-1', manageHref: '/m/1' }],

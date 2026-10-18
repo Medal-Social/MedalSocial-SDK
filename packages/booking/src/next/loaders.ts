@@ -133,8 +133,14 @@ export async function loadBookingPage(
 
   let rangeDays = rt.seed.RANGE_DAYS;
   const loadSeed = async (): Promise<BookingSeed | null> => {
+    let source: typeof rt.seed;
     try {
-      const source = await policySeed(rt);
+      source = await policySeed(rt);
+    } catch (error) {
+      rt.logger.error({ err: error }, 'Could not read the public booking policy');
+      return null;
+    }
+    try {
       rangeDays = source.RANGE_DAYS;
       return await source.loadBookingSeed(named);
     } catch (error) {

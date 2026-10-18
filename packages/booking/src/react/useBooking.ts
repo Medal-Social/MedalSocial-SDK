@@ -63,6 +63,10 @@ import { type BookingOverrides, useBookingKit } from './Provider';
  * missing is fetched on demand into the same place.
  */
 export interface BookingSeed {
+  /** Saved elapsed-day limit; the calendar count is recalculated when the window advances. */
+  maxAdvanceDays?: number;
+  /** End of the prefetched window, which may be shorter than the selectable horizon. */
+  toTs?: number;
   /** The full catalogue. */
   services: BookingServiceDto[];
   /** The stylists, or `null`/absent when they could not be read. */
@@ -713,7 +717,17 @@ export function useBooking(options: UseBookingOptions) {
   // only by a retry on a later business day (`refresh`), which drops the seed
   // with it — a tab left open overnight would otherwise ask about yesterday.
   const [fromTs, setFromTs] = useState(() => options.seed.fromTs ?? Date.now());
-  const { toTs, days } = useMemo(() => clock.window(fromTs, rangeDays), [clock, fromTs, rangeDays]);
+  const maxAdvanceDays = options.seed.maxAdvanceDays;
+  const { toTs, days } = useMemo(
+    () =>
+      clock.window(
+        fromTs,
+        maxAdvanceDays === undefined
+          ? rangeDays
+          : clock.daysBetween(fromTs, fromTs + maxAdvanceDays * 86_400_000) + 1
+      ),
+    [clock, fromTs, rangeDays, maxAdvanceDays]
+  );
   /** The business date the ages on steps 1 and 2 are read on: the chosen day, else today. */
   const ageDayKey = clock.dayKey(state.startTs ?? fromTs);
 
@@ -752,8 +766,9 @@ export function useBooking(options: UseBookingOptions) {
    * for a person having both, whose list is the server's answer for the whole
    * visit rather than either service's own.
    */
-  const [slots, setSlots] = useState<Record<string, readonly BookingSlotDto[]>>(
-    () => options.seed.slots ?? {}
+  const seedCoversWindow = options.seed.toTs === undefined || options.seed.toTs >= toTs;
+  const [slots, setSlots] = useState<Record<string, readonly BookingSlotDto[]>>(() =>
+    seedCoversWindow ? (options.seed.slots ?? {}) : {}
   );
   const [slotsFailed, setSlotsFailed] = useState(false);
   const [resources, setResources] = useState<BookingResourceDto[]>(
@@ -762,9 +777,11 @@ export function useBooking(options: UseBookingOptions) {
   /** Whether the stylist list has been answered at all — seeded, fetched or failed. */
   const [resourcesKnown, setResourcesKnown] = useState(() => options.seed.resources != null);
   const [seededNextAvailable, setSeededNextAvailable] = useState(() =>
-    options.seed.resources ? (options.seed.nextAvailable ?? {}) : {}
+    options.seed.resources && seedCoversWindow ? (options.seed.nextAvailable ?? {}) : {}
   );
-  const [initialSchedule] = useState(() => options.seed.schedules ?? {});
+  const [initialSchedule] = useState(() =>
+    seedCoversWindow ? (options.seed.schedules ?? {}) : {}
+  );
   /** Set once a retry has moved the window past the seed's day; the seed no longer answers. */
   const [seedRetired, setSeedRetired] = useState(false);
   const seededSchedule = seedRetired ? NO_SEEDED_SCHEDULE : initialSchedule;
@@ -1294,11 +1311,19 @@ export function useBooking(options: UseBookingOptions) {
       // two answers it has, and the retry asks only for the one still missing.
       const settled = await Promise.allSettled(
         wanted.map(async (key) => {
-          const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
-          if (!response.ok) throw new ReadFailure('availability', response.status);
-          const body = (await response.json()) as { slots?: BookingSlotDto[] };
-          // Stored under the WHOLE visit's key — the key it is read back by.
-          return [key, body.slots ?? []] as const;
+          // Only selected visits are read beyond the bounded server prefetch.
+          // Serial chunks keep one visitor from fanning out a year's work at once.
+          const fetchedSlots: BookingSlotDto[] = [];
+          const chunkMs = maxAdvanceDays === undefined ? toTs - fromTs : 31 * 86_400_000;
+          for (let start = fromTs; start < toTs && !cancelled; start += chunkMs) {
+            const end = Math.min(toTs, start + chunkMs);
+            const response = await fetch(`${api}/availability?${windowQuery(key, start, end)}`);
+            if (!response.ok) throw new ReadFailure('availability', response.status);
+            const body = (await response.json()) as { slots?: BookingSlotDto[] };
+            fetchedSlots.push(...(body.slots ?? []));
+          }
+          // Stored only after all chunks succeed: an unread day is never called full.
+          return [key, fetchedSlots] as const;
         })
       );
       if (cancelled) return;
@@ -1319,7 +1344,7 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError]);
+  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError, maxAdvanceDays]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {

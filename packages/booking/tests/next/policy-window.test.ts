@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { memoryCacheAdapter } from '../../src/next/cache/memory';
 import { loadBookingPage } from '../../src/next/loaders';
 import { policySeed } from '../../src/next/policy-window';
+import { nextFreeRoute } from '../../src/next/routes/catalogue-routes';
 import { parseRange } from '../../src/next/routes/shared';
 import { testRuntime } from '../support/next-runtime';
 import { PARITY_CONFIG } from '../support/parity-config';
@@ -80,5 +81,18 @@ describe('saved customer booking horizon', () => {
     expect(parseRange(request(91), true)).not.toHaveProperty('error');
     expect(parseRange(request(401), true)).not.toHaveProperty('error');
     expect(parseRange(request(403), true)).toHaveProperty('error');
+  });
+  it('uses the same policy seed for next-free and fails closed on a later policy error', async () => {
+    const { rt, getPolicy } = runtime();
+    const source = await policySeed(rt);
+    const future = Date.now() + 3600000;
+    vi.spyOn(source, 'loadBookingSeed').mockResolvedValue({
+      slots: { service: [{ startTs: future, resourceId: 'resource' }] },
+    } as never);
+    expect(await (await nextFreeRoute(rt)).json()).toMatchObject({ startTs: future });
+    getPolicy.mockRejectedValue(new Error('policy unavailable'));
+    const response = await nextFreeRoute(rt);
+    expect(await response.json()).toEqual({ startTs: null, label: null });
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 });

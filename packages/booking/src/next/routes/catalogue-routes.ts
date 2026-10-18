@@ -1,3 +1,4 @@
+import { policySeed } from '../policy-window';
 /**
  * The read routes the wizard asks while it is on screen: the price list, the
  * stylists (with each one's next opening), free slots, opening hours, the
@@ -228,7 +229,7 @@ export async function scheduleRoute(rt: BookingRuntime, request: Request): Promi
 export async function nextFreeRoute(rt: BookingRuntime): Promise<Response> {
   const now = Date.now();
   try {
-    const seed = await rt.seed.loadBookingSeed(undefined, now);
+    const seed = await (await policySeed(rt)).loadBookingSeed(undefined, now);
     const startTs = earliestOpening(seed.slots, now);
     return NextResponse.json(
       { startTs, label: startTs === null ? null : rt.clock.when(startTs, now) },

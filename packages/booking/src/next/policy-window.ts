@@ -1,7 +1,7 @@
 import type { BookingRuntime } from './runtime';
 import { createSeed, type Seed } from './seed';
 
-const seeds = new WeakMap<BookingRuntime, { days: number; seed: Seed }>();
+const seeds = new WeakMap<BookingRuntime, { days: number; maxAdvanceDays: number; seed: Seed }>();
 
 /** Read the authoritative setting on each page load, never a stale local fallback. */
 export async function policySeed(rt: BookingRuntime): Promise<Seed> {
@@ -19,16 +19,18 @@ export async function policySeed(rt: BookingRuntime): Promise<Seed> {
   const now = Date.now();
   const days = rt.clock.daysBetween(now, now + policy.max_advance_days * 86_400_000) + 1;
   const previous = seeds.get(rt);
-  if (previous?.days === days) return previous.seed;
+  if (previous?.days === days && previous.maxAdvanceDays === policy.max_advance_days)
+    return previous.seed;
   const seed = createSeed(
     {
       config: { ...rt.config, window: { ...rt.config.window, rangeDays: days } },
+      policyMaxAdvanceDays: policy.max_advance_days,
       cache: rt.options.cache,
       logger: rt.logger,
       timing: rt.options.timing,
     },
     rt.catalogue
   );
-  seeds.set(rt, { days, seed });
+  seeds.set(rt, { days, maxAdvanceDays: policy.max_advance_days, seed });
   return seed;
 }
