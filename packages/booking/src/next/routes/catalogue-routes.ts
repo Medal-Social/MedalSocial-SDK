@@ -43,15 +43,15 @@ export async function servicesRoute(rt: BookingRuntime): Promise<Response> {
  * free» has to agree with the day strip on the time step, and the wizard owns
  * that horizon.
  *
- * Best effort, and never fatal. A stylist list with no «next free» lines is a
- * working step; a 502 here would be a screen with nobody on it.
+ * Preserve the stylist list on failure. Policy clients also need the failure
+ * signal so a later chunk cannot masquerade as the first opening.
  */
 async function firstOpeningPerResource(
   rt: BookingRuntime,
   serviceId: string,
   extraServiceIds: string[],
   range: { fromTs: number; toTs: number }
-): Promise<Record<string, number>> {
+): Promise<Record<string, number> | null> {
   try {
     // Unfiltered by resource, deliberately: the whole point is one entry per
     // stylist, and `resource_id` would collapse the answer to that one. The
@@ -75,7 +75,7 @@ async function firstOpeningPerResource(
     return earliest;
   } catch (error) {
     rt.logger.warn({ err: error, serviceId }, 'Could not read next-available times for step 2');
-    return {};
+    return null;
   }
 }
 
@@ -120,12 +120,14 @@ export async function resourcesRoute(rt: BookingRuntime, request: Request): Prom
     return catalogueErrorResponse(rt, error, 'resources');
   }
 
+  const times = await nextAvailable;
   return NextResponse.json({
     // Unsorted, in the order Medal returned it: step 2 sorts by `sortOrder`
     // itself, and the party seating uses first-encounter order as its
     // tie-break.
     resources: resources.map(rt.dto.toBookingResourceDto),
-    nextAvailableTs: await nextAvailable,
+    nextAvailableTs: times ?? {},
+    ...(rt.config.window.followPolicy && times === null ? { nextAvailableFailed: true } : {}),
   });
 }
 

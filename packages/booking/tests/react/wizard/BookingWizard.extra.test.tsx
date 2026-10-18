@@ -801,6 +801,93 @@ describe('useBooking — the corners', () => {
     }
   );
 
+  it('stops at a failed next-free chunk rather than promising a later first opening', async () => {
+    const resourceReads: number[] = [];
+    let failing = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const from = Number(url.searchParams.get('from_ts'));
+        if (url.pathname.endsWith('/resources')) {
+          resourceReads.push(from);
+          const middle = from === NOW + 31 * 86400000;
+          return {
+            ok: true,
+            json: async () => ({
+              resources: [BJARNE, OLA],
+              ...(middle && failing
+                ? { nextAvailableTs: {}, nextAvailableFailed: true }
+                : { nextAvailableTs: { [OLA.id]: NOW + (middle ? 40 : 70) * 86400000 } }),
+            }),
+          };
+        }
+        return { ok: true, json: async () => ({ slots: [], days: OPEN_WEEK }) };
+      })
+    );
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE, OLA],
+            fromTs: NOW,
+            toTs: NOW + 31 * 86400000,
+            maxAdvanceDays: 90,
+            slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+            schedules: { [KIDS.id]: OPEN_WEEK },
+            nextAvailable: { [KIDS.id]: { [BJARNE.id]: osloTs(2, 13) } },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    await waitFor(() => expect(result.current.slots.failed).toBe(true));
+    expect(resourceReads).toEqual([NOW + 31 * 86400000]);
+    expect(result.current.slots.nextAvailableTs).toEqual({ [BJARNE.id]: osloTs(2, 13) });
+    expect(result.current.slots.nextAvailableLoading).toBe(false);
+    expect(result.current.catalogue.resources).toHaveLength(2);
+    failing = false;
+    act(() => result.current.refresh());
+    await waitFor(() =>
+      expect(result.current.slots.nextAvailableTs[OLA.id]).toBe(NOW + 40 * 86400000)
+    );
+    await waitFor(() => expect(result.current.slots.nextAvailableLoading).toBe(false));
+    expect(result.current.slots.failed).toBe(false);
+    expect(resourceReads).toEqual([NOW + 31 * 86400000, NOW + 31 * 86400000, NOW + 62 * 86400000]);
+  });
+
+  it.each([false, true])(
+    'clears an unrelated read failure when switching to a loaded visit (policy: %s)',
+    async (policy) => {
+      stubApi({ availability: { status: 503, body: {} } });
+      const { result } = renderHook(() =>
+        useBooking(
+          options({
+            seed: {
+              services: [KIDS, SMALL],
+              resources: [BJARNE],
+              fromTs: NOW,
+              ...(policy ? { maxAdvanceDays: 7, toTs: osloTs(10, 0) } : {}),
+              slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+              schedules: { [KIDS.id]: OPEN_WEEK },
+            },
+          })
+        )
+      );
+      act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+      act(() => result.current.pickService(SMALL));
+      await waitFor(() => expect(result.current.slots.failed).toBe(true));
+      act(() => result.current.pickService(KIDS));
+      await waitFor(() => expect(result.current.slots.ready).toBe(true));
+      expect(result.current.slots.failed).toBe(false);
+      expect(result.current.slots.single.some((opening) => opening.startTs === osloTs(2, 13))).toBe(
+        true
+      );
+    }
+  );
+
   it.each([false, true])(
     'cancels a pending tail when a slot is taken (fresh prefix: %s)',
     async (fresh) => {

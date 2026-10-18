@@ -1318,10 +1318,10 @@ export function useBooking(options: UseBookingOptions) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
+    setSlotsFailed(false);
     if (missingKey === '') return;
     const wanted = missingKey.split('|');
     let cancelled = false;
-    setSlotsFailed(false);
 
     (async () => {
       // Settled one by one: a party of three whose third visit failed keeps the
@@ -1378,10 +1378,12 @@ export function useBooking(options: UseBookingOptions) {
           const body = (await response.json()) as {
             resources?: BookingResourceDto[];
             nextAvailableTs?: Record<string, number>;
+            nextAvailableFailed?: boolean;
           };
           if (cancelled) return;
           setResources(body.resources ?? []);
           setResourcesKnown(true);
+          if (body.nextAvailableFailed) throw new ReadFailure('resources', 502);
           // Earlier answers win, and remain visible if a later chunk fails.
           times = { ...body.nextAvailableTs, ...times };
           setFetchedNextAvailable({ key: primaryVisit, times, complete: start + chunkMs >= toTs });
