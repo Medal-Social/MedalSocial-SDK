@@ -136,7 +136,9 @@ const BUDGETS = [
     // measured 19.13 KB.
     // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.70 KB.
-    gzipBytes: 20.2 * 1024,
+    // Raised 20.2 -> 20.4 KB for bounded policy reads of slots, hours and
+    // stylist openings, retaining earlier answers on a tail failure. Measured 20.23 KB.
+    gzipBytes: 20.4 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -165,7 +167,7 @@ const BUDGETS = [
     // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.86 KB.
     // Raised 29.4 -> 29.6 KB for policy horizons, DST-safe window refresh,
-    // and bounded prefetch reuse with serial availability reads. Measured 29.41 KB.
+    // and bounded prefetch reuse with serial availability reads. Measured 29.48 KB.
     gzipBytes: 29.6 * 1024,
   },
   {
@@ -205,7 +207,9 @@ const BUDGETS = [
     // measured 19.27 KB.
     // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.82 KB.
-    gzipBytes: 20.3 * 1024,
+    // Raised 20.3 -> 20.5 KB for bounded policy reads of slots, hours and
+    // stylist openings, retaining earlier answers on a tail failure. Measured 20.35 KB.
+    gzipBytes: 20.5 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -232,7 +236,7 @@ const BUDGETS = [
     // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.96 KB.
     // Raised 29.5 -> 29.7 KB for policy horizons, DST-safe window refresh,
-    // and bounded prefetch reuse with serial availability reads. Measured 29.52 KB.
+    // and bounded prefetch reuse with serial availability reads. Measured 29.59 KB.
     gzipBytes: 29.7 * 1024,
   },
   {
@@ -272,7 +276,7 @@ const BUDGETS = [
     // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 25.11 KB.
     // Raised 25.6 -> 25.8 KB for policy horizons, DST-safe window refresh,
-    // and bounded prefetch reuse with serial availability reads. Measured 25.61 KB.
+    // and bounded prefetch reuse with serial availability reads. Measured 25.68 KB.
     gzipBytes: 25.8 * 1024,
   },
 ];

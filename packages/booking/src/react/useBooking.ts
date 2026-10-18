@@ -1302,6 +1302,7 @@ export function useBooking(options: UseBookingOptions) {
     });
   }, []);
   const api = config.paths.api;
+  const chunkMs = maxAdvanceDays === undefined ? toTs - fromTs : 31 * 86_400_000;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
@@ -1320,7 +1321,6 @@ export function useBooking(options: UseBookingOptions) {
           const initial = usablePrefetch?.slots?.[key];
           const fetchedSlots: BookingSlotDto[] = [...(initial ?? [])];
           const readFrom = initial !== undefined ? prefetchToTs : fromTs;
-          const chunkMs = maxAdvanceDays === undefined ? toTs - fromTs : 31 * 86_400_000;
           for (let start = readFrom; start < toTs && !cancelled; start += chunkMs) {
             const end = Math.min(toTs, start + chunkMs);
             const response = await fetch(`${api}/availability?${windowQuery(key, start, end)}`);
@@ -1357,9 +1357,9 @@ export function useBooking(options: UseBookingOptions) {
     toTs,
     slotsAttempt,
     noteReadError,
-    maxAdvanceDays,
     usablePrefetch,
     prefetchToTs,
+    chunkMs,
   ]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
@@ -1369,31 +1369,32 @@ export function useBooking(options: UseBookingOptions) {
     let cancelled = false;
 
     (async () => {
+      const initial = usablePrefetch?.nextAvailable?.[primaryVisit];
+      let times = initial ?? {};
       try {
-        const initial = usablePrefetch?.nextAvailable?.[primaryVisit];
         const readFrom = initial !== undefined ? prefetchToTs : fromTs;
-        const response = await fetch(
-          `${api}/resources?${windowQuery(primaryVisit, readFrom, toTs)}`
-        );
-        if (!response.ok) throw new ReadFailure('resources', response.status);
-        const body = (await response.json()) as {
-          resources?: BookingResourceDto[];
-          nextAvailableTs?: Record<string, number>;
-        };
-        if (cancelled) return;
-        setResources(body.resources ?? []);
-        setResourcesKnown(true);
-        // Seeded openings are earlier than the uncovered tail.
-        setFetchedNextAvailable({
-          key: primaryVisit,
-          times: { ...body.nextAvailableTs, ...initial },
-        });
+        for (let start = readFrom; start < toTs; start += chunkMs) {
+          const response = await fetch(
+            `${api}/resources?${windowQuery(primaryVisit, start, Math.min(toTs, start + chunkMs))}`
+          );
+          if (!response.ok) throw new ReadFailure('resources', response.status);
+          const body = (await response.json()) as {
+            resources?: BookingResourceDto[];
+            nextAvailableTs?: Record<string, number>;
+          };
+          if (cancelled) return;
+          setResources(body.resources ?? []);
+          setResourcesKnown(true);
+          // Earlier answers win, and remain visible if a later chunk fails.
+          times = { ...body.nextAvailableTs, ...times };
+          setFetchedNextAvailable({ key: primaryVisit, times });
+        }
       } catch (error) {
-        // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
+        // Keep known openings and the stylist list when the tail cannot be read.
         if (!cancelled) {
           noteReadError('resources', error);
           setResourcesKnown(true);
-          setFetchedNextAvailable({ key: primaryVisit, times: {} });
+          setFetchedNextAvailable({ key: primaryVisit, times });
         }
       }
     })();
@@ -1411,6 +1412,7 @@ export function useBooking(options: UseBookingOptions) {
     noteReadError,
     usablePrefetch,
     prefetchToTs,
+    chunkMs,
   ]);
 
   /**
@@ -1522,13 +1524,21 @@ export function useBooking(options: UseBookingOptions) {
       try {
         const initial = resourceId === null ? usablePrefetch?.schedules?.[primaryVisit] : undefined;
         const readFrom = initial !== undefined ? prefetchToTs : fromTs;
-        const response = await fetch(
-          `${api}/schedule?${windowQuery(primaryVisit, readFrom, toTs, resourceId)}`
-        );
-        if (!response.ok) throw new ReadFailure('schedule', response.status);
-        const body = (await response.json()) as { days?: BookingDayDto[] };
-        if (cancelled) return;
-        setFetchedSchedule({ key, days: [...(initial ?? []), ...(body.days ?? [])] });
+        const days = [...(initial ?? [])];
+        for (let start = readFrom; start < toTs; start += chunkMs) {
+          const response = await fetch(
+            `${api}/schedule?${windowQuery(primaryVisit, start, Math.min(toTs, start + chunkMs), resourceId)}`
+          );
+          if (!response.ok) throw new ReadFailure('schedule', response.status);
+          const body = (await response.json()) as { days?: BookingDayDto[] };
+          if (cancelled) return;
+          days.push(...(body.days ?? []));
+        }
+        // A UTC chunk boundary can touch the same local day on both sides of DST.
+        setFetchedSchedule({
+          key,
+          days: [...new Map(days.map((day) => [day.dayKey, day])).values()],
+        });
       } catch (error) {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
@@ -1556,6 +1566,7 @@ export function useBooking(options: UseBookingOptions) {
     noteReadError,
     usablePrefetch,
     prefetchToTs,
+    chunkMs,
   ]);
 
   /**
