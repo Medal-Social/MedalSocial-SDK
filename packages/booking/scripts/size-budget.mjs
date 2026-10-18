@@ -164,7 +164,9 @@ const BUDGETS = [
     // measured 28.31 KB.
     // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.86 KB.
-    gzipBytes: 29.4 * 1024,
+    // Raised 29.4 -> 29.6 KB for policy horizons, DST-safe window refresh,
+    // and bounded prefetch reuse with serial availability reads. Measured 29.41 KB.
+    gzipBytes: 29.6 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -229,7 +231,9 @@ const BUDGETS = [
     // measured 28.42 KB.
     // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.96 KB.
-    gzipBytes: 29.5 * 1024,
+    // Raised 29.5 -> 29.7 KB for policy horizons, DST-safe window refresh,
+    // and bounded prefetch reuse with serial availability reads. Measured 29.52 KB.
+    gzipBytes: 29.7 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -267,7 +271,9 @@ const BUDGETS = [
     // measured 24.49 KB.
     // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 25.11 KB.
-    gzipBytes: 25.6 * 1024,
+    // Raised 25.6 -> 25.8 KB for policy horizons, DST-safe window refresh,
+    // and bounded prefetch reuse with serial availability reads. Measured 25.61 KB.
+    gzipBytes: 25.8 * 1024,
   },
 ];
 
