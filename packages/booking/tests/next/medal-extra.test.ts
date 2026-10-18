@@ -64,6 +64,14 @@ describe('unwrap', () => {
 });
 
 describe('createMedalSeam', () => {
+  it('reads the saved public horizon through the authenticated bounded read client', async () => {
+    const fetch = stubFetch({ data: { max_advance_days: 90 } });
+    const seam = createMedalSeam({ apiKey: 'sk_value', baseUrl: 'https://api.example.com' });
+    expect(await seam.getPolicy()).toEqual({ max_advance_days: 90 });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('https://api.example.com/api/v1/bookings/policy');
+    expect(header(init, 'authorization')).toBe('Bearer sk_value');
+  });
   it('names its config error, so a Workers log says where to look', () => {
     expect(new MedalConfigError('x').name).toBe('MedalConfigError');
   });

@@ -55,6 +55,13 @@ describe('saved customer booking horizon', () => {
     expect(await policySeed(rt)).toBe(rt.seed);
   });
 
+  it('reuses a seed with an unchanged horizon only after reading the setting again', async () => {
+    const { rt, getPolicy } = runtime();
+    const first = await policySeed(rt);
+    expect(await policySeed(rt)).toBe(first);
+    expect(getPolicy).toHaveBeenCalledTimes(2);
+  });
+
   it.each([0, -1, 401, 1.5, Number.NaN])('refuses an invalid horizon %s', async (days) => {
     await expect(policySeed(runtime(days).rt)).rejects.toThrow('Invalid public booking horizon');
   });
