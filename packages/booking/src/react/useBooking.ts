@@ -1715,11 +1715,12 @@ export function useBooking(options: UseBookingOptions) {
       : days.filter((day) => clock.dayStart(day, 1) <= readThrough);
   const nextAvailableLoading = party
     ? maxAdvanceDays !== undefined
-      ? readThrough < toTs
+      ? readThrough < toTs && !slotsFailed && scheduleFailedFor !== scheduleKey
       : !haveEveryService && !slotsFailed
     : primaryVisit !== null &&
       !(primaryVisit in seededNextAvailable) &&
-      (fetchedNextAvailable?.key !== primaryVisit || !fetchedNextAvailable.complete);
+      (fetchedNextAvailable?.key !== primaryVisit ||
+        (!fetchedNextAvailable.complete && !fetchedNextAvailable.failed));
 
   /** The basket's openings, unfiltered — the parallel search needs two stylists. */
   const basketSlots: SlotsByService = useMemo(() => {

@@ -702,7 +702,7 @@ describe('useBooking — the corners', () => {
       await waitFor(() => expect(result.current.slots.single).toEqual([]));
       const retried = asked.filter((url) => url.pathname.endsWith('/availability'));
       expect(retried).toHaveLength(3);
-      if (failTail) expect(result.current.slots.nextAvailableLoading).toBe(true);
+      if (failTail) expect(result.current.slots.nextAvailableLoading).toBe(false);
       expect(Number(retried[0].searchParams.get('from_ts'))).toBe(
         failTail === true ? NOW + 7 * 86400000 : NOW
       );
@@ -713,6 +713,7 @@ describe('useBooking — the corners', () => {
     ['availability', false],
     ['schedule', false],
     ['availability', true],
+    ['schedule', true],
   ] as const)(
     'keeps the seeded month bookable while %s waits or fails (party: %s), then resumes the unread range',
     async (endpoint, party) => {
@@ -780,6 +781,7 @@ describe('useBooking — the corners', () => {
         finishFirst({ ok: true, json: async () => ({ slots: [] }) });
       });
       await waitFor(() => expect(result.current.slots.failed).toBe(true));
+      if (party) expect(result.current.slots.nextAvailableLoading).toBe(false);
       expect(result.current.slots.ready).toBe(true);
       expect(
         (party ? result.current.slots.party : result.current.slots.single).some(
