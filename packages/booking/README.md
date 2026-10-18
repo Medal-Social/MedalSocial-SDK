@@ -183,21 +183,6 @@ uptime checks. Import `BOOKING_TEST_IDS` from `@medalsocial/booking/react/wizard
 `booking-day` is on the day strip (the primary picker). The optional month grid
 shows the same days. Site `components` overrides stay wrapped so the ids remain.
 
-The override ladder, cheapest first, all public API:
-
-1. **CSS variables** — the bridge's shadcn names.
-2. **`labels`** — any key of `BookingLabels`, over the pack in `config.labels`
-   (see [Labels and text nodes](#labels-and-text-nodes)).
-3. **`classNames`** — per screen and slot: `classNames={{ who: { chip: '…' }, time: { chip: '…' } }}`.
-4. **`components`** — card renderers: `components={{ ServiceCard, StylistCard, TimeChip, … }}`.
-5. **`useBooking()`** — the wizard's whole state, fetches and actions, without its markup. Several services per person: `toggleServiceFor(index, service)` ticks or unticks one (never advances) and `continueFromService()` moves on to the time step — for a multi-select service step; `pickService`/`pickServiceFor` keep the one-tap behaviour.
-
-`<BookingProvider config labels classNames components>` shares one set of
-these with every booking piece under it. Server actions stay in the app
-(`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
-prop, answering with its result or with next-safe-action's envelope.
-
-
 ### Labels and text nodes
 
 A label is a `BookingLabel`: a `string` or an array of strings. Both forms are

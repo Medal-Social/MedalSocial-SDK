@@ -38,9 +38,9 @@ const GUTTEKLIPP: BookingServiceDto = {
   bookableOnline: true,
 };
 
-const SARA = {
-  id: 'res-sara',
-  name: 'Sara (Salong Demo)',
+const FIXTURE_STYLIST = {
+  id: 'fixture-stylist',
+  name: 'Test stylist',
   photoUrl: null,
   bio: null,
   serviceIds: [GUTTEKLIPP.id],
@@ -54,14 +54,16 @@ const OPEN_WEEK = [2, 3, 4, 5, 6, 7, 8].map((day) => ({
   lastStartTs: osloTs(day, 16, 30),
 }));
 
-function stubApi(slots: BookingSlotDto[] = [{ startTs: osloTs(2, 13), resourceId: SARA.id }]) {
+function stubApi(
+  slots: BookingSlotDto[] = [{ startTs: osloTs(2, 13), resourceId: FIXTURE_STYLIST.id }]
+) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: unknown) => {
       const { pathname } = new URL(String(input), 'https://example.test');
       const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
       if (pathname.startsWith('/api/booking/resources')) {
-        return json({ resources: [SARA], nextAvailableTs: {} });
+        return json({ resources: [FIXTURE_STYLIST], nextAvailableTs: {} });
       }
       if (pathname.startsWith('/api/booking/availability')) return json({ slots });
       if (pathname.startsWith('/api/booking/schedule')) return json({ days: OPEN_WEEK });
@@ -86,7 +88,7 @@ describe('wizard data-testid hooks', () => {
     stubApi();
     const user = userEvent.setup();
     render(
-      <BookingWizard services={[GUTTEKLIPP]} phone="22 33 44 55" rangeStart={NOW} rangeDays={7} />
+      <BookingWizard services={[GUTTEKLIPP]} phone="00000000" rangeStart={NOW} rangeDays={7} />
     );
 
     expect(screen.getByTestId(BOOKING_TEST_IDS.stepWho)).toBeInTheDocument();
@@ -101,10 +103,10 @@ describe('wizard data-testid hooks', () => {
 
   it('marks stylist options, day chips, slots, and the empty-day card', async () => {
     // Today has a slot; another open day in the strip has none → empty state.
-    stubApi([{ startTs: osloTs(2, 13), resourceId: SARA.id }]);
+    stubApi([{ startTs: osloTs(2, 13), resourceId: FIXTURE_STYLIST.id }]);
     const user = userEvent.setup();
     render(
-      <BookingWizard services={[GUTTEKLIPP]} phone="22 33 44 55" rangeStart={NOW} rangeDays={7} />
+      <BookingWizard services={[GUTTEKLIPP]} phone="00000000" rangeStart={NOW} rangeDays={7} />
     );
 
     await user.click(screen.getByRole('radio', { name: '1 barn' }));
@@ -115,7 +117,9 @@ describe('wizard data-testid hooks', () => {
     const stylists = screen.getAllByTestId(BOOKING_TEST_IDS.stylistOption);
     expect(stylists.length).toBeGreaterThanOrEqual(2);
     expect(stylists.some((el) => el.getAttribute('data-resource-id') === 'first')).toBe(true);
-    expect(stylists.some((el) => el.getAttribute('data-resource-id') === SARA.id)).toBe(true);
+    expect(stylists.some((el) => el.getAttribute('data-resource-id') === FIXTURE_STYLIST.id)).toBe(
+      true
+    );
 
     await screen.findByRole('heading', { name: 'Når passer det?' });
     expect(screen.getByTestId(BOOKING_TEST_IDS.stepCalendar)).toBeInTheDocument();
@@ -147,7 +151,7 @@ describe('wizard data-testid hooks', () => {
           json: async () => body,
         });
         if (pathname.startsWith('/api/booking/resources')) {
-          return json({ resources: [SARA], nextAvailableTs: {} });
+          return json({ resources: [FIXTURE_STYLIST], nextAvailableTs: {} });
         }
         if (pathname.startsWith('/api/booking/availability')) {
           return json({ error: 'upstreamError' }, 502);
@@ -158,7 +162,7 @@ describe('wizard data-testid hooks', () => {
     );
     const user = userEvent.setup();
     render(
-      <BookingWizard services={[GUTTEKLIPP]} phone="22 33 44 55" rangeStart={NOW} rangeDays={7} />
+      <BookingWizard services={[GUTTEKLIPP]} phone="00000000" rangeStart={NOW} rangeDays={7} />
     );
 
     await user.click(screen.getByRole('radio', { name: '1 barn' }));

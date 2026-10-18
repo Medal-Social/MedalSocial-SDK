@@ -6,8 +6,8 @@
  *
  * Stylist cards take a `ref` on the radio button, so the id lands there
  * directly (a wrapping span sits between radiogroup and radio in jsdom, which
- * does not flatten `display: contents`). Service / day / slot cards stamp the
- * first child after mount the same way.
+ * does not flatten `display: contents`). Site overrides use a host to find
+ * their interactive control even when they ignore refs or render a label first.
  */
 
 import {
@@ -52,8 +52,10 @@ const SLOT_WRAPS = new WeakMap<ComponentType<TimeChipProps>, ComponentType<TimeC
 function useStampChild(attrs: Record<string, string>) {
   const hostRef = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
-    const child = hostRef.current?.firstElementChild;
-    /* v8 ignore next -- layout effect runs after mount; the host has a child */
+    const child = hostRef.current?.querySelector(
+      'button, input, a[href], [role="button"], [role="radio"], [role="checkbox"], [role="option"]'
+    );
+    /* v8 ignore next -- a non-interactive override has no option to stamp */
     if (!child) return;
     stampAttrs(child, attrs);
   });
@@ -83,7 +85,8 @@ function wrapStylist(Inner: ComponentType<StylistCardProps>): ComponentType<Styl
       'data-testid': BOOKING_TEST_IDS.stylistOption,
       'data-resource-id': props.option.resourceId ?? 'first',
     };
-    return (
+    const hostRef = useStampChild(attrs);
+    const card = (
       <Inner
         {...props}
         ref={(node) => {
@@ -91,6 +94,13 @@ function wrapStylist(Inner: ComponentType<StylistCardProps>): ComponentType<Styl
           return assignRef(props.ref, node);
         }}
       />
+    );
+    return Inner === DefaultStylistCard ? (
+      card
+    ) : (
+      <span ref={hostRef} className="contents">
+        {card}
+      </span>
     );
   }
   StylistOption.displayName = 'BookingStylistOption';
