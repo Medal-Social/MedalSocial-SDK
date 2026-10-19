@@ -641,6 +641,11 @@ export class Bookings {
     return this.resources.list(request);
   }
 
+  /** The saved public booking horizon. Staff scheduling is independent of it. */
+  async policy(request?: BookingReadOptions): Promise<ApiResponse<{ max_advance_days: number }>> {
+    return this.client.get("/api/v1/bookings/policy", undefined, request);
+  }
+
   /**
    * List free slots for a service over a window. Slots reflect opening hours,
    * time off, buffers, and existing bookings at the moment of the call — they

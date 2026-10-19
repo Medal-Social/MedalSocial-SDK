@@ -149,6 +149,8 @@ export interface BookingCatalogue {
 }
 
 export interface BookingSeed extends BookingCatalogue {
+  /** Saved elapsed-day horizon, for recalculating the calendar window after midnight. */
+  maxAdvanceDays?: number;
   slots: Record<string, BookingSlotDto[]>;
   schedules: Record<string, BookingDayDto[]>;
   nextAvailable: Record<string, Record<string, number>>;
@@ -169,6 +171,7 @@ interface StoredSeed {
 export type SeedState = 'hit' | 'stale' | 'miss' | 'bypass';
 
 export interface SeedOptions {
+  policyMaxAdvanceDays?: number;
   config: Pick<
     BookingConfig,
     'timeZone' | 'locale' | 'dayparts' | 'window' | 'categories' | 'fallbackCategory' | 'paths'
@@ -217,6 +220,10 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   const { edge } = options.cache;
   const SEED_PATH = options.cache.edgePrefix ?? DEFAULT_EDGE_PREFIX;
   const RANGE_DAYS = config.window.rangeDays;
+  // DST can map two saved limits to the same calendar span; retain both identities.
+  const windowKey = config.window.followPolicy
+    ? `${options.policyMaxAdvanceDays ?? RANGE_DAYS}/${RANGE_DAYS}/`
+    : '';
   const PREFETCH_LIMIT = config.window.prefetchLimit;
   const clock = createClock(config);
   const { toBookingServiceDto, toBookingResourceDto } = createDto(config);
@@ -307,13 +314,15 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
   /** One prefetch set's seed kept past its bucket, for the same local day. */
   function seedLatestKeyAt(key: string, now: number): string | null {
     if (key === '') return null;
-    return keyed((base) => `${base}/seed-latest/${clock.dayKey(now)}/${key}`);
+    return keyed((base) => `${base}/seed-latest/${windowKey}${clock.dayKey(now)}/${key}`);
   }
 
   /** The seed key for one prefetch set at one instant. */
   function seedKeyAt(key: string, now: number): string | null {
     if (key === '') return null;
-    return keyed((base) => `${base}/seed/${clock.dayKey(now)}/${key}/${seedBucket(now)}`);
+    return keyed(
+      (base) => `${base}/seed/${windowKey}${clock.dayKey(now)}/${key}/${seedBucket(now)}`
+    );
   }
 
   async function edgeRead<T>(key: string): Promise<T | undefined> {
@@ -514,7 +523,10 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
     now: number = Date.now()
   ): Promise<BookingSeed> {
     const loaded = await loadBookingCatalogue(now);
-    const { toTs } = clock.window(now, RANGE_DAYS);
+    const { toTs } = clock.window(
+      now,
+      config.window.followPolicy ? Math.min(RANGE_DAYS, 31) : RANGE_DAYS
+    );
     const targets = prefetchTargets(loaded.services, named);
     let state: SeedState = 'miss';
     const markSeed = (next: SeedState) => {
@@ -595,6 +607,9 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
 
     return {
       ...loaded,
+      ...(options.policyMaxAdvanceDays === undefined
+        ? {}
+        : { maxAdvanceDays: options.policyMaxAdvanceDays }),
       slots: stored.slots,
       schedules: stored.schedules,
       nextAvailable,
