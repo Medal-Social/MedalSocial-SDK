@@ -32,11 +32,12 @@
 
 import { createClock } from '../core/clock';
 import type { BookingConfig } from '../core/config';
-import { MAX_POLICY_RANGE_MS, MAX_RANGE_MS } from '../core/range';
+import { MAX_POLICY_RANGE_MS, MAX_POLICY_READ_MS, MAX_RANGE_MS } from '../core/range';
 import { visitKeyOfIds } from '../core/visit';
 import type { MedalResource, MedalScheduleDay, MedalService, MedalSlot } from '../core/wire';
 import type { MedalSeam, RangeArgs } from './medal';
 import { type BookingCacheAdapter, type BookingLogger, cacheLoad } from './options';
+import { readBookingPolicy } from './policy';
 
 export const CATALOGUE_TAG = 'booking-catalogue';
 const CATALOGUE_TTL_S = 300;
@@ -96,7 +97,10 @@ export interface CatalogueOptions {
   logger: BookingLogger;
 }
 
-type Seam = Pick<MedalSeam, 'listServices' | 'listResources' | 'listAvailability' | 'listSchedule'>;
+type Seam = Pick<
+  MedalSeam,
+  'listServices' | 'listResources' | 'listAvailability' | 'listSchedule' | 'getPolicy'
+>;
 
 export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalogue {
   const { data } = options.cache;
@@ -125,13 +129,42 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
    *
    * The caller's real bounds are applied to the answer afterwards.
    */
-  function keyRange(args: RangeArgs, now: number): { fromTs: number; toTs: number } | null {
+  function keyRange(
+    args: RangeArgs,
+    now: number,
+    cutoff?: number
+  ): { fromTs: number; toTs: number } | null {
     if (args.resourceId) return null;
     const fromTs = slotKeyStart(args.fromTs, now);
     const toTs = roundUpToDay(args.toTs);
     const limit = now + (options.config.window?.followPolicy ? MAX_POLICY_RANGE_MS : MAX_RANGE_MS);
     if (fromTs > limit || toTs > limit || toTs <= fromTs) return null;
+    if (
+      options.config.window?.followPolicy &&
+      (toTs - fromTs > MAX_POLICY_READ_MS || (cutoff !== undefined && toTs > cutoff))
+    )
+      return null;
     return { fromTs, toTs };
+  }
+
+  let pendingPolicy: Promise<number> | undefined;
+  async function policyRange(args: RangeArgs, now: number) {
+    if (!options.config.window?.followPolicy)
+      return { args, keyParts: [] as string[], cutoff: undefined };
+    if (args.toTs - args.fromTs > MAX_POLICY_READ_MS)
+      throw new Error('Booking read exceeds policy chunk limit');
+    // Coalesce concurrent prefetches, but never retain a completed policy read.
+    pendingPolicy ??= readBookingPolicy(medal).finally(() => {
+      pendingPolicy = undefined;
+    });
+    const days = await pendingPolicy;
+    // Public booking permits a start exactly at the cutoff; read ends are exclusive.
+    const cutoff = now + days * 86_400_000 + 1;
+    return {
+      args: { ...args, toTs: Math.min(args.toTs, cutoff) },
+      keyParts: [`policy:${days}`],
+      cutoff,
+    };
   }
 
   function cachedServices(): Promise<MedalService[]> {
@@ -165,12 +198,15 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
    */
   async function cachedSchedule(args: RangeArgs): Promise<MedalScheduleDay[]> {
     const now = Date.now();
-    const key = keyRange(args, now);
+    const policy = await policyRange(args, now);
+    args = policy.args;
+    if (policy.cutoff !== undefined && args.toTs <= args.fromTs) return [];
+    const key = keyRange(args, now, policy.cutoff);
     if (key === null) return medal.listSchedule(args);
     const { serviceId } = args;
     const days = await cacheLoad(
       data,
-      [KEY_PREFIX, 'schedule'],
+      [KEY_PREFIX, 'schedule', ...policy.keyParts],
       // The visit, not the first service: a visit's last start is earlier than
       // its first service's alone, so the two answers are different entries.
       [visitKeyOfIds(visitIdsOf(args)), key.fromTs, key.toTs, catalogueBucket(now)],
@@ -203,7 +239,10 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
     readOptions: ReadOptions = {}
   ): Promise<MedalSlot[]> {
     const now = Date.now();
-    const key = readOptions.fresh ? null : keyRange(args, now);
+    const policy = await policyRange(args, now);
+    args = policy.args;
+    if (policy.cutoff !== undefined && args.toTs <= args.fromTs) return [];
+    const key = readOptions.fresh ? null : keyRange(args, now, policy.cutoff);
     let slots: MedalSlot[];
     if (key === null) {
       slots = await medal.listAvailability(args);
@@ -213,7 +252,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
       // page's) keys a start that never moves, and the bucket still retires it.
       slots = await cacheLoad(
         data,
-        [KEY_PREFIX, 'availability'],
+        [KEY_PREFIX, 'availability', ...policy.keyParts],
         [visitKeyOfIds(visitIdsOf(args)), key.fromTs, key.toTs, Math.floor(now / SLOT_KEY_STEP_MS)],
         () =>
           medal.listAvailability({

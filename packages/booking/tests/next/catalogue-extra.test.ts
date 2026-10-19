@@ -17,6 +17,7 @@ const TO = Date.parse('2026-09-09T00:00:00+02:00');
 
 function seam() {
   return {
+    getPolicy: vi.fn(async () => ({ max_advance_days: 90 })),
     listServices: vi.fn().mockResolvedValue([{ id: 'svc' }]),
     listResources: vi.fn().mockResolvedValue([{ id: 'res' }]),
     listAvailability: vi.fn().mockResolvedValue([]),

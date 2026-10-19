@@ -38,6 +38,7 @@ import { testLogger } from '../support/next-runtime';
 import { PARITY_CONFIG } from '../support/parity-config';
 
 /** The seam the catalogue reads through, as fakes the tests drive. */
+const getPolicy = vi.fn(async () => ({ max_advance_days: 90 }));
 const listServices = vi.fn();
 const listResources = vi.fn();
 const listAvailability = vi.fn();
@@ -50,7 +51,7 @@ const { cachedAvailability, cachedResources, cachedSchedule, cachedServices, exp
       cache: { data: nextDataCacheAdapter(), prefix: 'demo-booking' },
       logger: testLogger(),
     },
-    { listServices, listResources, listAvailability, listSchedule }
+    { getPolicy, listServices, listResources, listAvailability, listSchedule }
   );
 
 const STEP = 30 * 1000;
@@ -86,7 +87,7 @@ afterEach(() => {
   vi.mocked(Date.now).mockRestore();
 });
 
-it('caches a policy-sized window instead of repeatedly reading the whole horizon live', async () => {
+it('caches bounded later chunks of a policy-sized window', async () => {
   const data = nextDataCacheAdapter();
   const catalogue = createCatalogue(
     {
@@ -94,12 +95,12 @@ it('caches a policy-sized window instead of repeatedly reading the whole horizon
       cache: { data, prefix: 'policy-test' },
       logger: testLogger(),
     },
-    { listServices, listResources, listAvailability, listSchedule }
+    { getPolicy, listServices, listResources, listAvailability, listSchedule }
   );
   await catalogue.cachedAvailability({
     serviceId: 'service',
-    fromTs: NOW,
-    toTs: NOW + 90 * 86400000,
+    fromTs: NOW + 65 * 86400000,
+    toTs: NOW + 80 * 86400000,
   });
   expect(cache.invocations).toHaveLength(1);
   expect(listAvailability).toHaveBeenCalledTimes(1);
