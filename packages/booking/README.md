@@ -115,18 +115,25 @@ uses.
 
 ## The UI (`/react`)
 
-The screens are meda's; the package feeds them. A site needs Tailwind v4 and
-three of meda's stylesheets, and themes them with its own shadcn variables
-(`--primary`, `--card`, …):
+The screens are meda's; the package feeds them. A site needs Tailwind v4,
+three of meda's stylesheets and a `@source` for this package's own components,
+and themes them with its own shadcn variables (`--primary`, `--card`, …):
 
 ```css
 @import '@medalsocial/meda/styles/bridge.css';
 @import '@medalsocial/meda/primitives/styles.css'; /* the sheets and dialogs the screens open */
 @import '@medalsocial/meda/booking/styles.css';
+/* The wizard's own layout around meda's screens. Relative to this file. */
+@source '../node_modules/@medalsocial/booking/dist/react';
 ```
 
 Without the primitives sheet the login sheet's positioning classes are never
-generated, and it opens at the top of the page.
+generated, and it opens at the top of the page. Without the `@source` (Tailwind
+does not scan `node_modules`), the classes only this package uses are never
+generated either: the desktop «your appointment» column
+(`screens.desktopPanel`) then drops under the step. Point it at wherever your
+install puts the package, e.g. the repository root's `node_modules` in a
+hoisted monorepo.
 
 ```tsx
 // app/bestill/page.tsx — a Server Component
@@ -160,6 +167,28 @@ The override ladder, cheapest first, all public API:
 these with every booking piece under it. Server actions stay in the app
 (`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
 prop, answering with its result or with next-safe-action's envelope.
+
+### Synthetic monitoring (`data-testid`)
+
+`<BookingWizard>` stamps stable `data-testid` values for promote gates and
+uptime checks. Import `BOOKING_TEST_IDS` from `@medalsocial/booking/react/wizard`
+(or `/react`). Naming: `booking-` prefix, then the role.
+
+| `data-testid` | Where |
+|---|---|
+| `booking-step-who` | Who step container |
+| `booking-step-service` | Service step container |
+| `booking-step-stylist` | Stylist / barber half of the when step |
+| `booking-step-calendar` | Day strip + slot list (and empty / error) |
+| `booking-service-option` | Each service card (`data-service-id`) |
+| `booking-stylist-option` | Each stylist card (`data-resource-id`, or `first`) |
+| `booking-day` | Each day-strip chip (`data-day-ts`) |
+| `booking-slot` | Each time chip (`data-start-ts`) |
+| `booking-slots-error` | Availability could not be read |
+| `booking-slots-empty` | Selected day has nothing free |
+
+`booking-day` is on the day strip (the primary picker). The optional month grid
+shows the same days. Site `components` overrides stay wrapped so the ids remain.
 
 ### Labels and text nodes
 
@@ -261,3 +290,9 @@ repository is public: no customer names, copy or data in any file
 ## License
 
 Apache-2.0
+
+### Follow the saved booking horizon
+
+Set `window.followPolicy: true` to use the workspace booking setting instead of a fixed `rangeDays`. The server loads `GET /api/v1/bookings/policy` on each booking-page request; a saved value of 90 includes the last partially bookable date. The API still enforces the exact cutoff. Requests use the existing bounded availability chunks, and cached seeds are separated by saved limit and calendar span. If policy loading fails, the page reports unavailable rather than showing a stale fixed limit. Deploy the policy API before enabling this option on a site.
+
+Policy-following pages prefetch at most 31 calendar days. Prefetched openings are immediately usable; selecting a service starts sequential reads of at most 31 days for the remaining slots, hours and stylist openings. The existing calendar grows as dates are answered, so unread dates cannot appear fully booked. If a later read fails, known dates stay usable and retry resumes the unread range. A retry after midnight, a new booking attempt or a taken-slot response retires stale openings. Anonymous policy read routes enforce the same 31-day bound (plus the DST hour). Taken-slot recovery returns a bounded fresh prefix with its exclusive end timestamp, and the client reads the remaining horizon normally. The next-free banner describes the bounded prefetched window.

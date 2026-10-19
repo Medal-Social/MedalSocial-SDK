@@ -86,6 +86,25 @@ afterEach(() => {
   vi.mocked(Date.now).mockRestore();
 });
 
+it('caches a policy-sized window instead of repeatedly reading the whole horizon live', async () => {
+  const data = nextDataCacheAdapter();
+  const catalogue = createCatalogue(
+    {
+      config: { ...PARITY_CONFIG, window: { ...PARITY_CONFIG.window, followPolicy: true } },
+      cache: { data, prefix: 'policy-test' },
+      logger: testLogger(),
+    },
+    { listServices, listResources, listAvailability, listSchedule }
+  );
+  await catalogue.cachedAvailability({
+    serviceId: 'service',
+    fromTs: NOW,
+    toTs: NOW + 90 * 86400000,
+  });
+  expect(cache.invocations).toHaveLength(1);
+  expect(listAvailability).toHaveBeenCalledTimes(1);
+});
+
 describe('slotKeyStart', () => {
   it('floors the later of from and now to 30 s, so visitors seconds apart share a key', () => {
     expect(slotKeyStart(NOW, NOW)).toBe(KEY_FROM);

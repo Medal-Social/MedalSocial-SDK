@@ -813,6 +813,28 @@ describe('POST /api/booking/create — fresh slots with slotTaken', () => {
     vi.mocked(Date.now).mockRestore();
   });
 
+  it('bounds the uncached prefix after a policy-mode refusal', async () => {
+    const policyRuntime = {
+      ...rt,
+      config: { ...rt.config, window: { ...rt.config.window, followPolicy: true } },
+    };
+    const response = await createRoute(
+      policyRuntime,
+      takenRequest({ window: { fromTs: NOW, toTs: NOW + 400 * 86400000 } })
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: 'slotTaken',
+      freshSlotsToTs: salonWindow(NOW, 7).toTs,
+    });
+    expect(cachedAvailability).toHaveBeenCalledTimes(2);
+    for (const [range, options] of vi.mocked(cachedAvailability).mock.calls) {
+      expect(range.toTs - range.fromTs).toBeLessThanOrEqual(31 * 86400000 + 3600000);
+      expect(options).toEqual({ fresh: true });
+    }
+    expect(expireSlots).toHaveBeenCalledWith(['svc-gutt', 'svc-jente']);
+  });
+
   it('returns each service’s live openings over the wizard’s window, and still expires the tags', async () => {
     vi.mocked(cachedAvailability).mockImplementation(async ({ serviceId }) =>
       serviceId === 'svc-gutt'

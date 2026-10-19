@@ -27,3 +27,10 @@ export const MAX_RANGE_DAYS = 62;
  * `tests/next/range-bound.test.ts` pins the window to the guard.
  */
 export const MAX_RANGE_MS = MAX_RANGE_DAYS * 86_400_000 + 3_600_000;
+
+/** Public policy allows 400 days ahead, including its partially bookable last date.
+ * Medal splits the availability request into bounded two-week engine reads. */
+export const MAX_POLICY_RANGE_MS = 402 * 86_400_000 + 3_600_000;
+
+/** One anonymous policy-mode read; the browser loads the horizon progressively. */
+export const MAX_POLICY_READ_MS = 31 * 86_400_000 + 3_600_000;

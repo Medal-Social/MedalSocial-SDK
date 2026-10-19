@@ -341,6 +341,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/bookings/policy": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read the saved customer booking horizon
+     * @description Requires read:bookings. Returns only the authenticated workspace's public horizon, without caching.
+     */
+    get: operations["getBookingPolicy"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/bookings/services": {
     parameters: {
       query?: never;
@@ -4481,6 +4501,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_BookingCreateResult"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getBookingPolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current customer booking limit. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            data: {
+              max_advance_days: number;
+            };
+          };
         };
       };
       default: components["responses"]["ApiError"];
