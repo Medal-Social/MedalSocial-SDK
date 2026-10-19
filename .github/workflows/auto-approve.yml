@@ -16,12 +16,12 @@ jobs:
     steps:
       - name: Generate token from Medal Bot app
         id: app-token
-        uses: actions/create-github-app-token@7bd03711494f032dfa3be3558f7dc8787b0be333 # v4
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-      - uses: hmarr/auto-approve-action@8f929096a962e83ccdfa8afcf855f39f12d4dac7 # v4
+      - uses: hmarr/auto-approve-action@05a696a09d381a5a0d142c755f7eacbb19eb6525 # v4
         with:
           github-token: ${{ steps.app-token.outputs.token }}
 

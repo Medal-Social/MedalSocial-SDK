@@ -148,6 +148,7 @@ export interface MedalSeam {
   requireMedalConfig(): { key: string; base: string };
   listServices(): Promise<MedalService[]>;
   listResources(): Promise<MedalResource[]>;
+  getPolicy(): Promise<{ max_advance_days: number }>;
   listAvailability(args: RangeArgs): Promise<MedalSlot[]>;
   listSchedule(args: RangeArgs): Promise<MedalScheduleDay[]>;
   /**
@@ -298,6 +299,13 @@ export function createMedalSeam(options: MedalSeamOptions): MedalSeam {
           reader().bookings.availability(rangeParams(args), request)
         ),
         '/api/v1/bookings/availability'
+      );
+    },
+
+    async getPolicy() {
+      return unwrap(
+        await withinDeadline((request) => reader().bookings.policy(request)),
+        '/api/v1/bookings/policy'
       );
     },
 

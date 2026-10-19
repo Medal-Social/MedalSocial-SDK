@@ -12,6 +12,7 @@ import * as wizard from '../../src/react/wizard';
 describe('@medalsocial/booking/react/wizard', () => {
   it('exports the booking page: the wizard, its hook, the provider and the login sheet', () => {
     expect(Object.keys(wizard).sort()).toEqual([
+      'BOOKING_TEST_IDS',
       'BookingProvider',
       'BookingWizard',
       'LoginSheet',

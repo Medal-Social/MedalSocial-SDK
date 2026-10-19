@@ -12,6 +12,19 @@ function mockJson(data: unknown, status = 200) {
 }
 
 describe("bookings generic model (SP11)", () => {
+  it("reads the public horizon from the authenticated policy endpoint", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(mockJson({ data: { max_advance_days: 90 } }));
+    try {
+      const result = await new Medal("medal_test", { baseUrl: BASE }).bookings.policy();
+      expect(result.data).toEqual({ max_advance_days: 90 });
+      expect(String(fetch.mock.calls[0][0])).toBe(`${BASE}/api/v1/bookings/policy`);
+      expect(fetch.mock.calls[0][1]?.method).toBe("GET");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
   it("persons.list sends contact_id and persons.create posts the body", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);

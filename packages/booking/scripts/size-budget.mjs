@@ -136,7 +136,8 @@ const BUDGETS = [
     // measured 19.13 KB.
     // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.70 KB.
-    gzipBytes: 20.2 * 1024,
+    // Policy horizons, progressive reads and stable test-id wrappers together: 21.51 KB.
+    gzipBytes: 21.7 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -164,7 +165,8 @@ const BUDGETS = [
     // measured 28.31 KB.
     // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.86 KB.
-    gzipBytes: 29.4 * 1024,
+    // Policy horizons, progressive reads and stable test-id wrappers together: 30.74 KB.
+    gzipBytes: 30.9 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -203,7 +205,8 @@ const BUDGETS = [
     // measured 19.27 KB.
     // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.82 KB.
-    gzipBytes: 20.3 * 1024,
+    // Policy horizons, progressive reads and stable test-id wrappers together: 21.65 KB.
+    gzipBytes: 21.8 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -214,7 +217,7 @@ const BUDGETS = [
     // Raised 25.2 → 26.1 KB for `config.screens` (bestill phase 2): the
     // recap above the details step with its stylist swap, the two-part
     // summary, the guest party's first seat, and the screen switches.
-    // Measured 25.68 KB.
+    // Measured 26.08 KB.
     // Raised 26.1 → 26.6 KB for the outage hardening: «Prøv igjen» re-reads
     // everything from a fresh window after midnight, a party keeps the visits
     // that answered, failed reads reach `onEvent`, and the replay works without
@@ -229,7 +232,8 @@ const BUDGETS = [
     // measured 28.42 KB.
     // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.96 KB.
-    gzipBytes: 29.5 * 1024,
+    // Policy horizons, progressive reads and stable test-id wrappers together: 30.84 KB.
+    gzipBytes: 31.0 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -267,7 +271,8 @@ const BUDGETS = [
     // measured 24.49 KB.
     // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 25.11 KB.
-    gzipBytes: 25.6 * 1024,
+    // Policy horizons, progressive reads and stable test-id wrappers together: 26.94 KB.
+    gzipBytes: 27.1 * 1024,
   },
 ];
 

@@ -84,7 +84,8 @@ function slotWindow(
   const toTs = raw?.toTs;
   if (typeof fromTs === 'number' && typeof toTs === 'number') {
     const parsed = parseRange(
-      new URLSearchParams({ from_ts: String(fromTs), to_ts: String(toTs) })
+      new URLSearchParams({ from_ts: String(fromTs), to_ts: String(toTs) }),
+      rt.config.window.followPolicy
     );
     if (!('error' in parsed)) return parsed;
   }
@@ -601,12 +602,18 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
       await forgetBookedSlots(rt, bookedServiceIds(mapped.body));
       // And the answer carries the live openings, so the wizard redraws the
       // time step from them rather than re-reading through the cache.
-      const freshSlots = await liveSlotsFor(
-        rt,
-        mapped.body.items,
-        slotWindow(rt, (parsed as CreateRequest).window)
+      const window = slotWindow(rt, (parsed as CreateRequest).window);
+      const freshSlots = await liveSlotsFor(rt, mapped.body.items, window);
+      return NextResponse.json(
+        {
+          error: 'slotTaken',
+          freshSlots,
+          // A policy refusal refreshes at most one bounded prefix. The browser
+          // must not mistake it for availability over the full saved horizon.
+          ...(rt.config.window.followPolicy ? { freshSlotsToTs: window.toTs } : {}),
+        },
+        { status: 409 }
       );
-      return NextResponse.json({ error: 'slotTaken', freshSlots }, { status: 409 });
     }
     return createErrorResponse(rt, error);
   }
