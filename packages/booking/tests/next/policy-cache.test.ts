@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_POLICY_READ_MS } from '../../src/core/range';
 import { memoryCacheAdapter } from '../../src/next/cache/memory';
 import { createCatalogue } from '../../src/next/catalogue';
-import { testLogger } from '../support/next-runtime';
+import { loadBookingPage } from '../../src/next/loaders';
+import { policySeed } from '../../src/next/policy-window';
+import { testLogger, testRuntime } from '../support/next-runtime';
 import { PARITY_CONFIG } from '../support/parity-config';
 
 const DAY = 86_400_000;
@@ -105,4 +107,70 @@ describe('live policy before cached booking reads', () => {
     await catalogue.cachedAvailability(args);
     expect(medal.listAvailability).toHaveBeenCalledWith(args);
   });
+});
+
+describe('policy seed integrity', () => {
+  it.each(['change', 'outage'] as const)(
+    'does not publish or cache a partial seed after a policy %s',
+    async (failure) => {
+      const { medal } = setup();
+      medal.listServices.mockResolvedValue([
+        {
+          id: 's',
+          name: 'Cut',
+          category: 'barn',
+          bookable_online: true,
+          duration_minutes: 30,
+          price_ore: 30000,
+        },
+      ]);
+      const edge = memoryCacheAdapter();
+      const put = vi.spyOn(edge, 'put');
+      const rt = testRuntime(
+        { medal: medal as never },
+        {
+          config: { ...PARITY_CONFIG, window: { ...PARITY_CONFIG.window, followPolicy: true } },
+          cache: { edge, data: memoryCacheAdapter(), prefix: 'seed-policy', environment: 'test' },
+        }
+      );
+      rt.session.readPortalSession = async () => null;
+      const source = await policySeed(rt);
+      medal.getPolicy.mockResolvedValueOnce({ max_advance_days: 90 });
+      if (failure === 'change') medal.getPolicy.mockResolvedValue({ max_advance_days: 7 });
+      else medal.getPolicy.mockRejectedValue(new Error('offline'));
+      expect((await loadBookingPage(rt)).kind).toBe('unavailable');
+      const seedKey = source.seedKeyAt('s', NOW);
+      expect(put.mock.calls.some(([key]) => key === seedKey)).toBe(false);
+      // No poisoned seed remains after retry with the current setting.
+      medal.getPolicy.mockResolvedValue({ max_advance_days: 7 });
+      expect(await loadBookingPage(rt)).toMatchObject({
+        kind: 'ready',
+        seed: { maxAdvanceDays: 7 },
+      });
+    }
+  );
+  it.each(['cached', 'fresh', 'resource'] as const)(
+    'drops slots that start during a %s read',
+    async (mode) => {
+      const { medal, catalogue } = setup();
+      const started = { ...slot(0), start_ts: new Date(NOW + 1000).toISOString() };
+      const future = slot(1);
+      medal.listAvailability.mockResolvedValue([started, future]);
+      const args = {
+        serviceId: 's',
+        fromTs: NOW,
+        toTs: NOW + 2 * DAY,
+        ...(mode === 'resource' ? { resourceId: 'r' } : {}),
+      };
+      // Warm the data cache, then cross the slot start while verifying policy.
+      await catalogue.cachedAvailability(args);
+      medal.getPolicy.mockImplementation(async () => {
+        vi.mocked(Date.now).mockReturnValue(NOW + 2000);
+        return { max_advance_days: 90 };
+      });
+      expect(await catalogue.cachedAvailability(args, { fresh: mode === 'fresh' })).toEqual([
+        future,
+      ]);
+    }
+  );
 });

@@ -37,7 +37,7 @@ import { visitKeyOfIds } from '../core/visit';
 import type { MedalResource, MedalScheduleDay, MedalService, MedalSlot } from '../core/wire';
 import type { MedalSeam, RangeArgs } from './medal';
 import { type BookingCacheAdapter, type BookingLogger, cacheLoad } from './options';
-import { readBookingPolicy } from './policy';
+import { BookingPolicyError, readBookingPolicy } from './policy';
 
 export const CATALOGUE_TAG = 'booking-catalogue';
 const CATALOGUE_TTL_S = 300;
@@ -52,6 +52,8 @@ const CATALOGUE_BUCKET_MS = 5 * 60 * 1000;
  * route lets a visitor ask for it. */
 export interface ReadOptions {
   fresh?: boolean;
+  /** Seed metadata must describe the same policy as every prefetched read. */
+  expectedPolicyDays?: number;
 }
 
 export function slotsTag(serviceId: string): string {
@@ -85,7 +87,7 @@ function catalogueBucket(now: number): number {
 export interface Catalogue {
   cachedServices(): Promise<MedalService[]>;
   cachedResources(): Promise<MedalResource[]>;
-  cachedSchedule(args: RangeArgs): Promise<MedalScheduleDay[]>;
+  cachedSchedule(args: RangeArgs, options?: ReadOptions): Promise<MedalScheduleDay[]>;
   cachedAvailability(args: RangeArgs, options?: ReadOptions): Promise<MedalSlot[]>;
   expireSlots(serviceIds: Iterable<string>): void;
 }
@@ -148,7 +150,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
   }
 
   let pendingPolicy: Promise<number> | undefined;
-  async function policyRange(args: RangeArgs, now: number) {
+  async function policyRange(args: RangeArgs, now: number, expectedPolicyDays?: number) {
     if (!options.config.window?.followPolicy)
       return { args, keyParts: [] as string[], cutoff: undefined };
     if (args.toTs - args.fromTs > MAX_POLICY_READ_MS)
@@ -158,6 +160,9 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
       pendingPolicy = undefined;
     });
     const days = await pendingPolicy;
+    if (expectedPolicyDays !== undefined && days !== expectedPolicyDays) {
+      throw new BookingPolicyError('Public booking policy changed during prefetch');
+    }
     // Public booking permits a start exactly at the cutoff; read ends are exclusive.
     const cutoff = now + days * 86_400_000 + 1;
     return {
@@ -196,9 +201,12 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
    * The key range can end after the one asked about, so dates outside the
    * caller's real range are dropped.
    */
-  async function cachedSchedule(args: RangeArgs): Promise<MedalScheduleDay[]> {
+  async function cachedSchedule(
+    args: RangeArgs,
+    readOptions: ReadOptions = {}
+  ): Promise<MedalScheduleDay[]> {
     const now = Date.now();
-    const policy = await policyRange(args, now);
+    const policy = await policyRange(args, now, readOptions.expectedPolicyDays);
     args = policy.args;
     if (policy.cutoff !== undefined && args.toTs <= args.fromTs) return [];
     const key = keyRange(args, now, policy.cutoff);
@@ -239,7 +247,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
     readOptions: ReadOptions = {}
   ): Promise<MedalSlot[]> {
     const now = Date.now();
-    const policy = await policyRange(args, now);
+    const policy = await policyRange(args, now, readOptions.expectedPolicyDays);
     args = policy.args;
     if (policy.cutoff !== undefined && args.toTs <= args.fromTs) return [];
     const key = readOptions.fresh ? null : keyRange(args, now, policy.cutoff);
@@ -264,7 +272,7 @@ export function createCatalogue(options: CatalogueOptions, medal: Seam): Catalog
         { ttlSeconds: SLOTS_TTL_S, tags: [...new Set(visitIdsOf(args))].map(slotsTag) }
       );
     }
-    const earliest = Math.max(args.fromTs, now);
+    const earliest = Math.max(args.fromTs, Date.now());
     return slots.filter((slot) => {
       // Unreadable starts are kept for `toBookingSlotDto`, which drops them.
       if (slot.start_ts === null) return true;
