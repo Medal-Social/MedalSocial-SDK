@@ -72,6 +72,18 @@ import {
   weekendNoteFor,
 } from './wizard/adapters';
 import { calendarPlatform } from './wizard/calendar';
+import {
+  StampSlotsEmptyTestId,
+  withDayTestId,
+  withServiceOptionTestId,
+  withSlotTestId,
+  withStylistOptionTestId,
+} from './wizard/test-id-components';
+import { BOOKING_SLOTS_EMPTY_MARKER, BOOKING_TEST_IDS } from './wizard/test-ids';
+
+export type { BookingTestId } from './wizard/test-ids';
+export { BOOKING_TEST_IDS } from './wizard/test-ids';
+
 import { useWallClock } from './wizard/wall-clock';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
 
@@ -403,10 +415,14 @@ function BookingWizardShell(props: BookingWizardProps) {
           className="space-y-8"
         >
           {state.step === 'who' && (
-            <WhoStep booking={booking} resolved={resolved} loginRow={loginRow} />
+            <div data-testid={BOOKING_TEST_IDS.stepWho}>
+              <WhoStep booking={booking} resolved={resolved} loginRow={loginRow} />
+            </div>
           )}
           {state.step === 'service' && (
-            <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+            <div data-testid={BOOKING_TEST_IDS.stepService}>
+              <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+            </div>
           )}
           {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
           {state.step === 'details' &&
@@ -581,11 +597,7 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
           : undefined
       }
       classNames={resolved.classNames.service}
-      components={
-        resolved.components.ServiceCard
-          ? { ServiceCard: resolved.components.ServiceCard }
-          : undefined
-      }
+      components={{ ServiceCard: withServiceOptionTestId(resolved.components.ServiceCard) }}
     />
   );
 }
@@ -597,114 +609,118 @@ function WhenStep({ booking, resolved }: StepProps) {
   const items = state.items;
   const phone = config.contact.phone;
   const now = useWallClock(slots.fromTs);
+  const timeClassNames = {
+    ...resolved.classNames.time,
+    empty: [resolved.classNames.time?.empty, BOOKING_SLOTS_EMPTY_MARKER].filter(Boolean).join(' '),
+  };
   return (
     <>
-      <StylistScreen
-        labels={screenLabels(labels)}
-        format={format}
-        now={now}
-        // Not deduplicated: a named stylist has to cover every service of every
-        // line — a person's extras included, as their visit is one stylist's.
-        serviceIds={items.flatMap((item) => visitServicesOf(item).map((service) => service.id))}
-        resources={catalogue.resources}
-        loading={!catalogue.resourcesKnown}
-        nextAvailableLoading={slots.nextAvailableLoading}
-        selectedResourceId={state.resourceId}
-        nextAvailableTs={slots.nextAvailableTs}
-        pendingName={catalogue.chosenStylistName}
-        notice={catalogue.stylistNotice}
-        onPick={booking.pickResource}
-        firstAvailableFaces={config.screens.firstAvailableFaces}
-        edgeFade={config.screens.stylistEdgeFade}
-        row={config.screens.wideLayouts}
-        party={
-          party
-            ? {
-                mode: state.partyMode,
-                size: items.length,
-                sizeWord: partySizeWord(labels, items.length),
-                minutes: {
-                  sequential: wizard.visitMinutes(items, 'sequential'),
-                  parallel: wizard.visitMinutes(items, 'parallel'),
-                },
-                onMode: (mode) => booking.dispatch({ type: 'setPartyMode', mode }),
-                ...stylistSeats(kit, state, (index, resourceId) =>
-                  booking.dispatch({ type: 'pickSeatResource', index, resourceId })
-                ),
-              }
-            : undefined
-        }
-        classNames={resolved.classNames.stylist}
-        components={
-          resolved.components.StylistCard
-            ? { StylistCard: resolved.components.StylistCard }
-            : undefined
-        }
-      />
-
-      {slots.ready ? (
-        <TimeScreen
+      <div data-testid={BOOKING_TEST_IDS.stepStylist}>
+        <StylistScreen
           labels={screenLabels(labels)}
           format={format}
-          dayparts={kit.dayparts}
-          monthView
-          slots={slots.single}
-          days={slots.days}
-          openDays={schedule.openDays}
-          stylistName={catalogue.chosenStylistName}
-          takenSlotTs={slots.takenSlotTs}
           now={now}
-          phone={phone}
-          weekendNote={(dayTs) => weekendNoteFor(kit, party ? items : items.slice(0, 1), dayTs)}
-          onPick={booking.pickSlot}
-          soonest={
-            config.screens.soonest
-              ? {
-                  resolveStylist: (resourceId) => stylistFace(catalogue.resources, resourceId),
-                }
-              : undefined
-          }
-          dayFullness={config.screens.dayFullness}
-          layout={config.screens.wideLayouts ? 'adaptive' : 'stack'}
+          // Not deduplicated: a named stylist has to cover every service of every
+          // line — a person's extras included, as their visit is one stylist's.
+          serviceIds={items.flatMap((item) => visitServicesOf(item).map((service) => service.id))}
+          resources={catalogue.resources}
+          loading={!catalogue.resourcesKnown}
+          nextAvailableLoading={slots.nextAvailableLoading}
+          selectedResourceId={state.resourceId}
+          nextAvailableTs={slots.nextAvailableTs}
+          pendingName={catalogue.chosenStylistName}
+          notice={catalogue.stylistNotice}
+          onPick={booking.pickResource}
+          firstAvailableFaces={config.screens.firstAvailableFaces}
+          edgeFade={config.screens.stylistEdgeFade}
+          row={config.screens.wideLayouts}
           party={
             party
               ? {
-                  items,
                   mode: state.partyMode,
-                  slots: slots.party,
-                  chipEndTs: (slot) => wizard.visitEndTs(items, slot.startTs, 'sequential'),
-                  // Only a back-to-back family is offered the simultaneous rescue.
-                  alternativeFor:
-                    state.partyMode === 'sequential'
-                      ? (dayTs) =>
-                          kit.partySlots.partyAlternative({
-                            sequential: slots.party,
-                            parallel: slots.alternatives,
-                            dayTs,
-                          })
-                      : undefined,
-                  resolveStylistName: catalogue.resolveStylistName,
-                  onPick: booking.pickPartySlot,
+                  size: items.length,
+                  sizeWord: partySizeWord(labels, items.length),
+                  minutes: {
+                    sequential: wizard.visitMinutes(items, 'sequential'),
+                    parallel: wizard.visitMinutes(items, 'parallel'),
+                  },
+                  onMode: (mode) => booking.dispatch({ type: 'setPartyMode', mode }),
+                  ...stylistSeats(kit, state, (index, resourceId) =>
+                    booking.dispatch({ type: 'pickSeatResource', index, resourceId })
+                  ),
                 }
               : undefined
           }
-          classNames={resolved.classNames.time}
-          components={timeComponents(resolved)}
+          classNames={resolved.classNames.stylist}
+          components={{ StylistCard: withStylistOptionTestId(resolved.components.StylistCard) }}
         />
-      ) : slots.failed ? (
-        <SlotsUnavailable kit={kit} onRetry={booking.refresh} />
-      ) : (
-        // The step's own shape, so nothing below it moves when it fills in.
-        <TimeScreenSkeleton
-          labels={screenLabels(labels)}
-          days={slots.days.length}
-          monthView
-          surchargeRow={items.some((item) =>
-            visitServicesOf(item).some((service) => service.weekendSurchargePct > 0)
-          )}
-        />
-      )}
-
+      </div>
+      <div data-testid={BOOKING_TEST_IDS.stepCalendar}>
+        {slots.ready ? (
+          <StampSlotsEmptyTestId>
+            <TimeScreen
+              labels={screenLabels(labels)}
+              format={format}
+              dayparts={kit.dayparts}
+              monthView
+              slots={slots.single}
+              days={slots.days}
+              openDays={schedule.openDays}
+              stylistName={catalogue.chosenStylistName}
+              takenSlotTs={slots.takenSlotTs}
+              now={now}
+              phone={phone}
+              weekendNote={(dayTs) => weekendNoteFor(kit, party ? items : items.slice(0, 1), dayTs)}
+              onPick={booking.pickSlot}
+              soonest={
+                config.screens.soonest
+                  ? {
+                      resolveStylist: (resourceId) => stylistFace(catalogue.resources, resourceId),
+                    }
+                  : undefined
+              }
+              dayFullness={config.screens.dayFullness}
+              layout={config.screens.wideLayouts ? 'adaptive' : 'stack'}
+              party={
+                party
+                  ? {
+                      items,
+                      mode: state.partyMode,
+                      slots: slots.party,
+                      chipEndTs: (slot) => wizard.visitEndTs(items, slot.startTs, 'sequential'),
+                      // Only a back-to-back family is offered the simultaneous rescue.
+                      alternativeFor:
+                        state.partyMode === 'sequential'
+                          ? (dayTs) =>
+                              kit.partySlots.partyAlternative({
+                                sequential: slots.party,
+                                parallel: slots.alternatives,
+                                dayTs,
+                              })
+                          : undefined,
+                      resolveStylistName: catalogue.resolveStylistName,
+                      onPick: booking.pickPartySlot,
+                    }
+                  : undefined
+              }
+              classNames={timeClassNames}
+              components={timeComponents(resolved)}
+            />
+          </StampSlotsEmptyTestId>
+        ) : slots.failed ? (
+          <SlotsUnavailable kit={kit} onRetry={booking.refresh} />
+        ) : (
+          // The step's own shape, so nothing below it moves when it fills in.
+          <TimeScreenSkeleton
+            labels={screenLabels(labels)}
+            days={slots.days.length}
+            monthView
+            surchargeRow={items.some((item) =>
+              visitServicesOf(item).some((service) => service.weekendSurchargePct > 0)
+            )}
+          />
+        )}
+      </div>
       {/* Once, outside the skeleton-or-step switch, so a re-read cannot remount it. */}
       <TakenToast labels={screenLabels(labels)} takenSlotTs={slots.takenSlotTs} />
     </>
@@ -737,8 +753,10 @@ function RecapStep({ booking, resolved }: StepProps) {
 }
 
 function timeComponents({ components }: ResolvedBooking) {
-  if (!components.DayChip && !components.TimeChip) return undefined;
-  return { DayChip: components.DayChip, TimeChip: components.TimeChip };
+  return {
+    DayChip: withDayTestId(components.DayChip),
+    TimeChip: withSlotTestId(components.TimeChip),
+  };
 }
 
 function DetailsStep({ booking, resolved }: StepProps) {
@@ -1215,7 +1233,7 @@ function SlotsUnavailable({ kit, onRetry }: { kit: BookingKit; onRetry: () => vo
   const { labels, config, format } = kit;
   const phone = config.contact.phone;
   return (
-    <div className="space-y-3">
+    <div data-testid={BOOKING_TEST_IDS.slotsError} className="space-y-3">
       <p role="alert" className="rounded-lg border border-border bg-card px-5 py-4 text-sm">
         {labels['wizard.slotsUnavailable.lead']}
         {phone ? (

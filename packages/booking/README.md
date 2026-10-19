@@ -168,6 +168,28 @@ these with every booking piece under it. Server actions stay in the app
 (`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
 prop, answering with its result or with next-safe-action's envelope.
 
+### Synthetic monitoring (`data-testid`)
+
+`<BookingWizard>` stamps stable `data-testid` values for promote gates and
+uptime checks. Import `BOOKING_TEST_IDS` from `@medalsocial/booking/react/wizard`
+(or `/react`). Naming: `booking-` prefix, then the role.
+
+| `data-testid` | Where |
+|---|---|
+| `booking-step-who` | Who step container |
+| `booking-step-service` | Service step container |
+| `booking-step-stylist` | Stylist / barber half of the when step |
+| `booking-step-calendar` | Day strip + slot list (and empty / error) |
+| `booking-service-option` | Each service card (`data-service-id`) |
+| `booking-stylist-option` | Each stylist card (`data-resource-id`, or `first`) |
+| `booking-day` | Each day-strip chip (`data-day-ts`) |
+| `booking-slot` | Each time chip (`data-start-ts`) |
+| `booking-slots-error` | Availability could not be read |
+| `booking-slots-empty` | Selected day has nothing free |
+
+`booking-day` is on the day strip (the primary picker). The optional month grid
+shows the same days. Site `components` overrides stay wrapped so the ids remain.
+
 ### Labels and text nodes
 
 A label is a `BookingLabel`: a `string` or an array of strings. Both forms are
