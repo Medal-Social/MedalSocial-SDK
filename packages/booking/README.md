@@ -74,7 +74,7 @@ its own values in.
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
 | `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false, guestStartEmpty: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel`. `guestStartEmpty` (with `screens.guestParty`) starts a guest's step 1 with nobody rather than one child, so a grown-up alone is one tap |
-| `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null }` | Bookable window and page prefetch |
+| `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null, followPolicy: false }` | Bookable window and page prefetch; `followPolicy` uses the saved limit (see below) |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `contact` | `{ phone: null, address: null, name: '', mapsUrl: null }` | The business's own contact; `mapsUrl` is the booked screen's directions link (`null` searches a map for `address`) |
@@ -84,6 +84,12 @@ its own values in.
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |
 | `ics` | `-//Medal Social//Booking//EN` | Calendar product id and UID domain |
 | `labels` | built-in pack for `locale` | Partial copy overrides (`summary.pickTime`, `daypart.<key>`, …) |
+
+### Follow the saved booking horizon
+
+Set `window.followPolicy: true` to use the workspace booking setting instead of a fixed `rangeDays`. The server loads `GET /api/v1/bookings/policy` on each booking-page request; a saved value of 90 includes the last partially bookable date. The API still enforces the exact cutoff. Requests use the existing bounded availability chunks, and cached seeds are separated by saved limit and calendar span. If policy loading fails, the page reports unavailable rather than showing a stale fixed limit. Deploy the policy API before enabling this option on a site.
+
+Policy-following pages prefetch at most 31 calendar days. Prefetched openings are immediately usable; selecting a service starts sequential reads of at most 31 days for the remaining slots, hours and stylist openings. The existing calendar grows as dates are answered, so unread dates cannot appear fully booked. If a later read fails, known dates stay usable and retry resumes the unread range. A retry after midnight, a new booking attempt or a taken-slot response retires stale openings. Anonymous policy read routes and normalized cache reads enforce the same 31-day bound (plus the DST hour). Availability and schedule reads recheck the live policy before using cached data, key by the saved limit, and clamp the final partial day; a failed policy read fails closed. Concurrent prefetches share one in-flight policy request, but completed results are deliberately not cached: every separate read pays one policy request so a reduced limit applies immediately, even on a data-cache hit. Policy changes or failures during seed prefetch make the page unavailable for retry instead of advertising an incomplete calendar as loaded. Taken-slot recovery returns a bounded fresh prefix with its exclusive end timestamp, and the client reads the remaining horizon normally. The next-free banner describes the bounded prefetched window.
 
 ### Opt-in screens (`screens`)
 
@@ -290,9 +296,3 @@ repository is public: no customer names, copy or data in any file
 ## License
 
 Apache-2.0
-
-### Follow the saved booking horizon
-
-Set `window.followPolicy: true` to use the workspace booking setting instead of a fixed `rangeDays`. The server loads `GET /api/v1/bookings/policy` on each booking-page request; a saved value of 90 includes the last partially bookable date. The API still enforces the exact cutoff. Requests use the existing bounded availability chunks, and cached seeds are separated by saved limit and calendar span. If policy loading fails, the page reports unavailable rather than showing a stale fixed limit. Deploy the policy API before enabling this option on a site.
-
-Policy-following pages prefetch at most 31 calendar days. Prefetched openings are immediately usable; selecting a service starts sequential reads of at most 31 days for the remaining slots, hours and stylist openings. The existing calendar grows as dates are answered, so unread dates cannot appear fully booked. If a later read fails, known dates stay usable and retry resumes the unread range. A retry after midnight, a new booking attempt or a taken-slot response retires stale openings. Anonymous policy read routes enforce the same 31-day bound (plus the DST hour). Taken-slot recovery returns a bounded fresh prefix with its exclusive end timestamp, and the client reads the remaining horizon normally. The next-free banner describes the bounded prefetched window.

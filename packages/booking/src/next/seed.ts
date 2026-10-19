@@ -74,6 +74,7 @@ import {
   inBackground,
   timed,
 } from './options';
+import { BookingPolicyError } from './policy';
 
 const SEED_BUCKET_MS = 30_000;
 const SEED_TTL_S = 30;
@@ -472,6 +473,7 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
         try {
           return [service.id, await readOne(service.id)] as const;
         } catch (error) {
+          if (error instanceof BookingPolicyError) throw error;
           logger.warn({ err: error, serviceId: service.id }, `Could not prefetch ${what}`);
           return null;
         }
@@ -486,12 +488,17 @@ export function createSeed(options: SeedOptions, catalogue: SeedCatalogue): Seed
     fromTs: number,
     toTs: number
   ): Promise<{ seed: StoredSeed; complete: boolean }> {
+    const readOptions = { expectedPolicyDays: options.policyMaxAdvanceDays };
     const [slots, schedules] = await Promise.all([
       prefetchEach(targets, 'availability', async (serviceId) =>
-        (await catalogue.cachedAvailability({ serviceId, fromTs, toTs })).flatMap(toBookingSlotDto)
+        (await catalogue.cachedAvailability({ serviceId, fromTs, toTs }, readOptions)).flatMap(
+          toBookingSlotDto
+        )
       ),
       prefetchEach(targets, 'the schedule', async (serviceId) =>
-        (await catalogue.cachedSchedule({ serviceId, fromTs, toTs })).flatMap(toBookingDayDto)
+        (await catalogue.cachedSchedule({ serviceId, fromTs, toTs }, readOptions)).flatMap(
+          toBookingDayDto
+        )
       ),
     ]);
     return {
