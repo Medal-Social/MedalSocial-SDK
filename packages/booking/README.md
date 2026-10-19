@@ -115,18 +115,25 @@ uses.
 
 ## The UI (`/react`)
 
-The screens are meda's; the package feeds them. A site needs Tailwind v4 and
-three of meda's stylesheets, and themes them with its own shadcn variables
-(`--primary`, `--card`, …):
+The screens are meda's; the package feeds them. A site needs Tailwind v4,
+three of meda's stylesheets and a `@source` for this package's own components,
+and themes them with its own shadcn variables (`--primary`, `--card`, …):
 
 ```css
 @import '@medalsocial/meda/styles/bridge.css';
 @import '@medalsocial/meda/primitives/styles.css'; /* the sheets and dialogs the screens open */
 @import '@medalsocial/meda/booking/styles.css';
+/* The wizard's own layout around meda's screens. Relative to this file. */
+@source '../node_modules/@medalsocial/booking/dist/react';
 ```
 
 Without the primitives sheet the login sheet's positioning classes are never
-generated, and it opens at the top of the page.
+generated, and it opens at the top of the page. Without the `@source` (Tailwind
+does not scan `node_modules`), the classes only this package uses are never
+generated either: the desktop «your appointment» column
+(`screens.desktopPanel`) then drops under the step. Point it at wherever your
+install puts the package, e.g. the repository root's `node_modules` in a
+hoisted monorepo.
 
 ```tsx
 // app/bestill/page.tsx — a Server Component
@@ -160,6 +167,28 @@ The override ladder, cheapest first, all public API:
 these with every booking piece under it. Server actions stay in the app
 (`PortalActions`): each is a three-line `'use server'` wrapper passed in as a
 prop, answering with its result or with next-safe-action's envelope.
+
+### Synthetic monitoring (`data-testid`)
+
+`<BookingWizard>` stamps stable `data-testid` values for promote gates and
+uptime checks. Import `BOOKING_TEST_IDS` from `@medalsocial/booking/react/wizard`
+(or `/react`). Naming: `booking-` prefix, then the role.
+
+| `data-testid` | Where |
+|---|---|
+| `booking-step-who` | Who step container |
+| `booking-step-service` | Service step container |
+| `booking-step-stylist` | Stylist / barber half of the when step |
+| `booking-step-calendar` | Day strip + slot list (and empty / error) |
+| `booking-service-option` | Each service card (`data-service-id`) |
+| `booking-stylist-option` | Each stylist card (`data-resource-id`, or `first`) |
+| `booking-day` | Each day-strip chip (`data-day-ts`) |
+| `booking-slot` | Each time chip (`data-start-ts`) |
+| `booking-slots-error` | Availability could not be read |
+| `booking-slots-empty` | Selected day has nothing free |
+
+`booking-day` is on the day strip (the primary picker). The optional month grid
+shows the same days. Site `components` overrides stay wrapped so the ids remain.
 
 ### Labels and text nodes
 

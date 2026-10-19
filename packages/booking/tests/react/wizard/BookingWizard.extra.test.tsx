@@ -262,26 +262,53 @@ describe('BookingWizard — the override ladder', () => {
       wizard({
         components: {
           ServiceCard: ({ service, onPick }) => (
-            <button type="button" onClick={onPick}>
-              card:{service.name}
-            </button>
+            <>
+              <span>Service label</span>
+              <button type="button" onClick={onPick}>
+                card:{service.name}
+              </button>
+            </>
           ),
           StylistCard: ({ option, onClick }) => (
-            <button type="button" onClick={onClick}>
-              stylist:{option.name}
-            </button>
+            <>
+              <span>Stylist label</span>
+              <button type="button" onClick={onClick}>
+                stylist:{option.name}
+              </button>
+            </>
+          ),
+          DayChip: ({ label, onSelect }) => (
+            <>
+              <span>Day label</span>
+              <button type="button" onClick={onSelect}>
+                day:{label}
+              </button>
+            </>
           ),
           TimeChip: ({ label, onPick }) => (
-            <button type="button" onClick={onPick}>
-              chip:{label}
-            </button>
+            <>
+              <span>Time label</span>
+              <button type="button" onClick={onPick}>
+                chip:{label}
+              </button>
+            </>
           ),
         },
       })
     );
-    await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
-    expect(await screen.findByRole('button', { name: 'stylist:Bjarne' })).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+    const service = screen.getByRole('button', { name: 'card:Barneklipp' });
+    expect(service).toHaveAttribute('data-testid', 'booking-service-option');
+    await user.click(service);
+    const stylist = await screen.findByRole('button', { name: 'stylist:Bjarne' });
+    expect(stylist).toHaveAttribute('data-testid', 'booking-stylist-option');
+    expect(stylist).toHaveAttribute('data-resource-id', BJARNE.id);
+    const day = (await screen.findAllByTestId('booking-day'))[0];
+    expect(day.tagName).toBe('BUTTON');
+    expect(day).toHaveAttribute('data-day-ts');
+    const slot = await screen.findByRole('button', { name: 'chip:13:00' });
+    expect(slot).toHaveAttribute('data-testid', 'booking-slot');
+    expect(slot).toHaveAttribute('data-start-ts', String(osloTs(2, 13)));
+    await user.click(slot);
     await screen.findByRole('heading', { name: 'Nesten ferdig!' });
   });
 
