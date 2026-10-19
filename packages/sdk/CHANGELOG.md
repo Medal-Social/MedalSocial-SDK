@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.16.0
+
+### Minor Changes
+
+- [#244](https://github.com/Medal-Social/MedalSocial-SDK/pull/244) [`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f) Thanks [@adaadev](https://github.com/adaadev)! - Expose the workspace's public booking horizon and add `window.followPolicy` to let booking pages follow the saved setting. Policy-aware pages include the boundary date, isolate seeds by horizon, and fail closed when the setting cannot be read. Static window configurations remain compatible.
+
 ## 1.15.0
 
 ### Minor Changes
