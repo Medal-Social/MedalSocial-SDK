@@ -1604,9 +1604,15 @@ export function useBooking(options: UseBookingOptions) {
     if (maxAdvanceDays === undefined) setSeedRetired(true);
     // A retry asks the hours again: a stylist whose hours finished loading
     // would otherwise republish them from the cache. A partly read stylist
-    // keeps its progress, so the retry resumes at the unread tail.
+    // keeps its progress, so the retry resumes at the unread tail. The hours
+    // on screen go with the cache, or a failed reread would still show them.
+    const reread = new Set<string>();
     for (const [key, progress] of scheduleProgress.current)
-      if (progress.through >= toTs) scheduleProgress.current.delete(key);
+      if (progress.through >= toTs) {
+        scheduleProgress.current.delete(key);
+        reread.add(key);
+      }
+    setFetchedSchedule((current) => (current && reread.has(current.key) ? null : current));
     if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
       setSeedRetired(true);
       slotsThrough.current = {};
