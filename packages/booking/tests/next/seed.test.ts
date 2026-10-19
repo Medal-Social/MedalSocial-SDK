@@ -651,3 +651,33 @@ describe('expireBookingSeeds', () => {
     expect(colo.entries.has(seedKeyAt('svc-gutt,svc-jente', NOW + 1) ?? '')).toBe(true);
   });
 });
+
+describe('policy prefetch bounds', () => {
+  it.each([31, 401])(
+    'keeps a %s-day calendar but prefetches at most a month',
+    async (rangeDays) => {
+      const source = createSeed(
+        {
+          config: {
+            ...PARITY_CONFIG,
+            window: { ...PARITY_CONFIG.window, followPolicy: true, rangeDays },
+          },
+          policyMaxAdvanceDays: rangeDays - 1,
+          cache: {
+            edge: workersCacheAdapter({ origin: 'https://example.com' }),
+            environment: 'test',
+          },
+          logger: testLogger(),
+        },
+        { cachedServices, cachedResources, cachedAvailability, cachedSchedule }
+      );
+      const result = await source.loadBookingSeed(undefined, NOW);
+      expect(source.RANGE_DAYS).toBe(rangeDays);
+      expect(result.maxAdvanceDays).toBe(rangeDays - 1);
+      expect(result.toTs - result.fromTs).toBeLessThanOrEqual(31 * 86400000 + 3600000);
+      for (const [args] of cachedAvailability.mock.calls) {
+        expect(args.toTs - args.fromTs).toBeLessThanOrEqual(31 * 86400000 + 3600000);
+      }
+    }
+  );
+});

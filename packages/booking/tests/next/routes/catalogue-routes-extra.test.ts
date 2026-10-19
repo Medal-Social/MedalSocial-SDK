@@ -67,6 +67,29 @@ describe('resourcesRoute — next openings', () => {
     expect((await response.json()).nextAvailableTs).toEqual({ r1: Date.UTC(2026, 8, 2, 9) });
   });
 
+  it.each([false, true])(
+    'reports an incomplete policy chunk while retaining the roster (failed: %s)',
+    async (failed) => {
+      if (failed) cachedAvailability.mockRejectedValue(new Error('down'));
+      else cachedAvailability.mockResolvedValue([]);
+      const policyRuntime = {
+        ...rt,
+        config: { ...rt.config, window: { ...rt.config.window, followPolicy: true } },
+      };
+      const response = await resourcesRoute(
+        policyRuntime,
+        new Request(
+          `https://salong.example/api/booking/resources?service_id=a&from_ts=${FROM}&to_ts=${TO}`
+        )
+      );
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.resources).toHaveLength(1);
+      expect(body.nextAvailableTs).toEqual({});
+      expect(body.nextAvailableFailed).toBe(failed ? true : undefined);
+    }
+  );
+
   it('logs and drops the next openings when the availability read fails', async () => {
     cachedAvailability.mockRejectedValue(new Error('down'));
 

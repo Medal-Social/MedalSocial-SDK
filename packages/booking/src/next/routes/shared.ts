@@ -25,8 +25,9 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { NextResponse } from 'next/server';
-import { MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
+import { MAX_POLICY_READ_MS, MAX_RANGE_DAYS, MAX_RANGE_MS } from '../../core/range';
 import { MedalConfigError } from '../medal';
+import { policySeed } from '../policy-window';
 import type { BookingRuntime } from '../runtime';
 
 export function bookingErrorResponse(code: string, status: number, message?: string): NextResponse {
@@ -202,7 +203,8 @@ function parseTimestamp(raw: string | null): number | null {
  * opaque 502 pointing at Medal for a typo in our own query string.
  */
 export function parseRange(
-  searchParams: URLSearchParams
+  searchParams: URLSearchParams,
+  followPolicy = false
 ): { fromTs: number; toTs: number } | { error: NextResponse } {
   const fromTs = parseTimestamp(searchParams.get('from_ts'));
   const toTs = parseTimestamp(searchParams.get('to_ts'));
@@ -220,14 +222,15 @@ export function parseRange(
   }
   // A bound on what a visitor-controlled query string may ask the site to
   // fetch on their behalf — not the engine's own limit, which clamps rather
-  // than refuses. It admits the widest window a valid config can produce,
-  // DST hour included (`core/range.ts`).
-  if (toTs - fromTs > MAX_RANGE_MS) {
+  // than refuses. Static clients may read their configured window; policy
+  // clients load bounded chunks instead of a visitor-controlled year.
+  // Both bounds allow the DST hour (`core/range.ts`).
+  if (toTs - fromTs > (followPolicy ? MAX_POLICY_READ_MS : MAX_RANGE_MS)) {
     return {
       error: bookingErrorResponse(
         'invalidInput',
         400,
-        `Range must not exceed ${MAX_RANGE_DAYS} days`
+        `Range must not exceed ${followPolicy ? 31 : MAX_RANGE_DAYS} days`
       ),
     };
   }
@@ -250,7 +253,14 @@ export async function forgetBookedSlots(
 ): Promise<void> {
   try {
     rt.catalogue.expireSlots([...serviceIds]);
+    // Mark the write even if the policy service is temporarily unavailable.
     await rt.seed.expireBookingSeeds([...serviceIds]);
+    if (rt.config.window.followPolicy) {
+      // The write may land in an isolate that has never rendered the page.
+      // Resolve its current policy key instead of relying on an in-memory seed.
+      const seed = await policySeed(rt);
+      await seed.expireBookingSeeds([...serviceIds]);
+    }
   } catch (error) {
     rt.logger.error({ err: error }, 'Could not expire the booking caches after a write');
   }

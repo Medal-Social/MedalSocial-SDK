@@ -173,6 +173,7 @@ describe('L2 data keys keep the source site’s key parts and arguments', () => 
     const now = Date.parse('2026-09-02T10:07:40+02:00');
     vi.spyOn(Date, 'now').mockReturnValue(now);
     const medal = {
+      getPolicy: vi.fn(async () => ({ max_advance_days: 90 })),
       listServices: vi.fn(async () => []),
       listResources: vi.fn(async () => []),
       listAvailability: vi.fn(async () => []),

@@ -63,6 +63,10 @@ import { type BookingOverrides, useBookingKit } from './Provider';
  * missing is fetched on demand into the same place.
  */
 export interface BookingSeed {
+  /** Saved elapsed-day limit; the calendar count is recalculated when the window advances. */
+  maxAdvanceDays?: number;
+  /** End of the prefetched window, which may be shorter than the selectable horizon. */
+  toTs?: number;
   /** The full catalogue. */
   services: BookingServiceDto[];
   /** The stylists, or `null`/absent when they could not be read. */
@@ -713,7 +717,17 @@ export function useBooking(options: UseBookingOptions) {
   // only by a retry on a later business day (`refresh`), which drops the seed
   // with it — a tab left open overnight would otherwise ask about yesterday.
   const [fromTs, setFromTs] = useState(() => options.seed.fromTs ?? Date.now());
-  const { toTs, days } = useMemo(() => clock.window(fromTs, rangeDays), [clock, fromTs, rangeDays]);
+  const maxAdvanceDays = options.seed.maxAdvanceDays;
+  const { toTs, days } = useMemo(
+    () =>
+      clock.window(
+        fromTs,
+        maxAdvanceDays === undefined
+          ? rangeDays
+          : clock.daysBetween(fromTs, fromTs + maxAdvanceDays * 86_400_000) + 1
+      ),
+    [clock, fromTs, rangeDays, maxAdvanceDays]
+  );
   /** The business date the ages on steps 1 and 2 are read on: the chosen day, else today. */
   const ageDayKey = clock.dayKey(state.startTs ?? fromTs);
 
@@ -752,8 +766,21 @@ export function useBooking(options: UseBookingOptions) {
    * for a person having both, whose list is the server's answer for the whole
    * visit rather than either service's own.
    */
+  const [prefetch] = useState(options.seed);
+  const prefetchToTs = prefetch.toTs ?? fromTs;
+  const seedCoversWindow = options.seed.toTs === undefined || options.seed.toTs >= toTs;
   const [slots, setSlots] = useState<Record<string, readonly BookingSlotDto[]>>(
     () => options.seed.slots ?? {}
+  );
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
+  const slotsThrough = useRef<Record<string, number>>(
+    Object.fromEntries(
+      Object.keys(options.seed.slots ?? {}).map((key) => [
+        key,
+        seedCoversWindow ? toTs : prefetchToTs,
+      ])
+    )
   );
   const [slotsFailed, setSlotsFailed] = useState(false);
   const [resources, setResources] = useState<BookingResourceDto[]>(
@@ -762,16 +789,20 @@ export function useBooking(options: UseBookingOptions) {
   /** Whether the stylist list has been answered at all — seeded, fetched or failed. */
   const [resourcesKnown, setResourcesKnown] = useState(() => options.seed.resources != null);
   const [seededNextAvailable, setSeededNextAvailable] = useState(() =>
-    options.seed.resources ? (options.seed.nextAvailable ?? {}) : {}
+    options.seed.resources && seedCoversWindow ? (options.seed.nextAvailable ?? {}) : {}
   );
   const [initialSchedule] = useState(() => options.seed.schedules ?? {});
   /** Set once a retry has moved the window past the seed's day; the seed no longer answers. */
   const [seedRetired, setSeedRetired] = useState(false);
+  const usablePrefetch =
+    !seedCoversWindow && !seedRetired && prefetch.fromTs === fromTs ? prefetch : undefined;
   const seededSchedule = seedRetired ? NO_SEEDED_SCHEDULE : initialSchedule;
   /** The last «next available» answer, and for WHICH visit (its key). */
   const [fetchedNextAvailable, setFetchedNextAvailable] = useState<{
     key: string;
     times: Record<string, number>;
+    complete: boolean;
+    failed?: boolean;
   } | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
@@ -1262,7 +1293,9 @@ export function useBooking(options: UseBookingOptions) {
     return fetchedNextAvailable?.key === primaryVisit ? fetchedNextAvailable.times : {};
   }, [primaryVisit, seededNextAvailable, fetchedNextAvailable]);
 
-  const missingKey = basketVisits.filter((key) => !(key in slots)).join('|');
+  const missingKey = basketVisits
+    .filter((key) => !(key in slots) || slotsThrough.current[key] < toTs)
+    .join('|');
   /** Bumped to ask for the openings again after a failure. */
   const [slotsAttempt, setSlotsAttempt] = useState(0);
   /**
@@ -1281,45 +1314,49 @@ export function useBooking(options: UseBookingOptions) {
     });
   }, []);
   const api = config.paths.api;
+  const chunkMs = maxAdvanceDays === undefined ? toTs - fromTs : 31 * 86_400_000;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
+    setSlotsFailed(false);
     if (missingKey === '') return;
     const wanted = missingKey.split('|');
     let cancelled = false;
-    setSlotsFailed(false);
 
     (async () => {
       // Settled one by one: a party of three whose third visit failed keeps the
       // two answers it has, and the retry asks only for the one still missing.
       const settled = await Promise.allSettled(
         wanted.map(async (key) => {
-          const response = await fetch(`${api}/availability?${windowQuery(key, fromTs, toTs)}`);
-          if (!response.ok) throw new ReadFailure('availability', response.status);
-          const body = (await response.json()) as { slots?: BookingSlotDto[] };
-          // Stored under the WHOLE visit's key — the key it is read back by.
-          return [key, body.slots ?? []] as const;
+          // Only selected visits are read beyond the bounded server prefetch.
+          // Serial chunks keep one visitor from fanning out a year's work at once.
+          const fetchedSlots: BookingSlotDto[] = [...(slotsRef.current[key] ?? [])];
+          const readFrom = slotsThrough.current[key] ?? fromTs;
+          for (let start = readFrom; start < toTs && !cancelled; start += chunkMs) {
+            const end = Math.min(toTs, start + chunkMs);
+            const response = await fetch(`${api}/availability?${windowQuery(key, start, end)}`);
+            if (!response.ok) throw new ReadFailure('availability', response.status);
+            const body = (await response.json()) as { slots?: BookingSlotDto[] };
+            if (cancelled) return;
+            fetchedSlots.push(...(body.slots ?? []));
+            // Publish only the answered range; a later failure keeps these openings.
+            slotsThrough.current[key] = end;
+            setSlots((previous) => ({ ...previous, [key]: [...fetchedSlots] }));
+          }
         })
       );
       if (cancelled) return;
-      const fetched = settled.flatMap((result) =>
-        result.status === 'fulfilled' ? [result.value] : []
-      );
-      if (fetched.length > 0) {
-        setSlots((previous) => ({ ...previous, ...Object.fromEntries(fetched) }));
-      }
-      // Nothing is cached for a failed visit; the step says so rather than «full».
-      // Each failed visit is its own report.
+      // Each failed visit is reported without discarding its answered prefix.
       for (const result of settled) {
         if (result.status === 'rejected') noteReadError('availability', result.reason);
       }
-      if (fetched.length < wanted.length) setSlotsFailed(true);
+      if (settled.some((result) => result.status === 'rejected')) setSlotsFailed(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError]);
+  }, [api, missingKey, fromTs, toTs, slotsAttempt, noteReadError, chunkMs]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsAttempt` is the retry trigger.
   useEffect(() => {
@@ -1328,23 +1365,40 @@ export function useBooking(options: UseBookingOptions) {
     let cancelled = false;
 
     (async () => {
+      const initial = usablePrefetch?.nextAvailable?.[primaryVisit];
+      let times = initial ?? {};
+      setFetchedNextAvailable({ key: primaryVisit, times, complete: false });
       try {
-        const response = await fetch(`${api}/resources?${windowQuery(primaryVisit, fromTs, toTs)}`);
-        if (!response.ok) throw new ReadFailure('resources', response.status);
-        const body = (await response.json()) as {
-          resources?: BookingResourceDto[];
-          nextAvailableTs?: Record<string, number>;
-        };
-        if (cancelled) return;
-        setResources(body.resources ?? []);
-        setResourcesKnown(true);
-        setFetchedNextAvailable({ key: primaryVisit, times: body.nextAvailableTs ?? {} });
+        const readFrom = initial !== undefined ? prefetchToTs : fromTs;
+        for (let start = readFrom; start < toTs; start += chunkMs) {
+          const response = await fetch(
+            `${api}/resources?${windowQuery(primaryVisit, start, Math.min(toTs, start + chunkMs))}`
+          );
+          if (!response.ok) throw new ReadFailure('resources', response.status);
+          const body = (await response.json()) as {
+            resources?: BookingResourceDto[];
+            nextAvailableTs?: Record<string, number>;
+            nextAvailableFailed?: boolean;
+          };
+          if (cancelled) return;
+          setResources(body.resources ?? []);
+          setResourcesKnown(true);
+          if (body.nextAvailableFailed) throw new ReadFailure('resources', 502);
+          // Earlier answers win, and remain visible if a later chunk fails.
+          times = { ...body.nextAvailableTs, ...times };
+          setFetchedNextAvailable({ key: primaryVisit, times, complete: start + chunkMs >= toTs });
+        }
       } catch (error) {
-        // Answered «none» FOR THIS VISIT; the stylist LIST is kept.
+        // Keep known openings and the stylist list when the tail cannot be read.
         if (!cancelled) {
           noteReadError('resources', error);
           setResourcesKnown(true);
-          setFetchedNextAvailable({ key: primaryVisit, times: {} });
+          setFetchedNextAvailable({
+            key: primaryVisit,
+            times,
+            complete: maxAdvanceDays === undefined,
+            failed: maxAdvanceDays !== undefined,
+          });
         }
       }
     })();
@@ -1352,7 +1406,19 @@ export function useBooking(options: UseBookingOptions) {
     return () => {
       cancelled = true;
     };
-  }, [api, primaryVisit, fromTs, toTs, seededNextAvailable, slotsAttempt, noteReadError]);
+  }, [
+    api,
+    primaryVisit,
+    fromTs,
+    toTs,
+    seededNextAvailable,
+    maxAdvanceDays,
+    slotsAttempt,
+    noteReadError,
+    usablePrefetch,
+    prefetchToTs,
+    chunkMs,
+  ]);
 
   /**
    * The stylist half of a «book again» link, once a list for its service has
@@ -1411,7 +1477,9 @@ export function useBooking(options: UseBookingOptions) {
   const [fetchedSchedule, setFetchedSchedule] = useState<{
     key: string;
     days: BookingDayDto[];
+    through: number;
   } | null>(null);
+  const scheduleProgress = useRef(new Map<string, { days: BookingDayDto[]; through: number }>());
   const [scheduleFailedFor, setScheduleFailedFor] = useState<string | null>(null);
   // The visit, plus the stylist when one is named. The two answers must not
   // share a key: a late salon response must not land on a stylist's calendar.
@@ -1451,7 +1519,7 @@ export function useBooking(options: UseBookingOptions) {
   useEffect(() => {
     if (primaryVisit === null || scheduleKey === null) return;
     // The seed already answers «first available». A named stylist always asks.
-    if (state.resourceId === null && primaryVisit in seededSchedule) return;
+    if (seedCoversWindow && state.resourceId === null && primaryVisit in seededSchedule) return;
     let cancelled = false;
     const key = scheduleKey;
     const resourceId = state.resourceId;
@@ -1461,13 +1529,32 @@ export function useBooking(options: UseBookingOptions) {
 
     (async () => {
       try {
-        const response = await fetch(
-          `${api}/schedule?${windowQuery(primaryVisit, fromTs, toTs, resourceId)}`
-        );
-        if (!response.ok) throw new ReadFailure('schedule', response.status);
-        const body = (await response.json()) as { days?: BookingDayDto[] };
-        if (cancelled) return;
-        setFetchedSchedule({ key, days: body.days ?? [] });
+        const progress =
+          maxAdvanceDays === undefined ? undefined : scheduleProgress.current.get(key);
+        // Switching back to a fully loaded stylist must publish its cached hours,
+        // even though there is no unread tail and the loop below will not run.
+        if (progress) setFetchedSchedule({ key, ...progress });
+        const initial =
+          progress?.days ??
+          (resourceId === null ? usablePrefetch?.schedules?.[primaryVisit] : undefined);
+        const readFrom = progress?.through ?? (initial !== undefined ? prefetchToTs : fromTs);
+        const days = [...(initial ?? [])];
+        for (let start = readFrom; start < toTs; start += chunkMs) {
+          const response = await fetch(
+            `${api}/schedule?${windowQuery(primaryVisit, start, Math.min(toTs, start + chunkMs), resourceId)}`
+          );
+          if (!response.ok) throw new ReadFailure('schedule', response.status);
+          const body = (await response.json()) as { days?: BookingDayDto[] };
+          if (cancelled) return;
+          days.push(...(body.days ?? []));
+          // A UTC boundary may touch the same local day on both sides of DST.
+          const progress = {
+            days: [...new Map(days.map((day) => [day.dayKey, day])).values()],
+            through: Math.min(toTs, start + chunkMs),
+          };
+          scheduleProgress.current.set(key, progress);
+          setFetchedSchedule({ key, ...progress });
+        }
       } catch (error) {
         // Left `null`: the hours are unknown, which is not the same as «closed».
         // Keyed like the success, so one stylist's failure does not settle the next.
@@ -1475,7 +1562,8 @@ export function useBooking(options: UseBookingOptions) {
           noteReadError('schedule', error);
           setScheduleFailedFor(key);
           // The previous success for this stylist is stale once this read failed.
-          setFetchedSchedule((current) => (current?.key === key ? null : current));
+          if (maxAdvanceDays === undefined)
+            setFetchedSchedule((current) => (current?.key === key ? null : current));
         }
       }
     })();
@@ -1491,8 +1579,13 @@ export function useBooking(options: UseBookingOptions) {
     seededSchedule,
     state.resourceId,
     scheduleKey,
+    seedCoversWindow,
+    maxAdvanceDays,
     slotsAttempt,
     noteReadError,
+    usablePrefetch,
+    prefetchToTs,
+    chunkMs,
   ]);
 
   /**
@@ -1508,8 +1601,11 @@ export function useBooking(options: UseBookingOptions) {
   const refresh = useCallback(() => {
     const now = Date.now();
     setSeededNextAvailable({});
-    setSeedRetired(true);
+    if (maxAdvanceDays === undefined) setSeedRetired(true);
     if (clock.dayKey(now) !== clock.dayKey(fromTs)) {
+      setSeedRetired(true);
+      slotsThrough.current = {};
+      scheduleProgress.current.clear();
       setSlots({});
       // The stylists are asked again for the new window; until they answer the
       // step shows them loading rather than yesterday's list as current.
@@ -1519,7 +1615,7 @@ export function useBooking(options: UseBookingOptions) {
       setFromTs(now);
     }
     setSlotsAttempt((n) => n + 1);
-  }, [clock, fromTs]);
+  }, [clock, fromTs, maxAdvanceDays]);
 
   /** A stylist's display name for an id; `''` from Medal reads as none. */
   const resolveStylistName = useMemo(
@@ -1603,11 +1699,30 @@ export function useBooking(options: UseBookingOptions) {
   const haveEveryService = basketVisits.every((key) => key in slots);
   const scheduleSettled =
     openDays !== null || (scheduleKey !== null && scheduleFailedFor === scheduleKey);
+  const scheduleThrough =
+    fetchedSchedule?.key === scheduleKey
+      ? fetchedSchedule.through
+      : seedCoversWindow || openDays === null
+        ? toTs
+        : prefetchToTs;
+  const readThrough = Math.min(
+    toTs,
+    scheduleThrough,
+    ...basketVisits.map((key) => (key in slots ? slotsThrough.current[key] : fromTs))
+  );
+  // Only answered dates reach the calendar; unrequested dates cannot appear full.
+  const visibleDays =
+    maxAdvanceDays === undefined
+      ? days
+      : days.filter((day) => clock.dayStart(day, 1) <= readThrough);
   const nextAvailableLoading = party
-    ? !haveEveryService && !slotsFailed
+    ? maxAdvanceDays !== undefined
+      ? readThrough < toTs && !slotsFailed && scheduleFailedFor !== scheduleKey
+      : !haveEveryService && !slotsFailed
     : primaryVisit !== null &&
       !(primaryVisit in seededNextAvailable) &&
-      fetchedNextAvailable?.key !== primaryVisit;
+      (fetchedNextAvailable?.key !== primaryVisit ||
+        (!fetchedNextAvailable.complete && !fetchedNextAvailable.failed));
 
   /** The basket's openings, unfiltered — the parallel search needs two stylists. */
   const basketSlots: SlotsByService = useMemo(() => {
@@ -1788,6 +1903,7 @@ export function useBooking(options: UseBookingOptions) {
         error?: string;
         bookings?: Array<{ id: string; manageToken?: string }>;
         freshSlots?: Record<string, BookingSlotDto[]>;
+        freshSlotsToTs?: number;
       } | null;
 
       if (!response.ok) {
@@ -1844,13 +1960,25 @@ export function useBooking(options: UseBookingOptions) {
           return;
         }
         if (payload?.error === 'slotTaken') {
+          if (!seedCoversWindow) setSeedRetired(true);
           // From the SUBMITTED visit: after a reload there is no live basket.
           setTakenSlotTs(submitted.startTs);
           // The cache goes too, or the time step reopens on the SAME chip:
           // replaced by the 409's live `freshSlots`, else evicted for a re-read.
           // By VISIT, as the server keys `freshSlots` and the wizard its cache.
           const lost = new Set(submitted.items.map((item) => visitKey(item)));
-          const fresh = freshSlotsOf(payload?.freshSlots, lost);
+          // The missing visit key may not change while a tail is in flight.
+          // Cancel that read before it can restore its pre-conflict snapshot.
+          setSlotsAttempt((attempt) => attempt + 1);
+          const freshTo =
+            typeof payload?.freshSlotsToTs === 'number'
+              ? Math.min(payload.freshSlotsToTs, toTs)
+              : toTs;
+          const fresh = freshTo > fromTs ? freshSlotsOf(payload?.freshSlots, lost) : {};
+          for (const key of lost) {
+            if (key in fresh) slotsThrough.current[key] = freshTo;
+            else delete slotsThrough.current[key];
+          }
           setSlots((previous) => {
             const next = { ...previous };
             for (const key of lost) {
@@ -1860,7 +1988,7 @@ export function useBooking(options: UseBookingOptions) {
             return next;
           });
           // «Next available» was read out of the same stale openings.
-          const canSeed = resources.length > 0;
+          const canSeed = resources.length > 0 && freshTo >= toTs;
           setSeededNextAvailable((previous) => ({
             ...Object.fromEntries(Object.entries(previous).filter(([id]) => !lost.has(id))),
             ...(canSeed
@@ -1942,7 +2070,11 @@ export function useBooking(options: UseBookingOptions) {
     setAttempt(kit.attempts.readAttempt());
     setPendingAttempt(null);
     // The openings were read before the booking just made: drop them.
+    slotsThrough.current = {};
+    scheduleProgress.current.clear();
+    setFetchedSchedule(null);
     setSlots({});
+    setSeedRetired(true);
     setSlotsFailed(false);
     setConfirmed(null);
     setTakenSlotTs(null);
@@ -2120,12 +2252,17 @@ export function useBooking(options: UseBookingOptions) {
     slots: {
       fromTs,
       toTs,
-      days,
+      days: haveEveryService ? visibleDays : days,
+      loadingMore:
+        haveEveryService && readThrough < toTs && !slotsFailed && scheduleFailedFor !== scheduleKey,
       single: singleSlots,
       party: partySlots,
       alternatives: partyAlternatives,
-      failed: slotsFailed,
-      ready: haveEveryService && scheduleSettled,
+      failed:
+        slotsFailed ||
+        (fetchedNextAvailable?.key === primaryVisit && fetchedNextAvailable.failed === true) ||
+        (maxAdvanceDays !== undefined && scheduleKey !== null && scheduleFailedFor === scheduleKey),
+      ready: haveEveryService && scheduleSettled && visibleDays.length > 0,
       takenSlotTs,
       nextAvailableTs: party ? partyNextAvailableTs : nextAvailableTs,
       nextAvailableLoading,

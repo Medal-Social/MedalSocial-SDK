@@ -115,7 +115,12 @@ export interface BookingConfig {
     guestStartEmpty: boolean;
   };
   /** The bookable window and the page's prefetch. */
-  window: { rangeDays: number; prefetchLimit: number; prefetchCategory: string | null };
+  window: {
+    rangeDays: number;
+    followPolicy?: boolean;
+    prefetchLimit: number;
+    prefetchCategory: string | null;
+  };
   /** Named day parts for the time step, contiguous from 0 to 24. */
   dayparts: BookingDaypart[];
   /** Set = the booking path hands off (307) to this URL instead of rendering. */
@@ -466,6 +471,7 @@ const schema = z
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(MAX_RANGE_DAYS),
+      followPolicy: z.boolean().optional(),
       prefetchLimit: z.number().int().min(0).max(20),
       prefetchCategory: lowerKey.nullable(),
     }),
