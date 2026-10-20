@@ -14,14 +14,27 @@ jobs:
       github.actor == 'renovate[bot]' ||
       github.actor == 'medal-social-release-bot[bot]'
     steps:
-      - name: Generate token from Medal Bot app
+      # APP_ID / APP_PRIVATE_KEY are not in the Actions secret store, so
+      # create-github-app-token aborted on an empty app-id for every
+      # Dependabot run (Secret source: Actions — this event is
+      # pull_request_target on `dev`, which Dependabot did not create, so
+      # the Dependabot secret sandbox does not apply). The app that is
+      # configured is the release app, the same credentials release.yml and
+      # check-skills.yml already mint tokens from.
+      #
+      # That app is medal-social-release-bot[bot], so it cannot approve a
+      # pull request it opened itself. Dependabot and Renovate are a
+      # different actor; the release bot only gets auto-merge enabled.
+      - name: Generate Medal Social Release Bot token
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - uses: hmarr/auto-approve-action@05a696a09d381a5a0d142c755f7eacbb19eb6525 # v4
+      - name: Approve Dependabot and Renovate pull requests
+        if: github.actor != 'medal-social-release-bot[bot]'
+        uses: hmarr/auto-approve-action@05a696a09d381a5a0d142c755f7eacbb19eb6525 # v4
         with:
           github-token: ${{ steps.app-token.outputs.token }}
 
