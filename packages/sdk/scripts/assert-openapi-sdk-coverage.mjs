@@ -53,7 +53,7 @@ import { fileURLToPath } from "node:url";
 const HTTP_METHODS = new Set(["get", "put", "post", "delete", "patch"]);
 /** @type {Record<string, string[]>} Which `BaseClient` method may serve an OpenAPI method. */
 const CLIENT_METHODS = {
-  get: ["get"],
+  get: ["get", "getConditional"],
   post: ["post", "postOnce"],
   put: ["put"],
   patch: ["patch"],

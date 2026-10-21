@@ -639,6 +639,25 @@ if (finished.status === 'done' && finished.result) {
 }
 ```
 
+### Ordering
+
+Restaurant online ordering, for the restaurant's own site. Call it server-side
+with the workspace API key (scope `ordering.storefront.read`); a workspace
+without the online-ordering module gets `403 ORDERING_NOT_ENABLED`. Money is
+integer øre, VAT included; `vat_bp` is the channel's VAT in basis points.
+
+```ts
+// The menu for one channel, now (or `at` a scheduled pickup/delivery time:
+// a Date, an ISO string with Z or an offset, or Unix ms — up to 60 days ahead)
+const first = await medal.ordering.menu({ channel: 'takeaway' });
+if (!first.notModified) render(first.menu.categories);
+
+// The API sends `Cache-Control: private, no-store` — keep the menu yourself
+// and revalidate with the opaque ETag. A 304 resolves `notModified: true`.
+const next = await medal.ordering.menu({ channel: 'takeaway', ifNoneMatch: first.etag });
+const menu = next.notModified ? cachedMenu : next.menu;
+```
+
 ### Helpdesk
 
 ```ts
@@ -1135,6 +1154,7 @@ role floor.
 | `channels.connectLinks.*`, `channels.connections.disconnect` | `channel.connect.manage` | **admin** |
 | `bookings.events.remove` | `write:bookings` | **admin** |
 | `gdpr.requestExport`, `gdpr.listExports`, `gdpr.getExport` | `compliance.gdpr.export` | **owner** |
+| `ordering.menu` | `ordering.storefront.read` (workspace API key) | — |
 
 A credential below the floor answers `403 FORBIDDEN`.
 

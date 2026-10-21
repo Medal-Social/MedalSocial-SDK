@@ -52,6 +52,12 @@ tags:
       Company & website scans (Nettsjekk) — queue a scan by URL, organisation
       number, or company name, poll the result, and search the Norwegian
       company registry.
+  - name: Ordering
+    description: >-
+      Restaurant online ordering for the restaurant's own site, called
+      server-side with the workspace API key. Module-gated: a workspace without
+      online ordering gets 403 `ORDERING_NOT_ENABLED` on every route. Amounts
+      are integer øre; VAT is in basis points (1500 = 15 %).
 paths:
   /api/v1/posts:
     get:
@@ -2554,6 +2560,79 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_ScanJob"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/menu:
+    get:
+      tags: [Ordering]
+      operationId: getOrderingMenu
+      summary: Get the online menu
+      description: >-
+        Requires `ordering.storefront.read`. What a guest can order on one
+        channel at one instant: active dishes switched on for the channel, in
+        open categories and time windows, with their modifier groups. A
+        sold-out dish or option stays listed with `sold_out: true`. VAT
+        (`vat_bp`) is the rate for the channel (dine-in vs takeaway/delivery).
+        The response carries a weak ETag (`W/"<16 hex>"`); treat it as opaque
+        and send it back verbatim in `If-None-Match` to get 304 with no body
+        when the menu has not changed. The response is
+        `Cache-Control: private, no-store`, so revalidate from your own stored
+        ETag.
+      parameters:
+        - name: channel
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/OrderingChannel"
+        - name: location
+          in: query
+          description: >-
+            Ordering location id. Accepted but ignored until multi-location
+            ordering ships; optional while a workspace has one location.
+          schema:
+            type: string
+            maxLength: 64
+        - name: at
+          in: query
+          description: >-
+            Instant to evaluate the menu at: an ISO 8601 date-time with `Z` or
+            an explicit offset, or Unix milliseconds as digits only. Must lie
+            between one day ago and 60 days ahead; anything else is a 400
+            `VALIDATION_ERROR`. Defaults to now. Use it to show the menu for a
+            scheduled pickup or delivery time.
+          schema:
+            type: string
+        - name: If-None-Match
+          in: header
+          description: An ETag from an earlier response.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The menu.
+          headers:
+            ETag:
+              description: Weak ETag of the menu (`W/"<16 hex>"`). Opaque.
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingMenu"
+        "304":
+          description: Not modified — the `If-None-Match` ETag is still current. No body.
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+        default:
+          $ref: "#/components/responses/ApiError"
 components:
   securitySchemes:
     bearerAuth:
@@ -2679,6 +2758,7 @@ components:
         - INVALID_OAUTH_RESOURCE
         - INVALID_RETURN_URL
         - NOT_FOUND
+        - ORDERING_NOT_ENABLED
         - PILOT_ASK_FAILED
         - PORTAL_CODE_INVALID
         - PORTAL_SESSION_INVALID
@@ -7225,3 +7305,122 @@ components:
         these two.
       type: string
       enum: [telegram_inbox, linkedin]
+    OrderingChannel:
+      description: The channel a menu is read for. Closed.
+      type: string
+      enum: [dine_in, takeaway, delivery]
+    OrderingAllergen:
+      description: >-
+        The 14 EU-declarable allergens (Regulation 1169/2011, Annex II). Closed.
+      type: string
+      enum: [gluten, crustaceans, eggs, fish, peanuts, soybeans, milk, nuts, celery, mustard, sesame, sulphites, lupin, molluscs]
+    OrderingDietary:
+      description: Dietary labels a dish can carry. Closed.
+      type: string
+      enum: [vegan, vegetarian, gluten_free, lactose_free, halal, spicy]
+    OrderingModifierOption:
+      type: object
+      required: [id, name, price_delta_ore, allergens, vat_bp, sold_out]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price_delta_ore:
+          description: Added to the dish price, in integer øre.
+          type: integer
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingAllergen"
+        vat_bp:
+          description: VAT for the requested channel, in basis points (1500 = 15 %).
+          type: integer
+        sold_out:
+          type: boolean
+    OrderingModifierGroup:
+      type: object
+      required: [id, name, min_select, max_select, options]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        min_select:
+          type: integer
+        max_select:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingModifierOption"
+    OrderingMenuItem:
+      type: object
+      required: [id, name, price_ore, vat_bp, allergens, dietary, sold_out, modifier_groups]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          description: Omitted when the dish has none.
+          type: string
+        price_ore:
+          description: Price in integer øre, VAT included.
+          type: integer
+        vat_bp:
+          description: VAT for the requested channel, in basis points (1500 = 15 %).
+          type: integer
+        image_url:
+          description: Omitted when the dish has no image.
+          type: string
+          format: uri
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingAllergen"
+        dietary:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingDietary"
+        sold_out:
+          type: boolean
+        modifier_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingModifierGroup"
+    OrderingMenuCategory:
+      type: object
+      required: [id, name, items]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingMenuItem"
+    OrderingMenu:
+      type: object
+      required: [categories, etag, channel, at]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingMenuCategory"
+        etag:
+          description: Same value as the `ETag` response header.
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        at:
+          description: The instant evaluated (ISO 8601).
+          type: string
+          format: date-time
+    ApiResponse_OrderingMenu:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingMenu"

@@ -38,6 +38,8 @@ export interface PaginatedResponse<T> {
  *   e-mail code login.
  * - `CONVERSATION_NOT_LINKABLE` — a group thread, or a channel with no stable
  *   sender.
+ * - `ORDERING_NOT_ENABLED` (403) — the workspace does not have the online
+ *   ordering module; every `ordering.*` call answers this.
  */
 export type MedalErrorCode =
   | "AI_GENERATION_FAILED"
@@ -68,6 +70,7 @@ export type MedalErrorCode =
   | "INVALID_OAUTH_RESOURCE"
   | "INVALID_RETURN_URL"
   | "NOT_FOUND"
+  | "ORDERING_NOT_ENABLED"
   | "PILOT_ASK_FAILED"
   | "PORTAL_CODE_INVALID"
   | "PORTAL_SESSION_INVALID"

@@ -2,7 +2,7 @@
  * Official TypeScript SDK for the Medal Social API.
  *
  * Provides typed access to posts, emails, contacts, deals, bookings, the
- * customer portal, GDPR compliance, helpdesk conversations, partner channel
+ * restaurant online-ordering menu, the customer portal, GDPR compliance, helpdesk conversations, partner channel
  * connect, webhooks, and workspace management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
@@ -29,6 +29,7 @@ import { Deals } from "./resources/deals";
 import { Emails } from "./resources/emails";
 import { Gdpr } from "./resources/gdpr";
 import { Helpdesk } from "./resources/helpdesk";
+import { Ordering } from "./resources/ordering";
 import { Portal } from "./resources/portal";
 import { Posts } from "./resources/posts";
 import { Scan } from "./resources/scan";
@@ -150,6 +151,7 @@ export class Medal {
   readonly deals: Deals;
   readonly gdpr: Gdpr;
   readonly helpdesk: Helpdesk;
+  readonly ordering: Ordering;
   readonly portal: Portal;
   readonly posts: Posts;
   readonly scan: Scan;
@@ -178,7 +180,7 @@ export class Medal {
     );
 
     // Every resource that owns a confirmable write route gets the confirmer.
-    // Bookings, workspaces and the portal are absent from the server's
+    // Bookings, ordering, workspaces and the portal are absent from the server's
     // confirmable registry, so they take the plain client.
     this.bookings = new Bookings(client);
     this.channels = new Channels(client, confirmer);
@@ -187,6 +189,7 @@ export class Medal {
     this.deals = new Deals(client, confirmer);
     this.gdpr = new Gdpr(client, confirmer);
     this.helpdesk = new Helpdesk(client, confirmer);
+    this.ordering = new Ordering(client);
     this.portal = new Portal(client);
     this.posts = new Posts(client, confirmer);
     this.scan = new Scan(client);
@@ -196,7 +199,11 @@ export class Medal {
 }
 
 export { CapabilityConfirmer } from "./capability-confirmer";
-export type { RequestOptions } from "./client";
+export type {
+  ConditionalGetOptions,
+  ConditionalResponse,
+  RequestOptions,
+} from "./client";
 export { BaseClient, backoffDelayMs, paginate, parseRetryAfterMs } from "./client";
 export type {
   components as OpenApiComponents,
@@ -213,6 +220,8 @@ export { Deals } from "./resources/deals";
 export { Emails } from "./resources/emails";
 export { Gdpr } from "./resources/gdpr";
 export { Helpdesk } from "./resources/helpdesk";
+export type { OrderingReadOptions } from "./resources/ordering";
+export { Ordering } from "./resources/ordering";
 export { Portal, PortalSessionScope } from "./resources/portal";
 export { Posts } from "./resources/posts";
 export { Scan } from "./resources/scan";
@@ -399,6 +408,19 @@ export type {
   ReplyCreateResult,
   UpdateConversationInput,
 } from "./types/helpdesk";
+export type {
+  OrderingAllergen,
+  OrderingChannel,
+  OrderingDietary,
+  OrderingInstantInput,
+  OrderingMenu,
+  OrderingMenuCategory,
+  OrderingMenuItem,
+  OrderingMenuOptions,
+  OrderingMenuResult,
+  OrderingModifierGroup,
+  OrderingModifierOption,
+} from "./types/ordering";
 export type {
   PortalBooking,
   PortalBookingStatus,
