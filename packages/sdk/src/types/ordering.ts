@@ -42,8 +42,8 @@ export interface OrderingMenuOptions {
   /** Which channel to read the menu for. */
   channel: OrderingChannel;
   /**
-   * Ordering location id. Accepted but ignored by the API until multi-location
-   * ordering ships.
+   * Ordering location id from `ordering.locations()`. Dishes and options sold
+   * out at that location carry `sold_out: true`; an unknown id is ignored.
    */
   location?: string;
   /**

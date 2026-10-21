@@ -6680,7 +6680,7 @@ export interface operations {
     parameters: {
       query: {
         channel: components["schemas"]["OrderingChannel"];
-        /** @description Ordering location id. Accepted but ignored until multi-location ordering ships; optional while a workspace has one location. */
+        /** @description Ordering location id from GET /api/v1/ordering/locations. Dishes and options sold out at that location carry sold_out: true; an unknown or other-workspace id is ignored. */
         location?: string;
         /** @description Instant to evaluate the menu at: an ISO 8601 date-time with `Z` or an explicit offset, or Unix milliseconds as digits only. Must lie between one day ago and 60 days ahead; anything else is a 400 `VALIDATION_ERROR`. Defaults to now. Use it to show the menu for a scheduled pickup or delivery time. */
         at?: string;

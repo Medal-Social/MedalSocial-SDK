@@ -2585,8 +2585,9 @@ paths:
         - name: location
           in: query
           description: >-
-            Ordering location id. Accepted but ignored until multi-location
-            ordering ships; optional while a workspace has one location.
+            Ordering location id from GET /api/v1/ordering/locations. Dishes and
+            options sold out at that location carry sold_out: true; an unknown or
+            other-workspace id is ignored.
           schema:
             type: string
             maxLength: 64
