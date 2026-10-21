@@ -1630,46 +1630,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/ordering/locations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * List ordering locations
-     * @description Requires `ordering.storefront.read`. Every location that takes online orders (up to 50), with each channel's state right now: `enabled` (offered at all), `open` (takes orders now), and when closed the `reason` and the next `opens_at`. Instants are ISO 8601 UTC; render them in `time_zone`. Optional fields are omitted, never null. The response is `Cache-Control: private, no-store`.
-     */
-    get: operations["listOrderingLocations"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/ordering/slots": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * List pickup or delivery slots
-     * @description Requires `ordering.storefront.read`. The slots a guest can pick on one service date for one channel: windows that open on that date, so the after-midnight part of an overnight evening is listed under the evening it opened; today also keeps a window still open from yesterday. Today starts after the current prep time (busy mode and a timed pause included); a later date starts at opening. A slot never starts after closing minus the order cutoff. `date` is in the workspace time zone and must be today through today + `preorder_days`, else 400 `VALIDATION_ERROR`. An unknown location is 404 `NOT_FOUND`. A channel that is off, delivery without a delivery venue, or a closed day gives an empty list. The response is `Cache-Control: private, no-store`.
-     */
-    get: operations["listOrderingSlots"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3804,7 +3764,7 @@ export interface components {
      */
     ChannelType: "telegram_inbox" | "linkedin";
     /**
-     * @description An ordering channel. Closed.
+     * @description The channel a menu is read for. Closed.
      * @enum {string}
      */
     OrderingChannel: "dine_in" | "takeaway" | "delivery";
@@ -3886,83 +3846,6 @@ export interface components {
     };
     ApiResponse_OrderingMenu: {
       data: components["schemas"]["OrderingMenu"];
-    };
-    /**
-     * @description Why a channel is not open right now. Closed.
-     * @enum {string}
-     */
-    OrderingChannelReason: "closed" | "cutoff" | "paused" | "kitchen_closed" | "delivery_off";
-    /** @description One channel of a location, right now. Optional fields are omitted, never null. */
-    OrderingChannelState: {
-      /** @description The restaurant offers this channel at all. */
-      enabled: boolean;
-      /** @description Takes orders right now. */
-      open: boolean;
-      reason?: components["schemas"]["OrderingChannelReason"];
-      /**
-       * Format: date-time
-       * @description Next time it takes orders, within 8 days. Omitted when unknown.
-       */
-      opens_at?: string;
-      /** Format: date-time */
-      closes_at?: string;
-      /**
-       * Format: date-time
-       * @description `closes_at` minus the order cutoff.
-       */
-      last_order_at?: string;
-    };
-    OrderingLocationAddress: {
-      lines: string[];
-      locality: string;
-      postal_code: string;
-      /** @description ISO 3166-1 alpha-2. */
-      region_code: string;
-    };
-    OrderingLocationChannels: {
-      dine_in: components["schemas"]["OrderingChannelState"];
-      takeaway: components["schemas"]["OrderingChannelState"];
-      delivery: components["schemas"]["OrderingChannelState"];
-    };
-    OrderingPaymentMethods: {
-      vipps: boolean;
-      pay_at_counter: boolean;
-    };
-    OrderingLocation: {
-      /** @description Pass as `location` to `GET /api/v1/ordering/slots`. */
-      id: string;
-      name: string;
-      address: components["schemas"]["OrderingLocationAddress"];
-      channels: components["schemas"]["OrderingLocationChannels"];
-      payment_methods: components["schemas"]["OrderingPaymentMethods"];
-      /** @description How many days ahead a slot can be booked: 0 (today only) to 7. */
-      preorder_days: number;
-      slot_minutes: number;
-    };
-    OrderingLocations: {
-      /** @description IANA zone of the workspace. */
-      time_zone: string;
-      locations: components["schemas"]["OrderingLocation"][];
-    };
-    ApiResponse_OrderingLocations: {
-      data: components["schemas"]["OrderingLocations"];
-    };
-    OrderingSlot: {
-      /** Format: date-time */
-      start: string;
-      /** Format: date-time */
-      end: string;
-    };
-    OrderingSlots: {
-      location_id: string;
-      channel: components["schemas"]["OrderingChannel"];
-      /** Format: date */
-      date: string;
-      time_zone: string;
-      slots: components["schemas"]["OrderingSlot"][];
-    };
-    ApiResponse_OrderingSlots: {
-      data: components["schemas"]["OrderingSlots"];
     };
   };
   responses: {
@@ -6714,56 +6597,6 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
-      };
-      default: components["responses"]["ApiError"];
-    };
-  };
-  listOrderingLocations: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Ordering locations. */
-      200: {
-        headers: {
-          "Cache-Control"?: "private, no-store";
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ApiResponse_OrderingLocations"];
-        };
-      };
-      default: components["responses"]["ApiError"];
-    };
-  };
-  listOrderingSlots: {
-    parameters: {
-      query: {
-        /** @description Location id from `GET /api/v1/ordering/locations`. */
-        location: string;
-        channel: components["schemas"]["OrderingChannel"];
-        /** @description Local service date in the workspace time zone, `yyyy-mm-dd`. */
-        date: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Slots of that date. */
-      200: {
-        headers: {
-          "Cache-Control"?: "private, no-store";
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ApiResponse_OrderingSlots"];
-        };
       };
       default: components["responses"]["ApiError"];
     };
