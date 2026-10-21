@@ -76,8 +76,8 @@ export interface RequestOptions {
 /** Options for {@link BaseClient.getConditional}. */
 export type ConditionalGetOptions = Pick<RequestOptions, "headers" | "signal" | "retry"> & {
   /**
-   * An ETag from an earlier response, sent verbatim as `If-None-Match`. A
-   * blank value counts as none.
+   * An ETag from an earlier response. It is trimmed of surrounding
+   * whitespace and sent as `If-None-Match`. A blank value counts as none.
    */
   ifNoneMatch?: string;
 };
@@ -299,7 +299,7 @@ export class BaseClient {
   /**
    * Execute an authenticated conditional GET.
    *
-   * Sends `ifNoneMatch` as `If-None-Match` and treats `304 Not Modified` as a
+   * Sends the trimmed `ifNoneMatch` as `If-None-Match` and treats `304 Not Modified` as a
    * success rather than an error, so a caller holding a cached copy can
    * revalidate it without downloading it again. Every other non-2xx status
    * still throws {@link MedalApiError}.

@@ -215,7 +215,7 @@ function makeResolver(document) {
  * @param {number} [depth]
  */
 function collectSchemaFacts(schema, resolveNode, prefix, out, depth = 0) {
-  if (depth > 8) return;
+  if (depth > 10) return;
   const node = resolveNode(schema);
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node.enum)) {

@@ -1,5 +1,5 @@
 {
-  "note": "Generated surface snapshot of the Medal API's published OpenAPI document — paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
+  "note": "Generated surface snapshot of the Medal API's published OpenAPI document \u2014 paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
   "generated_at": "2026-09-29",
   "source": "C:/Users/ali-ws/Downloads/medal-monorepo/.claude/worktrees/exciting-jennings-4b7075/apps/web/src/lib/openapi-spec.ts",
   "operation_count": 104,
@@ -1145,6 +1145,21 @@
         "responses.200.data.categories[].items[].modifier_groups[].min_select#type": ["integer"],
         "responses.200.data.categories[].items[].modifier_groups[].max_select#type": ["integer"],
         "responses.200.data.categories[].items[].modifier_groups[].options#type": ["array"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[]#type": ["object"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].id#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].name#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].price_delta_ore#type": [
+          "integer"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].allergens#type": [
+          "array"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].vat_bp#type": [
+          "integer"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].sold_out#type": [
+          "boolean"
+        ],
         "responses.200.data.etag#type": ["string"],
         "responses.200.data.channel": ["delivery", "dine_in", "takeaway"],
         "responses.200.data.at#type": ["string"]

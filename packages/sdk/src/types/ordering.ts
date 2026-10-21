@@ -54,7 +54,7 @@ export interface OrderingMenuOptions {
   /**
    * The `etag` of a menu you already hold. When it is still current the call
    * resolves `{ notModified: true }` without downloading the menu again.
-   * Opaque — pass back exactly what an earlier call returned.
+   * Opaque — pass back what an earlier call returned; surrounding whitespace is trimmed before it is sent.
    */
   ifNoneMatch?: string;
 }

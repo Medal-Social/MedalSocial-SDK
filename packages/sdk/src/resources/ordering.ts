@@ -78,7 +78,7 @@ export class Ordering {
     if (res.notModified) {
       // A 304 only answers an If-None-Match, so the tag we sent is current
       // even when a proxy stripped the header from the response.
-      return { notModified: true, etag: res.etag ?? options.ifNoneMatch ?? "" };
+      return { notModified: true, etag: res.etag ?? options.ifNoneMatch?.trim() ?? "" };
     }
     const menu = res.body.data;
     return { notModified: false, etag: res.etag ?? menu.etag, menu };
