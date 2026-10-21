@@ -73,6 +73,30 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+/** Options for {@link BaseClient.getConditional}. */
+export type ConditionalGetOptions = Pick<RequestOptions, "headers" | "signal" | "retry"> & {
+  /**
+   * An ETag from an earlier response. It is trimmed of surrounding
+   * whitespace and sent as `If-None-Match`. A blank value counts as none.
+   */
+  ifNoneMatch?: string;
+};
+
+/**
+ * What {@link BaseClient.getConditional} resolves to: the parsed body and its
+ * `ETag`, or — when the server answered `304 Not Modified` — the `ETag` alone.
+ */
+export type ConditionalResponse<T> =
+  | { notModified: false; etag: string | null; body: T }
+  | { notModified: true; etag: string | null };
+
+/** The parts of a settled response {@link BaseClient} hands back internally. */
+interface SettledResponse<T> {
+  status: number;
+  headers: Headers;
+  body: T;
+}
+
 /** First backoff step, doubled per attempt. */
 const RETRY_BASE_DELAY_MS = 250;
 /** Fraction of the backoff each attempt is spread over, either way. */
@@ -272,6 +296,38 @@ export class BaseClient {
     return this.request<T>(url, { method: "GET", headers: options?.headers }, options);
   }
 
+  /**
+   * Execute an authenticated conditional GET.
+   *
+   * Sends the trimmed `ifNoneMatch` as `If-None-Match` and treats `304 Not Modified` as a
+   * success rather than an error, so a caller holding a cached copy can
+   * revalidate it without downloading it again. Every other non-2xx status
+   * still throws {@link MedalApiError}.
+   */
+  async getConditional<T>(
+    path: string,
+    params?: Record<string, string | undefined>,
+    options?: ConditionalGetOptions,
+  ): Promise<ConditionalResponse<T>> {
+    // Lower-cased for the same reason as in `writeHeaders`: a bag entry spelt
+    // `If-None-Match` must be replaced, not joined, by the named option.
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(options?.headers ?? {})) {
+      headers[key.toLowerCase()] = value;
+    }
+    const ifNoneMatch = options?.ifNoneMatch?.trim();
+    if (ifNoneMatch) headers["if-none-match"] = ifNoneMatch;
+    const res = await this.send<T>(
+      this.buildUrl(path, params),
+      { method: "GET", headers },
+      options,
+      true,
+    );
+    const etag = res.headers.get("etag");
+    if (res.status === 304) return { notModified: true, etag };
+    return { notModified: false, etag, body: res.body };
+  }
+
   /** Execute an authenticated POST request with a JSON body. */
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>(
@@ -383,6 +439,19 @@ export class BaseClient {
     init: RequestInit,
     control?: Pick<RequestOptions, "retry" | "signal">,
   ): Promise<T> {
+    return (await this.send<T>(url, init, control)).body;
+  }
+
+  /**
+   * The request loop. `acceptNotModified` lets a conditional GET receive its
+   * `304` instead of having it thrown as an error.
+   */
+  private async send<T>(
+    url: string,
+    init: RequestInit,
+    control?: Pick<RequestOptions, "retry" | "signal">,
+    acceptNotModified = false,
+  ): Promise<SettledResponse<T>> {
     const maxAttempts = control?.retry === false ? 1 : 3;
     const callerSignal = control?.signal;
 
@@ -508,7 +577,7 @@ export class BaseClient {
         parsed = text;
       }
 
-      if (!res.ok) {
+      if (!res.ok && !(acceptNotModified && res.status === 304)) {
         const body = parsed as
           | { error?: string | { code?: string; message?: string; details?: unknown } }
           | undefined;
@@ -534,7 +603,7 @@ export class BaseClient {
         );
       }
 
-      return parsed as T;
+      return { status: res.status, headers: res.headers, body: parsed as T };
     }
 
     /* v8 ignore next -- unreachable: loop always returns or throws */

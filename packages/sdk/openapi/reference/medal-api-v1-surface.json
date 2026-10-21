@@ -1,8 +1,8 @@
 {
-  "note": "Generated surface snapshot of the Medal API's published OpenAPI document — paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
+  "note": "Generated surface snapshot of the Medal API's published OpenAPI document \u2014 paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
   "generated_at": "2026-09-29",
   "source": "C:/Users/ali-ws/Downloads/medal-monorepo/.claude/worktrees/exciting-jennings-4b7075/apps/web/src/lib/openapi-spec.ts",
-  "operation_count": 103,
+  "operation_count": 104,
   "operations": {
     "DELETE /api/v1/bookings/events/{id}": {
       "operationId": "deleteBookingEvent",
@@ -1088,6 +1088,81 @@
         "responses.200.data[].slug#type": ["string"],
         "responses.200.data[].role#type": ["string"],
         "responses.200.data[].created_at#type": ["string"]
+      }
+    },
+    "GET /api/v1/ordering/menu": {
+      "operationId": "getOrderingMenu",
+      "facts": {
+        "parameters.channel": ["delivery", "dine_in", "takeaway"],
+        "parameters.location#type": ["string"],
+        "parameters.at#type": ["string"],
+        "parameters.If-None-Match#type": ["string"],
+        "responses.200#type": ["object"],
+        "responses.200.data#type": ["object"],
+        "responses.200.data.categories#type": ["array"],
+        "responses.200.data.categories[]#type": ["object"],
+        "responses.200.data.categories[].id#type": ["string"],
+        "responses.200.data.categories[].name#type": ["string"],
+        "responses.200.data.categories[].items#type": ["array"],
+        "responses.200.data.categories[].items[]#type": ["object"],
+        "responses.200.data.categories[].items[].id#type": ["string"],
+        "responses.200.data.categories[].items[].name#type": ["string"],
+        "responses.200.data.categories[].items[].description#type": ["string"],
+        "responses.200.data.categories[].items[].price_ore#type": ["integer"],
+        "responses.200.data.categories[].items[].vat_bp#type": ["integer"],
+        "responses.200.data.categories[].items[].image_url#type": ["string"],
+        "responses.200.data.categories[].items[].allergens#type": ["array"],
+        "responses.200.data.categories[].items[].allergens[]": [
+          "celery",
+          "crustaceans",
+          "eggs",
+          "fish",
+          "gluten",
+          "lupin",
+          "milk",
+          "molluscs",
+          "mustard",
+          "nuts",
+          "peanuts",
+          "sesame",
+          "soybeans",
+          "sulphites"
+        ],
+        "responses.200.data.categories[].items[].dietary#type": ["array"],
+        "responses.200.data.categories[].items[].dietary[]": [
+          "gluten_free",
+          "halal",
+          "lactose_free",
+          "spicy",
+          "vegan",
+          "vegetarian"
+        ],
+        "responses.200.data.categories[].items[].sold_out#type": ["boolean"],
+        "responses.200.data.categories[].items[].modifier_groups#type": ["array"],
+        "responses.200.data.categories[].items[].modifier_groups[]#type": ["object"],
+        "responses.200.data.categories[].items[].modifier_groups[].id#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].name#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].min_select#type": ["integer"],
+        "responses.200.data.categories[].items[].modifier_groups[].max_select#type": ["integer"],
+        "responses.200.data.categories[].items[].modifier_groups[].options#type": ["array"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[]#type": ["object"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].id#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].name#type": ["string"],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].price_delta_ore#type": [
+          "integer"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].allergens#type": [
+          "array"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].vat_bp#type": [
+          "integer"
+        ],
+        "responses.200.data.categories[].items[].modifier_groups[].options[].sold_out#type": [
+          "boolean"
+        ],
+        "responses.200.data.etag#type": ["string"],
+        "responses.200.data.channel": ["delivery", "dine_in", "takeaway"],
+        "responses.200.data.at#type": ["string"]
       }
     },
     "GET /api/v1/portal/me": {

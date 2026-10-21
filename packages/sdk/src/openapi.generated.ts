@@ -1610,6 +1610,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/ordering/menu": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get the online menu
+     * @description Requires `ordering.storefront.read`. What a guest can order on one channel at one instant: active dishes switched on for the channel, in open categories and time windows, with their modifier groups. A sold-out dish or option stays listed with `sold_out: true`. VAT (`vat_bp`) is the rate for the channel (dine-in vs takeaway/delivery). The response carries a weak ETag (`W/"<16 hex>"`); treat it as opaque and send it back verbatim in `If-None-Match` to get 304 with no body when the menu has not changed. The response is `Cache-Control: private, no-store`, so revalidate from your own stored ETag.
+     */
+    get: operations["getOrderingMenu"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3743,6 +3763,90 @@ export interface components {
      * @enum {string}
      */
     ChannelType: "telegram_inbox" | "linkedin";
+    /**
+     * @description The channel a menu is read for. Closed.
+     * @enum {string}
+     */
+    OrderingChannel: "dine_in" | "takeaway" | "delivery";
+    /**
+     * @description The 14 EU-declarable allergens (Regulation 1169/2011, Annex II). Closed.
+     * @enum {string}
+     */
+    OrderingAllergen:
+      | "gluten"
+      | "crustaceans"
+      | "eggs"
+      | "fish"
+      | "peanuts"
+      | "soybeans"
+      | "milk"
+      | "nuts"
+      | "celery"
+      | "mustard"
+      | "sesame"
+      | "sulphites"
+      | "lupin"
+      | "molluscs";
+    /**
+     * @description Dietary labels a dish can carry. Closed.
+     * @enum {string}
+     */
+    OrderingDietary: "vegan" | "vegetarian" | "gluten_free" | "lactose_free" | "halal" | "spicy";
+    OrderingModifierOption: {
+      id: string;
+      name: string;
+      /** @description Added to the dish price, in integer øre. */
+      price_delta_ore: number;
+      allergens: components["schemas"]["OrderingAllergen"][];
+      /** @description VAT for the requested channel, in basis points (1500 = 15 %). */
+      vat_bp: number;
+      sold_out: boolean;
+    };
+    OrderingModifierGroup: {
+      id: string;
+      name: string;
+      min_select: number;
+      max_select: number;
+      options: components["schemas"]["OrderingModifierOption"][];
+    };
+    OrderingMenuItem: {
+      id: string;
+      name: string;
+      /** @description Omitted when the dish has none. */
+      description?: string;
+      /** @description Price in integer øre, VAT included. */
+      price_ore: number;
+      /** @description VAT for the requested channel, in basis points (1500 = 15 %). */
+      vat_bp: number;
+      /**
+       * Format: uri
+       * @description Omitted when the dish has no image.
+       */
+      image_url?: string;
+      allergens: components["schemas"]["OrderingAllergen"][];
+      dietary: components["schemas"]["OrderingDietary"][];
+      sold_out: boolean;
+      modifier_groups: components["schemas"]["OrderingModifierGroup"][];
+    };
+    OrderingMenuCategory: {
+      id: string;
+      name: string;
+      items: components["schemas"]["OrderingMenuItem"][];
+    };
+    OrderingMenu: {
+      categories: components["schemas"]["OrderingMenuCategory"][];
+      /** @description Same value as the `ETag` response header. */
+      etag: string;
+      channel: components["schemas"]["OrderingChannel"];
+      /**
+       * Format: date-time
+       * @description The instant evaluated (ISO 8601).
+       */
+      at: string;
+    };
+    ApiResponse_OrderingMenu: {
+      data: components["schemas"]["OrderingMenu"];
+    };
   };
   responses: {
     /** @description API error. */
@@ -6451,6 +6555,48 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["ApiResponse_ScanJob"];
         };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getOrderingMenu: {
+    parameters: {
+      query: {
+        channel: components["schemas"]["OrderingChannel"];
+        /** @description Ordering location id. Accepted but ignored until multi-location ordering ships; optional while a workspace has one location. */
+        location?: string;
+        /** @description Instant to evaluate the menu at: an ISO 8601 date-time with `Z` or an explicit offset, or Unix milliseconds as digits only. Must lie between one day ago and 60 days ahead; anything else is a 400 `VALIDATION_ERROR`. Defaults to now. Use it to show the menu for a scheduled pickup or delivery time. */
+        at?: string;
+      };
+      header?: {
+        /** @description An ETag from an earlier response. */
+        "If-None-Match"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The menu. */
+      200: {
+        headers: {
+          /** @description Weak ETag of the menu (`W/"<16 hex>"`). Opaque. */
+          ETag?: string;
+          "Cache-Control"?: "private, no-store";
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingMenu"];
+        };
+      };
+      /** @description Not modified — the `If-None-Match` ETag is still current. No body. */
+      304: {
+        headers: {
+          ETag?: string;
+          "Cache-Control"?: "private, no-store";
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       default: components["responses"]["ApiError"];
     };
