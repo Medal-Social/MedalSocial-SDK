@@ -2633,6 +2633,84 @@ paths:
                 enum: ["private, no-store"]
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/locations:
+    get:
+      tags: [Ordering]
+      operationId: listOrderingLocations
+      summary: List ordering locations
+      description: >-
+        Requires `ordering.storefront.read`. Every location that takes online
+        orders (up to 50), with each channel's state right now: `enabled`
+        (offered at all), `open` (takes orders now), and when closed the
+        `reason` and the next `opens_at`. Instants are ISO 8601 UTC; render
+        them in `time_zone`. Optional fields are omitted, never null. The
+        response is `Cache-Control: private, no-store`.
+      responses:
+        "200":
+          description: Ordering locations.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingLocations"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/slots:
+    get:
+      tags: [Ordering]
+      operationId: listOrderingSlots
+      summary: List pickup or delivery slots
+      description: >-
+        Requires `ordering.storefront.read`. The slots a guest can pick on one
+        service date for one channel: windows that open on that date, so the
+        after-midnight part of an overnight evening is listed under the
+        evening it opened; today also keeps a window still open from
+        yesterday. Today starts after the current prep time (busy mode and a
+        timed pause included); a later date starts at opening. A slot never
+        starts after closing minus the order cutoff. `date` is in the
+        workspace time zone and must be today through today +
+        `preorder_days`, else 400 `VALIDATION_ERROR`. An unknown location is
+        404 `NOT_FOUND`. A channel that is off, delivery without a delivery
+        venue, or a closed day gives an empty list. The response is
+        `Cache-Control: private, no-store`.
+      parameters:
+        - name: location
+          in: query
+          required: true
+          description: Location id from `GET /api/v1/ordering/locations`.
+          schema:
+            type: string
+            maxLength: 64
+        - name: channel
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/OrderingChannel"
+        - name: date
+          in: query
+          required: true
+          description: Local service date in the workspace time zone, `yyyy-mm-dd`.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Slots of that date.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingSlots"
+        default:
+          $ref: "#/components/responses/ApiError"
 components:
   securitySchemes:
     bearerAuth:
@@ -7306,7 +7384,7 @@ components:
       type: string
       enum: [telegram_inbox, linkedin]
     OrderingChannel:
-      description: The channel a menu is read for. Closed.
+      description: An ordering channel. Closed.
       type: string
       enum: [dine_in, takeaway, delivery]
     OrderingAllergen:
@@ -7424,3 +7502,136 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/OrderingMenu"
+    OrderingChannelReason:
+      description: Why a channel is not open right now. Closed.
+      type: string
+      enum: [closed, cutoff, paused, kitchen_closed, delivery_off]
+    OrderingChannelState:
+      description: >-
+        One channel of a location, right now. Optional fields are omitted,
+        never null.
+      type: object
+      required: [enabled, open]
+      properties:
+        enabled:
+          description: The restaurant offers this channel at all.
+          type: boolean
+        open:
+          description: Takes orders right now.
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/OrderingChannelReason"
+        opens_at:
+          description: Next time it takes orders, within 8 days. Omitted when unknown.
+          type: string
+          format: date-time
+        closes_at:
+          type: string
+          format: date-time
+        last_order_at:
+          description: "`closes_at` minus the order cutoff."
+          type: string
+          format: date-time
+    OrderingLocationAddress:
+      type: object
+      required: [lines, locality, postal_code, region_code]
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+        locality:
+          type: string
+        postal_code:
+          type: string
+        region_code:
+          description: ISO 3166-1 alpha-2.
+          type: string
+    OrderingLocationChannels:
+      type: object
+      required: [dine_in, takeaway, delivery]
+      properties:
+        dine_in:
+          $ref: "#/components/schemas/OrderingChannelState"
+        takeaway:
+          $ref: "#/components/schemas/OrderingChannelState"
+        delivery:
+          $ref: "#/components/schemas/OrderingChannelState"
+    OrderingPaymentMethods:
+      type: object
+      required: [vipps, pay_at_counter]
+      properties:
+        vipps:
+          type: boolean
+        pay_at_counter:
+          type: boolean
+    OrderingLocation:
+      type: object
+      required: [id, name, address, channels, payment_methods, preorder_days, slot_minutes]
+      properties:
+        id:
+          description: Pass as `location` to `GET /api/v1/ordering/slots`.
+          type: string
+        name:
+          type: string
+        address:
+          $ref: "#/components/schemas/OrderingLocationAddress"
+        channels:
+          $ref: "#/components/schemas/OrderingLocationChannels"
+        payment_methods:
+          $ref: "#/components/schemas/OrderingPaymentMethods"
+        preorder_days:
+          description: "How many days ahead a slot can be booked: 0 (today only) to 7."
+          type: integer
+        slot_minutes:
+          type: integer
+    OrderingLocations:
+      type: object
+      required: [time_zone, locations]
+      properties:
+        time_zone:
+          description: IANA zone of the workspace.
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingLocation"
+    ApiResponse_OrderingLocations:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingLocations"
+    OrderingSlot:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+    OrderingSlots:
+      type: object
+      required: [location_id, channel, date, time_zone, slots]
+      properties:
+        location_id:
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        date:
+          type: string
+          format: date
+        time_zone:
+          type: string
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingSlot"
+    ApiResponse_OrderingSlots:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingSlots"

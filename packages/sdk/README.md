@@ -656,6 +656,21 @@ if (!first.notModified) render(first.menu.categories);
 // and revalidate with the opaque ETag. A 304 resolves `notModified: true`.
 const next = await medal.ordering.menu({ channel: 'takeaway', ifNoneMatch: first.etag });
 const menu = next.notModified ? cachedMenu : next.menu;
+
+// Locations and each channel's state right now (open, or closed with a
+// reason and the next opens_at). Instants are ISO UTC; render in time_zone.
+const { data } = await medal.ordering.locations();
+const loc = data.locations[0];
+if (!loc.channels.takeaway.open) showClosed(loc.channels.takeaway.reason);
+
+// Pickup/delivery slots for one service date (yyyy-mm-dd in the workspace
+// time zone, today … today + preorder_days). 404 for an unknown location.
+const { data: day } = await medal.ordering.slots({
+  location: loc.id,
+  channel: 'takeaway',
+  date: '2026-10-21',
+});
+render(day.slots); // [{ start, end }]
 ```
 
 ### Helpdesk
@@ -1154,7 +1169,7 @@ role floor.
 | `channels.connectLinks.*`, `channels.connections.disconnect` | `channel.connect.manage` | **admin** |
 | `bookings.events.remove` | `write:bookings` | **admin** |
 | `gdpr.requestExport`, `gdpr.listExports`, `gdpr.getExport` | `compliance.gdpr.export` | **owner** |
-| `ordering.menu` | `ordering.storefront.read` (workspace API key) | — |
+| `ordering.menu`, `ordering.locations`, `ordering.slots` | `ordering.storefront.read` (workspace API key) | — |
 
 A credential below the floor answers `403 FORBIDDEN`.
 

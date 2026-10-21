@@ -1,9 +1,10 @@
 /**
  * Official TypeScript SDK for the Medal Social API.
  *
- * Provides typed access to posts, emails, contacts, deals, bookings, the
- * restaurant online-ordering menu, the customer portal, GDPR compliance, helpdesk conversations, partner channel
- * connect, webhooks, and workspace management. Works in
+ * Provides typed access to posts, emails, contacts, deals, bookings,
+ * restaurant online ordering (menu, locations, slots), the customer portal,
+ * GDPR compliance, helpdesk conversations, partner channel connect,
+ * webhooks, and workspace management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
  *
  * @example
@@ -411,8 +412,14 @@ export type {
 export type {
   OrderingAllergen,
   OrderingChannel,
+  OrderingChannelReason,
+  OrderingChannelState,
   OrderingDietary,
   OrderingInstantInput,
+  OrderingLocation,
+  OrderingLocationAddress,
+  OrderingLocationChannels,
+  OrderingLocations,
   OrderingMenu,
   OrderingMenuCategory,
   OrderingMenuItem,
@@ -420,6 +427,10 @@ export type {
   OrderingMenuResult,
   OrderingModifierGroup,
   OrderingModifierOption,
+  OrderingPaymentMethods,
+  OrderingSlot,
+  OrderingSlots,
+  OrderingSlotsOptions,
 } from "./types/ordering";
 export type {
   PortalBooking,
