@@ -31,7 +31,7 @@ import { Medal } from "@medalsocial/sdk";
 const medal = new Medal("medal_xxx");
 
 // OAuth access token (requires workspaceId — OAuth tokens span workspaces)
-const medal = new Medal("oauth_access_token", {
+const medalForWorkspace = new Medal("oauth_access_token", {
   workspaceId: "workspace_id_here",
 });
 ```

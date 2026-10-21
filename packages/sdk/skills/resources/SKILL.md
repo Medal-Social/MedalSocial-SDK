@@ -384,7 +384,7 @@ The package ships OpenAPI-derived types via a dedicated subpath:
 import type { paths, components } from "@medalsocial/sdk/openapi-types";
 
 type GetContactsResponse =
-  paths["/contacts"]["get"]["responses"]["200"]["content"]["application/json"];
+  paths["/api/v1/contacts"]["get"]["responses"]["200"]["content"]["application/json"];
 
 type Contact = components["schemas"]["Contact"];
 ```
