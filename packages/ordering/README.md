@@ -11,7 +11,7 @@ ESM only, three entries:
 |---|---|
 | `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, labels. Runs in a browser, Node or a Worker. |
 | `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet) and `<ClosedNotice>`, with their nb/en words. Client components. |
-| `@medalsocial/ordering/next` | Reserved: the menu route handler. Server-only. |
+| `@medalsocial/ordering/next` | `createMenuRoute`: the menu route handler, cached and revalidated with Medal's ETag. Server-only. |
 
 ## `/core`
 
@@ -110,6 +110,58 @@ relative to that CSS file:
 ```css
 @source '../node_modules/@medalsocial/ordering/dist/react';
 ```
+
+## `/next`
+
+The browser never talks to Medal: the site serves the menu from its own route,
+with its workspace API key on the server.
+
+```ts
+// app/api/ordering/menu/route.ts
+import { createMenuRoute } from '@medalsocial/ordering/next';
+
+// Next segment config: keep in step with `revalidateSeconds` (default 60).
+export const revalidate = 60;
+
+export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
+```
+
+`GET /api/ordering/menu?c=takeaway` answers `200 { data: OrderingMenu }`.
+
+- **Channel** — `?channel=` or `?c=` (`dine_in`, `takeaway`, `delivery`, any
+  case); a `?t=` table link with neither means `dine_in`. With none, the
+  `defaultChannel` option (default `takeaway`). Any other value is a `400`.
+- **`?at=`** — read the menu as it will be at that instant (ISO 8601 with `Z`
+  or an offset, or Unix milliseconds). Passed to Medal, never cached on the
+  server; a malformed value is a `400`. No other query parameter is forwarded;
+  `location` is an option, never read from the request.
+- **Caching** — the server keeps the last menu per channel and asks Medal
+  again at most every `revalidateSeconds`, with `If-None-Match`; a `304` from
+  Medal keeps the menu. Concurrent requests share one Medal call. The response
+  carries Medal's `ETag` and
+  `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`, and an
+  `If-None-Match` that still matches gets a `304`. Medal marks the menu
+  `private` because it answers per API key; this route has no key on the way
+  in and every visitor sees the same public menu, so a CDN may keep it.
+- **Store** — in-process by default. Pass `store: { get, set }` to share it
+  (KV, Redis); a store that throws counts as a miss.
+- **Errors** — `{ error: { code, message } }` with fixed words, `Cache-Control:
+  no-store`, never the key, Medal's message or an upstream URL:
+
+  | Case | Status | `code` |
+  |---|---|---|
+  | Bad `channel` / `at` | 400 | `INVALID_CHANNEL` / `INVALID_AT` |
+  | Medal refused the request (400) | 400 | `INVALID_REQUEST` |
+  | Workspace has no online ordering | 404 | `ORDERING_NOT_ENABLED` |
+  | No API key | 500 | `NOT_CONFIGURED` |
+  | Medal rate-limited the site (429) | 503 | `MENU_UNAVAILABLE` |
+  | Anything else (5xx, network, timeout, auth) | 502 | `MENU_UNAVAILABLE` |
+
+  `ORDERING_NOT_ENABLED` is a 404, not a 503: there is no menu to find, and a
+  503 invites retries for something that will not recover by itself. When a
+  menu is cached, a failed revalidation serves it instead (stale-if-error) and
+  Medal is asked again a window later. `onError` sees every failed Medal read,
+  for the site's logger.
 
 ## License
 

@@ -8,6 +8,7 @@
 //    and imports no package but React (meda and lucide are not peers here).
 // 3. `dist/next/index.mjs` imports `server-only`, so a client component that
 //    reaches for it fails the consumer's build.
+// 4. No module under `dist/next` imports `next` at runtime.
 //
 // The source-level guard is tests/core/boundary.test.ts; this one catches a
 // bundler that inlines, renames or reorders something on the way to dist/.
@@ -83,6 +84,17 @@ for (const file of readdirSync(reactDir, { recursive: true })) {
 
 if (!specifiersOf(readFileSync(join(dist, 'next/index.mjs'), 'utf8')).includes('server-only')) {
   errors.push('dist/next/index.mjs does not import server-only');
+}
+
+// 4. `/next` runs on Web `Request`/`Response` alone: `next` stays an optional peer.
+const nextDir = join(dist, 'next');
+for (const file of readdirSync(nextDir, { recursive: true })) {
+  if (!String(file).endsWith('.mjs')) continue;
+  const path = join(nextDir, String(file));
+  for (const specifier of specifiersOf(readFileSync(path, 'utf8'))) {
+    if (specifier === 'next' || specifier.startsWith('next/'))
+      errors.push(`dist/${relative(dist, path)} imports «${specifier}» at runtime`);
+  }
 }
 
 if (errors.length > 0) {
