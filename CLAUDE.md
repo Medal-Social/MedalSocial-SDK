@@ -14,6 +14,7 @@ and is never published.
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
 | `@medalsocial/booking` | `packages/booking` | npm only (provenance); published since 0.1.0, pre-1.0 — current version in `packages/booking/package.json` / its CHANGELOG |
+| `@medalsocial/ordering` | `packages/ordering` | none yet — `"private": true` at 0.0.0 until its first release PR |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
@@ -61,6 +62,20 @@ and is never published.
   until the release PR versions it.
   Public-repo rule: `tests/core/denylist.test.ts` fails on a customer or staff
   name anywhere in the package (hashed list, so the test names nobody).
+- **`@medalsocial/ordering`** is laid out exactly like booking: ESM-only,
+  unbundled, entries `./core`, `./react` (every `dist/react` module carries
+  `'use client'`) and `./next` (imports `server-only`). `/core` holds money in
+  øre, the `?t=`/`?c=` table and channel links, the per-location cart draft
+  (`localStorage`, ids and choices only, with the order's idempotency key),
+  the modifier rules and the allergen/dietary labels. The modifier rules are
+  the Medal API's own (same checks, same order, same reason names) — change
+  them only together with the server. Cart totals, VAT, checkout and payment
+  are the server's. Same guards as booking: Biome `noRestrictedImports` and
+  `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
+  entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
+  `tests/core/denylist.test.ts`. It is `"private": true` until its first
+  release PR flips it (as booking's #169 did); its changesets accumulate
+  until then.
 - The published tarball must not change when files move around the workspace:
   compare `npm pack --dry-run --json` file lists and `package.json#exports`
   before and after, and the `jsr publish --dry-run` file set.
