@@ -4,7 +4,8 @@
 // 1. `dist/core` imports in a bare Node process — no DOM, no bundler, no React —
 //    and imports no package at runtime (the SDK is types only and must not
 //    appear at runtime at all).
-// 2. Every module under `dist/react` starts with the 'use client' directive.
+// 2. Every module under `dist/react` starts with the 'use client' directive,
+//    and imports no package but React (meda and lucide are not peers here).
 // 3. `dist/next/index.mjs` imports `server-only`, so a client component that
 //    reaches for it fails the consumer's build.
 //
@@ -66,12 +67,18 @@ try {
   errors.push(`dist/core does not import in bare Node: ${String(error)}`);
 }
 
+const REACT_RUNTIME = new Set(['react', 'react/jsx-runtime']);
 const reactDir = join(dist, 'react');
 for (const file of readdirSync(reactDir, { recursive: true })) {
   if (!String(file).endsWith('.mjs')) continue;
   const path = join(reactDir, String(file));
-  if (!readFileSync(path, 'utf8').startsWith("'use client';"))
+  const source = readFileSync(path, 'utf8');
+  if (!source.startsWith("'use client';"))
     errors.push(`dist/${relative(dist, path)} lacks its 'use client' directive`);
+  for (const specifier of specifiersOf(source)) {
+    if (!specifier.startsWith('.') && !REACT_RUNTIME.has(specifier))
+      errors.push(`dist/${relative(dist, path)} imports «${specifier}» at runtime`);
+  }
 }
 
 if (!specifiersOf(readFileSync(join(dist, 'next/index.mjs'), 'utf8')).includes('server-only')) {

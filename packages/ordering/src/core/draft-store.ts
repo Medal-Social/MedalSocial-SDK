@@ -19,9 +19,10 @@
  * during the server render, Safari private mode, a full quota — the store
  * keeps the draft in memory instead, so the cart and its key still last as
  * long as the page: the mutators build on the last draft they wrote, and
- * `loadDraft()` returns it once storage has failed in the browser. (It stays
- * `null` without a `window`, so a store shared by server renders never hands
- * one request's cart to another.) While storage works it is the only source,
+ * `loadDraft()` returns it once storage has failed in the browser. (`loadDraft()`
+ * stays `null` without a `window`, so it never hands one server render's cart
+ * to another; the mutators still build on the store's memory, so create a
+ * store per request on the server.) While storage works it is the only source,
  * so another tab's `clearDraft()` is not undone from memory. A draft older
  * than a day is forgotten; the menu, and the guest's appetite, have moved on.
  */

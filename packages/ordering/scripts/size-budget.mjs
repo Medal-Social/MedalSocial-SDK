@@ -36,6 +36,14 @@ const BUDGETS = [
     contents: "export * from './dist/core/index.mjs';",
     gzipBytes: 3.8 * 1024,
   },
+  {
+    // Everything `/react` exports: the menu list, the dish sheet, the closed
+    // notice and the label packs, with the `/core` modules they reach. React
+    // is the consumer's. Measured 5.97 KB when introduced.
+    name: '@medalsocial/ordering/react — whole entry',
+    contents: "export * from './dist/react/index.mjs';",
+    gzipBytes: 6.9 * 1024,
+  },
 ];
 
 /** The fixture bundled and minified as a consumer would ship it. */

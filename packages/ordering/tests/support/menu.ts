@@ -1,5 +1,6 @@
 import type {
   OrderingAllergen,
+  OrderingMenu,
   OrderingMenuItem,
   OrderingModifierGroup,
   OrderingModifierOption,
@@ -60,4 +61,60 @@ export const BURGER: OrderingMenuItem = {
   dietary: [],
   sold_out: false,
   modifier_groups: [SIZE, EXTRAS],
+};
+
+/** Optional: no sauce, or one. */
+export const DIP: OrderingModifierGroup = {
+  id: 'dip',
+  name: 'Dip',
+  min_select: 0,
+  max_select: 1,
+  options: [option('garlic', 1000), option('chili', 1000, { soldOut: true })],
+};
+
+export const FRIES: OrderingMenuItem = {
+  id: 'fries',
+  name: 'Fries',
+  description: 'Crisp and salted.',
+  price_ore: 4_900,
+  vat_bp: 1500,
+  image_url: 'https://example.com/fries.jpg',
+  allergens: ['celery', 'mustard'],
+  dietary: ['vegan', 'gluten_free'],
+  sold_out: false,
+  modifier_groups: [DIP],
+};
+
+export const SOUP: OrderingMenuItem = {
+  id: 'soup',
+  name: 'Soup',
+  price_ore: 9_900,
+  vat_bp: 1500,
+  allergens: [],
+  dietary: [],
+  sold_out: true,
+  modifier_groups: [],
+};
+
+/** A dish with nothing to choose. */
+export const WATER: OrderingMenuItem = {
+  id: 'water',
+  name: 'Water',
+  price_ore: 2_500,
+  vat_bp: 2500,
+  allergens: [],
+  dietary: [],
+  sold_out: false,
+  modifier_groups: [],
+};
+
+export const MENU: OrderingMenu = {
+  categories: [
+    { id: 'mains', name: 'Mains', items: [BURGER, SOUP] },
+    { id: 'empty', name: 'Nothing here', items: [] },
+    { id: 'sides', name: 'Sides', items: [FRIES, WATER] },
+  ],
+  etag: 'v1',
+  channel: 'takeaway',
+  at: '2026-10-22T10:00:00.000Z',
 };

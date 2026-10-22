@@ -67,7 +67,12 @@ and is never published.
   `'use client'`) and `./next` (imports `server-only`). `/core` holds money in
   øre, the `?t=`/`?c=` table and channel links, the per-location cart draft
   (`localStorage`, ids and choices only, with the order's idempotency key),
-  the modifier rules and the allergen/dietary labels. The modifier rules are
+  the modifier rules and the allergen/dietary labels. `/react` holds
+  `MenuList`, `ItemSheet` and `ClosedNotice` (presentational, controlled by
+  props; nb/en words in `ORDERING_LABELS`/`mergeLabels`), native accessible
+  markup styled with Tailwind classes on the shadcn/meda colour tokens — no
+  meda or lucide dependency, and `verify:paths` refuses any runtime import
+  in `dist/react` but React. The modifier rules are
   the Medal API's own (same checks, same order, same reason names) — change
   them only together with the server. Cart totals, VAT, checkout and payment
   are the server's. Same guards as booking: Biome `noRestrictedImports` and

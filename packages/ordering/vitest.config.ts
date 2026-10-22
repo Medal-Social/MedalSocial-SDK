@@ -2,10 +2,9 @@ import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Two projects: `node` for everything that must run without a DOM (nearly
- * all of `/core`), `jsdom` for the browser-storage helpers
- * (`*.dom.test.ts`). The components that land in `/react` bring a third
- * project (`tests/react/`) with them.
+ * Three projects, as in @medalsocial/booking: `node` for everything that must
+ * run without a DOM (nearly all of `/core`), `jsdom` for the browser-storage
+ * helpers (`*.dom.test.ts`), and `react` for the components (`tests/react/`).
  */
 const env = { TZ: 'Europe/Oslo' };
 
@@ -30,7 +29,7 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['tests/**/*.test.ts'],
-          exclude: ['tests/**/*.dom.test.ts'],
+          exclude: ['tests/**/*.dom.test.ts', 'tests/react/**'],
           env,
         },
       },
@@ -40,6 +39,16 @@ export default defineConfig({
           name: 'jsdom',
           environment: 'jsdom',
           include: ['tests/**/*.dom.test.ts'],
+          env,
+        },
+      },
+      {
+        resolve,
+        test: {
+          name: 'react',
+          environment: 'jsdom',
+          include: ['tests/react/**/*.test.{ts,tsx}'],
+          setupFiles: ['tests/support/dom-setup.ts', 'tests/support/react-setup.ts'],
           env,
         },
       },
