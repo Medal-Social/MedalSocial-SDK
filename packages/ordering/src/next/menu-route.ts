@@ -4,9 +4,14 @@
  *
  * ```ts
  * // app/api/ordering/menu/route.ts
- * export const revalidate = 60;
  * export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
  * ```
+ *
+ * The handler reads `request.url`, so Next treats the route as dynamic and
+ * leaves caching to the `Cache-Control` the handler sets — that is the
+ * "ISR 60 s": no `export const revalidate` is needed (add
+ * `export const dynamic = 'force-dynamic'` only if a build tries to
+ * prerender it).
  *
  * Built on Web `Request`/`Response` only — nothing from `next` is imported, so
  * it runs the same on Node, OpenNext on Workers or in a test.
@@ -16,7 +21,11 @@
  * - SERVER: the last menu per channel (and location), revalidated with Medal
  *   at most every `revalidateSeconds` with `If-None-Match`. A 304 restarts the
  *   window and keeps the menu; requests that arrive while a revalidation is in
- *   flight share it. A read for a given `at` is a one-off and is not cached.
+ *   flight share it. A read for a given `at` (rounded down to the minute,
+ *   inside Medal's window of one day back to 60 days ahead) is cached the
+ *   same way in a small LRU, so `?at=` cannot be used to hammer Medal with
+ *   the site's key. The caches live in this process (one per Workers
+ *   isolate); pass `store` to share the current menu between them.
  * - CDN/BROWSER: `Cache-Control: public, s-maxage, stale-while-revalidate`
  *   plus `ETag`, and a `304` for an `If-None-Match` that is still current.
  *
@@ -28,8 +37,10 @@
  *
  * Failures answer `{ error: { code, message } }` with fixed words: never the
  * key, an upstream URL, a header, Medal's own message or a stack. When Medal
- * fails and a menu is cached, the cached menu is served instead
- * (stale-if-error) and Medal is asked again a window later.
+ * fails transiently (5xx, 429, network, timeout) and a menu is cached, the
+ * cached menu is served instead (stale-if-error) and Medal is asked again a
+ * window later. When Medal refuses (ordering switched off, key rejected) the
+ * cached menu is dropped and the error answered.
  */
 
 import type { OrderingChannel, OrderingMenu, OrderingMenuResult } from '@medalsocial/sdk';
@@ -52,6 +63,15 @@ const ATTEMPT_TIMEOUT_MS = 5_000;
  * then get that one.
  */
 const DEADLINE_MS = 8_000;
+
+/** How many timed (`?at=`) menus the route keeps. */
+const TIMED_ENTRIES = 100;
+
+const MINUTE_MS = 60_000;
+const DAY_MS = 86_400_000;
+/** Medal's `at` window: one day back to 60 days ahead. */
+const AT_PAST_MS = DAY_MS;
+const AT_FUTURE_MS = 60 * DAY_MS;
 
 /** The slice of the SDK client the route uses — what a test injects. */
 export interface MenuClient {
@@ -83,6 +103,8 @@ export interface MenuCacheEntry {
 export interface MenuStore {
   get(key: string): MenuCacheEntry | undefined | Promise<MenuCacheEntry | undefined>;
   set(key: string, entry: MenuCacheEntry): void | Promise<void>;
+  /** Forget a menu Medal no longer serves (ordering switched off, key refused). */
+  delete(key: string): void | Promise<void>;
 }
 
 export interface MenuRouteOptions {
@@ -96,14 +118,24 @@ export interface MenuRouteOptions {
   baseUrl?: string;
   /** A ready client instead of one built from `apiKey`/`baseUrl` (tests, custom setups). */
   medal?: MenuClient;
-  /** Server and CDN cache window. Default 60. Match the route's `export const revalidate`. */
+  /** Server and CDN cache window in seconds, a positive integer. Default 60. */
   revalidateSeconds?: number;
   /** The channel when the request names none (and no table). Default `'takeaway'`. */
   defaultChannel?: OrderingChannel;
   /** The ordering location to read. Never taken from the request. */
   location?: string;
-  /** Where the server keeps the menu. Default: in this process. */
+  /**
+   * Where the server keeps the current menu. Default: a map in this process
+   * — on Workers that is one per isolate, each warming on its own; pass a
+   * KV- or Redis-backed store to share it.
+   */
   store?: MenuStore;
+  /**
+   * The platform's background hook (`ctx.waitUntil` on Workers, `after` in
+   * Next). A revalidation shared by several visitors is handed to it, so it
+   * finishes and is stored even when the request that started it goes away.
+   */
+  waitUntil?: (promise: Promise<unknown>) => void;
   /**
    * Told about every failed Medal read (the SDK's error, unchanged — SDK
    * errors carry no request headers). For the site's logger; a throw here is
@@ -136,19 +168,47 @@ const INVALID_AT: ErrorBody = {
  * find, and a 503 would tell clients and CDNs to keep retrying something
  * that will not come back on its own.
  */
+/**
+ * `error` as an API failure, or `null`. Besides `instanceof`, an error named
+ * `MedalApiError` with a numeric `status` counts: a site with two copies of
+ * the SDK installed throws the other copy's class.
+ */
+function apiFailure(error: unknown): { status: number; code: unknown } | null {
+  if (error instanceof MedalApiError) return error;
+  if (
+    error instanceof Error &&
+    error.name === 'MedalApiError' &&
+    typeof (error as { status?: unknown }).status === 'number'
+  ) {
+    return error as unknown as { status: number; code: unknown };
+  }
+  return null;
+}
+
+/**
+ * Whether Medal may answer differently soon: a 5xx, a 429, or no answer at
+ * all (network, timeout, abort). Only these serve a stale menu; a refusal
+ * (ordering off, key rejected) drops it.
+ */
+function isTransient(error: unknown): boolean {
+  const failure = apiFailure(error);
+  return failure === null || failure.status >= 500 || failure.status === 429;
+}
+
 function classify(error: unknown): ErrorBody {
-  if (error instanceof MedalApiError) {
-    if (error.code === 'ORDERING_NOT_ENABLED') {
+  const failure = apiFailure(error);
+  if (failure) {
+    if (failure.code === 'ORDERING_NOT_ENABLED') {
       return {
         status: 404,
         code: 'ORDERING_NOT_ENABLED',
         message: 'Online ordering is not enabled.',
       };
     }
-    if (error.status === 400) {
+    if (failure.status === 400) {
       return { status: 400, code: 'INVALID_REQUEST', message: 'The menu request was not valid.' };
     }
-    if (error.status === 429) {
+    if (failure.status === 429) {
       return {
         status: 503,
         code: 'MENU_UNAVAILABLE',
@@ -168,14 +228,22 @@ function errorResponse({ status, code, message }: ErrorBody): Response {
 
 const DIGITS = /^\d{1,16}$/;
 const ISO_WITH_ZONE =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/i;
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-/** `?at=` as Medal takes it, `undefined` when absent, `null` when malformed. */
-function parseAt(raw: string | null): string | undefined | null {
+/**
+ * `?at=` in Unix milliseconds rounded down to the minute: `undefined` when
+ * absent, `null` when malformed or outside Medal's window (checked here, so
+ * a bad value never costs a Medal call).
+ */
+function parseAt(raw: string | null, now: number): number | undefined | null {
   if (raw === null) return undefined;
   const value = raw.trim();
-  if (DIGITS.test(value)) return value;
-  return ISO_WITH_ZONE.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
+  let ms = Number.NaN;
+  if (DIGITS.test(value)) ms = Number(value);
+  else if (ISO_WITH_ZONE.test(value)) ms = Date.parse(value);
+  if (!Number.isSafeInteger(ms)) return null;
+  const minute = ms - (ms % MINUTE_MS);
+  return minute >= now - AT_PAST_MS && minute <= now + AT_FUTURE_MS ? minute : null;
 }
 
 /**
@@ -189,12 +257,25 @@ function readChannel(params: URLSearchParams, fallback: OrderingChannel): Orderi
   return parseOrderLink(params).channel ?? fallback;
 }
 
-function memoryStore(): MenuStore {
+/** A map in this process; with `limit`, the least recently used entry goes first. */
+function memoryStore(limit = Number.POSITIVE_INFINITY): MenuStore {
   const entries = new Map<string, MenuCacheEntry>();
   return {
-    get: (key) => entries.get(key),
+    get: (key) => {
+      const entry = entries.get(key);
+      if (entry) {
+        entries.delete(key);
+        entries.set(key, entry);
+      }
+      return entry;
+    },
     set: (key, entry) => {
+      entries.delete(key);
       entries.set(key, entry);
+      if (entries.size > limit) entries.delete(entries.keys().next().value as string);
+    },
+    delete: (key) => {
+      entries.delete(key);
     },
   };
 }
@@ -204,10 +285,16 @@ export function createMenuRoute(
   options: MenuRouteOptions
 ): (request: Request) => Promise<Response> {
   const revalidateSeconds = options.revalidateSeconds ?? DEFAULT_REVALIDATE_SECONDS;
+  if (!Number.isSafeInteger(revalidateSeconds) || revalidateSeconds <= 0) {
+    throw new RangeError(
+      `createMenuRoute: revalidateSeconds must be a positive integer, got ${revalidateSeconds}`
+    );
+  }
   const revalidateMs = revalidateSeconds * 1000;
   const cacheControl = `public, s-maxage=${revalidateSeconds}, stale-while-revalidate=${revalidateSeconds * STALE_WINDOWS}`;
   const defaultChannel = options.defaultChannel ?? 'takeaway';
   const store = options.store ?? memoryStore();
+  const timed = memoryStore(TIMED_ENTRIES);
   const inflight = new Map<string, Promise<MenuCacheEntry>>();
   let client = options.medal;
 
@@ -227,19 +314,27 @@ export function createMenuRoute(
     }
   }
 
-  async function readStore(key: string): Promise<MenuCacheEntry | undefined> {
+  async function readStore(from: MenuStore, key: string): Promise<MenuCacheEntry | undefined> {
     try {
-      return await store.get(key);
+      return await from.get(key);
     } catch {
       return undefined;
     }
   }
 
-  async function writeStore(key: string, entry: MenuCacheEntry): Promise<void> {
+  async function writeStore(to: MenuStore, key: string, entry: MenuCacheEntry): Promise<void> {
     try {
-      await store.set(key, entry);
+      await to.set(key, entry);
     } catch {
       // A store that cannot write costs a Medal read next time, nothing more.
+    }
+  }
+
+  async function dropStore(from: MenuStore, key: string): Promise<void> {
+    try {
+      await from.delete(key);
+    } catch {
+      // Left behind, it is still refused at the next revalidation.
     }
   }
 
@@ -265,33 +360,56 @@ export function createMenuRoute(
     return { ...cached, etag: result.etag || cached.etag, checkedAt: Date.now() };
   }
 
+  /**
+   * Ask Medal again and store the answer. On a transient failure the current
+   * menu (not a timed one) is served stale and kept for another window; on a
+   * refusal it is dropped.
+   */
   async function revalidate(
     api: MenuClient,
+    into: MenuStore,
     key: string,
     channel: OrderingChannel,
+    at: number | undefined,
     cached: MenuCacheEntry | undefined
   ): Promise<MenuCacheEntry> {
     let entry: MenuCacheEntry;
     try {
-      entry = await fetchEntry(api, channel, undefined, cached);
+      entry = await fetchEntry(
+        api,
+        channel,
+        at === undefined ? undefined : new Date(at).toISOString(),
+        cached
+      );
     } catch (error) {
       report(error);
-      if (!cached) throw error;
-      // Stale-if-error, and the next attempt waits a full window.
+      if (!cached || at !== undefined) throw error;
+      if (!isTransient(error)) {
+        await dropStore(into, key);
+        throw error;
+      }
       entry = { ...cached, checkedAt: Date.now() };
     }
-    await writeStore(key, entry);
+    await writeStore(into, key, entry);
     return entry;
   }
 
-  async function cachedMenu(api: MenuClient, channel: OrderingChannel): Promise<MenuCacheEntry> {
-    const key = `${channel}\u0000${options.location ?? ''}`;
-    const cached = await readStore(key);
+  async function cachedMenu(
+    api: MenuClient,
+    channel: OrderingChannel,
+    at: number | undefined
+  ): Promise<MenuCacheEntry> {
+    const base = `${channel}\u0000${options.location ?? ''}`;
+    const key = at === undefined ? base : `${base}\u0000${at}`;
+    const from = at === undefined ? store : timed;
+    const cached = await readStore(from, key);
     if (cached && Date.now() - cached.checkedAt < revalidateMs) return cached;
     let pending = inflight.get(key);
     if (!pending) {
-      pending = revalidate(api, key, channel, cached).finally(() => inflight.delete(key));
+      pending = revalidate(api, from, key, channel, at, cached).finally(() => inflight.delete(key));
       inflight.set(key, pending);
+      // Settled either way: the platform only needs to know when it is done.
+      options.waitUntil?.(pending.catch(() => undefined));
     }
     return pending;
   }
@@ -300,7 +418,7 @@ export function createMenuRoute(
     const params = new URL(request.url).searchParams;
     const channel = readChannel(params, defaultChannel);
     if (channel === null) return errorResponse(INVALID_CHANNEL);
-    const at = parseAt(params.get('at'));
+    const at = parseAt(params.get('at'), Date.now());
     if (at === null) return errorResponse(INVALID_AT);
 
     const api = medal();
@@ -311,13 +429,7 @@ export function createMenuRoute(
 
     let entry: MenuCacheEntry;
     try {
-      entry =
-        at === undefined
-          ? await cachedMenu(api, channel)
-          : await fetchEntry(api, channel, at, undefined).catch((error: unknown) => {
-              report(error);
-              throw error;
-            });
+      entry = await cachedMenu(api, channel, at);
     } catch (error) {
       return errorResponse(classify(error));
     }

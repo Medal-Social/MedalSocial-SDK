@@ -16,6 +16,12 @@ const UPSTREAM = 'https://medal.example.test';
 
 const MENU_2: OrderingMenu = { ...MENU, etag: ETAG_2, categories: [] };
 
+const NOW = Date.parse('2026-10-22T12:00:00Z');
+const DAY = 86_400_000;
+/** A valid `?at=` (tomorrow 18:00 UTC) in Unix milliseconds. */
+const AT_MS = String(Date.parse('2026-10-23T18:00:00Z'));
+const AT = `?at=${AT_MS}`;
+
 type MenuFn = (
   options: OrderingMenuOptions,
   request?: { signal?: AbortSignal }
@@ -57,6 +63,15 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe('createMenuRoute — options', () => {
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'refuses revalidateSeconds %s at once',
+    (revalidateSeconds) => {
+      expect(() => createMenuRoute({ apiKey: KEY, revalidateSeconds })).toThrow(RangeError);
+    }
+  );
 });
 
 describe('createMenuRoute — success', () => {
@@ -125,6 +140,12 @@ describe('createMenuRoute — etag passthrough', () => {
     const { GET } = setup();
     const response = await GET(req('', { 'if-none-match': ETAG_2 }));
     expect(response.status).toBe(200);
+  });
+
+  it('answers 304 when the etag is anywhere in an If-None-Match list', async () => {
+    const { GET } = setup();
+    const response = await GET(req('', { 'if-none-match': `W/"x", "0123456789abcdef"` }));
+    expect(response.status).toBe(304);
   });
 
   it('never forwards the visitor If-None-Match upstream', async () => {
@@ -216,6 +237,9 @@ describe('createMenuRoute — server-side revalidation', () => {
       set: async (key, entry) => {
         entries.set(key, entry);
       },
+      delete: async (key) => {
+        entries.delete(key);
+      },
     };
     const { GET, menu } = setup({ store });
     await GET(req());
@@ -234,11 +258,75 @@ describe('createMenuRoute — server-side revalidation', () => {
       set: async () => {
         throw new Error('down');
       },
+      delete: () => {
+        throw new Error('down');
+      },
     };
     const { GET, menu } = setup({ store });
     expect((await GET(req())).status).toBe(200);
     expect((await GET(req())).status).toBe(200);
     expect(menu).toHaveBeenCalledTimes(2);
+    menu.mockRejectedValueOnce(new MedalApiError(401, 'UNAUTHORIZED', 'no'));
+    expect((await GET(req())).status).toBe(502);
+  });
+
+  it('dedupes concurrent requests behind an async store.get', async () => {
+    const entries = new Map<string, MenuCacheEntry>();
+    const store: MenuStore = {
+      get: async (key) => {
+        await Promise.resolve();
+        await Promise.resolve();
+        return entries.get(key);
+      },
+      set: async (key, entry) => {
+        entries.set(key, entry);
+      },
+      delete: async (key) => {
+        entries.delete(key);
+      },
+    };
+    const { GET, menu } = setup({ store });
+    const responses = await Promise.all([GET(req()), GET(req()), GET(req())]);
+    expect(menu).toHaveBeenCalledTimes(1);
+    for (const response of responses) expect(response.status).toBe(200);
+    expect(entries.size).toBe(1);
+  });
+
+  it('gives every concurrent request the error of a failing first fetch, then retries', async () => {
+    const { GET, menu, onError } = setup();
+    let fail: (error: unknown) => void = () => {};
+    const gate = new Promise<OrderingMenuResult>((_resolve, reject) => {
+      fail = reject;
+    });
+    menu.mockImplementationOnce(() => gate);
+    const pending = [GET(req()), GET(req()), GET(req())];
+    fail(new MedalNetworkError('fetch failed'));
+    const responses = await Promise.all(pending);
+    expect(menu).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    for (const response of responses) {
+      expect(response.status).toBe(502);
+      expect((await body(response)).error?.code).toBe('MENU_UNAVAILABLE');
+    }
+    expect((await GET(req())).status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(2);
+  });
+
+  it('hands a shared revalidation to waitUntil once, settled even when it fails', async () => {
+    const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
+    const { GET, menu } = setup({ waitUntil });
+    await Promise.all([GET(req()), GET(req())]);
+    expect(waitUntil).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(60_000);
+    menu.mockRejectedValueOnce(new MedalNetworkError('x'));
+    await GET(req());
+    expect(waitUntil).toHaveBeenCalledTimes(2);
+    await expect(waitUntil.mock.calls[1]?.[0]).resolves.toBeDefined();
+    // A first fetch that fails outright (nothing cached) still settles.
+    menu.mockRejectedValueOnce(new MedalNetworkError('x'));
+    expect((await GET(req('?c=delivery'))).status).toBe(502);
+    expect(waitUntil).toHaveBeenCalledTimes(3);
+    await expect(waitUntil.mock.calls[2]?.[0]).resolves.toBeUndefined();
   });
 });
 
@@ -260,12 +348,33 @@ describe('createMenuRoute — stale-if-error', () => {
     expect(menu).toHaveBeenCalledTimes(3);
   });
 
-  it('serves stale even on a 4xx from upstream', async () => {
+  it.each([
+    ['a 5xx', new MedalApiError(503, 'UNAVAILABLE', 'x')],
+    ['a 429', new MedalApiError(429, 'RATE_LIMITED', 'x')],
+    ['a timeout', new MedalTimeoutError(5000)],
+    ['an abort', new DOMException('The operation timed out.', 'TimeoutError')],
+  ])('serves stale on %s', async (_name, error) => {
     const { GET, menu } = setup();
     await GET(req());
-    menu.mockRejectedValueOnce(new MedalApiError(403, 'ORDERING_NOT_ENABLED', 'off'));
+    menu.mockRejectedValueOnce(error);
     vi.advanceTimersByTime(60_000);
     expect((await GET(req())).status).toBe(200);
+  });
+
+  it.each([
+    ['ORDERING_NOT_ENABLED', new MedalApiError(403, 'ORDERING_NOT_ENABLED', 'off'), 404],
+    ['a 401', new MedalApiError(401, 'UNAUTHORIZED', 'no'), 502],
+    ['a 403', new MedalApiError(403, 'FORBIDDEN', 'no'), 502],
+  ])('drops the cached menu and answers the error on %s', async (_name, error, status) => {
+    const { GET, menu } = setup();
+    await GET(req());
+    menu.mockRejectedValueOnce(error);
+    vi.advanceTimersByTime(60_000);
+    expect((await GET(req())).status).toBe(status);
+    // Nothing cached any more: the next request asks Medal afresh, without an etag.
+    await GET(req());
+    expect(menu).toHaveBeenCalledTimes(3);
+    expect(menu.mock.calls[2]?.[0].ifNoneMatch).toBeUndefined();
   });
 });
 
@@ -316,45 +425,94 @@ describe('createMenuRoute — channel', () => {
 });
 
 describe('createMenuRoute — at', () => {
-  it.each(['2026-10-22T18:00:00Z', '2026-10-22T18:00:00.000+02:00', '1792000000000'])(
-    'passes %s through and bypasses the cache',
-    async (at) => {
-      const { GET, menu } = setup();
-      await GET(req());
-      const response = await GET(req(`?at=${encodeURIComponent(at)}`));
-      expect(response.status).toBe(200);
-      expect(menu).toHaveBeenCalledTimes(2);
-      expect(menu.mock.calls[1]?.[0]).toMatchObject({ at, ifNoneMatch: undefined });
-      await GET(req(`?at=${encodeURIComponent(at)}`));
-      expect(menu).toHaveBeenCalledTimes(3);
-      // The un-timed entry is untouched.
-      await GET(req());
-      expect(menu).toHaveBeenCalledTimes(3);
-    }
-  );
+  it.each([
+    ['2026-10-23T18:00:00Z', '2026-10-23T18:00:00.000Z'],
+    ['2026-10-23T20:00:59.999+02:00', '2026-10-23T18:00:00.000Z'],
+    [String(Date.parse('2026-10-23T18:00:42.123Z')), '2026-10-23T18:00:00.000Z'],
+    [new Date(NOW - DAY).toISOString(), '2026-10-21T12:00:00.000Z'],
+    [String(NOW + 60 * DAY), '2026-12-21T12:00:00.000Z'],
+  ])('passes %s to Medal rounded down to the minute (%s)', async (at, forwarded) => {
+    const { GET, menu } = setup();
+    const response = await GET(req(`?at=${encodeURIComponent(at)}`));
+    expect(response.status).toBe(200);
+    expect(menu.mock.calls[0]?.[0]).toMatchObject({ at: forwarded, ifNoneMatch: undefined });
+  });
+
+  it('shares one upstream call between at values in the same minute', async () => {
+    const { GET, menu } = setup();
+    const a = `?at=${encodeURIComponent('2026-10-23T18:00:05Z')}`;
+    const b = `?at=${Date.parse('2026-10-23T18:00:50Z')}`;
+    await Promise.all([GET(req(a)), GET(req(b))]);
+    expect(menu).toHaveBeenCalledTimes(1);
+    await GET(req(b));
+    expect(menu).toHaveBeenCalledTimes(1);
+    await GET(req(`?at=${encodeURIComponent('2026-10-23T18:01:00Z')}`));
+    expect(menu).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps timed reads apart from the current menu', async () => {
+    const { GET, menu } = setup();
+    await GET(req());
+    await GET(req(AT));
+    expect(menu).toHaveBeenCalledTimes(2);
+    expect(menu.mock.calls[1]?.[0].ifNoneMatch).toBeUndefined();
+    await GET(req());
+    await GET(req(AT));
+    expect(menu).toHaveBeenCalledTimes(2);
+  });
+
+  it('revalidates a timed read after revalidateSeconds with its etag', async () => {
+    const { GET, menu } = setup();
+    await GET(req(AT));
+    vi.advanceTimersByTime(60_000);
+    menu.mockResolvedValueOnce({ notModified: true, etag: ETAG });
+    expect((await GET(req(AT))).status).toBe(200);
+    expect(menu.mock.calls[1]?.[0].ifNoneMatch).toBe(ETAG);
+  });
+
+  it('holds at most 100 timed menus, least recently used out first', async () => {
+    const { GET, menu } = setup();
+    const minute = (n: number) => `?at=${Date.parse('2026-10-23T00:00:00Z') + n * 60_000}`;
+    for (let n = 0; n <= 100; n++) await GET(req(minute(n)));
+    expect(menu).toHaveBeenCalledTimes(101);
+    await GET(req(minute(100)));
+    expect(menu).toHaveBeenCalledTimes(101);
+    await GET(req(minute(0)));
+    expect(menu).toHaveBeenCalledTimes(102);
+  });
 
   it('answers 304 for a timed read too', async () => {
     const { GET } = setup();
-    const response = await GET(req('?at=1792000000000', { 'if-none-match': ETAG }));
+    const response = await GET(req(AT, { 'if-none-match': ETAG }));
     expect(response.status).toBe(304);
   });
 
-  it.each(['', 'tomorrow', '2026-10-22T18:00:00', '2026-13-40T99:00:00Z', '1'.repeat(17), '1.5'])(
-    'at=%s is a 400 and never reaches upstream',
-    async (at) => {
-      const { GET, menu } = setup();
-      const response = await GET(req(`?at=${encodeURIComponent(at)}`));
-      expect(response.status).toBe(400);
-      expect((await body(response)).error?.code).toBe('INVALID_AT');
-      expect(menu).not.toHaveBeenCalled();
-    }
-  );
+  it.each([
+    '',
+    'tomorrow',
+    '2026-10-23T18:00:00',
+    '2026-10-23t18:00:00z',
+    '2026-13-40T99:00:00Z',
+    '1'.repeat(17),
+    '9999999999999999',
+    '1.5',
+    new Date(NOW - DAY - 60_000).toISOString(),
+    String(NOW + 60 * DAY + 60_000),
+    '2026-01-01T00:00:00Z',
+  ])('at=%s is a 400 and never reaches upstream', async (at) => {
+    const { GET, menu } = setup();
+    const response = await GET(req(`?at=${encodeURIComponent(at)}`));
+    expect(response.status).toBe(400);
+    expect((await body(response)).error?.code).toBe('INVALID_AT');
+    expect(menu).not.toHaveBeenCalled();
+  });
 
   it('a failing timed read has no stale menu to fall back on', async () => {
     const { GET, menu } = setup();
-    await GET(req());
+    await GET(req(AT));
+    vi.advanceTimersByTime(60_000);
     menu.mockRejectedValueOnce(new MedalNetworkError('fetch failed'));
-    expect((await GET(req('?at=1792000000000'))).status).toBe(502);
+    expect((await GET(req(AT))).status).toBe(502);
   });
 });
 
@@ -403,6 +561,36 @@ describe('createMenuRoute — errors', () => {
     expect(Object.keys(parsed)).toEqual(['error']);
     expect(Object.keys(parsed.error ?? {}).sort()).toEqual(['code', 'message']);
     expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it.each([
+    [
+      'a MedalApiError from another SDK copy',
+      Object.assign(new Error('x'), {
+        name: 'MedalApiError',
+        status: 403,
+        code: 'ORDERING_NOT_ENABLED',
+      }),
+      404,
+    ],
+    [
+      'a look-alike with a non-numeric status',
+      Object.assign(new Error('x'), {
+        name: 'MedalApiError',
+        status: '403',
+        code: 'ORDERING_NOT_ENABLED',
+      }),
+      502,
+    ],
+    [
+      'a TimeoutError DOMException',
+      new DOMException('The operation timed out.', 'TimeoutError'),
+      502,
+    ],
+  ])('%s', async (_name, error, status) => {
+    const { GET, menu } = setup();
+    menu.mockRejectedValueOnce(error);
+    expect((await GET(req())).status).toBe(status);
   });
 
   it('a throwing onError never breaks the response', async () => {
@@ -455,7 +643,7 @@ describe('createMenuRoute — key never in response', () => {
       KEY,
     ]) {
       menu.mockRejectedValueOnce(error);
-      seen.push(await visible(await GET(req('?at=1792000000000'))));
+      seen.push(await visible(await GET(req(AT))));
     }
     return seen;
   }

@@ -120,11 +120,13 @@ with its workspace API key on the server.
 // app/api/ordering/menu/route.ts
 import { createMenuRoute } from '@medalsocial/ordering/next';
 
-// Next segment config: keep in step with `revalidateSeconds` (default 60).
-export const revalidate = 60;
-
 export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
 ```
+
+No `export const revalidate` is needed: the handler reads `request.url`, so
+Next treats the route as dynamic and the handler's own `Cache-Control` and
+server cache are the 60-second "ISR". Add `export const dynamic =
+'force-dynamic'` only if a build tries to prerender the route.
 
 `GET /api/ordering/menu?c=takeaway` answers `200 { data: OrderingMenu }`.
 
@@ -132,9 +134,12 @@ export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
   case); a `?t=` table link with neither means `dine_in`. With none, the
   `defaultChannel` option (default `takeaway`). Any other value is a `400`.
 - **`?at=`** — read the menu as it will be at that instant (ISO 8601 with `Z`
-  or an offset, or Unix milliseconds). Passed to Medal, never cached on the
-  server; a malformed value is a `400`. No other query parameter is forwarded;
-  `location` is an option, never read from the request.
+  or an offset, or Unix milliseconds). It must lie inside Medal's window (one
+  day back to 60 days ahead) or the route answers `400` without calling
+  Medal. It is rounded down to the minute and cached like the current menu
+  (up to 100 instants, least recently used out first), so `?at=` cannot be
+  used to spend the site's API rate limit. No other query parameter is
+  forwarded; `location` is an option, never read from the request.
 - **Caching** — the server keeps the last menu per channel and asks Medal
   again at most every `revalidateSeconds`, with `If-None-Match`; a `304` from
   Medal keeps the menu. Concurrent requests share one Medal call. The response
@@ -143,8 +148,12 @@ export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
   `If-None-Match` that still matches gets a `304`. Medal marks the menu
   `private` because it answers per API key; this route has no key on the way
   in and every visitor sees the same public menu, so a CDN may keep it.
-- **Store** — in-process by default. Pass `store: { get, set }` to share it
-  (KV, Redis); a store that throws counts as a miss.
+- **Store** — in-process by default, so on Workers each isolate keeps (and
+  warms) its own copy; the CDN's `s-maxage` is what keeps Medal calls low
+  there. Pass `store: { get, set, delete }` (KV, Redis) to share the current
+  menu between instances; a store that throws counts as a miss. Pass
+  `waitUntil` (`ctx.waitUntil` on Workers, `after` in Next) so a shared
+  revalidation finishes even when the request that started it goes away.
 - **Errors** — `{ error: { code, message } }` with fixed words, `Cache-Control:
   no-store`, never the key, Medal's message or an upstream URL:
 
@@ -159,8 +168,10 @@ export const GET = createMenuRoute({ apiKey: process.env.MEDAL_API_KEY! });
 
   `ORDERING_NOT_ENABLED` is a 404, not a 503: there is no menu to find, and a
   503 invites retries for something that will not recover by itself. When a
-  menu is cached, a failed revalidation serves it instead (stale-if-error) and
-  Medal is asked again a window later. `onError` sees every failed Medal read,
+  menu is cached and Medal fails transiently (5xx, 429, network, timeout), the
+  cached menu is served instead (stale-if-error) and Medal is asked again a
+  window later. When Medal refuses (ordering off, key rejected) the cached
+  menu is dropped and the error answered. `onError` sees every failed Medal read,
   for the site's logger.
 
 ## License
