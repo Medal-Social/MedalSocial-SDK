@@ -229,6 +229,13 @@ describe("ordering.orders.create", () => {
     ["array details", new MedalApiError(422, "SOLD_OUT", "x", ["p_1"])],
     ["null details", new MedalApiError(422, "SOLD_OUT", "x", null)],
     ["string details", new MedalApiError(422, "SOLD_OUT", "x", "p_1")],
+    ["string ids", new MedalApiError(422, "SOLD_OUT", "x", { ids: "p_1" })],
+    ["non-string id", new MedalApiError(422, "SOLD_OUT", "x", { ids: ["p_1", 2] })],
+    ["fractional line_index", new MedalApiError(422, "INVALID_CART", "x", { line_index: 1.5 })],
+    ["negative line_index", new MedalApiError(422, "INVALID_CART", "x", { line_index: -1 })],
+    ["string line_index", new MedalApiError(422, "INVALID_OPTIONS", "x", { line_index: "0" })],
+    ["non-string reason", new MedalApiError(422, "CLOSED", "x", { reason: 1 })],
+    ["non-string status", new MedalApiError(422, "CLOSED", "x", { status: false })],
   ])("isOrderingRefusal is false for %s", (_label, error) => {
     expect(isOrderingRefusal(error)).toBe(false);
   });
@@ -343,6 +350,9 @@ describe("ordering.orders.get / status / cancel", () => {
     ["status", "  "],
     ["cancel", "x".repeat(65)],
     ["get", undefined],
+    ["get", "."],
+    ["status", ".."],
+    ["cancel", " .. "],
   ] as const)("%s refuses order id %j before sending anything", async (method, orderId) => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await expect(
@@ -399,7 +409,7 @@ describe("ordering.table", () => {
     expect(err.code).toBe(code);
   });
 
-  it.each([[""], ["   "], ["t".repeat(65)]])(
+  it.each([[""], ["   "], ["t".repeat(65)], ["."], [".."]])(
     "refuses token %j before sending anything",
     async (token) => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");

@@ -79,24 +79,38 @@ export type OrderingRefusalError = MedalApiError & {
  * }
  * ```
  *
- * It answers `false` for a `422` whose `details` is present but not an
- * object, so the narrowed `details` type never lies; read `error.details`
- * yourself in that case.
+ * It answers `false` for a `422` whose `details` is present but does not have
+ * that shape (not an object, `ids` not a string array, `line_index` not a
+ * non-negative integer, `reason` not a string), so the narrowed `details`
+ * type never lies; read `error.details` yourself in that case.
  */
 export function isOrderingRefusal(error: unknown): error is OrderingRefusalError {
   if (!(error instanceof MedalApiError)) return false;
   if (error.status !== 422 || !REFUSAL_CODES.has(error.code)) return false;
-  const { details } = error;
-  return (
-    details === undefined ||
-    (typeof details === "object" && details !== null && !Array.isArray(details))
-  );
+  return error.details === undefined || isOrderingErrorDetails(error.details);
+}
+
+/** Does a `details` value really have the {@link OrderingErrorDetails} shape? */
+function isOrderingErrorDetails(value: unknown): value is OrderingErrorDetails {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const { ids, line_index, reason, status } = value as Record<string, unknown>;
+  if (ids !== undefined && !(Array.isArray(ids) && ids.every((id) => typeof id === "string"))) {
+    return false;
+  }
+  if (
+    line_index !== undefined &&
+    !(Number.isSafeInteger(line_index) && (line_index as number) >= 0)
+  ) {
+    return false;
+  }
+  if (reason !== undefined && typeof reason !== "string") return false;
+  return status === undefined || typeof status === "string";
 }
 
 /**
  * Check an order id or table token before it goes into a path.
  *
- * @throws RangeError for a blank or over-long value.
+ * @throws RangeError for a blank, over-long or dot-segment value.
  */
 function checkPathId(method: string, name: string, value: string): string {
   const trimmed = typeof value === "string" ? value.trim() : "";
@@ -104,6 +118,11 @@ function checkPathId(method: string, name: string, value: string): string {
     throw new RangeError(
       `${method}: ${name} must be 1-${MAX_PATH_ID_LENGTH} characters, got ${JSON.stringify(value)}`,
     );
+  }
+  // `encodeURIComponent` leaves `.` and `..` alone and URL parsing resolves
+  // them as path segments, so `..` would send the call to another route.
+  if (trimmed === "." || trimmed === "..") {
+    throw new RangeError(`${method}: ${name} must not be ${JSON.stringify(trimmed)}`);
   }
   return trimmed;
 }
