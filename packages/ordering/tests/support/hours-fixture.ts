@@ -25,8 +25,8 @@ function revive(_key: string, value: unknown): unknown {
 
 /**
  * tests/fixtures/hours.json (written by scripts/export-hours-fixtures.mjs),
- * with each case's shared inputs put back in place and `null` back to
- * `undefined`.
+ * with each case's shared inputs put back in place and `{ "$undefined": true }`
+ * back to `undefined` (a `null` stays `null`).
  */
 export function loadHoursFixture(): { defaultTimeZone: string; cases: HoursFixtureCase[] } {
   const raw: HoursFixture = JSON.parse(
@@ -36,8 +36,9 @@ export function loadHoursFixture(): { defaultTimeZone: string; cases: HoursFixtu
   const cases = raw.cases.map((c) => ({
     ...c,
     args: c.args.map((arg) => {
-      if (arg === null) return undefined;
-      if (typeof arg === 'object' && '$input' in arg) {
+      if (typeof arg !== 'object' || arg === null) return arg;
+      if ('$undefined' in arg) return undefined;
+      if ('$input' in arg) {
         return structuredClone(raw.inputs[(arg as { $input: number }).$input]);
       }
       return arg;

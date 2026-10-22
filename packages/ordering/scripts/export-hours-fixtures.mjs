@@ -8,20 +8,21 @@
 // `--engine` is the TypeScript file to run: the API's engine to refresh the
 // fixture, or `src/core/hours.ts` to show the package answers the same
 // (`git diff --exit-code tests/fixtures/hours.json` afterwards). `--out`
-// overrides the output path. The types are stripped with esbuild; the engine
-// has no imports, so the stripped module runs as it is.
+// overrides the output path. esbuild bundles the engine (types stripped, any
+// relative import it gains inlined) into one module, which is then imported.
 //
 // Every number is epoch ms (or minutes/days where the function takes them).
 // JSON has no NaN or Infinity, so an input that is one is written as
-// `{ "$number": "NaN" }` / `{ "$number": "Infinity" }`.
+// `{ "$number": "NaN" }` / `{ "$number": "Infinity" }`, and an argument left
+// `undefined` as `{ "$undefined": true }` (a `null` stays `null`).
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { transform } from 'esbuild';
+import { build } from 'esbuild';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const { values } = parseArgs({
@@ -865,21 +866,29 @@ const weekends = [
   t('2027-03-27T00:30:00+01:00'),
 ];
 const CHANNELS = ['dineIn', 'takeaway', 'delivery'];
+const iso = (/** @type {number} */ ms) => new Date(ms).toISOString();
 for (const [label, engineInput] of Object.entries(restaurants)) {
   for (const start of weekends) {
     for (let at = start; at < start + 72 * HOUR; at += 4 * HOUR) {
       for (const channel of CHANNELS) {
-        add(`sweep ${label}: ${channel}`, 'channelState', engineInput, channel, at);
+        add(`sweep ${label}: ${channel} at ${iso(at)}`, 'channelState', engineInput, channel, at);
       }
-      add(`sweep ${label}`, 'serviceDayEnd', engineInput, at);
+      add(`sweep ${label} at ${iso(at)}`, 'serviceDayEnd', engineInput, at);
     }
     // Dine-in runs on the kitchen's hours, as takeaway without its own does.
     for (const channel of ['takeaway', 'delivery']) {
-      add(`sweep ${label}: ${channel}`, 'slots', engineInput, channel, start + 9 * HOUR, 2);
+      add(
+        `sweep ${label}: ${channel} from ${iso(start + 9 * HOUR)}`,
+        'slots',
+        engineInput,
+        channel,
+        start + 9 * HOUR,
+        2
+      );
       for (const offset of [0, 1]) {
         const date = new Date(start + 12 * HOUR + offset * 24 * HOUR).toISOString().slice(0, 10);
         add(
-          `sweep ${label}: ${channel}`,
+          `sweep ${label}: ${channel} on ${date} at ${iso(start + 8 * HOUR)}`,
           'slotsForDate',
           engineInput,
           channel,
@@ -906,9 +915,15 @@ const dir = mkdtempSync(join(tmpdir(), 'ordering-hours-'));
 /** @type {Record<string, (...args: unknown[]) => unknown>} */
 let engine;
 try {
-  const source = readFileSync(resolve(values.engine), 'utf8');
-  const { code } = await transform(source, { loader: 'ts', format: 'esm' });
-  writeFileSync(join(dir, 'hours.mjs'), code);
+  const bundle = await build({
+    entryPoints: [resolve(values.engine)],
+    bundle: true,
+    format: 'esm',
+    write: false,
+    platform: 'neutral',
+    logLevel: 'silent',
+  });
+  writeFileSync(join(dir, 'hours.mjs'), bundle.outputFiles[0].text);
   engine = await import(pathToFileURL(join(dir, 'hours.mjs')).href);
 } finally {
   rmSync(dir, { recursive: true, force: true });
@@ -938,8 +953,8 @@ const fixture = {
   cases: cases.map(({ name, fn, args }) => ({
     name,
     fn,
-    // `undefined` has no JSON form; a case that passes it says so with `null`.
-    args: args.map((arg) => (arg === undefined ? null : shared(arg))),
+    // `undefined` has no JSON form; a case that passes it says so explicitly.
+    args: args.map((arg) => (arg === undefined ? { $undefined: true } : shared(arg))),
     result: encode(engine[fn](...args)),
   })),
 };

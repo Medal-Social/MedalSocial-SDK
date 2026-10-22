@@ -91,7 +91,7 @@ import {
 } from '@medalsocial/ordering/core';
 
 const input: EngineInput = { hours, settings, timeZone: 'Europe/Oslo' };
-const channel = toEngineChannel('takeaway'); // the engine says 'dineIn' for 'dine_in'
+const channel = toEngineChannel('dine_in'); // 'dineIn'
 
 channelState(input, channel, Date.now());
 // { open: true, closesAt, lastOrderAt }
@@ -113,6 +113,8 @@ slotsForDate(input, channel, '2026-10-23', Date.now()); // one service date's sl
 - `serviceDayEnd`, `parsePeriods`, `prepMinutes`, `effectivePreorderDays`,
   `localIsoDate` and `addIsoDays` are the engine's building blocks.
   `fromEngineChannel` maps the engine's channel back to the wire.
+- `EngineChannel` is the engine's spelling (`dineIn`), `OrderingChannel` the
+  wire's (`dine_in`); a window (`HoursWindow`) is `{ start, end }`, end exclusive.
 
 ## `/react`
 

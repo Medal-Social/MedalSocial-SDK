@@ -46,7 +46,7 @@ export {
 } from './draft-store';
 export {
   addIsoDays,
-  type Channel,
+  type Channel as EngineChannel,
   type ChannelReason,
   type ChannelState,
   channelState,
@@ -63,7 +63,7 @@ export {
   serviceDayEnd,
   slots,
   slotsForDate,
-  type Window,
+  type Window as HoursWindow,
 } from './hours';
 export { fromEngineChannel, toEngineChannel } from './hours-channel';
 export {

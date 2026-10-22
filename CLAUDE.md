@@ -90,8 +90,10 @@ and is never published.
   refresh that from a monorepo checkout (run from `packages/ordering`) with
   `node scripts/export-hours-fixtures.mjs --engine
   <monorepo>/apps/shared/ordering/hours.ts`, and with `--engine
-  src/core/hours.ts` the file must not change (`git diff --exit-code`).
-  Cart totals, VAT, checkout and payment are the server's. Same guards as booking: Biome `noRestrictedImports` and
+  src/core/hours.ts` the file must not change (`git diff --exit-code`). A new
+  server hours test needs a matching `add(...)` case in that script's input
+  table, so the fixture covers it too. Cart totals, VAT, checkout and payment
+  are the server's. Same guards as booking: Biome `noRestrictedImports` and
   `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
   entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
   `tests/core/denylist.test.ts`. It is `"private": true` until its first

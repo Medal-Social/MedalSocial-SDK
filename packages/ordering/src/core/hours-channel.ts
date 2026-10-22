@@ -3,7 +3,6 @@
  * engine's own name for it (`dineIn`, as in the API's ordering settings).
  */
 import type { OrderingChannel } from '@medalsocial/sdk';
-import { CHANNELS } from './deep-link';
 import type { Channel } from './hours';
 
 const ENGINE_CHANNEL: Readonly<Record<OrderingChannel, Channel>> = {
@@ -13,7 +12,7 @@ const ENGINE_CHANNEL: Readonly<Record<OrderingChannel, Channel>> = {
 };
 
 const WIRE_CHANNEL = Object.fromEntries(
-  CHANNELS.map((channel) => [ENGINE_CHANNEL[channel], channel])
+  Object.entries(ENGINE_CHANNEL).map(([wire, engine]) => [engine, wire])
 ) as Readonly<Record<Channel, OrderingChannel>>;
 
 /** `dine_in` → `dineIn`, for `channelState` / `slots`. */

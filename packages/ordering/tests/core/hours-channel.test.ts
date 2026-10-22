@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromEngineChannel, toEngineChannel } from '../../src/core/hours-channel';
-import { parseChannel } from '../../src/core/index';
+import { type EngineChannel, type HoursWindow, parseChannel } from '../../src/core/index';
 
 describe('the wire channel and the hours engine channel', () => {
   it('maps every wire channel to the engine', () => {
@@ -13,6 +13,12 @@ describe('the wire channel and the hours engine channel', () => {
     expect(fromEngineChannel('dineIn')).toBe('dine_in');
     expect(fromEngineChannel('takeaway')).toBe('takeaway');
     expect(fromEngineChannel('delivery')).toBe('delivery');
+  });
+
+  it('names the engine types apart from the wire and DOM ones', () => {
+    const channel: EngineChannel = toEngineChannel('dine_in');
+    const window: HoursWindow = { start: 0, end: 1 };
+    expect([channel, window]).toEqual(['dineIn', { start: 0, end: 1 }]);
   });
 
   it('round-trips a channel read from a link', () => {

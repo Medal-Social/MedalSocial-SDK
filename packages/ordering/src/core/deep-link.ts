@@ -16,8 +16,7 @@ import type { OrderingChannel } from '@medalsocial/sdk';
 export const TABLE_QUERY_KEY = 't';
 export const CHANNEL_QUERY_KEY = 'c';
 
-/** Every wire channel, in the order the API lists them. */
-export const CHANNELS: readonly OrderingChannel[] = ['dine_in', 'takeaway', 'delivery'];
+const CHANNELS: readonly OrderingChannel[] = ['dine_in', 'takeaway', 'delivery'];
 
 /** A table token: letters, digits, `-` and `_`, at most 64 of them. */
 const TABLE_TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
