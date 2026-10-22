@@ -1,7 +1,8 @@
 /**
  * `@medalsocial/ordering/core` — the framework-free rules behind a Medal
  * ordering site: money in øre, table and channel links, the cart draft, the
- * modifier rules, the allergen/dietary labels and the components' words
+ * modifier rules, the hours engine (channel state and slots, the Medal API's
+ * own), the allergen/dietary labels and the components' words
  * (`ORDERING_LABELS`, server-safe). No React, Next or
  * `server-only`; runs in a browser, Node or a Worker.
  */
@@ -43,6 +44,28 @@ export {
   newIdempotencyKey,
   type OrderDraft,
 } from './draft-store';
+export {
+  addIsoDays,
+  type Channel,
+  type ChannelReason,
+  type ChannelState,
+  channelState,
+  DEFAULT_TIME_ZONE,
+  type EngineInput,
+  effectivePreorderDays,
+  type HoursPeriod,
+  type LocationHours,
+  localIsoDate,
+  type OrderingSettings,
+  parsePeriods,
+  prepMinutes,
+  type SpecialDay,
+  serviceDayEnd,
+  slots,
+  slotsForDate,
+  type Window,
+} from './hours';
+export { fromEngineChannel, toEngineChannel } from './hours-channel';
 export {
   ALLERGEN_LABELS,
   allergenLabel,

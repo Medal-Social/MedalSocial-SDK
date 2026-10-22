@@ -38,9 +38,14 @@ const BUDGETS = [
     // barrel so server components can import them, and the draft store gained
     // `markSubmitted()` — 4.45 KB measured, budget +15%. A consumer's bundler
     // still drops whatever a page does not import (`sideEffects: false`).
+    // Raised again in PR #254 for the hours engine (`channelState`, `slots`,
+    // `slotsForDate`, `serviceDayEnd`, …): the Medal API's own engine, ported
+    // unchanged so a site answers "open now?" and lists pickup times exactly as
+    // the API will, which rules out trimming it here — 6.75 KB measured,
+    // budget +15%. A page that imports no hours function ships none of it.
     name: '@medalsocial/ordering/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 5.1 * 1024,
+    gzipBytes: 7.8 * 1024,
   },
   {
     // Everything `/react` exports: the menu list, the dish sheet, the closed

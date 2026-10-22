@@ -82,8 +82,16 @@ and is never published.
   errors that never carry the key; an injected `store` needs a
   `storeKeyPrefix`, and each store call is bounded to 1.5 s). The modifier rules are
   the Medal API's own (same checks, same order, same reason names) — change
-  them only together with the server. Cart totals, VAT, checkout and payment
-  are the server's. Same guards as booking: Biome `noRestrictedImports` and
+  them only together with the server. So is the hours engine
+  (`src/core/hours.ts`: `channelState`, `slots`, `slotsForDate`,
+  `serviceDayEnd`, …), ported unchanged with the server's names; the wire
+  `dine_in` ↔ engine `dineIn` adapter is `src/core/hours-channel.ts`.
+  `tests/core/hours.parity.test.ts` holds it to `tests/fixtures/hours.json`;
+  refresh that from a monorepo checkout (run from `packages/ordering`) with
+  `node scripts/export-hours-fixtures.mjs --engine
+  <monorepo>/apps/shared/ordering/hours.ts`, and with `--engine
+  src/core/hours.ts` the file must not change (`git diff --exit-code`).
+  Cart totals, VAT, checkout and payment are the server's. Same guards as booking: Biome `noRestrictedImports` and
   `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
   entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
   `tests/core/denylist.test.ts`. It is `"private": true` until its first

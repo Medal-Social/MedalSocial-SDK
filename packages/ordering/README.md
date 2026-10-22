@@ -9,7 +9,7 @@ ESM only, three entries:
 
 | Entry | What it is |
 |---|---|
-| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, allergen/dietary labels and the components' nb/en words. Runs in a browser, Node or a Worker. |
+| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, opening hours and pickup slots, allergen/dietary labels and the components' nb/en words. Runs in a browser, Node or a Worker. |
 | `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet) and `<ClosedNotice>`. Client components. |
 | `@medalsocial/ordering/next` | `createMenuRoute`: the menu route handler, cached and revalidated with Medal's ETag. Server-only. |
 
@@ -73,6 +73,46 @@ override left `undefined` keeps the pack's word.
 
 Cart totals, VAT, checkout and payment are the server's; nothing here prices
 an order.
+
+### Hours
+
+The Medal API's own hours engine, the same code the API runs (ported
+unchanged, held to it by the parity fixtures below). Times are epoch
+milliseconds; the wall clock is the restaurant's `timeZone` (IANA, default
+`DEFAULT_TIME_ZONE`, `Europe/Oslo`), never the visitor's.
+
+```ts
+import {
+  channelState,
+  slots,
+  slotsForDate,
+  toEngineChannel,
+  type EngineInput,
+} from '@medalsocial/ordering/core';
+
+const input: EngineInput = { hours, settings, timeZone: 'Europe/Oslo' };
+const channel = toEngineChannel('takeaway'); // the engine says 'dineIn' for 'dine_in'
+
+channelState(input, channel, Date.now());
+// { open: true, closesAt, lastOrderAt }
+// | { open: false, reason: 'closed' | 'cutoff' | 'paused' | 'kitchen_closed' | 'delivery_off', opensAt? }
+
+slots(input, channel, Date.now(), 2); // pickup/delivery slots, today and tomorrow: [{ start, end }]
+slotsForDate(input, channel, '2026-10-23', Date.now()); // one service date's slots
+```
+
+- `channelState` answers "does this channel take orders now?": open with
+  the window's close and last order time, or closed with the reason and, when
+  it is known within a week, `opensAt`. That `opensAt` can go straight into
+  `<ClosedNotice nextOpenAt>` (or `MenuList`'s `closed.nextOpenAt`).
+- `slots` / `slotsForDate` answer "when can the guest pick up?": starts on
+  local slot boundaries, from now plus prep (and busy) time, up to close minus
+  the cutoff, within the pre-order days. A DST change neither invents nor
+  repeats a slot, and an overnight window's after-midnight slots belong to the
+  evening it opened.
+- `serviceDayEnd`, `parsePeriods`, `prepMinutes`, `effectivePreorderDays`,
+  `localIsoDate` and `addIsoDays` are the engine's building blocks.
+  `fromEngineChannel` maps the engine's channel back to the wire.
 
 ## `/react`
 
@@ -233,6 +273,18 @@ server cache are the 60-second "ISR". Add `export const dynamic =
   timed read answers the error. When Medal refuses (ordering off, key rejected) the cached
   menu is dropped and the error answered. `onError` sees every failed Medal read,
   for the site's logger.
+
+## Parity
+
+`src/core/hours.ts` is the Medal API's hours engine, and
+`tests/core/hours.parity.test.ts` runs every case in
+`tests/fixtures/hours.json` (inputs and the API engine's answers) against it.
+Refresh the fixture from a monorepo checkout (run from `packages/ordering`)
+with `node scripts/export-hours-fixtures.mjs --engine
+<monorepo>/apps/shared/ordering/hours.ts`; the input table is in the script.
+Run it with `--engine src/core/hours.ts` and `git diff --exit-code
+tests/fixtures/hours.json` to show the package answers the same. The script
+formats the file with Biome itself.
 
 ## License
 
