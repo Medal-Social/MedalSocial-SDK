@@ -66,6 +66,13 @@ afterEach(() => {
 });
 
 describe('createMenuRoute — options', () => {
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'refuses maxTimedReadsPerWindow %s at once',
+    (maxTimedReadsPerWindow) => {
+      expect(() => createMenuRoute({ apiKey: KEY, maxTimedReadsPerWindow })).toThrow(RangeError);
+    }
+  );
+
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
     'refuses revalidateSeconds %s at once',
     (revalidateSeconds) => {
@@ -312,6 +319,17 @@ describe('createMenuRoute — server-side revalidation', () => {
     expect(menu).toHaveBeenCalledTimes(2);
   });
 
+  it('a throwing waitUntil never breaks the response', async () => {
+    const { GET } = setup({
+      waitUntil: () => {
+        throw new Error('no context');
+      },
+    });
+    const response = await GET(req());
+    expect(response.status).toBe(200);
+    expect(await body(response)).toEqual({ data: MENU });
+  });
+
   it('hands a shared revalidation to waitUntil once, settled even when it fails', async () => {
     const waitUntil = vi.fn<(promise: Promise<unknown>) => void>();
     const { GET, menu } = setup({ waitUntil });
@@ -394,13 +412,24 @@ describe('createMenuRoute — channel', () => {
     expect(menu.mock.calls[0]?.[0].channel).toBe(channel);
   });
 
+  it.each([
+    ['?channel=', 'takeaway'],
+    ['?c=', 'takeaway'],
+    ['?channel=&c=delivery', 'delivery'],
+    ['?c=&t=T7', 'dine_in'],
+  ])('treats an empty channel as absent: %s reads as %s', async (query, channel) => {
+    const { GET, menu } = setup();
+    expect((await GET(req(query))).status).toBe(200);
+    expect(menu.mock.calls[0]?.[0].channel).toBe(channel);
+  });
+
   it('uses defaultChannel when the request names none', async () => {
     const { GET, menu } = setup({ defaultChannel: 'delivery' });
     await GET(req());
     expect(menu.mock.calls[0]?.[0].channel).toBe('delivery');
   });
 
-  it.each(['?c=pickup', '?channel=', '?channel=dine-in'])(
+  it.each(['?c=pickup', '?channel=dine-in', '?channel=%20x'])(
     '%s is a 400 and never reaches upstream',
     async (query) => {
       const { GET, menu } = setup();
@@ -471,7 +500,7 @@ describe('createMenuRoute — at', () => {
   });
 
   it('holds at most 100 timed menus, least recently used out first', async () => {
-    const { GET, menu } = setup();
+    const { GET, menu } = setup({ maxTimedReadsPerWindow: 1000 });
     const minute = (n: number) => `?at=${Date.parse('2026-10-23T00:00:00Z') + n * 60_000}`;
     for (let n = 0; n <= 100; n++) await GET(req(minute(n)));
     expect(menu).toHaveBeenCalledTimes(101);
@@ -479,6 +508,47 @@ describe('createMenuRoute — at', () => {
     expect(menu).toHaveBeenCalledTimes(101);
     await GET(req(minute(0)));
     expect(menu).toHaveBeenCalledTimes(102);
+  });
+
+  it('budgets timed Medal reads per window, then answers 503 without calling Medal', async () => {
+    const { GET, menu, onError } = setup({ maxTimedReadsPerWindow: 3 });
+    const minute = (n: number) => `?at=${Date.parse('2026-10-23T00:00:00Z') + n * 60_000}`;
+    for (let n = 0; n < 3; n++) expect((await GET(req(minute(n)))).status).toBe(200);
+    const over = await GET(req(minute(3)));
+    expect(over.status).toBe(503);
+    expect(over.headers.get('cache-control')).toBe('no-store');
+    expect((await body(over)).error?.code).toBe('MENU_UNAVAILABLE');
+    expect(menu).toHaveBeenCalledTimes(3);
+    expect(onError).not.toHaveBeenCalled();
+    // Cached instants and the current menu are not affected.
+    expect((await GET(req(minute(0)))).status).toBe(200);
+    expect((await GET(req())).status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(4);
+    // A new window opens the budget again.
+    vi.advanceTimersByTime(60_000);
+    expect((await GET(req(minute(3)))).status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(5);
+  });
+
+  it('allows 20 timed Medal reads per window by default', async () => {
+    const { GET, menu } = setup();
+    const minute = (n: number) => `?at=${Date.parse('2026-10-23T00:00:00Z') + n * 60_000}`;
+    for (let n = 0; n < 20; n++) expect((await GET(req(minute(n)))).status).toBe(200);
+    expect((await GET(req(minute(20)))).status).toBe(503);
+    expect(menu).toHaveBeenCalledTimes(20);
+  });
+
+  it('counts a shared timed read once', async () => {
+    const { GET, menu } = setup({ maxTimedReadsPerWindow: 1 });
+    const responses = await Promise.all([GET(req(AT)), GET(req(AT)), GET(req(AT))]);
+    for (const response of responses) expect(response.status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(1);
+  });
+
+  it('maxTimedReadsPerWindow 0 turns timed reads off', async () => {
+    const { GET, menu } = setup({ maxTimedReadsPerWindow: 0 });
+    expect((await GET(req(AT))).status).toBe(503);
+    expect(menu).not.toHaveBeenCalled();
   });
 
   it('answers 304 for a timed read too', async () => {

@@ -75,7 +75,7 @@ and is never published.
   in `dist/react` but React. `/next` holds `createMenuRoute` (the site's
   menu `GET` handler on Web `Request`/`Response`, no `next` import: server
   cache revalidated with Medal's ETag, `?at=` window-checked, minute-rounded
-  and LRU-cached, `ETag`/`304` and public `Cache-Control` out, fixed-word
+  LRU-cached and budgeted per window, `ETag`/`304` and public `Cache-Control` out, fixed-word
   errors that never carry the key). The modifier rules are
   the Medal API's own (same checks, same order, same reason names) — change
   them only together with the server. Cart totals, VAT, checkout and payment

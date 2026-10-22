@@ -12,7 +12,7 @@
  */
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { OrderingMenuItem, OrderingModifierGroup } from '../core';
-import { MAX_NOTE_LENGTH, MAX_QUANTITY } from '../core/draft-store';
+import { MAX_NOTE_LENGTH, MAX_QUANTITY, type NewDraftLine } from '../core/draft-store';
 import {
   type Selections,
   selectionMode,
@@ -23,13 +23,11 @@ import {
 import { createMoney, type Money } from '../core/money';
 import { fill, mergeLabels, type OrderingLabels } from './labels';
 
-/** What the sheet hands the page: one cart line. `note` is left out when empty. */
-export interface ItemSheetLine {
-  itemId: string;
-  quantity: number;
-  selections: Record<string, string[]>;
-  note?: string;
-}
+/**
+ * What the sheet hands the page: one cart line, exactly what the draft
+ * store's `addLine` takes. `note` is left out when empty.
+ */
+export type ItemSheetLine = NewDraftLine;
 
 export interface ItemSheetProps {
   /** The dish; `null` renders nothing. */

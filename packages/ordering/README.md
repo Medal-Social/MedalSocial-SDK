@@ -54,6 +54,8 @@ an order.
 Presentational, controlled components: the page fetches the menu, keeps the
 cart and decides when the sheet is open. Words come in Norwegian (`nb`, `no`,
 `nn`) and English (anything else); pass `labels` to change any of them.
+For `ar`, the component words fall back to English while the allergen and
+dietary names are Arabic, and there is no right-to-left handling yet.
 
 ```tsx
 'use client';
@@ -131,15 +133,22 @@ server cache are the 60-second "ISR". Add `export const dynamic =
 `GET /api/ordering/menu?c=takeaway` answers `200 { data: OrderingMenu }`.
 
 - **Channel** — `?channel=` or `?c=` (`dine_in`, `takeaway`, `delivery`, any
-  case); a `?t=` table link with neither means `dine_in`. With none, the
-  `defaultChannel` option (default `takeaway`). Any other value is a `400`.
+  case); a `?t=` table link with neither means `dine_in`. With none (an
+  empty value counts as none), the `defaultChannel` option (default
+  `takeaway`). Any other value is a `400`.
 - **`?at=`** — read the menu as it will be at that instant (ISO 8601 with `Z`
   or an offset, or Unix milliseconds). It must lie inside Medal's window (one
   day back to 60 days ahead) or the route answers `400` without calling
-  Medal. It is rounded down to the minute and cached like the current menu
-  (up to 100 instants, least recently used out first), so `?at=` cannot be
-  used to spend the site's API rate limit. No other query parameter is
-  forwarded; `location` is an option, never read from the request.
+  Medal. It is rounded down to the minute — so a dish scheduled from the
+  middle of a minute shows from the next minute — and cached like the current
+  menu (up to 100 instants, least recently used out first). Timed reads that
+  miss that cache are budgeted: at most `maxTimedReadsPerWindow` (default 20)
+  Medal calls per `revalidateSeconds` window in each route instance; past it
+  the route answers `503 MENU_UNAVAILABLE` without calling Medal. A script
+  walking through instants therefore costs the site's key a bounded number of
+  calls per window per instance, not one per request. No other query
+  parameter is forwarded; `location` is an option, never read from the
+  request.
 - **Caching** — the server keeps the last menu per channel and asks Medal
   again at most every `revalidateSeconds`, with `If-None-Match`; a `304` from
   Medal keeps the menu. Concurrent requests share one Medal call. The response
@@ -152,8 +161,20 @@ server cache are the 60-second "ISR". Add `export const dynamic =
   warms) its own copy; the CDN's `s-maxage` is what keeps Medal calls low
   there. Pass `store: { get, set, delete }` (KV, Redis) to share the current
   menu between instances; a store that throws counts as a miss. Pass
-  `waitUntil` (`ctx.waitUntil` on Workers, `after` in Next) so a shared
-  revalidation finishes even when the request that started it goes away.
+  `waitUntil` so a shared revalidation finishes even when the request that
+  started it goes away. It is called per request, so read the platform's
+  context inside it — on OpenNext for Cloudflare:
+
+  ```ts
+  import { getCloudflareContext } from '@opennextjs/cloudflare';
+
+  export const GET = createMenuRoute({
+    apiKey: process.env.MEDAL_API_KEY!,
+    waitUntil: (p) => getCloudflareContext().ctx.waitUntil(p),
+  });
+  ```
+
+  A `waitUntil` that throws is ignored.
 - **Errors** — `{ error: { code, message } }` with fixed words, `Cache-Control:
   no-store`, never the key, Medal's message or an upstream URL:
 
@@ -163,14 +184,15 @@ server cache are the 60-second "ISR". Add `export const dynamic =
   | Medal refused the request (400) | 400 | `INVALID_REQUEST` |
   | Workspace has no online ordering | 404 | `ORDERING_NOT_ENABLED` |
   | No API key | 500 | `NOT_CONFIGURED` |
-  | Medal rate-limited the site (429) | 503 | `MENU_UNAVAILABLE` |
+  | Medal rate-limited the site (429), or the timed-read budget is spent | 503 | `MENU_UNAVAILABLE` |
   | Anything else (5xx, network, timeout, auth) | 502 | `MENU_UNAVAILABLE` |
 
   `ORDERING_NOT_ENABLED` is a 404, not a 503: there is no menu to find, and a
-  503 invites retries for something that will not recover by itself. When a
-  menu is cached and Medal fails transiently (5xx, 429, network, timeout), the
-  cached menu is served instead (stale-if-error) and Medal is asked again a
-  window later. When Medal refuses (ordering off, key rejected) the cached
+  503 invites retries for something that will not recover by itself. When the
+  current menu is cached and Medal fails transiently (5xx, 429, network,
+  timeout), the cached menu is served instead (stale-if-error) and Medal is
+  asked again a window later. `?at=` reads have no stale-if-error: a failed
+  timed read answers the error. When Medal refuses (ordering off, key rejected) the cached
   menu is dropped and the error answered. `onError` sees every failed Medal read,
   for the site's logger.
 

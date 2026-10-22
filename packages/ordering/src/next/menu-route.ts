@@ -23,9 +23,13 @@
  *   window and keeps the menu; requests that arrive while a revalidation is in
  *   flight share it. A read for a given `at` (rounded down to the minute,
  *   inside Medal's window of one day back to 60 days ahead) is cached the
- *   same way in a small LRU, so `?at=` cannot be used to hammer Medal with
- *   the site's key. The caches live in this process (one per Workers
- *   isolate); pass `store` to share the current menu between them.
+ *   same way in a 100-entry LRU. Timed reads that miss that cache are
+ *   budgeted: at most `maxTimedReadsPerWindow` Medal calls per window per
+ *   route instance, then `503` without a call — so a script walking through
+ *   instants costs the site's key a bounded number of calls per window and
+ *   per instance (isolate), not one per request. The caches live in this
+ *   process (one per Workers isolate); pass `store` to share the current
+ *   menu between them.
  * - CDN/BROWSER: `Cache-Control: public, s-maxage, stale-while-revalidate`
  *   plus `ETag`, and a `304` for an `If-None-Match` that is still current.
  *
@@ -66,6 +70,9 @@ const DEADLINE_MS = 8_000;
 
 /** How many timed (`?at=`) menus the route keeps. */
 const TIMED_ENTRIES = 100;
+
+/** Medal calls for timed reads per window, per route instance. */
+const DEFAULT_MAX_TIMED_READS = 20;
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -109,9 +116,9 @@ export interface MenuStore {
 
 export interface MenuRouteOptions {
   /**
-   * The workspace API key (`process.env.MEDAL_API_KEY`). Read when the first
-   * request arrives, not at import, so a build without it still succeeds; a
-   * missing key answers `500 NOT_CONFIGURED`.
+   * The workspace API key (`process.env.MEDAL_API_KEY`). Checked on the first
+   * request, so a build without it still succeeds; a missing key answers
+   * `500 NOT_CONFIGURED`.
    */
   apiKey: string;
   /** The Medal API origin. Default: the SDK's (`https://io.medalsocial.com`). */
@@ -120,6 +127,13 @@ export interface MenuRouteOptions {
   medal?: MenuClient;
   /** Server and CDN cache window in seconds, a positive integer. Default 60. */
   revalidateSeconds?: number;
+  /**
+   * Most Medal calls for `?at=` reads per `revalidateSeconds` window in this
+   * route instance; past it a timed read that is not cached answers `503
+   * MENU_UNAVAILABLE`. A non-negative integer; `0` turns timed reads off.
+   * Default 20.
+   */
+  maxTimedReadsPerWindow?: number;
   /** The channel when the request names none (and no table). Default `'takeaway'`. */
   defaultChannel?: OrderingChannel;
   /** The ordering location to read. Never taken from the request. */
@@ -131,9 +145,10 @@ export interface MenuRouteOptions {
    */
   store?: MenuStore;
   /**
-   * The platform's background hook (`ctx.waitUntil` on Workers, `after` in
-   * Next). A revalidation shared by several visitors is handed to it, so it
-   * finishes and is stored even when the request that started it goes away.
+   * The platform's background hook, read per request (on OpenNext:
+   * `(p) => getCloudflareContext().ctx.waitUntil(p)`). A revalidation shared
+   * by several visitors is handed to it, so it finishes and is stored even
+   * when the request that started it goes away. A throw here is ignored.
    */
   waitUntil?: (promise: Promise<unknown>) => void;
   /**
@@ -163,12 +178,6 @@ const INVALID_AT: ErrorBody = {
 };
 
 /**
- * A Medal failure in the site's words. `ORDERING_NOT_ENABLED` is a 404, not a
- * 503: the workspace has no online ordering, so there is no menu here to
- * find, and a 503 would tell clients and CDNs to keep retrying something
- * that will not come back on its own.
- */
-/**
  * `error` as an API failure, or `null`. Besides `instanceof`, an error named
  * `MedalApiError` with a numeric `status` counts: a site with two copies of
  * the SDK installed throws the other copy's class.
@@ -195,7 +204,21 @@ function isTransient(error: unknown): boolean {
   return failure === null || failure.status >= 500 || failure.status === 429;
 }
 
+/** The timed-read budget is spent for this window. */
+class TimedBudgetSpent extends Error {}
+
+const UNAVAILABLE_NOW = 'The menu is not available right now.';
+
+/**
+ * A Medal failure in the site's words. `ORDERING_NOT_ENABLED` is a 404, not a
+ * 503: the workspace has no online ordering, so there is no menu here to
+ * find, and a 503 would tell clients and CDNs to keep retrying something
+ * that will not come back on its own.
+ */
 function classify(error: unknown): ErrorBody {
+  if (error instanceof TimedBudgetSpent) {
+    return { status: 503, code: 'MENU_UNAVAILABLE', message: UNAVAILABLE_NOW };
+  }
   const failure = apiFailure(error);
   if (failure) {
     if (failure.code === 'ORDERING_NOT_ENABLED') {
@@ -212,11 +235,11 @@ function classify(error: unknown): ErrorBody {
       return {
         status: 503,
         code: 'MENU_UNAVAILABLE',
-        message: 'The menu is not available right now.',
+        message: UNAVAILABLE_NOW,
       };
     }
   }
-  return { status: 502, code: 'MENU_UNAVAILABLE', message: 'The menu is not available right now.' };
+  return { status: 502, code: 'MENU_UNAVAILABLE', message: UNAVAILABLE_NOW };
 }
 
 function errorResponse({ status, code, message }: ErrorBody): Response {
@@ -252,8 +275,8 @@ function parseAt(raw: string | null, now: number): number | undefined | null {
  * anything else gets the default.
  */
 function readChannel(params: URLSearchParams, fallback: OrderingChannel): OrderingChannel | null {
-  const named = params.get('channel') ?? params.get('c');
-  if (named !== null) return parseChannel(named);
+  const named = [params.get('channel'), params.get('c')].find((value) => value?.trim());
+  if (named) return parseChannel(named);
   return parseOrderLink(params).channel ?? fallback;
 }
 
@@ -290,6 +313,13 @@ export function createMenuRoute(
       `createMenuRoute: revalidateSeconds must be a positive integer, got ${revalidateSeconds}`
     );
   }
+  const maxTimedReads = options.maxTimedReadsPerWindow ?? DEFAULT_MAX_TIMED_READS;
+  if (!Number.isSafeInteger(maxTimedReads) || maxTimedReads < 0) {
+    throw new RangeError(
+      `createMenuRoute: maxTimedReadsPerWindow must be a non-negative integer, got ${maxTimedReads}`
+    );
+  }
+  const budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
   const revalidateMs = revalidateSeconds * 1000;
   const cacheControl = `public, s-maxage=${revalidateSeconds}, stale-while-revalidate=${revalidateSeconds * STALE_WINDOWS}`;
   const defaultChannel = options.defaultChannel ?? 'takeaway';
@@ -394,6 +424,17 @@ export function createMenuRoute(
     return entry;
   }
 
+  /** Take one timed Medal read from this window's budget, or throw. */
+  function spendTimedRead(): void {
+    const now = Date.now();
+    if (now - budget.windowStart >= revalidateMs) {
+      budget.windowStart = now;
+      budget.used = 0;
+    }
+    if (budget.used >= maxTimedReads) throw new TimedBudgetSpent();
+    budget.used += 1;
+  }
+
   async function cachedMenu(
     api: MenuClient,
     channel: OrderingChannel,
@@ -406,10 +447,15 @@ export function createMenuRoute(
     if (cached && Date.now() - cached.checkedAt < revalidateMs) return cached;
     let pending = inflight.get(key);
     if (!pending) {
+      if (at !== undefined) spendTimedRead();
       pending = revalidate(api, from, key, channel, at, cached).finally(() => inflight.delete(key));
       inflight.set(key, pending);
       // Settled either way: the platform only needs to know when it is done.
-      options.waitUntil?.(pending.catch(() => undefined));
+      try {
+        options.waitUntil?.(pending.catch(() => undefined));
+      } catch {
+        // No background hook for this request: the visitors waiting keep it alive.
+      }
     }
     return pending;
   }
