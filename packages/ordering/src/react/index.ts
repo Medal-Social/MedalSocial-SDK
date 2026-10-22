@@ -10,7 +10,7 @@
  * (see the README).
  */
 
+export type { OrderingLabels } from '../core/ui-labels';
 export { ClosedNotice, type ClosedNoticeProps } from './ClosedNotice';
 export { ItemSheet, type ItemSheetLine, type ItemSheetProps } from './ItemSheet';
-export { mergeLabels, ORDERING_LABELS, type OrderingLabels } from './labels';
 export { MenuList, type MenuListProps } from './MenuList';

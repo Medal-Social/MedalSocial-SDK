@@ -433,3 +433,92 @@ describe('when storage fails, the cart lives in memory', () => {
     expect(drafts.loadDraft()).toBeNull();
   });
 });
+
+describe('markSubmitted', () => {
+  const burger = { itemId: 'burger', quantity: 1, selections: {} };
+
+  it('records that the key was sent, and an unchanged retry keeps it', () => {
+    const { drafts } = store();
+    const before = drafts.addLine(burger);
+    const marked = drafts.markSubmitted();
+    expect(marked.submitted).toBe(true);
+    expect(marked.idempotencyKey).toBe(before.idempotencyKey);
+    expect(stored().submitted).toBe(true);
+    expect(drafts.loadDraft()?.submitted).toBe(true);
+    // A retry with the same cart: saved as it is, the key and the mark stay.
+    const again = drafts.saveDraft(drafts.loadDraft() as OrderDraft);
+    expect(again.idempotencyKey).toBe(before.idempotencyKey);
+    expect(again.submitted).toBe(true);
+    // Updating a line that is not there changes nothing either.
+    expect(drafts.updateLine('nope', { quantity: 2 }).idempotencyKey).toBe(before.idempotencyKey);
+  });
+
+  it('rotates the key and clears the mark when a line is added, changed or removed', () => {
+    const { drafts } = store();
+    const first = drafts.addLine(burger);
+    drafts.markSubmitted();
+    const added = drafts.addLine({ itemId: 'fries', quantity: 1, selections: {} });
+    expect(added.idempotencyKey).not.toBe(first.idempotencyKey);
+    expect(added.submitted).toBeUndefined();
+    expect(stored().submitted).toBeUndefined();
+    // Unmarked, the cart keeps its key while it changes.
+    const lineId = added.lines[0]?.lineId as string;
+    expect(drafts.updateLine(lineId, { quantity: 2 }).idempotencyKey).toBe(added.idempotencyKey);
+
+    drafts.markSubmitted();
+    const updated = drafts.updateLine(lineId, { quantity: 3 });
+    expect(updated.idempotencyKey).not.toBe(added.idempotencyKey);
+    expect(updated.submitted).toBeUndefined();
+
+    drafts.markSubmitted();
+    const removed = drafts.removeLine(lineId);
+    expect(removed.idempotencyKey).not.toBe(updated.idempotencyKey);
+    expect(removed.submitted).toBeUndefined();
+  });
+
+  it('rotates when saveDraft changes the context, or drops the mark by hand', () => {
+    const { drafts } = store();
+    drafts.addLine(burger);
+    const marked = drafts.markSubmitted();
+    const takeaway = drafts.saveDraft({ ...marked, channel: 'takeaway' });
+    expect(takeaway.idempotencyKey).not.toBe(marked.idempotencyKey);
+    expect(takeaway.submitted).toBeUndefined();
+
+    const markedAgain = drafts.markSubmitted();
+    const { submitted: _dropped, ...unmarked } = markedAgain;
+    const moreLines = drafts.saveDraft({
+      ...unmarked,
+      lines: [...unmarked.lines, { lineId: 'l2', itemId: 'cola', quantity: 1, selections: {} }],
+    });
+    expect(moreLines.idempotencyKey).not.toBe(markedAgain.idempotencyKey);
+    expect(moreLines.submitted).toBeUndefined();
+  });
+
+  it('rotates a marked draft it cannot compare: nothing stored, or another key', () => {
+    const { drafts } = store();
+    const orphan = drafts.saveDraft(valid({ submitted: true }));
+    expect(orphan.idempotencyKey).not.toBe('key-1');
+    expect(orphan.submitted).toBeUndefined();
+
+    const other = drafts.saveDraft(valid({ idempotencyKey: 'key-2', submitted: true }));
+    expect(other.idempotencyKey).not.toBe('key-2');
+    expect(other.submitted).toBeUndefined();
+  });
+
+  it('rotateIdempotencyKey clears the mark and keeps the lines', () => {
+    const { drafts } = store();
+    const first = drafts.addLine(burger);
+    drafts.markSubmitted();
+    const rotated = drafts.rotateIdempotencyKey();
+    expect(rotated.submitted).toBeUndefined();
+    expect(rotated.lines).toEqual(first.lines);
+    expect(rotated.idempotencyKey).not.toBe(first.idempotencyKey);
+  });
+
+  it('reads the mark back only as `true`', () => {
+    put(valid({ submitted: true }));
+    expect(store().drafts.loadDraft()?.submitted).toBe(true);
+    put({ ...valid(), submitted: 'yes' });
+    expect(store().drafts.loadDraft()).not.toHaveProperty('submitted');
+  });
+});

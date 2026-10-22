@@ -248,10 +248,10 @@ describe('createMenuRoute — server-side revalidation', () => {
         entries.delete(key);
       },
     };
-    const { GET, menu } = setup({ store });
+    const { GET, menu } = setup({ store, storeKeyPrefix: 'site' });
     await GET(req());
     expect([...entries.values()]).toEqual([{ etag: ETAG, menu: MENU, checkedAt: Date.now() }]);
-    const second = setup({ store });
+    const second = setup({ store, storeKeyPrefix: 'site' });
     await second.GET(req());
     expect(second.menu).not.toHaveBeenCalled();
     expect(menu).toHaveBeenCalledTimes(1);
@@ -269,7 +269,7 @@ describe('createMenuRoute — server-side revalidation', () => {
         throw new Error('down');
       },
     };
-    const { GET, menu } = setup({ store });
+    const { GET, menu } = setup({ store, storeKeyPrefix: 'site' });
     expect((await GET(req())).status).toBe(200);
     expect((await GET(req())).status).toBe(200);
     expect(menu).toHaveBeenCalledTimes(2);
@@ -292,7 +292,7 @@ describe('createMenuRoute — server-side revalidation', () => {
         entries.delete(key);
       },
     };
-    const { GET, menu } = setup({ store });
+    const { GET, menu } = setup({ store, storeKeyPrefix: 'site' });
     const responses = await Promise.all([GET(req()), GET(req()), GET(req())]);
     expect(menu).toHaveBeenCalledTimes(1);
     for (const response of responses) expect(response.status).toBe(200);
@@ -345,6 +345,97 @@ describe('createMenuRoute — server-side revalidation', () => {
     expect((await GET(req('?c=delivery'))).status).toBe(502);
     expect(waitUntil).toHaveBeenCalledTimes(3);
     await expect(waitUntil.mock.calls[2]?.[0]).resolves.toBeUndefined();
+  });
+});
+
+describe('createMenuRoute — a shared store', () => {
+  function mapStore() {
+    const entries = new Map<string, MenuCacheEntry>();
+    const store: MenuStore = {
+      get: async (key) => entries.get(key),
+      set: async (key, entry) => {
+        entries.set(key, entry);
+      },
+      delete: async (key) => {
+        entries.delete(key);
+      },
+    };
+    return { entries, store };
+  }
+
+  it.each([undefined, '', '   '])(
+    'refuses a custom store without a storeKeyPrefix (%j) at once',
+    (storeKeyPrefix) => {
+      const { store } = mapStore();
+      expect(() => createMenuRoute({ apiKey: KEY, store, storeKeyPrefix })).toThrow(RangeError);
+    }
+  );
+
+  it('refuses an empty storeKeyPrefix even without a store', () => {
+    expect(() => createMenuRoute({ apiKey: KEY, storeKeyPrefix: '' })).toThrow(RangeError);
+  });
+
+  it('prefixes every store key, so two routes with different prefixes keep apart', async () => {
+    const { entries, store } = mapStore();
+    const one = setup({ store, storeKeyPrefix: 'site-one' });
+    const two = setup({ store, storeKeyPrefix: 'site-two' });
+    two.menu.mockResolvedValue(fresh(MENU_2, ETAG_2));
+    expect(await body(await one.GET(req()))).toEqual({ data: MENU });
+    expect(await body(await two.GET(req()))).toEqual({ data: MENU_2 });
+    expect(await body(await one.GET(req()))).toEqual({ data: MENU });
+    expect(await body(await two.GET(req()))).toEqual({ data: MENU_2 });
+    expect(one.menu).toHaveBeenCalledTimes(1);
+    expect(two.menu).toHaveBeenCalledTimes(1);
+    const keys = [...entries.keys()];
+    expect(keys).toHaveLength(2);
+    expect(keys.filter((key) => key.startsWith('site-one:'))).toHaveLength(1);
+    expect(keys.filter((key) => key.startsWith('site-two:'))).toHaveLength(1);
+  });
+
+  it('prefixes the in-process keys too, and works without a prefix there', async () => {
+    const plain = setup();
+    const prefixed = setup({ storeKeyPrefix: 'site' });
+    expect((await plain.GET(req())).status).toBe(200);
+    expect((await prefixed.GET(req())).status).toBe(200);
+  });
+});
+
+describe('createMenuRoute — a store that never answers', () => {
+  const never = () => new Promise<never>(() => {});
+
+  it('gives up on get and set after a deadline and still answers from Medal', async () => {
+    const store: MenuStore = { get: never, set: never, delete: never };
+    const { GET, menu } = setup({ store, storeKeyPrefix: 'site' });
+    const pending = Promise.all([GET(req()), GET(req())]);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const responses = await pending;
+    for (const response of responses) expect(await body(response)).toEqual({ data: MENU });
+    // One shared Medal read, and the in-flight entry is gone: the next request reads again.
+    expect(menu).toHaveBeenCalledTimes(1);
+    const next = GET(req());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((await next).status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('gives up on delete after a deadline and still answers the refusal', async () => {
+    const stale: MenuCacheEntry = { etag: ETAG, menu: MENU, checkedAt: NOW - 120_000 };
+    const store: MenuStore = { get: async () => stale, set: async () => {}, delete: never };
+    const { GET, menu } = setup({ store, storeKeyPrefix: 'site' });
+    menu.mockRejectedValueOnce(new MedalApiError(404, 'ORDERING_NOT_ENABLED', 'off'));
+    const pending = GET(req());
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((await body(await pending)).error?.code).toBe('ORDERING_NOT_ENABLED');
+    // Settled and cleared: the next request asks Medal again.
+    expect((await GET(req())).status).toBe(200);
+    expect(menu).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves no timer behind when the store answers in time', async () => {
+    const { GET } = setup();
+    expect((await GET(req())).status).toBe(200);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

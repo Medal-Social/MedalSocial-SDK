@@ -62,10 +62,38 @@ describe('MenuList', () => {
         onSelectItem={() => {}}
       />
     );
-    expect(screen.getByRole('link', { name: 'Hot' })).toHaveAttribute(
-      'href',
-      '#ordering-category-Hot-dishes-'
+    expect(screen.getByRole('link', { name: 'Hot' }).getAttribute('href')).toMatch(
+      /^#ordering-category-Hot-dishes--[0-9a-z]+$/
     );
+  });
+
+  it('gives ids that sanitise alike their own anchors, the same on every render', () => {
+    const menu = {
+      ...MENU,
+      categories: [
+        { id: 'a.b', name: 'Dotted', items: [BURGER] },
+        { id: 'a-b', name: 'Dashed', items: [FRIES] },
+      ],
+    };
+    const { unmount } = render(<MenuList menu={menu} onSelectItem={() => {}} />);
+    const anchors = ['Dotted', 'Dashed'].map((name) => {
+      const href = screen.getByRole('link', { name }).getAttribute('href') as string;
+      const section = screen.getByRole('region', { name });
+      // The tab, the section and its heading agree.
+      expect(href).toBe(`#${section.id}`);
+      expect(section).toHaveAttribute('aria-labelledby', `${section.id}-title`);
+      expect(screen.getByRole('heading', { name })).toHaveAttribute('id', `${section.id}-title`);
+      return section.id;
+    });
+    expect(anchors[1]).toBe('ordering-category-a-b');
+    expect(anchors[0]).toMatch(/^ordering-category-a-b-[0-9a-z]+$/);
+    expect(new Set(anchors).size).toBe(2);
+    unmount();
+    // Stable: a later render, or the category alone, gives the same anchor.
+    render(
+      <MenuList menu={{ ...menu, categories: [menu.categories[0]] }} onSelectItem={() => {}} />
+    );
+    expect(screen.getByRole('region', { name: 'Dotted' }).id).toBe(anchors[0]);
   });
 
   it('hands the chosen dish to the page', async () => {

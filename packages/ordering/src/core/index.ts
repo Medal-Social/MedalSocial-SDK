@@ -1,7 +1,8 @@
 /**
  * `@medalsocial/ordering/core` — the framework-free rules behind a Medal
  * ordering site: money in øre, table and channel links, the cart draft, the
- * modifier rules and the allergen/dietary labels. No React, Next or
+ * modifier rules, the allergen/dietary labels and the components' words
+ * (`ORDERING_LABELS`, server-safe). No React, Next or
  * `server-only`; runs in a browser, Node or a Worker.
  */
 
@@ -63,3 +64,4 @@ export {
   validateSelections,
 } from './modifiers';
 export { createMoney, formatOre, type Money, type MoneyOptions } from './money';
+export { fill, mergeLabels, ORDERING_LABELS, type OrderingLabels } from './ui-labels';

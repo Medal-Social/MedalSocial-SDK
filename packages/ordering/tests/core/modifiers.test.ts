@@ -116,6 +116,20 @@ describe('validateSelections', () => {
     expect(validateSelections(BURGER, { size: ['large'], sauce: [] })).toEqual({ ok: true });
   });
 
+  it('treats a missing list as nothing chosen instead of throwing', () => {
+    expect(validateSelection(EXTRAS, undefined)).toEqual({ ok: true });
+    expect(validateSelection(SIZE, undefined)).toEqual({ ok: false, reason: 'below_min' });
+    expect(validateSelections(BURGER, { size: ['large'], extras: undefined })).toEqual({
+      ok: true,
+    });
+    expect(validateSelections(BURGER, { size: ['large'], sauce: undefined })).toEqual({ ok: true });
+    expect(validateSelections(BURGER, { size: undefined })).toEqual({
+      ok: false,
+      groupId: 'size',
+      reason: 'below_min',
+    });
+  });
+
   it('accepts a dish without modifiers', () => {
     expect(validateSelections({ ...BURGER, modifier_groups: [] }, {})).toEqual({ ok: true });
   });

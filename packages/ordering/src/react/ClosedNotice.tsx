@@ -4,10 +4,10 @@
  * after that. Days and times are the restaurant's (`timeZone`), not the
  * viewer's: a guest abroad still reads the opening as the restaurant states it.
  */
-import { useSyncExternalStore } from 'react';
+import { useEffect, useReducer, useSyncExternalStore } from 'react';
 import { labelLocale } from '../core/labels';
+import { fill, mergeLabels, type OrderingLabels } from '../core/ui-labels';
 import { cx } from './cx';
-import { fill, mergeLabels, type OrderingLabels } from './labels';
 
 export interface ClosedNoticeProps {
   /** The next opening, or nothing to say only that it is closed. A past or unreadable one is ignored. */
@@ -26,7 +26,8 @@ export interface ClosedNoticeProps {
   className?: string;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
 
 /** «Is there a client clock?» only ever flips once; `useSyncExternalStore` wants a subscription. */
 function noopSubscribe(): () => void {
@@ -101,6 +102,21 @@ export function ClosedNotice({
   );
   const clock = now ?? (hydrated ? new Date() : null);
   const opens = clock === null ? null : opening(nextOpenAt, clock, timeZone, locale, labels);
+  // On the browser's clock the line must move on by itself: «i morgen» turns
+  // into «i dag» at midnight, and the line goes once it opens. Every
+  // restaurant midnight falls on a whole minute (time-zone offsets are whole
+  // minutes), so a render at each minute boundary — or at the opening, if
+  // that comes first — is never stale. One timer at a time, cleared on every
+  // render and on unmount.
+  const [, tick] = useReducer((count: number) => count + 1, 0);
+  const live = now === undefined && opens !== null;
+  useEffect(() => {
+    if (!live) return;
+    const at = Date.now();
+    const opensAt = new Date(nextOpenAt as Date | string | number).getTime();
+    const timer = setTimeout(tick, Math.min(MINUTE_MS - (at % MINUTE_MS), opensAt - at));
+    return () => clearTimeout(timer);
+  });
   return (
     <div
       role="status"

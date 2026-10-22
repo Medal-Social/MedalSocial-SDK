@@ -68,6 +68,13 @@ const ATTEMPT_TIMEOUT_MS = 5_000;
  */
 const DEADLINE_MS = 8_000;
 
+/**
+ * One store operation (`get`, `set`, `delete`). A KV or Redis call that hangs
+ * past it counts as a miss (or a failed write): the visitor still gets the
+ * menu, and a shared revalidation still settles.
+ */
+const STORE_TIMEOUT_MS = 1_500;
+
 /** How many timed (`?at=`) menus the route keeps. */
 const TIMED_ENTRIES = 100;
 
@@ -104,8 +111,9 @@ export interface MenuCacheEntry {
 
 /**
  * Where the server keeps the menu between requests. The default is a map in
- * this process. A store that throws is treated as a miss — the route still
- * answers from Medal.
+ * this process. A store that throws, or takes longer than 1.5 s on one call,
+ * is treated as a miss (or a failed write) — the route still answers from
+ * Medal.
  */
 export interface MenuStore {
   get(key: string): MenuCacheEntry | undefined | Promise<MenuCacheEntry | undefined>;
@@ -144,6 +152,13 @@ export interface MenuRouteOptions {
    * KV- or Redis-backed store to share it.
    */
   store?: MenuStore;
+  /**
+   * Put in front of every store key as `<prefix>:`, so routes (sites,
+   * locations, environments) sharing one KV or Redis never read each other's
+   * menu. Required with `store` — a missing or blank one throws a
+   * `RangeError` when the route is created; optional otherwise.
+   */
+  storeKeyPrefix?: string;
   /**
    * The platform's background hook, read per request (on OpenNext:
    * `(p) => getCloudflareContext().ctx.waitUntil(p)`). A revalidation shared
@@ -280,6 +295,21 @@ function readChannel(params: URLSearchParams, fallback: OrderingChannel): Orderi
   return parseOrderLink(params).channel ?? fallback;
 }
 
+/** The store's own call, given up after `STORE_TIMEOUT_MS`; a sync throw rejects too. */
+async function bounded<T>(call: () => T | Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(call),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('store timed out')), STORE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** A map in this process; with `limit`, the least recently used entry goes first. */
 function memoryStore(limit = Number.POSITIVE_INFINITY): MenuStore {
   const entries = new Map<string, MenuCacheEntry>();
@@ -319,6 +349,16 @@ export function createMenuRoute(
       `createMenuRoute: maxTimedReadsPerWindow must be a non-negative integer, got ${maxTimedReads}`
     );
   }
+  const prefix = options.storeKeyPrefix;
+  if (
+    (options.store !== undefined || prefix !== undefined) &&
+    (typeof prefix !== 'string' || prefix.trim() === '')
+  ) {
+    throw new RangeError(
+      'createMenuRoute: storeKeyPrefix must be a non-empty string when a store is passed'
+    );
+  }
+  const keyPrefix = prefix === undefined ? '' : `${prefix}:`;
   const budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
   const revalidateMs = revalidateSeconds * 1000;
   const cacheControl = `public, s-maxage=${revalidateSeconds}, stale-while-revalidate=${revalidateSeconds * STALE_WINDOWS}`;
@@ -346,7 +386,7 @@ export function createMenuRoute(
 
   async function readStore(from: MenuStore, key: string): Promise<MenuCacheEntry | undefined> {
     try {
-      return await from.get(key);
+      return await bounded(() => from.get(key));
     } catch {
       return undefined;
     }
@@ -354,7 +394,7 @@ export function createMenuRoute(
 
   async function writeStore(to: MenuStore, key: string, entry: MenuCacheEntry): Promise<void> {
     try {
-      await to.set(key, entry);
+      await bounded(() => to.set(key, entry));
     } catch {
       // A store that cannot write costs a Medal read next time, nothing more.
     }
@@ -362,7 +402,7 @@ export function createMenuRoute(
 
   async function dropStore(from: MenuStore, key: string): Promise<void> {
     try {
-      await from.delete(key);
+      await bounded(() => from.delete(key));
     } catch {
       // Left behind, it is still refused at the next revalidation.
     }
@@ -440,7 +480,7 @@ export function createMenuRoute(
     channel: OrderingChannel,
     at: number | undefined
   ): Promise<MenuCacheEntry> {
-    const base = `${channel}\u0000${options.location ?? ''}`;
+    const base = `${keyPrefix}${channel}\u0000${options.location ?? ''}`;
     const key = at === undefined ? base : `${base}\u0000${at}`;
     const from = at === undefined ? store : timed;
     const cached = await readStore(from, key);

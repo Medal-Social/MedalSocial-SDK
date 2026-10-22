@@ -14,8 +14,8 @@ import { useId, useMemo } from 'react';
 import type { OrderingMenu, OrderingMenuItem } from '../core';
 import { allergenLabel, dietaryLabel } from '../core/labels';
 import { createMoney, type Money } from '../core/money';
+import { mergeLabels, type OrderingLabels } from '../core/ui-labels';
 import { ClosedNotice } from './ClosedNotice';
-import { mergeLabels, type OrderingLabels } from './labels';
 
 export interface MenuListProps {
   menu: OrderingMenu;
@@ -30,6 +30,29 @@ export interface MenuListProps {
   /** The clock for the closed notice, for tests. */
   now?: Date;
   className?: string;
+}
+
+/** FNV-1a over the UTF-16 code units, in base 36: short, stable and spread. */
+function shortHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * A category's anchor, stable and readable: `ordering-category-<id>` when the
+ * id is already safe in a fragment. Otherwise the unsafe characters become
+ * `-` and a short hash of the raw id follows, so `a.b` and `a-b` still get
+ * two anchors.
+ */
+function sectionId(categoryId: string): string {
+  const safe = categoryId.replace(/[^A-Za-z0-9_-]/g, '-');
+  return safe === categoryId
+    ? `ordering-category-${safe}`
+    : `ordering-category-${safe}-${shortHash(categoryId)}`;
 }
 
 export function MenuList({
@@ -48,9 +71,6 @@ export function MenuList({
   const id = useId();
   const closedId = `${id}-closed`;
   const categories = menu.categories.filter((category) => category.items.length > 0);
-  // Readable, stable anchors a site can link to: `#ordering-category-<id>`.
-  const sectionId = (categoryId: string) =>
-    `ordering-category-${categoryId.replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
   return (
     <div className={className}>

@@ -100,6 +100,45 @@ describe('ClosedNotice', () => {
     container.remove();
   });
 
+  it('moves the opening line on at midnight and drops it once open, without a `now`', () => {
+    // 23:59:30 in Oslo on Thursday 22 October; opens Friday 11:00.
+    vi.useFakeTimers({ now: new Date('2026-10-22T21:59:30Z') });
+    try {
+      const { unmount } = render(<ClosedNotice nextOpenAt="2026-10-23T09:00:00Z" />);
+      const notice = screen.getByRole('status');
+      expect(notice).toHaveTextContent('Åpner i morgen kl. 11:00');
+      act(() => vi.advanceTimersByTime(29_000));
+      expect(notice).toHaveTextContent('Åpner i morgen kl. 11:00');
+      act(() => vi.advanceTimersByTime(1_000));
+      expect(notice).toHaveTextContent('Åpner kl. 11:00');
+      expect(notice).not.toHaveTextContent('i morgen');
+      // Right at the opening the line goes, even between two minutes.
+      act(() => vi.setSystemTime(new Date('2026-10-23T08:59:59.500Z')));
+      act(() => vi.advanceTimersByTime(60_000));
+      expect(notice).toHaveTextContent(/^Restauranten tar ikke imot bestillinger nå\.$/);
+      // Nothing left to move on: no timer, and none after unmounting.
+      expect(vi.getTimerCount()).toBe(0);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops its timer on unmount, and sets none with a fixed `now`', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-22T21:59:30Z') });
+    try {
+      const { unmount } = render(<ClosedNotice nextOpenAt="2026-10-23T09:00:00Z" />);
+      expect(vi.getTimerCount()).toBe(1);
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+      render(<ClosedNotice nextOpenAt="2026-10-23T09:00:00Z" now={NOW} />);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('has no axe violations', async () => {
     const { container } = render(<ClosedNotice nextOpenAt="2026-10-23T09:00:00Z" now={NOW} />);
     expect(await axeViolations(container)).toEqual([]);

@@ -3,9 +3,13 @@
  * Plain words for someone ordering food, not for staff. `{name}` marks a
  * value filled in at render time. Arabic and any other language fall back to
  * English here; a site passes its own words through `labels`, merged over the
- * pack key by key. Allergen and dietary names are `/core`'s, in nb, en and ar.
+ * pack key by key. Allergen and dietary names are in `./labels`, in nb, en and ar.
+ *
+ * In `/core`, not `/react`, so a server component can read and merge the
+ * words (for its own markup, or to pass `labels` down) without importing a
+ * `'use client'` module. No React here.
  */
-import { labelLocale } from '../core/labels';
+import { labelLocale } from './labels';
 
 export interface OrderingLabels {
   /** The closed notice. */
@@ -111,10 +115,19 @@ const EN: OrderingLabels = {
 
 export const ORDERING_LABELS: Readonly<Record<'nb' | 'en', OrderingLabels>> = { nb: NB, en: EN };
 
-/** The pack for a BCP 47 locale (Norwegian for nb/no/nn, else English), with a site's words over it. */
+/**
+ * The pack for a BCP 47 locale (Norwegian for nb/no/nn, else English), with a
+ * site's words over it. A key the site leaves `undefined` keeps the pack's word.
+ */
 export function mergeLabels(locale: string, labels?: Partial<OrderingLabels>): OrderingLabels {
   const pack = ORDERING_LABELS[labelLocale(locale) === 'nb' ? 'nb' : 'en'];
-  return { ...pack, ...labels };
+  const merged: Record<string, unknown> = { ...pack };
+  // The pack's own keys only, so a stray key (`__proto__` included) changes nothing.
+  for (const key of Object.keys(pack) as (keyof OrderingLabels)[]) {
+    const value = labels?.[key];
+    if (value !== undefined) merged[key] = value;
+  }
+  return merged as unknown as OrderingLabels;
 }
 
 /** `{key}` → the value; an unknown placeholder stays as written. */

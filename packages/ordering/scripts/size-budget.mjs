@@ -31,10 +31,16 @@ const EXTERNAL = [
 const BUDGETS = [
   {
     // Everything `/core` exports: money, links, the draft store, the modifier
-    // rules and the label packs. Measured 3.28 KB when introduced.
+    // rules, the allergen/dietary labels and the components' word packs.
+    // Measured 3.28 KB when introduced (budget 3.8 KB). Raised in the PR #254
+    // review round: the components' nb/en words (`ORDERING_LABELS`,
+    // `mergeLabels`, `fill`) moved here from the `'use client'` `/react`
+    // barrel so server components can import them, and the draft store gained
+    // `markSubmitted()` — 4.45 KB measured, budget +15%. A consumer's bundler
+    // still drops whatever a page does not import (`sideEffects: false`).
     name: '@medalsocial/ordering/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 3.8 * 1024,
+    gzipBytes: 5.1 * 1024,
   },
   {
     // Everything `/react` exports: the menu list, the dish sheet, the closed

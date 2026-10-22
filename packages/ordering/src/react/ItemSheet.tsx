@@ -13,6 +13,7 @@
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { OrderingMenuItem, OrderingModifierGroup } from '../core';
 import { MAX_NOTE_LENGTH, MAX_QUANTITY, type NewDraftLine } from '../core/draft-store';
+import { allergenLabel } from '../core/labels';
 import {
   type Selections,
   selectionMode,
@@ -21,7 +22,7 @@ import {
   validateSelections,
 } from '../core/modifiers';
 import { createMoney, type Money } from '../core/money';
-import { fill, mergeLabels, type OrderingLabels } from './labels';
+import { fill, mergeLabels, type OrderingLabels } from '../core/ui-labels';
 
 /**
  * What the sheet hands the page: one cart line, exactly what the draft
@@ -65,6 +66,13 @@ export function ItemSheet(props: ItemSheetProps) {
   return <Sheet key={props.item.id} {...props} item={props.item} />;
 }
 
+/** The options still on `group` among those chosen for it, in the order chosen. */
+function current(group: OrderingModifierGroup, chosen: Selections): string[] {
+  return (chosen[group.id] ?? []).filter((optionId) =>
+    group.options.some((option) => option.id === optionId)
+  );
+}
+
 function groupHint(group: OrderingModifierGroup, labels: OrderingLabels): string {
   const { min_select: min, max_select: max } = group;
   if (min === max) return fill(labels.chooseExactly, { n: min });
@@ -90,17 +98,13 @@ function Sheet({
   const [quantity, setQuantity] = useState(() => startQuantity(initial?.quantity));
   const [note, setNote] = useState(initial?.note ?? '');
   const [showErrors, setShowErrors] = useState(false);
-  // Only the dish's own groups and options: a stale line's other choices are
-  // dropped, as one the guest could not see could not be unticked either.
-  const [selections, setSelections] = useState<Record<string, string[]>>(() =>
-    Object.fromEntries(
-      item.modifier_groups.map((group) => [
-        group.id,
-        (initial?.selections[group.id] ?? []).filter((optionId) =>
-          group.options.some((option) => option.id === optionId)
-        ),
-      ])
-    )
+  const [chosen, setChosen] = useState<Selections>(() => initial?.selections ?? {});
+  // Read against the dish as it is NOW: a menu refetch can add a group or take
+  // an option away while the sheet stays open (it is keyed by the dish id).
+  // Every current group gets a list, and only its current options count — one
+  // the guest can no longer see could not be unticked either.
+  const selections: Record<string, string[]> = Object.fromEntries(
+    item.modifier_groups.map((group) => [group.id, current(group, chosen)])
   );
 
   useEffect(() => {
@@ -210,14 +214,15 @@ function Sheet({
               <GroupField
                 key={group.id}
                 group={group}
-                selected={selections[group.id] as string[]}
+                selected={current(group, chosen)}
                 showError={showErrors}
                 labels={labels}
                 money={money}
                 fieldRef={(node) => {
                   groups.current[group.id] = node;
                 }}
-                onChange={(next) => setSelections((prev) => ({ ...prev, [group.id]: next }))}
+                locale={locale}
+                onChange={(next) => setChosen((prev) => ({ ...prev, [group.id]: next }))}
               />
             ))}
 
@@ -290,6 +295,7 @@ interface GroupFieldProps {
   showError: boolean;
   labels: OrderingLabels;
   money: Money;
+  locale: string;
   fieldRef: (node: HTMLFieldSetElement | null) => void;
   onChange: (next: string[]) => void;
 }
@@ -300,6 +306,7 @@ function GroupField({
   showError,
   labels,
   money,
+  locale,
   fieldRef,
   onChange,
 }: GroupFieldProps) {
@@ -364,7 +371,16 @@ function GroupField({
               }
               className="size-5 accent-primary"
             />
-            <span className="flex-1">{option.name}</span>
+            <span className="flex flex-1 flex-col">
+              <span>{option.name}</span>
+              {option.allergens.length > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  {`${labels.allergens}: ${option.allergens
+                    .map((allergen) => allergenLabel(allergen, locale))
+                    .join(', ')}`}
+                </span>
+              ) : null}
+            </span>
             {option.sold_out ? (
               <span className="rounded-full bg-muted px-2 text-sm">{labels.soldOut}</span>
             ) : null}

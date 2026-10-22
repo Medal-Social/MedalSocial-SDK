@@ -10,9 +10,22 @@
  * page's to drop.
  *
  * The draft carries the order's idempotency key, so a submit retried after a
- * dropped connection cannot place the order twice. The key stays while the
- * cart changes; `rotateIdempotencyKey()` after an order that went through,
- * and `clearDraft()` (the next draft gets a new key), start a new one.
+ * dropped connection cannot place the order twice. Its lifecycle:
+ *
+ * 1. The key stays while the cart changes, until the order is sent.
+ * 2. `markSubmitted()` just before sending the order with it: the draft
+ *    records that this key has been sent.
+ * 3. A retry of the SAME cart (a dropped connection, a reload) keeps the key
+ *    and the mark, so the server answers the first order instead of placing
+ *    a second one.
+ * 4. Any change to the lines or the context after that (`addLine`,
+ *    `updateLine`, `removeLine`, or `saveDraft` with other content) gets a new
+ *    key and clears the mark: a changed cart is a new order, and the server
+ *    would otherwise answer it with the order already placed.
+ * 5. After a confirmed order, `clearDraft()`: the cart is done and the next
+ *    draft starts with a new key. `rotateIdempotencyKey()` keeps the lines
+ *    under a new key — for sending the same cart again as a NEW order on
+ *    purpose, not for finishing one.
  *
  * Nothing here trusts the jar or throws. A value some other script wrote, or
  * one past its age, is dropped. When storage cannot be used — no `window`
@@ -55,6 +68,12 @@ export interface OrderDraft {
   table?: string;
   lines: DraftLine[];
   idempotencyKey: string;
+  /**
+   * `true` once `markSubmitted()` recorded that `idempotencyKey` was sent with
+   * this content. Any later change to the lines or context rotates the key and
+   * clears it.
+   */
+  submitted?: true;
   /** When it was last written (ms since the epoch). */
   updatedAt: number;
 }
@@ -75,7 +94,12 @@ export interface DraftStore {
   readonly storageKey: string;
   /** The stored draft, or `null` when there is none (or none worth keeping). */
   loadDraft(): OrderDraft | null;
-  /** Write a draft, cleaned and stamped; returns what was written. */
+  /**
+   * Write a draft, cleaned and stamped; returns what was written. When the key
+   * was sent (`submitted`, on this draft or on the stored one with the same
+   * key) and the lines or context differ from the stored draft's, the key is
+   * rotated and the mark cleared; an unchanged save keeps both.
+   */
   saveDraft(draft: OrderDraft): OrderDraft;
   /** Forget the draft. The next one starts with a fresh idempotency key. */
   clearDraft(): void;
@@ -93,8 +117,18 @@ export interface DraftStore {
    */
   updateLine(lineId: string, patch: DraftLinePatch): OrderDraft;
   removeLine(lineId: string): OrderDraft;
-  /** A new idempotency key on the current cart — after an order that went through. */
+  /**
+   * A new idempotency key on the current cart, lines kept, mark cleared — to
+   * send the same cart again as a new order. After a confirmed order use
+   * `clearDraft()` instead.
+   */
   rotateIdempotencyKey(): OrderDraft;
+  /**
+   * Record that the current key is being sent with the current cart. Call it
+   * right before the order request; retries of the same cart keep the key, and
+   * the next change to the cart rotates it.
+   */
+  markSubmitted(): OrderDraft;
 }
 
 /** `<site>:ordering:draft:<location>`. A storage key, not a credential. */
@@ -213,11 +247,17 @@ function asDraft(value: unknown, now: number): OrderDraft | null {
       version: DRAFT_VERSION,
       lines: cleanLines(draft.lines, true),
       idempotencyKey: draft.idempotencyKey,
+      ...(draft.submitted === true ? { submitted: true as const } : {}),
       updatedAt: draft.updatedAt,
     },
     draft.channel,
     draft.table
   );
+}
+
+/** What an order is made of: the lines and the context. Not the key, the mark or the time. */
+function content(draft: OrderDraft): string {
+  return JSON.stringify([draft.lines, draft.channel ?? null, draft.table ?? null]);
 }
 
 function storage(): Storage | null {
@@ -276,8 +316,14 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
     return typeof window === 'undefined' ? null : remembered();
   }
 
+  /** The draft as it stands (storage, or memory once storage failed), without making one. */
+  function latest(): OrderDraft | null {
+    const draft = stored();
+    return draft === undefined ? remembered() : draft;
+  }
+
   function saveDraft(draft: OrderDraft): OrderDraft {
-    const saved = withContext(
+    const cleaned = withContext(
       {
         version: DRAFT_VERSION,
         lines: cleanLines(Array.isArray(draft.lines) ? draft.lines : [], false),
@@ -287,6 +333,18 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
       draft.channel,
       draft.table
     );
+    const previous = latest();
+    const sameKey = previous?.idempotencyKey === cleaned.idempotencyKey;
+    const sent = draft.submitted === true || (sameKey && previous?.submitted === true);
+    if (!sent) return write(cleaned);
+    // A sent key may only be reused for exactly what was sent with it.
+    if (sameKey && content(previous as OrderDraft) === content(cleaned)) {
+      return write({ ...cleaned, submitted: true });
+    }
+    return write({ ...cleaned, idempotencyKey: newIdempotencyKey() });
+  }
+
+  function write(saved: OrderDraft): OrderDraft {
     memory = saved;
     try {
       storage()?.setItem(storageKey, JSON.stringify(saved));
@@ -344,7 +402,12 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
   }
 
   function rotateIdempotencyKey(): OrderDraft {
-    return saveDraft({ ...current(), idempotencyKey: newIdempotencyKey() });
+    const { submitted: _sent, ...draft } = current();
+    return saveDraft({ ...draft, idempotencyKey: newIdempotencyKey() });
+  }
+
+  function markSubmitted(): OrderDraft {
+    return write({ ...current(), submitted: true, updatedAt: now() });
   }
 
   return {
@@ -356,5 +419,6 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
     updateLine,
     removeLine,
     rotateIdempotencyKey,
+    markSubmitted,
   };
 }

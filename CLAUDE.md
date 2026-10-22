@@ -67,16 +67,20 @@ and is never published.
   `'use client'`) and `./next` (imports `server-only`). `/core` holds money in
   øre, the `?t=`/`?c=` table and channel links, the per-location cart draft
   (`localStorage`, ids and choices only, with the order's idempotency key),
-  the modifier rules and the allergen/dietary labels. `/react` holds
+  the modifier rules, the allergen/dietary labels and the components' nb/en
+  words (`ORDERING_LABELS`/`mergeLabels`/`fill` in `src/core/ui-labels.ts`,
+  in `/core` so a server component never imports a `'use client'` module for
+  them; `/react` re-exports the `OrderingLabels` type only). `/react` holds
   `MenuList`, `ItemSheet` and `ClosedNotice` (presentational, controlled by
-  props; nb/en words in `ORDERING_LABELS`/`mergeLabels`), native accessible
+  props), native accessible
   markup styled with Tailwind classes on the shadcn/meda colour tokens — no
   meda or lucide dependency, and `verify:paths` refuses any runtime import
   in `dist/react` but React. `/next` holds `createMenuRoute` (the site's
   menu `GET` handler on Web `Request`/`Response`, no `next` import: server
   cache revalidated with Medal's ETag, `?at=` window-checked, minute-rounded
   LRU-cached and budgeted per window, `ETag`/`304` and public `Cache-Control` out, fixed-word
-  errors that never carry the key). The modifier rules are
+  errors that never carry the key; an injected `store` needs a
+  `storeKeyPrefix`, and each store call is bounded to 1.5 s). The modifier rules are
   the Medal API's own (same checks, same order, same reason names) — change
   them only together with the server. Cart totals, VAT, checkout and payment
   are the server's. Same guards as booking: Biome `noRestrictedImports` and

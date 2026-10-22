@@ -23,8 +23,11 @@ export type SelectionFailure =
 
 export type SelectionResult = { ok: true } | { ok: false; reason: SelectionFailure };
 
-/** The guest's choices on one dish: option ids per modifier group id. */
-export type Selections = Readonly<Record<string, readonly string[]>>;
+/**
+ * The guest's choices on one dish: option ids per modifier group id. A group
+ * missing, or `undefined`, is nothing chosen.
+ */
+export type Selections = Readonly<Record<string, readonly string[] | undefined>>;
 
 export type SelectionsResult =
   | { ok: true }
@@ -32,12 +35,14 @@ export type SelectionsResult =
 
 /**
  * One group's choice. Checked in this order: a repeated option, an option the
- * group does not have, a sold-out option, too few, too many.
+ * group does not have, a sold-out option, too few, too many. A missing list
+ * is nothing chosen.
  */
 export function validateSelection(
   group: Pick<OrderingModifierGroup, 'min_select' | 'max_select' | 'options'>,
-  optionIds: readonly string[]
+  chosen: readonly string[] | undefined
 ): SelectionResult {
+  const optionIds = chosen ?? [];
   if (new Set(optionIds).size !== optionIds.length)
     return { ok: false, reason: 'duplicate_option' };
   for (const id of optionIds) {
@@ -69,11 +74,15 @@ export function validateSelections(
   selections: Selections
 ): SelectionsResult {
   for (const group of item.modifier_groups) {
-    const result = validateSelection(group, selections[group.id] ?? []);
+    const result = validateSelection(group, selections[group.id]);
     if (!result.ok) return { ok: false, groupId: group.id, reason: result.reason };
   }
   for (const [groupId, optionIds] of Object.entries(selections)) {
-    if (optionIds.length > 0 && !item.modifier_groups.some((group) => group.id === groupId))
+    if (
+      optionIds !== undefined &&
+      optionIds.length > 0 &&
+      !item.modifier_groups.some((group) => group.id === groupId)
+    )
       return { ok: false, groupId, reason: 'unknown_group' };
   }
   return { ok: true };

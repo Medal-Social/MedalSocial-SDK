@@ -9,8 +9,8 @@ ESM only, three entries:
 
 | Entry | What it is |
 |---|---|
-| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, labels. Runs in a browser, Node or a Worker. |
-| `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet) and `<ClosedNotice>`, with their nb/en words. Client components. |
+| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, allergen/dietary labels and the components' nb/en words. Runs in a browser, Node or a Worker. |
+| `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet) and `<ClosedNotice>`. Client components. |
 | `@medalsocial/ordering/next` | `createMenuRoute`: the menu route handler, cached and revalidated with Medal's ETag. Server-only. |
 
 ## `/core`
@@ -36,15 +36,40 @@ buildOrderLink({ path: '/order', table: 'T7' }); // '/order?t=T7'
 // The cart draft, per site and location, in localStorage. Ids and choices only.
 const drafts = createDraftStore({ site: 'my-site', locationId });
 drafts.addLine({ itemId, quantity: 1, selections: { size: ['large'] } });
-drafts.rotateIdempotencyKey(); // after an order went through
+
+// Placing the order: mark the key as sent, then send it with the order.
+const draft = drafts.markSubmitted();
+const response = await placeOrder(draft); // the site's checkout call, sending draft.idempotencyKey
+if (response.ok) drafts.clearDraft(); // confirmed: the cart is done
+// Failed or no answer: retry with the same cart and the same key.
 
 // The Medal API's modifier rules, for telling the guest early.
 validateSelections(item, selections); // { ok: true } | { ok: false, groupId, reason }
 unitPriceOre(item, selections); // the dish price plus the chosen options
 ```
 
+The idempotency key keeps a retried order from being placed twice:
+
+1. It stays while the guest builds the cart.
+2. `markSubmitted()` right before the order is sent records on the draft that
+   this key has been sent.
+3. A retry of the same cart (a dropped connection, a reload) keeps the key and
+   the mark, so the server answers with the order it already has.
+4. Any change to the cart after that (`addLine`, `updateLine`, `removeLine`,
+   or `saveDraft` with other lines, channel or table) gets a new key and clears
+   the mark — a changed cart is a new order.
+5. After a confirmed order, `clearDraft()`. `rotateIdempotencyKey()` is not
+   the step after an order: it KEEPS the lines under a new key, for sending
+   the same cart again as a new order on purpose.
+
 `allergenLabel` / `dietaryLabel` name the 14 declarable allergens and the
 dietary marks in Norwegian, English and Arabic.
+
+`ORDERING_LABELS`, `mergeLabels(locale, overrides)` and `fill(template,
+values)` are the components' words (type `OrderingLabels`). They live here,
+not in `/react`, so a server component can import them without pulling in a
+`'use client'` module; `/react` re-exports the `OrderingLabels` type only. An
+override left `undefined` keeps the pack's word.
 
 Cart totals, VAT, checkout and payment are the server's; nothing here prices
 an order.
@@ -53,7 +78,8 @@ an order.
 
 Presentational, controlled components: the page fetches the menu, keeps the
 cart and decides when the sheet is open. Words come in Norwegian (`nb`, `no`,
-`nn`) and English (anything else); pass `labels` to change any of them.
+`nn`) and English (anything else); pass `labels` to change any of them (the
+packs are `ORDERING_LABELS` in `/core`).
 For `ar`, the component words fall back to English while the allergen and
 dietary names are Arabic, and there is no right-to-left handling yet.
 
@@ -92,16 +118,24 @@ export function Menu({ menu, closed }: { menu: OrderingMenu; closed?: { nextOpen
 - `MenuList` — sticky category links, one section per category, each dish
   with its photo, price, allergens (in words, not only a symbol), dietary
   marks and a «Utsolgt» badge. Sold-out dishes, and every dish while `closed`
-  is set, cannot be chosen. Each section is `#ordering-category-<category id>`.
+  is set, cannot be chosen. Each section is `#ordering-category-<category id>`
+  when the id is safe in a fragment (letters, digits, `-`, `_`). Otherwise the
+  other characters become `-` and a short hash of the id follows
+  (`#ordering-category-a-b-<hash>` for `a.b`), so two ids never share an
+  anchor and each anchor stays the same between renders.
 - `ItemSheet` — a modal dialog: radios for a group of exactly one, checkboxes
-  otherwise, quantity 1–99, a note of up to 200 characters, and an add button
+  otherwise, each option with its own allergens in words, quantity 1–99, a note of up to 200 characters, and an add button
   showing the price with the choices times the quantity. A missing required
   choice is shown at its group, and focus moves there. Pass `initial` to edit
   a cart line (and a `key` per line when editing two lines of one dish in a row).
+  When the page hands it a refetched dish while it is open, a new group starts
+  empty and an option the dish no longer has is dropped from the choices.
 - `ClosedNotice` — «Restauranten tar ikke imot bestillinger nå.» and when it
   opens next («Åpner i morgen kl. 11:00»), in the restaurant's time zone
   (default `Europe/Oslo`). Without `now`, the opening line appears once the
-  page hydrates, so a cached server render never shows a stale «i morgen».
+  page hydrates, so a cached server render never shows a stale «i morgen»,
+  and it moves on by itself at each minute (so at the restaurant's midnight)
+  and disappears at the opening.
 
 Styling is Tailwind v4 classes on the shadcn colour tokens meda also uses
 (`background`, `foreground`, `primary`, `muted`, `border`, `destructive`, …),
@@ -160,7 +194,11 @@ server cache are the 60-second "ISR". Add `export const dynamic =
 - **Store** — in-process by default, so on Workers each isolate keeps (and
   warms) its own copy; the CDN's `s-maxage` is what keeps Medal calls low
   there. Pass `store: { get, set, delete }` (KV, Redis) to share the current
-  menu between instances; a store that throws counts as a miss. Pass
+  menu between instances, with a `storeKeyPrefix` (required with `store`,
+  e.g. `'my-site'`): every key starts with `<prefix>:`, so two sites or
+  environments sharing one store never read each other's menu. A store call
+  that throws or takes longer than 1.5 s counts as a miss (or a failed
+  write); the request still answers, from Medal. Pass
   `waitUntil` so a shared revalidation finishes even when the request that
   started it goes away. It is called per request, so read the platform's
   context inside it — on OpenNext for Cloudflare:

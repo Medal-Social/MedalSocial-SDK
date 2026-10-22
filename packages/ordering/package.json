@@ -5,7 +5,7 @@
   "description": "Medal Social online ordering: menu money, table and channel links, the cart draft and the modifier rules behind a Medal ordering site",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.24.0",
-  "author": "Medal Social / Ali Aljumaili",
+  "author": "Medal Social",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Medal-Social/MedalSocial-SDK.git",

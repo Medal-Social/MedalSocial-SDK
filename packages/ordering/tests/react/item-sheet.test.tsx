@@ -2,11 +2,11 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { OrderingMenuItem } from '../../src/core';
+import type { OrderingMenuItem, OrderingModifierGroup } from '../../src/core';
 import { createMoney } from '../../src/core/money';
 import { ItemSheet, type ItemSheetProps } from '../../src/react/ItemSheet';
 import { axeViolations } from '../support/axe';
-import { BURGER, FRIES, SAUCE, SOUP, WATER } from '../support/menu';
+import { BURGER, EXTRAS, FRIES, SAUCE, SOUP, WATER } from '../support/menu';
 
 /** Prices keep a no-break space before «kr». */
 const NBSP = ' ';
@@ -308,9 +308,78 @@ describe('ItemSheet', () => {
     expect(screen.getByText('Choose 1')).toBeInTheDocument();
   });
 
+  it('survives a menu refetch that adds a group to the open dish', async () => {
+    const user = userEvent.setup();
+    const props = { open: true, onClose: () => {}, locale: 'nb' };
+    const onAdd = vi.fn();
+    const { rerender } = render(<ItemSheet item={BURGER} onAdd={onAdd} {...props} />);
+    await user.click(screen.getByRole('radio', { name: /large/ }));
+    const refetched = { ...BURGER, modifier_groups: [...BURGER.modifier_groups, SAUCE] };
+    rerender(<ItemSheet item={refetched} onAdd={onAdd} {...props} />);
+    const sauce = screen.getByRole('group', { name: /Sauce/ });
+    expect(within(sauce).queryAllByRole('checkbox', { checked: true })).toHaveLength(0);
+    expect(screen.getByRole('radio', { name: /large/ })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /Legg til/ }));
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(within(sauce).getByText('Du må velge minst 1.')).toBeInTheDocument();
+    await user.click(within(sauce).getByRole('checkbox', { name: /^a/ }));
+    await user.click(screen.getByRole('button', { name: /Legg til/ }));
+    expect(onAdd).toHaveBeenCalledWith({
+      itemId: 'burger',
+      quantity: 1,
+      selections: { size: ['large'], extras: [], sauce: ['a'] },
+    });
+  });
+
+  it('drops a chosen option the refetched dish no longer has, so it cannot get stuck', async () => {
+    const user = userEvent.setup();
+    const props = { open: true, onClose: () => {}, locale: 'nb' };
+    const onAdd = vi.fn();
+    const { rerender } = render(<ItemSheet item={BURGER} onAdd={onAdd} {...props} />);
+    await user.click(screen.getByRole('radio', { name: /regular/ }));
+    for (const name of [/cheese/, /bacon/, /no-onion/]) {
+      await user.click(screen.getByRole('checkbox', { name }));
+    }
+    const [size, extras] = BURGER.modifier_groups as [OrderingModifierGroup, OrderingModifierGroup];
+    const withoutBacon = {
+      ...extras,
+      options: extras.options.filter((option) => option.id !== 'bacon'),
+    };
+    rerender(
+      <ItemSheet
+        item={{ ...BURGER, modifier_groups: [size, withoutBacon] }}
+        onAdd={onAdd}
+        {...props}
+      />
+    );
+    expect(screen.queryByRole('checkbox', { name: /bacon/ })).not.toBeInTheDocument();
+    // Two of three chosen now: the group is no longer full, and the price drops the bacon.
+    expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(2);
+    await user.click(screen.getByRole('checkbox', { name: /cheese/ }));
+    await user.click(screen.getByRole('button', { name: /Legg til/ }));
+    expect(onAdd).toHaveBeenCalledWith({
+      itemId: 'burger',
+      quantity: 1,
+      selections: { size: ['regular'], extras: ['no-onion'] },
+    });
+  });
+
+  it('names each option’s allergens in words, even one the dish itself does not list', () => {
+    const { unmount } = sheet();
+    // Burger lists gluten only; the cheese option brings milk.
+    const cheese = screen.getByRole('checkbox', { name: /cheese/ });
+    expect(cheese).toHaveAccessibleName(/Allergener: Melk/);
+    expect(screen.getByRole('checkbox', { name: /bacon/ })).not.toHaveAccessibleName(/Allergener/);
+    unmount();
+    sheet({ locale: 'en' });
+    expect(screen.getByRole('checkbox', { name: /cheese/ })).toHaveAccessibleName(
+      /Allergens: Milk/
+    );
+  });
+
   it('has no axe violations, with an error showing too', async () => {
     const user = userEvent.setup();
-    sheet({ item: { ...FRIES, modifier_groups: [...FRIES.modifier_groups, SAUCE] } });
+    sheet({ item: { ...FRIES, modifier_groups: [...FRIES.modifier_groups, SAUCE, EXTRAS] } });
     expect(await axeViolations(document.body)).toEqual([]);
     await user.click(screen.getByRole('button', { name: /Legg til/ }));
     expect(await axeViolations(document.body)).toEqual([]);
