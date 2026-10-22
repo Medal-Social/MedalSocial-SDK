@@ -10,7 +10,7 @@
  * Allergens are named in words beside a small mark — a symbol alone is not
  * enough to tell a guest what is in their food.
  */
-import { useId } from 'react';
+import { useId, useMemo } from 'react';
 import type { OrderingMenu, OrderingMenuItem } from '../core';
 import { allergenLabel, dietaryLabel } from '../core/labels';
 import { createMoney, type Money } from '../core/money';
@@ -36,17 +36,21 @@ export function MenuList({
   menu,
   onSelectItem,
   locale = 'nb',
-  money = createMoney({ locale }),
+  money: moneyProp,
   labels: overrides,
   closed,
   now,
   className,
 }: MenuListProps) {
   const labels = mergeLabels(locale, overrides);
+  const defaultMoney = useMemo(() => createMoney({ locale }), [locale]);
+  const money = moneyProp ?? defaultMoney;
   const id = useId();
   const closedId = `${id}-closed`;
   const categories = menu.categories.filter((category) => category.items.length > 0);
-  const sectionId = (index: number) => `${id}-category-${index}`;
+  // Readable, stable anchors a site can link to: `#ordering-category-<id>`.
+  const sectionId = (categoryId: string) =>
+    `ordering-category-${categoryId.replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
   return (
     <div className={className}>
@@ -70,10 +74,10 @@ export function MenuList({
             className="sticky top-0 z-10 -mx-4 overflow-x-auto border-b border-border bg-background px-4"
           >
             <ul className="flex gap-2 py-2">
-              {categories.map((category, index) => (
+              {categories.map((category) => (
                 <li key={category.id} className="shrink-0">
                   <a
-                    href={`#${sectionId(index)}`}
+                    href={`#${sectionId(category.id)}`}
                     className="inline-flex min-h-11 items-center rounded-full px-4 font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
                   >
                     {category.name}
@@ -82,14 +86,14 @@ export function MenuList({
               ))}
             </ul>
           </nav>
-          {categories.map((category, index) => (
+          {categories.map((category) => (
             <section
               key={category.id}
-              id={sectionId(index)}
-              aria-labelledby={`${sectionId(index)}-title`}
+              id={sectionId(category.id)}
+              aria-labelledby={`${sectionId(category.id)}-title`}
               className="scroll-mt-16 py-4"
             >
-              <h2 id={`${sectionId(index)}-title`} className="mb-3 text-xl font-semibold">
+              <h2 id={`${sectionId(category.id)}-title`} className="mb-3 text-xl font-semibold">
                 {category.name}
               </h2>
               <ul className="flex flex-col gap-3">
@@ -97,7 +101,7 @@ export function MenuList({
                   <li key={item.id}>
                     <MenuItemCard
                       item={item}
-                      baseId={`${sectionId(index)}-${itemIndex}`}
+                      baseId={`${sectionId(category.id)}-${itemIndex}`}
                       locale={locale}
                       money={money}
                       labels={labels}
@@ -202,7 +206,7 @@ function MenuItemCard({
         // biome-ignore lint/performance/noImgElement: not tied to Next; the site's own loader may already resize the photo
         <img
           src={item.image_url}
-          alt={item.name}
+          alt=""
           loading="lazy"
           decoding="async"
           className="size-24 shrink-0 rounded-lg object-cover"

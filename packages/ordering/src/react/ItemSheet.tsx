@@ -10,7 +10,7 @@
  * `aria-disabled`: pressing it shows what is missing next to the group and
  * moves focus there, which a truly disabled button could not do.
  */
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { OrderingMenuItem, OrderingModifierGroup } from '../core';
 import { MAX_NOTE_LENGTH, MAX_QUANTITY } from '../core/draft-store';
 import {
@@ -50,6 +50,18 @@ export interface ItemSheetProps {
 const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),[tabindex="0"]';
 
+/** A quantity from an edited line: a whole number from 1 to `MAX_QUANTITY`, else 1. */
+function startQuantity(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 1;
+  return Math.min(MAX_QUANTITY, Math.max(1, Math.trunc(value)));
+}
+
+/**
+ * The sheet's state starts from `item` and `initial` when it opens, and is
+ * kept (keyed by the dish id) while it stays open. Editing two lines of the
+ * SAME dish one after the other: close the sheet in between, or give it a
+ * `key` (the line id), or it keeps the first line's choices.
+ */
 export function ItemSheet(props: ItemSheetProps) {
   if (!props.open || props.item === null) return null;
   return <Sheet key={props.item.id} {...props} item={props.item} />;
@@ -67,32 +79,44 @@ function Sheet({
   onClose,
   onAdd,
   locale = 'nb',
-  money = createMoney({ locale }),
+  money: moneyProp,
   labels: overrides,
   initial,
 }: ItemSheetProps & { item: OrderingMenuItem }) {
   const labels = mergeLabels(locale, overrides);
+  const defaultMoney = useMemo(() => createMoney({ locale }), [locale]);
+  const money = moneyProp ?? defaultMoney;
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const groups = useRef<Record<string, HTMLFieldSetElement | null>>({});
-  const [quantity, setQuantity] = useState(initial?.quantity ?? 1);
+  const [quantity, setQuantity] = useState(() => startQuantity(initial?.quantity));
   const [note, setNote] = useState(initial?.note ?? '');
   const [showErrors, setShowErrors] = useState(false);
-  // Only the dish's own groups: a stale line's other choices are dropped.
+  // Only the dish's own groups and options: a stale line's other choices are
+  // dropped, as one the guest could not see could not be unticked either.
   const [selections, setSelections] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(
-      item.modifier_groups.map((group) => [group.id, [...(initial?.selections[group.id] ?? [])]])
+      item.modifier_groups.map((group) => [
+        group.id,
+        (initial?.selections[group.id] ?? []).filter((optionId) =>
+          group.options.some((option) => option.id === optionId)
+        ),
+      ])
     )
   );
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement;
     const root = document.documentElement;
-    const overflow = root.style.overflow;
+    const { overflow, paddingRight } = root.style;
+    // Hiding the page's scrollbar widens the page; pad by its width so nothing shifts.
+    const scrollbar = window.innerWidth - root.clientWidth;
+    if (scrollbar > 0) root.style.paddingRight = `${scrollbar}px`;
     root.style.overflow = 'hidden';
     panel.current?.focus();
     return () => {
       root.style.overflow = overflow;
+      root.style.paddingRight = paddingRight;
       opener.focus();
     };
   }, []);
@@ -195,7 +219,7 @@ function Sheet({
                 fieldRef={(node) => {
                   groups.current[group.id] = node;
                 }}
-                onChange={(next) => setSelections({ ...selections, [group.id]: next })}
+                onChange={(next) => setSelections((prev) => ({ ...prev, [group.id]: next }))}
               />
             ))}
 
@@ -205,9 +229,9 @@ function Sheet({
                 <button
                   type="button"
                   aria-label={labels.fewer}
-                  disabled={quantity <= 1}
-                  onClick={() => setQuantity(quantity - 1)}
-                  className="min-h-11 min-w-11 rounded-full border border-border text-lg disabled:opacity-40"
+                  aria-disabled={quantity <= 1 ? 'true' : undefined}
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="min-h-11 min-w-11 rounded-full border border-border text-lg aria-disabled:opacity-40"
                 >
                   <span aria-hidden="true">−</span>
                 </button>
@@ -217,9 +241,9 @@ function Sheet({
                 <button
                   type="button"
                   aria-label={labels.more}
-                  disabled={quantity >= MAX_QUANTITY}
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="min-h-11 min-w-11 rounded-full border border-border text-lg disabled:opacity-40"
+                  aria-disabled={quantity >= MAX_QUANTITY ? 'true' : undefined}
+                  onClick={() => setQuantity((q) => Math.min(MAX_QUANTITY, q + 1))}
+                  className="min-h-11 min-w-11 rounded-full border border-border text-lg aria-disabled:opacity-40"
                 >
                   <span aria-hidden="true">+</span>
                 </button>
@@ -293,10 +317,13 @@ function GroupField({
       ref={fieldRef}
       tabIndex={-1}
       role={single ? 'radiogroup' : undefined}
+      aria-labelledby={`${id}-legend`}
       aria-describedby={error === null ? hintId : `${hintId} ${errorId}`}
       className="flex flex-col gap-1 outline-none"
     >
-      <legend className="font-medium">{group.name}</legend>
+      <legend id={`${id}-legend`} className="font-medium">
+        {group.name}
+      </legend>
       <p id={hintId} className="text-sm text-muted-foreground">
         {groupHint(group, labels)}
       </p>

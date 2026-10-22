@@ -1,5 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
+import { hydrateRoot } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
 import { ClosedNotice } from '../../src/react/ClosedNotice';
 import { axeViolations } from '../support/axe';
 
@@ -76,6 +78,26 @@ describe('ClosedNotice', () => {
     const notice = screen.getByRole('status');
     expect(notice).toHaveAttribute('id', 'closed');
     expect(notice).toHaveTextContent(/^Stengt\.Opp \d\d:\d\d$/);
+  });
+
+  it('renders no opening on the server without `now`, and the client adds it after hydrating', async () => {
+    const element = <ClosedNotice nextOpenAt={Date.now() + 60 * 60_000} />;
+    const html = renderToString(element);
+    expect(html).toContain('Restauranten tar ikke imot bestillinger nå.');
+    expect(html).not.toContain('Åpner');
+
+    const container = document.createElement('div');
+    container.innerHTML = html;
+    document.body.append(container);
+    const onRecoverableError = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const root = await act(async () => hydrateRoot(container, element, { onRecoverableError }));
+    expect(onRecoverableError).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(container).toHaveTextContent(/Åpner kl\. \d\d:\d\d/);
+    consoleError.mockRestore();
+    act(() => root.unmount());
+    container.remove();
   });
 
   it('has no axe violations', async () => {

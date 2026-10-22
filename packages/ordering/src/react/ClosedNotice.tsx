@@ -4,6 +4,7 @@
  * after that. Days and times are the restaurant's (`timeZone`), not the
  * viewer's: a guest abroad still reads the opening as the restaurant states it.
  */
+import { useSyncExternalStore } from 'react';
 import { labelLocale } from '../core/labels';
 import { cx } from './cx';
 import { fill, mergeLabels, type OrderingLabels } from './labels';
@@ -16,13 +17,23 @@ export interface ClosedNoticeProps {
   /** BCP 47. Default `nb`. */
   locale?: string;
   labels?: Partial<OrderingLabels>;
-  /** The clock, for tests. Default the current time. */
+  /**
+   * The clock, for tests. Default the browser's current time — read only
+   * after hydration, so the server renders the first sentence alone.
+   */
   now?: Date;
   id?: string;
   className?: string;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** «Is there a client clock?» only ever flips once; `useSyncExternalStore` wants a subscription. */
+function noopSubscribe(): () => void {
+  return () => {
+    // Nothing to unsubscribe from.
+  };
+}
 
 /** The wall-clock date and time of an instant in a time zone. */
 function wallClock(at: Date, timeZone: string) {
@@ -78,7 +89,18 @@ export function ClosedNotice({
   className,
 }: ClosedNoticeProps) {
   const labels = mergeLabels(locale, overrides);
-  const opens = opening(nextOpenAt, now ?? new Date(), timeZone, locale, labels);
+  // Without `now`, the opening line waits for the browser's clock: a cached or
+  // ISR server render is read at another time than it hydrates, and «i morgen»
+  // can be «i dag» by then. Hydration renders the server's tree (no line), then
+  // the client adds it. A snapshot of `Date.now()` itself would change on every
+  // read, so the store answers «hydrated», and the clock is read after that.
+  const hydrated = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false
+  );
+  const clock = now ?? (hydrated ? new Date() : null);
+  const opens = clock === null ? null : opening(nextOpenAt, clock, timeZone, locale, labels);
   return (
     <div
       role="status"

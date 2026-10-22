@@ -90,15 +90,16 @@ export function Menu({ menu, closed }: { menu: OrderingMenu; closed?: { nextOpen
 - `MenuList` — sticky category links, one section per category, each dish
   with its photo, price, allergens (in words, not only a symbol), dietary
   marks and a «Utsolgt» badge. Sold-out dishes, and every dish while `closed`
-  is set, cannot be chosen.
+  is set, cannot be chosen. Each section is `#ordering-category-<category id>`.
 - `ItemSheet` — a modal dialog: radios for a group of exactly one, checkboxes
   otherwise, quantity 1–99, a note of up to 200 characters, and an add button
   showing the price with the choices times the quantity. A missing required
   choice is shown at its group, and focus moves there. Pass `initial` to edit
-  a cart line.
+  a cart line (and a `key` per line when editing two lines of one dish in a row).
 - `ClosedNotice` — «Restauranten tar ikke imot bestillinger nå.» and when it
   opens next («Åpner i morgen kl. 11:00»), in the restaurant's time zone
-  (default `Europe/Oslo`).
+  (default `Europe/Oslo`). Without `now`, the opening line appears once the
+  page hydrates, so a cached server render never shows a stale «i morgen».
 
 Styling is Tailwind v4 classes on the shadcn colour tokens meda also uses
 (`background`, `foreground`, `primary`, `muted`, `border`, `destructive`, …),

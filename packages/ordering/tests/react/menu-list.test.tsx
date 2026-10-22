@@ -23,14 +23,17 @@ describe('MenuList', () => {
     const links = within(nav).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual(['Mains', 'Sides']);
     const sides = screen.getByRole('region', { name: 'Sides' });
-    expect(links[1]).toHaveAttribute('href', `#${sides.id}`);
+    expect(sides).toHaveAttribute('id', 'ordering-category-sides');
+    expect(links[1]).toHaveAttribute('href', '#ordering-category-sides');
     expect(screen.queryByRole('heading', { name: 'Nothing here' })).not.toBeInTheDocument();
   });
 
   it('shows a dish: photo, name, description, price, allergens and dietary marks', () => {
     menuList();
     const fries = screen.getByRole('article', { name: 'Fries' });
-    const photo = within(fries).getByRole('img', { name: 'Fries' });
+    // Decorative: the name is already the heading and the button.
+    const photo = fries.querySelector('img') as HTMLImageElement;
+    expect(photo).toHaveAttribute('alt', '');
     expect(photo).toHaveAttribute('loading', 'lazy');
     expect(photo).toHaveAttribute('src', FRIES.image_url);
     expect(fries).toHaveTextContent('Crisp and salted.');
@@ -50,6 +53,19 @@ describe('MenuList', () => {
     expect(within(burger).queryByRole('list', { name: 'Om retten' })).not.toBeInTheDocument();
     const water = screen.getByRole('article', { name: 'Water' });
     expect(within(water).queryByRole('list', { name: 'Allergener' })).not.toBeInTheDocument();
+  });
+
+  it('builds section anchors from category ids, made safe for a fragment', () => {
+    render(
+      <MenuList
+        menu={{ ...MENU, categories: [{ id: 'Hot dishes!', name: 'Hot', items: [BURGER] }] }}
+        onSelectItem={() => {}}
+      />
+    );
+    expect(screen.getByRole('link', { name: 'Hot' })).toHaveAttribute(
+      'href',
+      '#ordering-category-Hot-dishes-'
+    );
   });
 
   it('hands the chosen dish to the page', async () => {

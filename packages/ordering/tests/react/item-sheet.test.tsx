@@ -59,7 +59,7 @@ describe('ItemSheet', () => {
 
   it('max 1 renders radios', () => {
     sheet();
-    const size = screen.getByRole('radiogroup', { name: /Size/ });
+    const size = screen.getByRole('radiogroup', { name: 'Size' });
     expect(within(size).getAllByRole('radio')).toHaveLength(2);
     expect(within(size).getByText('Velg 1')).toBeInTheDocument();
     const extras = screen.getByRole('group', { name: /Extras/ });
@@ -113,7 +113,7 @@ describe('ItemSheet', () => {
     );
     const more = screen.getByRole('button', { name: 'Én til' });
     const fewer = screen.getByRole('button', { name: 'Én færre' });
-    expect(fewer).toBeDisabled();
+    expect(fewer).toHaveAttribute('aria-disabled', 'true');
     await user.click(more);
     expect(screen.getByRole('button', { name: /Legg til/ }).textContent).toBe(
       `Legg til · 349${NBSP}kr`
@@ -132,7 +132,9 @@ describe('ItemSheet', () => {
 
   it('stops the quantity at 99 and the note at 200 characters', () => {
     sheet({ item: WATER, initial: { quantity: 99, selections: {}, note: '' } });
-    expect(screen.getByRole('button', { name: 'Én til' })).toBeDisabled();
+    const more = screen.getByRole('button', { name: 'Én til' });
+    expect(more).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(more);
     expect(screen.getByText('99')).toBeInTheDocument();
     expect(screen.getByLabelText(/Beskjed til kjøkkenet/)).toHaveAttribute('maxlength', '200');
     expect(screen.getByRole('button', { name: /Oppdater/ })).toBeInTheDocument();
@@ -226,6 +228,64 @@ describe('ItemSheet', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
     expect(document.documentElement.style.overflow).toBe('');
+  });
+
+  it('keeps focus in the dialog when a stepper reaches its end', async () => {
+    const user = userEvent.setup();
+    const { onClose } = sheet({ item: WATER, initial: { quantity: 2, selections: {} } });
+    const dialog = screen.getByRole('dialog');
+    const fewer = screen.getByRole('button', { name: 'Én færre' });
+    fewer.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(fewer).toHaveAttribute('aria-disabled', 'true');
+    expect(fewer).toHaveFocus();
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    await user.keyboard('{Enter}');
+    expect(screen.getByText('1')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops options the dish no longer has from a line being edited, so none gets stuck', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = sheet({
+      initial: {
+        quantity: 1,
+        selections: { size: ['regular'], extras: ['cheese', 'gone', 'bacon'] },
+      },
+    });
+    expect(screen.getByRole('checkbox', { name: /no-onion/ })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: /Oppdater/ }));
+    expect(onAdd).toHaveBeenCalledWith({
+      itemId: 'burger',
+      quantity: 1,
+      selections: { size: ['regular'], extras: ['cheese', 'bacon'] },
+    });
+  });
+
+  it.each([
+    [150.7, '99'],
+    [0, '1'],
+    [2.9, '2'],
+    [Number.NaN, '1'],
+  ])('clamps an edited line’s quantity %s to %s', (quantity, shown) => {
+    sheet({ item: WATER, initial: { quantity, selections: {} } });
+    expect(screen.getByRole('group', { name: 'Antall' })).toHaveTextContent(shown);
+  });
+
+  it('keeps the page from shifting when the scrollbar goes away', () => {
+    const root = document.documentElement;
+    const width = vi.spyOn(root, 'clientWidth', 'get').mockReturnValue(window.innerWidth - 15);
+    const { unmount } = sheet({ item: WATER });
+    expect(root.style.paddingRight).toBe('15px');
+    unmount();
+    expect(root.style.paddingRight).toBe('');
+    // No scrollbar to make up for: no padding.
+    width.mockReturnValue(window.innerWidth);
+    sheet({ item: WATER });
+    expect(root.style.paddingRight).toBe('');
+    width.mockRestore();
   });
 
   it('renders nothing while closed or without a dish', () => {
