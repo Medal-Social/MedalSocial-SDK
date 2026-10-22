@@ -224,11 +224,36 @@ describe('saveDraft', () => {
     expect(saved.idempotencyKey).toMatch(UUID);
   });
 
-  it('survives a full storage', () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('full', 'QuotaExceededError');
+  it('cleans what it is handed and never throws on a bad line', () => {
+    const saved = store().drafts.saveDraft({
+      ...valid(),
+      lines: [
+        null,
+        'line',
+        { lineId: '', itemId: 'burger', quantity: 1, selections: {} },
+        { lineId: 'ok', itemId: 'burger', quantity: 1, selections: {} },
+      ] as never,
     });
-    expect(store().drafts.saveDraft(valid()).lines).toHaveLength(1);
+    expect(saved.lines.map((line) => line.lineId)).toEqual(['ok']);
+    expect(store().drafts.saveDraft({ ...valid(), lines: 'x' as never }).lines).toEqual([]);
+  });
+
+  it('drops the table of a takeaway or delivery draft', () => {
+    const { drafts } = store();
+    expect(drafts.saveDraft(valid({ channel: 'takeaway', table: 'T7' }))).not.toHaveProperty(
+      'table'
+    );
+    expect(drafts.saveDraft(valid({ table: 'T7' })).table).toBe('T7');
+    expect(drafts.saveDraft(valid({ channel: 'dine_in', table: 'T7' })).table).toBe('T7');
+  });
+
+  it('never takes «__proto__» as a group', () => {
+    const selections = JSON.parse('{"__proto__": ["x"], "size": ["large"]}');
+    const saved = store().drafts.saveDraft(
+      valid({ lines: [{ lineId: 'l1', itemId: 'burger', quantity: 1, selections }] })
+    );
+    expect(Object.getPrototypeOf(saved.lines[0]?.selections)).toBe(Object.prototype);
+    expect(Object.keys(saved.lines[0]?.selections ?? {})).toEqual(['size']);
   });
 });
 
@@ -309,8 +334,11 @@ describe('addLine / updateLine / removeLine', () => {
       selections: { size: ['regular'] },
       note: 'Godt stekt',
     });
-    const cleared = drafts.updateLine(lineId, { note: '' });
+    const kept = drafts.updateLine(lineId, { quantity: undefined, selections: undefined });
+    expect(kept.lines[0]).toEqual(updated.lines[0]);
+    const cleared = drafts.updateLine(lineId, { note: undefined });
     expect(cleared.lines[0]).not.toHaveProperty('note');
+    expect(cleared.lines[0]?.quantity).toBe(4);
     expect(drafts.updateLine('missing', { quantity: 9 })).toEqual(cleared);
   });
 
@@ -344,10 +372,64 @@ describe('clearDraft / rotateIdempotencyKey', () => {
     expect(stored().idempotencyKey).toBe(after.idempotencyKey);
   });
 
-  it('clears quietly when storage refuses', () => {
+  it('clears quietly when storage refuses, and does not read the stale value again', () => {
+    const { drafts } = store();
+    const before = drafts.addLine({ itemId: 'burger', quantity: 1, selections: {} });
     vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
       throw new Error('SecurityError');
     });
-    expect(() => store().drafts.clearDraft()).not.toThrow();
+    expect(() => drafts.clearDraft()).not.toThrow();
+    expect(raw()).not.toBeNull();
+    expect(drafts.loadDraft()).toBeNull();
+    const after = drafts.addLine({ itemId: 'fries', quantity: 1, selections: {} });
+    expect(after.lines.map((line) => line.itemId)).toEqual(['fries']);
+    expect(after.idempotencyKey).not.toBe(before.idempotencyKey);
+  });
+
+  it('starts over after another tab cleared the draft', () => {
+    const { drafts } = store();
+    drafts.addLine({ itemId: 'burger', quantity: 1, selections: {} });
+    window.localStorage.removeItem(KEY);
+    expect(drafts.addLine({ itemId: 'fries', quantity: 1, selections: {} }).lines).toHaveLength(1);
+  });
+});
+
+describe('when storage fails, the cart lives in memory', () => {
+  it('keeps every line and one key through a full quota', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    const { drafts } = store();
+    const first = drafts.addLine({ itemId: 'burger', quantity: 1, selections: {} });
+    const second = drafts.addLine({ itemId: 'fries', quantity: 1, selections: {} });
+    expect(second.lines.map((line) => line.itemId)).toEqual(['burger', 'fries']);
+    expect(second.idempotencyKey).toBe(first.idempotencyKey);
+    const lineId = second.lines[0]?.lineId as string;
+    const updated = drafts.updateLine(lineId, { quantity: 3 });
+    expect(updated.lines[0]?.quantity).toBe(3);
+    expect(updated.idempotencyKey).toBe(first.idempotencyKey);
+    expect(drafts.loadDraft()).toEqual(updated);
+    expect(drafts.removeLine(lineId).lines.map((line) => line.itemId)).toEqual(['fries']);
+  });
+
+  it('keeps the cart when storage cannot even be read', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('SecurityError');
+    });
+    const { drafts } = store();
+    expect(drafts.loadDraft()).toBeNull();
+    drafts.addLine({ itemId: 'burger', quantity: 1, selections: {} });
+    expect(drafts.addLine({ itemId: 'fries', quantity: 1, selections: {} }).lines).toHaveLength(2);
+    expect(drafts.loadDraft()?.lines).toHaveLength(2);
+  });
+
+  it('forgets the remembered draft past its age', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    const { drafts, advance } = store();
+    drafts.addLine({ itemId: 'burger', quantity: 1, selections: {} });
+    advance(DRAFT_MAX_AGE_MS + 1);
+    expect(drafts.loadDraft()).toBeNull();
   });
 });

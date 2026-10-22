@@ -45,6 +45,9 @@ describe('money — NOK in Norwegian, hand-written', () => {
   it('refuses a non-finite amount', () => {
     expect(() => money.formatOre(Number.NaN)).toThrow(RangeError);
     expect(() => money.formatOre(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+    expect(() => money.formatOre(2 ** 53)).toThrow(RangeError);
+    expect(() => money.formatDeltaOre(-(2 ** 53))).toThrow(RangeError);
+    expect(money.formatOre(Number.MAX_SAFE_INTEGER)).toMatch(/kr$/);
   });
 });
 

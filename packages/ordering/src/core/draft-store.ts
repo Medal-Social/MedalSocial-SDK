@@ -14,10 +14,16 @@
  * cart changes; `rotateIdempotencyKey()` after an order that went through,
  * and `clearDraft()` (the next draft gets a new key), start a new one.
  *
- * Nothing here trusts the jar or throws: no storage during the server render,
- * Safari private mode, a full quota, a value some other script wrote — each
- * falls back to «no draft» (or an in-memory one). A draft older than a day is
- * forgotten; the menu, and the guest's appetite, have moved on.
+ * Nothing here trusts the jar or throws. A value some other script wrote, or
+ * one past its age, is dropped. When storage cannot be used — no `window`
+ * during the server render, Safari private mode, a full quota — the store
+ * keeps the draft in memory instead, so the cart and its key still last as
+ * long as the page: the mutators build on the last draft they wrote, and
+ * `loadDraft()` returns it once storage has failed in the browser. (It stays
+ * `null` without a `window`, so a store shared by server renders never hands
+ * one request's cart to another.) While storage works it is the only source,
+ * so another tab's `clearDraft()` is not undone from memory. A draft older
+ * than a day is forgotten; the menu, and the guest's appetite, have moved on.
  */
 import type { OrderingChannel } from '@medalsocial/sdk';
 import { parseChannel, parseTable } from './deep-link';
@@ -72,7 +78,18 @@ export interface DraftStore {
   saveDraft(draft: OrderDraft): OrderDraft;
   /** Forget the draft. The next one starts with a fresh idempotency key. */
   clearDraft(): void;
+  /**
+   * Add a line with a fresh `lineId`. A line without an item id, or one past
+   * `MAX_DRAFT_LINES`, is not added: the draft comes back (and is saved) as
+   * it was.
+   */
   addLine(line: NewDraftLine): OrderDraft;
+  /**
+   * Change one line. `quantity` or `selections` left `undefined` keep their
+   * value; a `note` key that is present — `undefined` or `''` included —
+   * replaces the note, so `{ note: undefined }` clears it. An unknown
+   * `lineId` changes nothing.
+   */
   updateLine(lineId: string, patch: DraftLinePatch): OrderDraft;
   removeLine(lineId: string): OrderDraft;
   /** A new idempotency key on the current cart — after an order that went through. */
@@ -111,7 +128,9 @@ function cleanSelections(value: unknown): Record<string, string[]> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const selections: Record<string, string[]> = {};
   for (const [groupId, optionIds] of Object.entries(value)) {
-    if (Array.isArray(optionIds)) selections[groupId] = optionIds.filter(isId);
+    // `__proto__` as a key would set the record's prototype, not a group.
+    if (groupId !== '__proto__' && Array.isArray(optionIds))
+      selections[groupId] = optionIds.filter(isId);
   }
   return selections;
 }
@@ -127,24 +146,29 @@ function line(lineId: string, itemId: string, value: Partial<DraftLine>): DraftL
   };
 }
 
-/** A stored line, or `null`: one the guest could not have made is dropped, not repaired. */
-function storedLine(value: unknown): DraftLine | null {
+/**
+ * A line, or `null` when it has no `lineId` or `itemId`. A STORED line (`strict`)
+ * is also dropped when its quantity is not a whole number in range — the guest
+ * could not have made it, so it is dropped rather than repaired; a line being
+ * saved has its quantity clamped instead.
+ */
+function asLine(value: unknown, strict: boolean): DraftLine | null {
   if (typeof value !== 'object' || value === null) return null;
-  const stored = value as Partial<DraftLine>;
-  if (!isId(stored.lineId) || !isId(stored.itemId)) return null;
-  const { quantity } = stored;
-  if (typeof quantity !== 'number' || !Number.isInteger(quantity)) return null;
-  if (quantity < 1 || quantity > MAX_QUANTITY) return null;
-  return line(stored.lineId, stored.itemId, stored);
+  const candidate = value as Partial<DraftLine>;
+  if (!isId(candidate.lineId) || !isId(candidate.itemId)) return null;
+  if (strict) {
+    const { quantity } = candidate;
+    if (typeof quantity !== 'number' || !Number.isInteger(quantity)) return null;
+    if (quantity < 1 || quantity > MAX_QUANTITY) return null;
+  }
+  return line(candidate.lineId, candidate.itemId, candidate);
 }
 
 function cleanLines(lines: readonly unknown[], strict: boolean): DraftLine[] {
   const seen = new Set<string>();
   const out: DraftLine[] = [];
   for (const value of lines) {
-    const cleaned = strict
-      ? storedLine(value)
-      : line((value as DraftLine).lineId, (value as DraftLine).itemId, value as DraftLine);
+    const cleaned = asLine(value, strict);
     if (cleaned === null || seen.has(cleaned.lineId)) continue;
     seen.add(cleaned.lineId);
     out.push(cleaned);
@@ -159,7 +183,11 @@ function withContext(
   table: unknown
 ): OrderDraft {
   const parsedChannel = parseChannel(typeof channel === 'string' ? channel : null);
-  const parsedTable = parseTable(typeof table === 'string' ? table : null);
+  // A table belongs to a dine-in order only, as in `parseOrderLink`.
+  const parsedTable =
+    parsedChannel === null || parsedChannel === 'dine_in'
+      ? parseTable(typeof table === 'string' ? table : null)
+      : null;
   return {
     ...base,
     ...(parsedChannel === null ? {} : { channel: parsedChannel }),
@@ -199,23 +227,37 @@ function storage(): Storage | null {
 export function createDraftStore(options: DraftStoreOptions): DraftStore {
   const storageKey = draftStorageKey(options.site, options.locationId);
   const now = options.now ?? Date.now;
+  /** The last draft this store wrote: the cart when storage cannot hold it. */
+  let memory: OrderDraft | null = null;
+  /** Storage threw in this page: memory is the source from now on. */
+  let storageFailed = false;
+
+  function remembered(): OrderDraft | null {
+    if (memory !== null && now() - memory.updatedAt > DRAFT_MAX_AGE_MS) memory = null;
+    return memory;
+  }
 
   function remove(): void {
     try {
       storage()?.removeItem(storageKey);
     } catch {
-      // A value that cannot be removed is dropped again on the next read.
+      // A stale value may still be readable; stop reading it.
+      storageFailed = true;
     }
   }
 
-  function loadDraft(): OrderDraft | null {
-    let raw: string | null | undefined;
+  /** What storage holds; `undefined` when storage cannot be used. */
+  function stored(): OrderDraft | null | undefined {
+    if (typeof window === 'undefined' || storageFailed) return undefined;
+    let raw: string | null;
     try {
-      raw = storage()?.getItem(storageKey);
+      // Reading `localStorage` itself throws where storage is blocked.
+      raw = window.localStorage.getItem(storageKey);
     } catch {
-      return null;
+      storageFailed = true;
+      return undefined;
     }
-    if (raw === null || raw === undefined) return null;
+    if (raw === null) return null;
     let draft: OrderDraft | null = null;
     try {
       draft = asDraft(JSON.parse(raw), now());
@@ -226,28 +268,43 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
     return draft;
   }
 
+  function loadDraft(): OrderDraft | null {
+    const draft = stored();
+    if (draft !== undefined) return draft;
+    // No `window`: a server render, where memory may be another request's.
+    return typeof window === 'undefined' ? null : remembered();
+  }
+
   function saveDraft(draft: OrderDraft): OrderDraft {
     const saved = withContext(
       {
         version: DRAFT_VERSION,
-        lines: cleanLines(draft.lines, false),
+        lines: cleanLines(Array.isArray(draft.lines) ? draft.lines : [], false),
         idempotencyKey: isKey(draft.idempotencyKey) ? draft.idempotencyKey : newIdempotencyKey(),
         updatedAt: now(),
       },
       draft.channel,
       draft.table
     );
+    memory = saved;
     try {
       storage()?.setItem(storageKey, JSON.stringify(saved));
     } catch {
-      // Quota or storage turned off: the cart lives as long as the page.
+      // Quota or storage turned off: the cart lives in memory, as long as the page.
+      storageFailed = true;
     }
     return saved;
   }
 
+  function clearDraft(): void {
+    memory = null;
+    remove();
+  }
+
   function current(): OrderDraft {
+    const draft = stored();
     return (
-      loadDraft() ?? {
+      (draft === undefined ? remembered() : draft) ?? {
         version: DRAFT_VERSION,
         lines: [],
         idempotencyKey: newIdempotencyKey(),
@@ -269,11 +326,14 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
     const draft = current();
     return saveDraft({
       ...draft,
-      lines: draft.lines.map((existing) =>
-        existing.lineId === lineId
-          ? line(existing.lineId, existing.itemId, { ...existing, ...patch })
-          : existing
-      ),
+      lines: draft.lines.map((existing) => {
+        if (existing.lineId !== lineId) return existing;
+        const next: Partial<DraftLine> = { ...existing };
+        if (patch.quantity !== undefined) next.quantity = patch.quantity;
+        if (patch.selections !== undefined) next.selections = patch.selections;
+        if ('note' in patch) next.note = patch.note;
+        return line(existing.lineId, existing.itemId, next);
+      }),
     });
   }
 
@@ -290,7 +350,7 @@ export function createDraftStore(options: DraftStoreOptions): DraftStore {
     storageKey,
     loadDraft,
     saveDraft,
-    clearDraft: remove,
+    clearDraft,
     addLine,
     updateLine,
     removeLine,

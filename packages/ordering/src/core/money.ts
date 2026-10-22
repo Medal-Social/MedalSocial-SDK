@@ -38,8 +38,15 @@ export interface Money {
   formatDeltaOre(ore: number): string;
 }
 
-function assertFinite(ore: number): void {
-  if (!Number.isFinite(ore)) throw new RangeError(`Not an amount of money: ${ore}`);
+/**
+ * Rounded to whole minor units, and refused (RangeError) unless that is a safe
+ * integer: NaN, ±Infinity and anything beyond ±2^53 − 1 øre would print as
+ * digits that are not the amount.
+ */
+function wholeMinor(ore: number): number {
+  const rounded = Math.round(ore);
+  if (!Number.isSafeInteger(rounded)) throw new RangeError(`Not an amount of money: ${ore}`);
+  return rounded;
 }
 
 function isNorwegian(locale: string): boolean {
@@ -64,15 +71,13 @@ function norwegianMoney(currency: string): Money {
   return {
     currency,
     formatOre(ore) {
-      assertFinite(ore);
-      const rounded = Math.round(ore);
+      const rounded = wholeMinor(ore);
       // `Math.round(-0.4)` is -0, which is no amount at all.
       const sign = rounded < 0 ? MINUS : '';
       return `${sign}${formatKroner(Math.abs(rounded))}`;
     },
     formatDeltaOre(ore) {
-      assertFinite(ore);
-      const rounded = Math.round(ore);
+      const rounded = wholeMinor(ore);
       if (rounded === 0) return '';
       return `${rounded > 0 ? '+' : MINUS}${NBSP}${formatKroner(Math.abs(rounded))}`;
     },
@@ -96,8 +101,7 @@ function intlMoney(locale: string, currency: string): Money {
     maximumFractionDigits: digits,
   });
   const format = (minor: number): string => {
-    assertFinite(minor);
-    const amount = Math.round(minor) / 10 ** digits;
+    const amount = wholeMinor(minor) / 10 ** digits;
     return (Number.isInteger(amount) ? whole : exact).format(amount);
   };
   return {
