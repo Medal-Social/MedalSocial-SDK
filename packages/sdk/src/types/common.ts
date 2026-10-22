@@ -40,6 +40,10 @@ export interface PaginatedResponse<T> {
  *   sender.
  * - `ORDERING_NOT_ENABLED` (403) — the workspace does not have the online
  *   ordering module; every `ordering.*` call answers this.
+ * - `CLOSED`, `CUTOFF`, `SOLD_OUT`, … (422) — `ordering.orders.create()`
+ *   refused the order; see `OrderingRefusalCode` and `isOrderingRefusal()`.
+ * - `INVALID_TRANSITION` (409) — `ordering.orders.cancel()` on an order the
+ *   restaurant already answered; `details.status` is its status now.
  */
 export type MedalErrorCode =
   | "AI_GENERATION_FAILED"
@@ -52,6 +56,8 @@ export type MedalErrorCode =
   | "CAPABILITY_NOT_FOUND"
   | "CAPABILITY_PATH_PARAM_REQUIRED"
   | "CAPABILITY_SCOPE_DENIED"
+  | "CHANNEL_NOT_AVAILABLE"
+  | "CLOSED"
   | "CONFIRMATION_CONTEXT_MISMATCH"
   | "CONFIRMATION_EXPIRED"
   | "CONFIRMATION_INVALID"
@@ -59,26 +65,39 @@ export type MedalErrorCode =
   | "CONFLICT"
   | "CONTACT_NOT_FOUND"
   | "CONVERSATION_NOT_LINKABLE"
+  | "CUTOFF"
   | "FORBIDDEN"
   | "GRANT_NOT_FOUND"
+  | "IDEMPOTENCY_CONFLICT"
   | "IDEMPOTENCY_IN_PROGRESS"
   | "IDEMPOTENCY_KEY_CONFLICT"
   | "IDEMPOTENCY_KEY_REQUIRED"
   | "INTERNAL_ERROR"
+  | "INVALID_CART"
+  | "INVALID_CUSTOMER"
   | "INVALID_IDEMPOTENCY_KEY"
   | "INVALID_INPUT"
   | "INVALID_OAUTH_RESOURCE"
+  | "INVALID_OPTIONS"
   | "INVALID_RETURN_URL"
+  | "INVALID_TRANSITION"
   | "NOT_FOUND"
+  | "ORDERING_LOCATION_NOT_FOUND"
   | "ORDERING_NOT_ENABLED"
+  | "ORDER_NOT_FOUND"
+  | "PAYMENT_METHOD_NOT_ALLOWED"
   | "PILOT_ASK_FAILED"
   | "PORTAL_CODE_INVALID"
   | "PORTAL_SESSION_INVALID"
   | "PORTAL_SESSION_REQUIRED"
+  | "PREORDER_DISABLED"
   | "PREVIEW_RECEIPT_REQUIRED"
   | "RATE_LIMITED"
   | "SEND_FAILED"
+  | "SOLD_OUT"
+  | "TABLE_NOT_FOUND"
   | "UNAUTHORIZED"
+  | "UNAVAILABLE"
   | "UPSTREAM_UNAVAILABLE"
   | "VALIDATION_ERROR"
   | "VIPPS_IDENTITY_CONFLICT"
