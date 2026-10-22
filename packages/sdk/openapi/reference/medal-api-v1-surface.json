@@ -1255,7 +1255,7 @@
         "requestBody.location_id#type": ["string"],
         "requestBody.channel": ["delivery", "dine_in", "takeaway"],
         "requestBody.timing#type": ["object"],
-        "requestBody.timing.kind": ["scheduled"],
+        "requestBody.timing.kind": ["asap", "scheduled"],
         "requestBody.timing.at#type": ["string"],
         "requestBody.table_token#type": ["string"],
         "requestBody.lines#type": ["array"],
