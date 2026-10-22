@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrderingMenuItem, OrderingModifierGroup } from '../../src/core';
+import { createDraftStore } from '../../src/core/draft-store';
 import { createMoney } from '../../src/core/money';
 import { ItemSheet, type ItemSheetProps } from '../../src/react/ItemSheet';
 import { axeViolations } from '../support/axe';
@@ -128,6 +129,40 @@ describe('ItemSheet', () => {
       selections: { size: ['large'], extras: ['no-onion'] },
       note: 'no salt',
     });
+  });
+
+  it('hands over an explicit empty note when the note of an edited line is cleared', async () => {
+    const user = userEvent.setup();
+    const { onAdd } = sheet({
+      item: WATER,
+      initial: { quantity: 1, selections: {}, note: 'uten løk' },
+    });
+    await user.clear(screen.getByLabelText(/Beskjed til kjøkkenet/));
+    await user.click(screen.getByRole('button', { name: /Oppdater/ }));
+    const line = onAdd.mock.calls[0]?.[0];
+    expect('note' in line).toBe(true);
+    expect(line.note).toBeUndefined();
+  });
+
+  it('clears the note in the cart when an edited line is saved without one', async () => {
+    const user = userEvent.setup();
+    const drafts = createDraftStore({ site: 'demo' });
+    const added = drafts.addLine({
+      itemId: WATER.id,
+      quantity: 1,
+      selections: {},
+      note: 'uten løk',
+    });
+    const lineId = added.lines[0]?.lineId ?? '';
+    expect(added.lines[0]?.note).toBe('uten løk');
+    const { onAdd } = sheet({
+      item: WATER,
+      initial: { quantity: 1, selections: {}, note: 'uten løk' },
+    });
+    await user.clear(screen.getByLabelText(/Beskjed til kjøkkenet/));
+    await user.click(screen.getByRole('button', { name: /Oppdater/ }));
+    const updated = drafts.updateLine(lineId, onAdd.mock.calls[0]?.[0]);
+    expect(updated.lines[0]).not.toHaveProperty('note');
   });
 
   it('stops the quantity at 99 and the note at 200 characters', () => {

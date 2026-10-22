@@ -158,7 +158,8 @@ function Sheet({
       itemId: item.id,
       quantity,
       selections,
-      ...(trimmed === '' ? {} : { note: trimmed }),
+      // Always present: `updateLine` only clears a note when the key is there.
+      note: trimmed === '' ? undefined : trimmed,
     });
   }
 
