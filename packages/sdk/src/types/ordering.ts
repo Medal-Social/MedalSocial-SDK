@@ -42,8 +42,8 @@ export interface OrderingMenuOptions {
   /** Which channel to read the menu for. */
   channel: OrderingChannel;
   /**
-   * Ordering location id. Accepted but ignored by the API until multi-location
-   * ordering ships.
+   * Ordering location id from `ordering.locations()`. Dishes and options sold
+   * out at that location carry `sold_out: true`; an unknown id is ignored.
    */
   location?: string;
   /**
@@ -67,3 +67,51 @@ export interface OrderingMenuOptions {
 export type OrderingMenuResult =
   | { notModified: false; etag: string; menu: OrderingMenu }
   | { notModified: true; etag: string };
+
+/** Why a channel is not open right now. */
+export type OrderingChannelReason = Schemas["OrderingChannelReason"];
+
+/**
+ * One channel of a location, right now: `enabled` (offered at all), `open`
+ * (takes orders now) and, when closed, the `reason` and the next `opens_at`.
+ * Instants are ISO 8601 UTC; optional fields are omitted, never null.
+ */
+export type OrderingChannelState = Schemas["OrderingChannelState"];
+
+/** A location's postal address. `region_code` is ISO 3166-1 alpha-2. */
+export type OrderingLocationAddress = Schemas["OrderingLocationAddress"];
+
+/** The state of each channel of a location, keyed by channel. */
+export type OrderingLocationChannels = Schemas["OrderingLocationChannels"];
+
+/** Which ways a guest can pay at a location. */
+export type OrderingPaymentMethods = Schemas["OrderingPaymentMethods"];
+
+/**
+ * A location that takes online orders. Pass `id` as `location` to
+ * `ordering.slots()`; `preorder_days` (0–7) is how far ahead it can be booked.
+ */
+export type OrderingLocation = Schemas["OrderingLocation"];
+
+/** Every ordering location, and the workspace's IANA `time_zone`. */
+export type OrderingLocations = Schemas["OrderingLocations"];
+
+/** A pickup or delivery slot. `start` and `end` are ISO 8601 UTC. */
+export type OrderingSlot = Schemas["OrderingSlot"];
+
+/** The slots of one location, channel and service date. */
+export type OrderingSlots = Schemas["OrderingSlots"];
+
+/** Input for `ordering.slots()`. */
+export interface OrderingSlotsOptions {
+  /** Location id from `ordering.locations()`. */
+  location: string;
+  /** Which channel to list slots for. */
+  channel: OrderingChannel;
+  /**
+   * Service date, `yyyy-mm-dd`, in the workspace time zone. The API accepts
+   * today through today + the location's `preorder_days`; anything else is a
+   * `400 VALIDATION_ERROR`.
+   */
+  date: string;
+}

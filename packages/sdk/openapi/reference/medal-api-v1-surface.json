@@ -2,7 +2,7 @@
   "note": "Generated surface snapshot of the Medal API's published OpenAPI document \u2014 paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
   "generated_at": "2026-09-29",
   "source": "C:/Users/ali-ws/Downloads/medal-monorepo/.claude/worktrees/exciting-jennings-4b7075/apps/web/src/lib/openapi-spec.ts",
-  "operation_count": 104,
+  "operation_count": 106,
   "operations": {
     "DELETE /api/v1/bookings/events/{id}": {
       "operationId": "deleteBookingEvent",
@@ -1163,6 +1163,87 @@
         "responses.200.data.etag#type": ["string"],
         "responses.200.data.channel": ["delivery", "dine_in", "takeaway"],
         "responses.200.data.at#type": ["string"]
+      }
+    },
+    "GET /api/v1/ordering/locations": {
+      "operationId": "listOrderingLocations",
+      "facts": {
+        "responses.200#type": ["object"],
+        "responses.200.data#type": ["object"],
+        "responses.200.data.time_zone#type": ["string"],
+        "responses.200.data.locations#type": ["array"],
+        "responses.200.data.locations[]#type": ["object"],
+        "responses.200.data.locations[].id#type": ["string"],
+        "responses.200.data.locations[].name#type": ["string"],
+        "responses.200.data.locations[].address#type": ["object"],
+        "responses.200.data.locations[].address.lines#type": ["array"],
+        "responses.200.data.locations[].address.lines[]#type": ["string"],
+        "responses.200.data.locations[].address.locality#type": ["string"],
+        "responses.200.data.locations[].address.postal_code#type": ["string"],
+        "responses.200.data.locations[].address.region_code#type": ["string"],
+        "responses.200.data.locations[].channels#type": ["object"],
+        "responses.200.data.locations[].channels.dine_in#type": ["object"],
+        "responses.200.data.locations[].channels.dine_in.enabled#type": ["boolean"],
+        "responses.200.data.locations[].channels.dine_in.open#type": ["boolean"],
+        "responses.200.data.locations[].channels.dine_in.reason": [
+          "closed",
+          "cutoff",
+          "delivery_off",
+          "kitchen_closed",
+          "paused"
+        ],
+        "responses.200.data.locations[].channels.dine_in.opens_at#type": ["string"],
+        "responses.200.data.locations[].channels.dine_in.closes_at#type": ["string"],
+        "responses.200.data.locations[].channels.dine_in.last_order_at#type": ["string"],
+        "responses.200.data.locations[].channels.takeaway#type": ["object"],
+        "responses.200.data.locations[].channels.takeaway.enabled#type": ["boolean"],
+        "responses.200.data.locations[].channels.takeaway.open#type": ["boolean"],
+        "responses.200.data.locations[].channels.takeaway.reason": [
+          "closed",
+          "cutoff",
+          "delivery_off",
+          "kitchen_closed",
+          "paused"
+        ],
+        "responses.200.data.locations[].channels.takeaway.opens_at#type": ["string"],
+        "responses.200.data.locations[].channels.takeaway.closes_at#type": ["string"],
+        "responses.200.data.locations[].channels.takeaway.last_order_at#type": ["string"],
+        "responses.200.data.locations[].channels.delivery#type": ["object"],
+        "responses.200.data.locations[].channels.delivery.enabled#type": ["boolean"],
+        "responses.200.data.locations[].channels.delivery.open#type": ["boolean"],
+        "responses.200.data.locations[].channels.delivery.reason": [
+          "closed",
+          "cutoff",
+          "delivery_off",
+          "kitchen_closed",
+          "paused"
+        ],
+        "responses.200.data.locations[].channels.delivery.opens_at#type": ["string"],
+        "responses.200.data.locations[].channels.delivery.closes_at#type": ["string"],
+        "responses.200.data.locations[].channels.delivery.last_order_at#type": ["string"],
+        "responses.200.data.locations[].payment_methods#type": ["object"],
+        "responses.200.data.locations[].payment_methods.vipps#type": ["boolean"],
+        "responses.200.data.locations[].payment_methods.pay_at_counter#type": ["boolean"],
+        "responses.200.data.locations[].preorder_days#type": ["integer"],
+        "responses.200.data.locations[].slot_minutes#type": ["integer"]
+      }
+    },
+    "GET /api/v1/ordering/slots": {
+      "operationId": "listOrderingSlots",
+      "facts": {
+        "parameters.location#type": ["string"],
+        "parameters.channel": ["delivery", "dine_in", "takeaway"],
+        "parameters.date#type": ["string"],
+        "responses.200#type": ["object"],
+        "responses.200.data#type": ["object"],
+        "responses.200.data.location_id#type": ["string"],
+        "responses.200.data.channel": ["delivery", "dine_in", "takeaway"],
+        "responses.200.data.date#type": ["string"],
+        "responses.200.data.time_zone#type": ["string"],
+        "responses.200.data.slots#type": ["array"],
+        "responses.200.data.slots[]#type": ["object"],
+        "responses.200.data.slots[].start#type": ["string"],
+        "responses.200.data.slots[].end#type": ["string"]
       }
     },
     "GET /api/v1/portal/me": {
