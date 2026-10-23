@@ -1670,6 +1670,106 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/ordering/orders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Place an online order
+     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED` and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). For now only `pay_at_counter` for takeaway and dine-in is accepted; delivery, Vipps and scheduled timing are refused. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+     */
+    post: operations["createOrderingOrder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/ordering/orders/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get an order (customer view)
+     * @description Requires `ordering.order.read`. The guest's order for a receipt or order page: lines with option names and prices (`unit_price_ore` is one dish with its options, `line_total_ore` that times quantity), totals, the VAT breakdown and the payment state. It never includes the customer's contact details, the allergy note or any notes. `ready_at` is the kitchen's promised time while the order is accepted, preparing or ready. An order of another workspace is 404 `ORDER_NOT_FOUND`. The response is `Cache-Control: private, no-store`.
+     */
+    get: operations["getOrderingOrder"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/ordering/orders/{id}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Poll an order status
+     * @description Requires `ordering.order.read`. The status, the promised `ready_at` and the timeline of status changes with their times only. A declined order carries `decline_reason` (`sold_out`, `too_busy`, `closing_soon`, `other`, or `timeout` when nobody answered in time). An unknown order is 404 `ORDER_NOT_FOUND`. The response is `Cache-Control: private, no-store`.
+     */
+    get: operations["getOrderingOrderStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/ordering/orders/{id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Cancel an order before the restaurant answers
+     * @description Requires `ordering.order.create`. The guest cancels an order the restaurant has not accepted yet (status `placed`). Repeating it is a no-op (200). Once the order is accepted, declined or cancelled by the restaurant it is 409 `INVALID_TRANSITION` with `details.status`, the current status: the guest has to contact the restaurant. No body. Answers with the status view.
+     */
+    post: operations["cancelOrderingOrder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/ordering/tables/{token}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Resolve a table QR code
+     * @description Requires `ordering.storefront.read`. The location and label behind the token in a table's QR code, so the site can open the dine-in menu for that table and send the token with the order. An unknown or archived table is 404 `TABLE_NOT_FOUND`. The response is `Cache-Control: private, no-store`.
+     */
+    get: operations["getOrderingTable"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3964,6 +4064,188 @@ export interface components {
     ApiResponse_OrderingSlots: {
       data: components["schemas"]["OrderingSlots"];
     };
+    /**
+     * @description Where an order is in its life. Closed.
+     * @enum {string}
+     */
+    OrderingOrderStatus:
+      | "awaiting_payment"
+      | "placed"
+      | "accepted"
+      | "preparing"
+      | "ready"
+      | "handed_over"
+      | "completed"
+      | "declined"
+      | "abandoned"
+      | "cancelled"
+      | "refunded";
+    /**
+     * @description How the guest pays. Closed; only `pay_at_counter` is accepted for now.
+     * @enum {string}
+     */
+    OrderingPaymentMethod: "pay_at_counter" | "vipps";
+    /** @description When the guest wants the order. Defaults to `{ kind: asap }`. */
+    OrderingOrderTiming:
+      | {
+          /** @enum {string} */
+          kind: "asap";
+        }
+      | {
+          /** @enum {string} */
+          kind: "scheduled";
+          /**
+           * Format: date-time
+           * @description ISO 8601 with `Z` or an explicit offset.
+           */
+          at: string;
+        };
+    OrderingOrderLineInput: {
+      product_id: string;
+      quantity: number;
+      /** @description Chosen option ids, flat. Default `[]`. */
+      option_ids?: string[];
+      note?: string;
+    };
+    OrderingOrderCustomer: {
+      name: string;
+      /** @description Norwegian mobile or E.164. */
+      phone: string;
+      /** Format: email */
+      email?: string;
+    };
+    OrderingOrderPreferences: {
+      /** @description Shown to the kitchen only; never returned by the API. */
+      allergy_note?: string;
+      cutlery: boolean;
+      no_contact?: boolean;
+    };
+    /** @description A new order. Strict: an unknown field (a price included) is 400 `VALIDATION_ERROR`. Optional fields are omitted, never null. */
+    OrderingCreateOrderInput: {
+      /** @description Location id from `GET /api/v1/ordering/locations`. */
+      location_id: string;
+      channel: components["schemas"]["OrderingChannel"];
+      timing?: components["schemas"]["OrderingOrderTiming"];
+      /** @description The token from the table QR code; required for `dine_in`. */
+      table_token?: string;
+      lines: components["schemas"]["OrderingOrderLineInput"][];
+      customer: components["schemas"]["OrderingOrderCustomer"];
+      preferences: components["schemas"]["OrderingOrderPreferences"];
+      payment_method: components["schemas"]["OrderingPaymentMethod"];
+    };
+    OrderingOrderCreated: {
+      order_id: string;
+      /** @description What the guest is told, e.g. `P-1021-004`. */
+      order_number: string;
+      status: components["schemas"]["OrderingOrderStatus"];
+    };
+    ApiResponse_OrderingOrderCreated: {
+      data: components["schemas"]["OrderingOrderCreated"];
+    };
+    OrderingCustomerOrderLine: {
+      name: string;
+      quantity: number;
+      options: {
+        name: string;
+      }[];
+      /** @description One of the dish with its options, VAT included. */
+      unit_price_ore: number;
+      /** @description `unit_price_ore` × `quantity`. */
+      line_total_ore: number;
+    };
+    OrderingVatLine: {
+      rate_bp: number;
+      net_ore: number;
+      vat_ore: number;
+    };
+    /**
+     * @description Closed.
+     * @enum {string}
+     */
+    OrderingPaymentState: "none" | "pending" | "reserved" | "captured" | "released" | "refunded";
+    /** @description The guest's view of an order. Never carries contact details, the allergy note or notes. Optional fields are omitted, never null. */
+    OrderingCustomerOrder: {
+      order_id: string;
+      order_number: string;
+      status: components["schemas"]["OrderingOrderStatus"];
+      channel: components["schemas"]["OrderingChannel"];
+      /** @description Dine-in only. */
+      table_label?: string;
+      timing: {
+        /** @enum {string} */
+        kind: "asap" | "scheduled";
+        /**
+         * Format: date-time
+         * @description Scheduled only.
+         */
+        at?: string;
+      };
+      lines: components["schemas"]["OrderingCustomerOrderLine"][];
+      subtotal_ore: number;
+      total_ore: number;
+      vat_breakdown: components["schemas"]["OrderingVatLine"][];
+      payment: {
+        method: components["schemas"]["OrderingPaymentMethod"];
+        state: components["schemas"]["OrderingPaymentState"];
+      };
+      /** Format: date-time */
+      ready_at?: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    ApiResponse_OrderingCustomerOrder: {
+      data: components["schemas"]["OrderingCustomerOrder"];
+    };
+    /**
+     * @description Why the restaurant declined. Closed.
+     * @enum {string}
+     */
+    OrderingDeclineReason: "sold_out" | "too_busy" | "closing_soon" | "other" | "timeout";
+    OrderingOrderStatusView: {
+      order_id: string;
+      order_number: string;
+      status: components["schemas"]["OrderingOrderStatus"];
+      /** Format: date-time */
+      ready_at?: string;
+      decline_reason?: components["schemas"]["OrderingDeclineReason"];
+      /** Format: date-time */
+      updated_at: string;
+      timeline: {
+        status: components["schemas"]["OrderingOrderStatus"];
+        /** Format: date-time */
+        at: string;
+      }[];
+    };
+    ApiResponse_OrderingOrderStatusView: {
+      data: components["schemas"]["OrderingOrderStatusView"];
+    };
+    OrderingTable: {
+      location_id: string;
+      table_label: string;
+    };
+    ApiResponse_OrderingTable: {
+      data: components["schemas"]["OrderingTable"];
+    };
+    OrderingErrorDetails: {
+      /** @description `SOLD_OUT`, `UNAVAILABLE`: the product and option ids. */
+      ids?: string[];
+      /** @description `INVALID_OPTIONS`, `INVALID_CART`: the 0-based line at fault. */
+      line_index?: number;
+      /** @description `CLOSED`: the channel state reason; `INVALID_CUSTOMER`: name, phone, email or allergy_note. */
+      reason?: string;
+      /** @description `INVALID_TRANSITION`: the current order status. */
+      status?: string;
+    };
+    OrderingError: {
+      error: {
+        code: string;
+        /** @description Plain English; show your own copy for the code. */
+        message: string;
+        details?: components["schemas"]["OrderingErrorDetails"];
+      };
+    };
   };
   responses: {
     /** @description API error. */
@@ -3977,6 +4259,8 @@ export interface components {
     };
   };
   parameters: {
+    /** @description `order_id` from `POST /api/v1/ordering/orders`. */
+    OrderingOrderId: string;
     Id: string;
     Slug: string;
     /** @description The show-once manage token handed out when the booking was created. Possession of it authorizes the customer's own cancel or reschedule. */
@@ -6763,6 +7047,161 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_OrderingSlots"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createOrderingOrder: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description One key per order the guest places (the cart's key). Send the same key when retrying the same order. */
+        "Idempotency-Key": string;
+        /** @description The IP address of the guest's browser, as your server saw it. Optional and untrusted: it only selects the per-IP rate-limit bucket (IPv6 per /64). A value that is not an IP literal is ignored. */
+        "X-Medal-Client-Ip"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OrderingCreateOrderInput"];
+      };
+    };
+    responses: {
+      /** @description The same request again; the order it made, with its current status. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingOrderCreated"];
+        };
+      };
+      /** @description Order placed. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingOrderCreated"];
+        };
+      };
+      /** @description A business refusal; see the description for the codes and details. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrderingError"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getOrderingOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description `order_id` from `POST /api/v1/ordering/orders`. */
+        id: components["parameters"]["OrderingOrderId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The order. */
+      200: {
+        headers: {
+          "Cache-Control"?: "private, no-store";
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingCustomerOrder"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getOrderingOrderStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description `order_id` from `POST /api/v1/ordering/orders`. */
+        id: components["parameters"]["OrderingOrderId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The order status. */
+      200: {
+        headers: {
+          "Cache-Control"?: "private, no-store";
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingOrderStatusView"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  cancelOrderingOrder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description `order_id` from `POST /api/v1/ordering/orders`. */
+        id: components["parameters"]["OrderingOrderId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The order status. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingOrderStatusView"];
+        };
+      };
+      /** @description `INVALID_TRANSITION`: the order can no longer be cancelled online. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrderingError"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  getOrderingTable: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The table. */
+      200: {
+        headers: {
+          "Cache-Control"?: "private, no-store";
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_OrderingTable"];
         };
       };
       default: components["responses"]["ApiError"];
