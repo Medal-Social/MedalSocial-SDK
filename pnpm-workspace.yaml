@@ -10,8 +10,9 @@ overrides:
   # Each is scoped to the vulnerable versions only, so a newer major (undici 8)
   # is left alone.
   'sharp@<0.35.5': ^0.35.5 # GHSA-wq5f-xc86-pv6w, GHSA-rgj7-g3m4-5g8c, via miniflare
-  'undici@>=7.0.0 <7.29.1': ^7.29.1 # GHSA-rfgv-xxqx-mfg5 and 14 more, via miniflare
+  'undici@>=7.0.0 <7.30.1': ^7.30.1 # GHSA-rfgv-xxqx-mfg5 and 17 more, via miniflare
   'source-map-js@<1.2.2': ^1.2.2 # GHSA-68fv-2mgg-jv7q, via vite > postcss
+  'vite@>=8.2.0 <8.2.4': ~8.2.4 # GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw and 4 more, vitest's auto-installed peer
 
 # Neither package needs its lifecycle scripts to install correctly, and running
 # them would execute third-party code at install time.
