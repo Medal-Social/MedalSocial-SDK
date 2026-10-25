@@ -53,7 +53,7 @@ import { fileURLToPath } from "node:url";
 const HTTP_METHODS = new Set(["get", "put", "post", "delete", "patch"]);
 /** @type {Record<string, string[]>} Which `BaseClient` method may serve an OpenAPI method. */
 const CLIENT_METHODS = {
-  get: ["get"],
+  get: ["get", "getConditional"],
   post: ["post", "postOnce"],
   put: ["put"],
   patch: ["patch"],
@@ -203,6 +203,20 @@ function makeResolver(document) {
 }
 
 /**
+ * Add enum values at a location, merged with what is already there. `oneOf`
+ * branches share a location (`{ kind: "asap" } | { kind: "scheduled", at }`
+ * both write `requestBody.timing.kind`), so a plain assignment let the last
+ * branch overwrite the others and a change to an earlier one went unseen.
+ *
+ * @param {Record<string, string[]>} out
+ * @param {string} key
+ * @param {string[]} values
+ */
+function addEnumFact(out, key, values) {
+  out[key] = [...new Set([...(out[key] ?? []), ...values])].sort();
+}
+
+/**
  * Record every string enum under a schema, plus the primitive type at each
  * location, keyed by a dotted property path (`requestBody.status`,
  * `responses.200.data[].kind`). The type entries are what tell an enum that is
@@ -215,18 +229,18 @@ function makeResolver(document) {
  * @param {number} [depth]
  */
 function collectSchemaFacts(schema, resolveNode, prefix, out, depth = 0) {
-  if (depth > 8) return;
+  if (depth > 10) return;
   const node = resolveNode(schema);
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node.enum)) {
     const values = node.enum
       .filter((/** @type {unknown} */ value) => typeof value === "string")
       .sort();
-    if (values.length > 0) out[prefix] = values;
+    if (values.length > 0) addEnumFact(out, prefix, values);
   } else if (typeof node.const === "string") {
     // `const: vipps` is a one-value enum in OpenAPI 3.1 — comparing it as a
     // plain string would report every single-value field as un-narrowed.
-    out[prefix] = [node.const];
+    addEnumFact(out, prefix, [node.const]);
   } else if (node.type !== undefined) {
     const types = Array.isArray(node.type) ? node.type : [node.type];
     out[`${prefix}#type`] = types.includes("string") ? ["string"] : [String(types[0])];

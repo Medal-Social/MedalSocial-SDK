@@ -52,6 +52,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Skill snippets import @medalsocial/sdk subpaths, which resolve to dist.
+      - name: Build SDK
+        working-directory: packages/sdk
+        run: pnpm build
+
       # The skills ship inside @medalsocial/sdk's tarball, so they live in
       # packages/sdk/skills and intent runs from that package.
       - name: Validate skills

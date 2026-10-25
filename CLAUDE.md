@@ -14,6 +14,7 @@ and is never published.
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
 | `@medalsocial/booking` | `packages/booking` | npm only (provenance); published since 0.1.0, pre-1.0 — current version in `packages/booking/package.json` / its CHANGELOG |
+| `@medalsocial/ordering` | `packages/ordering` | none yet — `"private": true` at 0.0.0 until its first release PR |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
@@ -61,6 +62,47 @@ and is never published.
   until the release PR versions it.
   Public-repo rule: `tests/core/denylist.test.ts` fails on a customer or staff
   name anywhere in the package (hashed list, so the test names nobody).
+- **`@medalsocial/ordering`** is laid out exactly like booking: ESM-only,
+  unbundled, entries `./core`, `./react` (every `dist/react` module carries
+  `'use client'`) and `./next` (imports `server-only`). `/core` holds money in
+  øre, the `?t=`/`?c=` table and channel links, the per-location cart draft
+  (`localStorage`, ids and choices only, with the order's idempotency key),
+  the modifier rules, the allergen/dietary labels and the components' nb/en
+  words (`ORDERING_LABELS`/`mergeLabels`/`fill` in `src/core/ui-labels.ts`,
+  in `/core` so a server component never imports a `'use client'` module for
+  them; `/react` re-exports the `OrderingLabels` type only). `/react` holds
+  `MenuList`, `ItemSheet` and `ClosedNotice` (presentational, controlled by
+  props), native accessible
+  markup styled with Tailwind classes on the shadcn/meda colour tokens — no
+  meda or lucide dependency, and `verify:paths` refuses any runtime import
+  in `dist/react` but React. `/next` holds `createMenuRoute` (the site's
+  menu `GET` handler on Web `Request`/`Response`, no `next` import: server
+  cache revalidated with Medal's ETag, `?at=` window-checked, minute-rounded
+  LRU-cached and budgeted per window, `ETag`/`304` and public `Cache-Control` out, fixed-word
+  errors that never carry the key; an injected `store` needs a
+  `storeKeyPrefix`, and each store call is bounded to 1.5 s). The modifier rules are
+  the Medal API's own (same checks, same order, same reason names) — change
+  them only together with the server. So is the hours engine
+  (`src/core/hours.ts`: `channelState`, `slots`, `slotsForDate`,
+  `serviceDayEnd`, …), ported unchanged with the server's names; the wire
+  `dine_in` ↔ engine `dineIn` adapter is `src/core/hours-channel.ts`.
+  `tests/core/hours.parity.test.ts` holds it to `tests/fixtures/hours.json`;
+  refresh that from a monorepo checkout (run from `packages/ordering`) with
+  `node scripts/export-hours-fixtures.mjs --engine
+  <monorepo>/apps/shared/ordering/hours.ts`, and with `--engine
+  src/core/hours.ts` the file must not change (`git diff --exit-code`). A new
+  server hours test needs a matching `add(...)` case in that script's input
+  table, so the fixture covers it too. Cart totals, VAT, checkout and payment
+  are the server's. Same guards as booking: Biome `noRestrictedImports` and
+  `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
+  entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
+  `tests/core/denylist.test.ts`. It is `"private": true` until its first
+  release PR flips it (as booking's #169 did). **No changesets for it until
+  that PR**: Changesets skips a private package's changeset without ever
+  consuming it, so it would sit in `.changeset/` and keep `release.yml` on
+  the version-PR path, and nothing else would publish. The flip PR adds one
+  changeset describing the whole package. The changeset-bot reminder on
+  ordering PRs until then is expected.
 - The published tarball must not change when files move around the workspace:
   compare `npm pack --dry-run --json` file lists and `package.json#exports`
   before and after, and the `jsr publish --dry-run` file set.
