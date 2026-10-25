@@ -1,5 +1,13 @@
 # @medalsocial/booking
 
+## 0.8.1
+
+### Patch Changes
+
+- [#257](https://github.com/Medal-Social/MedalSocial-SDK/pull/257) [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910) Thanks [@alioftech](https://github.com/alioftech)! - «Prøv igjen» asks a stylist's opening hours again even when they had finished loading the same day, instead of republishing the cached hours. A partly read stylist still resumes at the unread tail.
+- Updated dependencies [[`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910), [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910), [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910)]:
+  - @medalsocial/sdk@1.17.0
+
 ## 0.8.0
 
 ### Minor Changes
