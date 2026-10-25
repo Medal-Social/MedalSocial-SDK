@@ -1,0 +1,98 @@
+{
+  "name": "@medalsocial/ordering",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Medal Social online ordering: menu money, table and channel links, the cart draft and the modifier rules behind a Medal ordering site",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@11.24.0",
+  "author": "Medal Social",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Medal-Social/MedalSocial-SDK.git",
+    "directory": "packages/ordering"
+  },
+  "bugs": {
+    "url": "https://github.com/Medal-Social/MedalSocial-SDK/issues"
+  },
+  "homepage": "https://github.com/Medal-Social/MedalSocial-SDK/tree/dev/packages/ordering#readme",
+  "exports": {
+    "./core": {
+      "types": "./dist/core/index.d.mts",
+      "import": "./dist/core/index.mjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.mts",
+      "import": "./dist/react/index.mjs"
+    },
+    "./next": {
+      "types": "./dist/next/index.d.mts",
+      "import": "./dist/next/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/ensure-sdk-types.mjs && tsdown",
+    "dev": "tsdown --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "verify:paths": "node scripts/verify-package-paths.mjs && node scripts/verify-core-runtime.mjs",
+    "prepublishOnly": "node scripts/guard-publish.mjs",
+    "size:budget": "node scripts/size-budget.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "keywords": [
+    "medal",
+    "ordering",
+    "restaurant",
+    "menu",
+    "takeaway",
+    "typescript"
+  ],
+  "dependencies": {
+    "@medalsocial/sdk": "workspace:^",
+    "server-only": "^0.0.1"
+  },
+  "peerDependencies": {
+    "next": ">=16.3",
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "axe-core": "^4.14.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tsdown": "^0.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

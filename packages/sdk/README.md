@@ -639,6 +639,94 @@ if (finished.status === 'done' && finished.result) {
 }
 ```
 
+### Ordering
+
+Restaurant online ordering, for the restaurant's own site. Call it server-side
+with the workspace API key (scope `ordering.storefront.read`); a workspace
+without the online-ordering module gets `403 ORDERING_NOT_ENABLED`. Money is
+integer øre, VAT included; `vat_bp` is the channel's VAT in basis points.
+
+```ts
+// The menu for one channel, now (or `at` a scheduled pickup/delivery time:
+// a Date, an ISO string with Z or an offset, or Unix ms — up to 60 days ahead)
+const first = await medal.ordering.menu({ channel: 'takeaway' });
+if (!first.notModified) render(first.menu.categories);
+
+// The API sends `Cache-Control: private, no-store` — keep the menu yourself
+// and revalidate with the opaque ETag. A 304 resolves `notModified: true`.
+const next = await medal.ordering.menu({ channel: 'takeaway', ifNoneMatch: first.etag });
+const menu = next.notModified ? cachedMenu : next.menu;
+
+// Locations and each channel's state right now (open, or closed with a
+// reason and the next opens_at). Instants are ISO UTC; render in time_zone.
+const { data } = await medal.ordering.locations();
+const loc = data.locations[0];
+if (!loc.channels.takeaway.open) showClosed(loc.channels.takeaway.reason);
+
+// Pickup/delivery slots for one service date (yyyy-mm-dd in the workspace
+// time zone, today … today + preorder_days). 404 for an unknown location.
+const { data: day } = await medal.ordering.slots({
+  location: loc.id,
+  channel: 'takeaway',
+  date: '2026-10-21',
+});
+render(day.slots); // [{ start, end }]
+
+// A table QR code (?t=<token>): its location and label. The token is
+// URL-encoded for you; an unknown table is 404 TABLE_NOT_FOUND.
+const { data: table } = await medal.ordering.table(token); // { location_id, table_label }
+```
+
+Placing and following an order (scopes `ordering.order.create` for `create`
+and `cancel`, `ordering.order.read` for `get` and `status`). `idempotencyKey`
+is required: mint one per order the guest places, keep it with the cart, and
+send the same key on a retry so a lost response never places the order twice.
+Pass the guest's IP as `clientIp` to get the per-IP rate limit (10/min per
+site and IP) instead of only the per-key one. Never send prices — the server
+prices every line from its own menu. For now only `pay_at_counter` for
+takeaway and dine-in is accepted.
+
+```ts
+import { isOrderingRefusal } from '@medalsocial/sdk';
+
+try {
+  const { data: placed } = await medal.ordering.orders.create(
+    {
+      location_id: loc.id,
+      channel: 'dine_in',
+      table_token: token,
+      lines: [{ product_id: 'p_1', quantity: 2, option_ids: ['o_1'] }],
+      customer: { name: 'Kari', phone: '+4791234567' },
+      preferences: { cutlery: true, allergy_note: 'No peanuts' },
+      payment_method: 'pay_at_counter',
+    },
+    { idempotencyKey: cart.idempotencyKey, clientIp },
+  );
+  // 201 the first time, 200 with the same key and body again
+  redirect(`/order/${placed.order_id}`); // placed.order_number is what the guest is told
+} catch (error) {
+  // 422 refusals: CLOSED (details.reason), CUTOFF, CHANNEL_NOT_AVAILABLE,
+  // PREORDER_DISABLED, TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
+  // INVALID_OPTIONS / INVALID_CART (details.line_index),
+  // PAYMENT_METHOD_NOT_ALLOWED, INVALID_CUSTOMER (details.reason).
+  if (isOrderingRefusal(error) && error.code === 'SOLD_OUT') {
+    markSoldOut(error.details?.ids ?? []);
+  } else throw error;
+}
+
+// The guest's receipt: lines, totals, VAT breakdown, payment state. Never
+// the customer's contact details, allergy note or notes.
+const { data: order } = await medal.ordering.orders.get(orderId);
+
+// Poll the status: placed → accepted → preparing → ready → handed_over, or
+// declined with decline_reason (sold_out, too_busy, closing_soon, other, timeout).
+const { data: view } = await medal.ordering.orders.status(orderId);
+
+// Cancel before the restaurant answers. Once it has, 409 INVALID_TRANSITION
+// with details.status — the guest has to call the restaurant.
+await medal.ordering.orders.cancel(orderId);
+```
+
 ### Helpdesk
 
 ```ts
@@ -1111,6 +1199,8 @@ and also exposes as `MedalApiError.retryAfterMs`.
 | `apiPortalVippsLinkVerify` | `POST /portal/vipps/link/verify` | 60/min | 20 |
 | `apiPortalPersonsWrite` | `POST /portal/me/persons`, `PATCH`/`DELETE /portal/me/persons/{person_id}` | 120/min | 40 |
 | `apiPortalExport` | `POST /portal/me/export` | 60/hour | 10 |
+| `apiOrderingOrderCreate` | `POST /ordering/orders` | 60/min | — |
+| `apiOrderingOrderCreatePerIp` | `POST /ordering/orders`, per site and `X-Medal-Client-Ip` (only when sent) | 10/min | — |
 | `apiConnectLinkMint` | `POST /channels/connect-links` | 10/hour | 5 |
 | `apiCookieConsent` | `POST /api/cookie-consent` | 600/min | 1200 |
 | `oauthIntrospect` | OAuth token introspection | 600/min | 200 |
@@ -1135,6 +1225,9 @@ role floor.
 | `channels.connectLinks.*`, `channels.connections.disconnect` | `channel.connect.manage` | **admin** |
 | `bookings.events.remove` | `write:bookings` | **admin** |
 | `gdpr.requestExport`, `gdpr.listExports`, `gdpr.getExport` | `compliance.gdpr.export` | **owner** |
+| `ordering.menu`, `ordering.locations`, `ordering.slots`, `ordering.table` | `ordering.storefront.read` (workspace API key) | — |
+| `ordering.orders.create`, `ordering.orders.cancel` | `ordering.order.create` (workspace API key) | — |
+| `ordering.orders.get`, `ordering.orders.status` | `ordering.order.read` (workspace API key) | — |
 
 A credential below the floor answers `403 FORBIDDEN`.
 

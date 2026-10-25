@@ -52,6 +52,12 @@ tags:
       Company & website scans (Nettsjekk) — queue a scan by URL, organisation
       number, or company name, poll the result, and search the Norwegian
       company registry.
+  - name: Ordering
+    description: >-
+      Restaurant online ordering for the restaurant's own site, called
+      server-side with the workspace API key. Module-gated: a workspace without
+      online ordering gets 403 `ORDERING_NOT_ENABLED` on every route. Amounts
+      are integer øre; VAT is in basis points (1500 = 15 %).
 paths:
   /api/v1/posts:
     get:
@@ -2554,12 +2560,364 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_ScanJob"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/menu:
+    get:
+      tags: [Ordering]
+      operationId: getOrderingMenu
+      summary: Get the online menu
+      description: >-
+        Requires `ordering.storefront.read`. What a guest can order on one
+        channel at one instant: active dishes switched on for the channel, in
+        open categories and time windows, with their modifier groups. A
+        sold-out dish or option stays listed with `sold_out: true`. VAT
+        (`vat_bp`) is the rate for the channel (dine-in vs takeaway/delivery).
+        The response carries a weak ETag (`W/"<16 hex>"`); treat it as opaque
+        and send it back verbatim in `If-None-Match` to get 304 with no body
+        when the menu has not changed. The response is
+        `Cache-Control: private, no-store`, so revalidate from your own stored
+        ETag.
+      parameters:
+        - name: channel
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/OrderingChannel"
+        - name: location
+          in: query
+          description: >-
+            Ordering location id from GET /api/v1/ordering/locations. Dishes and
+            options sold out at that location carry sold_out: true; an unknown or
+            other-workspace id is ignored.
+          schema:
+            type: string
+            maxLength: 64
+        - name: at
+          in: query
+          description: >-
+            Instant to evaluate the menu at: an ISO 8601 date-time with `Z` or
+            an explicit offset, or Unix milliseconds as digits only. Must lie
+            between one day ago and 60 days ahead; anything else is a 400
+            `VALIDATION_ERROR`. Defaults to now. Use it to show the menu for a
+            scheduled pickup or delivery time.
+          schema:
+            type: string
+        - name: If-None-Match
+          in: header
+          description: An ETag from an earlier response.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The menu.
+          headers:
+            ETag:
+              description: Weak ETag of the menu (`W/"<16 hex>"`). Opaque.
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingMenu"
+        "304":
+          description: Not modified — the `If-None-Match` ETag is still current. No body.
+          headers:
+            ETag:
+              schema:
+                type: string
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/locations:
+    get:
+      tags: [Ordering]
+      operationId: listOrderingLocations
+      summary: List ordering locations
+      description: >-
+        Requires `ordering.storefront.read`. Every location that takes online
+        orders (up to 50), with each channel's state right now: `enabled`
+        (offered at all), `open` (takes orders now), and when closed the
+        `reason` and the next `opens_at`. Instants are ISO 8601 UTC; render
+        them in `time_zone`. Optional fields are omitted, never null. The
+        response is `Cache-Control: private, no-store`.
+      responses:
+        "200":
+          description: Ordering locations.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingLocations"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/slots:
+    get:
+      tags: [Ordering]
+      operationId: listOrderingSlots
+      summary: List pickup or delivery slots
+      description: >-
+        Requires `ordering.storefront.read`. The slots a guest can pick on one
+        service date for one channel: windows that open on that date, so the
+        after-midnight part of an overnight evening is listed under the
+        evening it opened; today also keeps a window still open from
+        yesterday. Today starts after the current prep time (busy mode and a
+        timed pause included); a later date starts at opening. A slot never
+        starts after closing minus the order cutoff. `date` is in the
+        workspace time zone and must be today through today +
+        `preorder_days`, else 400 `VALIDATION_ERROR`. An unknown location is
+        404 `NOT_FOUND`. A channel that is off, delivery without a delivery
+        venue, or a closed day gives an empty list. The response is
+        `Cache-Control: private, no-store`.
+      parameters:
+        - name: location
+          in: query
+          required: true
+          description: Location id from `GET /api/v1/ordering/locations`.
+          schema:
+            type: string
+            maxLength: 64
+        - name: channel
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/OrderingChannel"
+        - name: date
+          in: query
+          required: true
+          description: Local service date in the workspace time zone, `yyyy-mm-dd`.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Slots of that date.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingSlots"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/orders:
+    post:
+      tags: [Ordering]
+      operationId: createOrderingOrder
+      summary: Place an online order
+      description: >-
+        Requires `ordering.order.create` and an `Idempotency-Key` header
+        (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body
+        returns the order it made: 201 the first time, 200 on a replay. The
+        same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or
+        `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt
+        still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price:
+        every price, VAT rate and name comes from the server menu, and an
+        unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404
+        `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed
+        code and `details`: `CLOSED` (`reason`: the channel state reason),
+        `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`,
+        `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
+        and `UNAVAILABLE` (`ids`: the product and option ids),
+        `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when
+        one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED` and
+        `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note).
+        For now only `pay_at_counter` for takeaway and dine-in is accepted;
+        delivery, Vipps and scheduled timing are refused. Rate limits: 60/min
+        per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            One key per order the guest places (the cart's key). Send the same
+            key when retrying the same order.
+          schema:
+            type: string
+            maxLength: 255
+        - name: X-Medal-Client-Ip
+          in: header
+          required: false
+          description: >-
+            The IP address of the guest's browser, as your server saw it.
+            Optional and untrusted: it only selects the per-IP rate-limit
+            bucket (IPv6 per /64). A value that is not an IP literal is
+            ignored.
+          schema:
+            type: string
+            maxLength: 45
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderingCreateOrderInput"
+      responses:
+        "201":
+          description: Order placed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingOrderCreated"
+        "200":
+          description: The same request again; the order it made, with its current status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingOrderCreated"
+        "422":
+          description: A business refusal; see the description for the codes and details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderingError"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/orders/{id}:
+    get:
+      tags: [Ordering]
+      operationId: getOrderingOrder
+      summary: Get an order (customer view)
+      description: >-
+        Requires `ordering.order.read`. The guest's order for a receipt or
+        order page: lines with option names and prices (`unit_price_ore` is
+        one dish with its options, `line_total_ore` that times quantity),
+        totals, the VAT breakdown and the payment state. It never includes
+        the customer's contact details, the allergy note or any notes.
+        `ready_at` is the kitchen's promised time while the order is accepted,
+        preparing or ready. An order of another workspace is 404
+        `ORDER_NOT_FOUND`. The response is `Cache-Control: private, no-store`.
+      parameters:
+        - $ref: "#/components/parameters/OrderingOrderId"
+      responses:
+        "200":
+          description: The order.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingCustomerOrder"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/orders/{id}/status:
+    get:
+      tags: [Ordering]
+      operationId: getOrderingOrderStatus
+      summary: Poll an order status
+      description: >-
+        Requires `ordering.order.read`. The status, the promised `ready_at`
+        and the timeline of status changes with their times only. A declined
+        order carries `decline_reason` (`sold_out`, `too_busy`,
+        `closing_soon`, `other`, or `timeout` when nobody answered in time).
+        An unknown order is 404 `ORDER_NOT_FOUND`. The response is
+        `Cache-Control: private, no-store`.
+      parameters:
+        - $ref: "#/components/parameters/OrderingOrderId"
+      responses:
+        "200":
+          description: The order status.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingOrderStatusView"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/orders/{id}/cancel:
+    post:
+      tags: [Ordering]
+      operationId: cancelOrderingOrder
+      summary: Cancel an order before the restaurant answers
+      description: >-
+        Requires `ordering.order.create`. The guest cancels an order the
+        restaurant has not accepted yet (status `placed`). Repeating it is a
+        no-op (200). Once the order is accepted, declined or cancelled by the
+        restaurant it is 409 `INVALID_TRANSITION` with `details.status`, the
+        current status: the guest has to contact the restaurant. No body.
+        Answers with the status view.
+      parameters:
+        - $ref: "#/components/parameters/OrderingOrderId"
+      responses:
+        "200":
+          description: The order status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingOrderStatusView"
+        "409":
+          description: "`INVALID_TRANSITION`: the order can no longer be cancelled online."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderingError"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/ordering/tables/{token}:
+    get:
+      tags: [Ordering]
+      operationId: getOrderingTable
+      summary: Resolve a table QR code
+      description: >-
+        Requires `ordering.storefront.read`. The location and label behind
+        the token in a table's QR code, so the site can open the dine-in menu
+        for that table and send the token with the order. An unknown or
+        archived table is 404 `TABLE_NOT_FOUND`. The response is
+        `Cache-Control: private, no-store`.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        "200":
+          description: The table.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["private, no-store"]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_OrderingTable"
+        default:
+          $ref: "#/components/responses/ApiError"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   parameters:
+    OrderingOrderId:
+      name: id
+      in: path
+      required: true
+      description: "`order_id` from `POST /api/v1/ordering/orders`."
+      schema:
+        type: string
+        maxLength: 64
     Id:
       name: id
       in: path
@@ -2661,6 +3019,8 @@ components:
         - CAPABILITY_NOT_FOUND
         - CAPABILITY_PATH_PARAM_REQUIRED
         - CAPABILITY_SCOPE_DENIED
+        - CHANNEL_NOT_AVAILABLE
+        - CLOSED
         - CONFIRMATION_CONTEXT_MISMATCH
         - CONFIRMATION_EXPIRED
         - CONFIRMATION_INVALID
@@ -2668,25 +3028,39 @@ components:
         - CONFLICT
         - CONTACT_NOT_FOUND
         - CONVERSATION_NOT_LINKABLE
+        - CUTOFF
         - FORBIDDEN
         - GRANT_NOT_FOUND
+        - IDEMPOTENCY_CONFLICT
         - IDEMPOTENCY_IN_PROGRESS
         - IDEMPOTENCY_KEY_CONFLICT
         - IDEMPOTENCY_KEY_REQUIRED
         - INTERNAL_ERROR
+        - INVALID_CART
+        - INVALID_CUSTOMER
         - INVALID_IDEMPOTENCY_KEY
         - INVALID_INPUT
         - INVALID_OAUTH_RESOURCE
+        - INVALID_OPTIONS
         - INVALID_RETURN_URL
+        - INVALID_TRANSITION
         - NOT_FOUND
+        - ORDERING_LOCATION_NOT_FOUND
+        - ORDERING_NOT_ENABLED
+        - ORDER_NOT_FOUND
+        - PAYMENT_METHOD_NOT_ALLOWED
         - PILOT_ASK_FAILED
         - PORTAL_CODE_INVALID
         - PORTAL_SESSION_INVALID
         - PORTAL_SESSION_REQUIRED
+        - PREORDER_DISABLED
         - PREVIEW_RECEIPT_REQUIRED
         - RATE_LIMITED
         - SEND_FAILED
+        - SOLD_OUT
+        - TABLE_NOT_FOUND
         - UNAUTHORIZED
+        - UNAVAILABLE
         - UPSTREAM_UNAVAILABLE
         - VALIDATION_ERROR
         - VIPPS_IDENTITY_CONFLICT
@@ -7225,3 +7599,590 @@ components:
         these two.
       type: string
       enum: [telegram_inbox, linkedin]
+    OrderingChannel:
+      description: An ordering channel. Closed.
+      type: string
+      enum: [dine_in, takeaway, delivery]
+    OrderingAllergen:
+      description: >-
+        The 14 EU-declarable allergens (Regulation 1169/2011, Annex II). Closed.
+      type: string
+      enum: [gluten, crustaceans, eggs, fish, peanuts, soybeans, milk, nuts, celery, mustard, sesame, sulphites, lupin, molluscs]
+    OrderingDietary:
+      description: Dietary labels a dish can carry. Closed.
+      type: string
+      enum: [vegan, vegetarian, gluten_free, lactose_free, halal, spicy]
+    OrderingModifierOption:
+      type: object
+      required: [id, name, price_delta_ore, allergens, vat_bp, sold_out]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        price_delta_ore:
+          description: Added to the dish price, in integer øre.
+          type: integer
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingAllergen"
+        vat_bp:
+          description: VAT for the requested channel, in basis points (1500 = 15 %).
+          type: integer
+        sold_out:
+          type: boolean
+    OrderingModifierGroup:
+      type: object
+      required: [id, name, min_select, max_select, options]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        min_select:
+          type: integer
+        max_select:
+          type: integer
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingModifierOption"
+    OrderingMenuItem:
+      type: object
+      required: [id, name, price_ore, vat_bp, allergens, dietary, sold_out, modifier_groups]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          description: Omitted when the dish has none.
+          type: string
+        price_ore:
+          description: Price in integer øre, VAT included.
+          type: integer
+        vat_bp:
+          description: VAT for the requested channel, in basis points (1500 = 15 %).
+          type: integer
+        image_url:
+          description: Omitted when the dish has no image.
+          type: string
+          format: uri
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingAllergen"
+        dietary:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingDietary"
+        sold_out:
+          type: boolean
+        modifier_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingModifierGroup"
+    OrderingMenuCategory:
+      type: object
+      required: [id, name, items]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingMenuItem"
+    OrderingMenu:
+      type: object
+      required: [categories, etag, channel, at]
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingMenuCategory"
+        etag:
+          description: Same value as the `ETag` response header.
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        at:
+          description: The instant evaluated (ISO 8601).
+          type: string
+          format: date-time
+    ApiResponse_OrderingMenu:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingMenu"
+    OrderingChannelReason:
+      description: Why a channel is not open right now. Closed.
+      type: string
+      enum: [closed, cutoff, paused, kitchen_closed, delivery_off]
+    OrderingChannelState:
+      description: >-
+        One channel of a location, right now. Optional fields are omitted,
+        never null.
+      type: object
+      required: [enabled, open]
+      properties:
+        enabled:
+          description: The restaurant offers this channel at all.
+          type: boolean
+        open:
+          description: Takes orders right now.
+          type: boolean
+        reason:
+          $ref: "#/components/schemas/OrderingChannelReason"
+        opens_at:
+          description: Next time it takes orders, within 8 days. Omitted when unknown.
+          type: string
+          format: date-time
+        closes_at:
+          type: string
+          format: date-time
+        last_order_at:
+          description: "`closes_at` minus the order cutoff."
+          type: string
+          format: date-time
+    OrderingLocationAddress:
+      type: object
+      required: [lines, locality, postal_code, region_code]
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+        locality:
+          type: string
+        postal_code:
+          type: string
+        region_code:
+          description: ISO 3166-1 alpha-2.
+          type: string
+    OrderingLocationChannels:
+      type: object
+      required: [dine_in, takeaway, delivery]
+      properties:
+        dine_in:
+          $ref: "#/components/schemas/OrderingChannelState"
+        takeaway:
+          $ref: "#/components/schemas/OrderingChannelState"
+        delivery:
+          $ref: "#/components/schemas/OrderingChannelState"
+    OrderingPaymentMethods:
+      type: object
+      required: [vipps, pay_at_counter]
+      properties:
+        vipps:
+          type: boolean
+        pay_at_counter:
+          type: boolean
+    OrderingLocation:
+      type: object
+      required: [id, name, address, channels, payment_methods, preorder_days, slot_minutes]
+      properties:
+        id:
+          description: Pass as `location` to `GET /api/v1/ordering/slots`.
+          type: string
+        name:
+          type: string
+        address:
+          $ref: "#/components/schemas/OrderingLocationAddress"
+        channels:
+          $ref: "#/components/schemas/OrderingLocationChannels"
+        payment_methods:
+          $ref: "#/components/schemas/OrderingPaymentMethods"
+        preorder_days:
+          description: "How many days ahead a slot can be booked: 0 (today only) to 7."
+          type: integer
+        slot_minutes:
+          type: integer
+    OrderingLocations:
+      type: object
+      required: [time_zone, locations]
+      properties:
+        time_zone:
+          description: IANA zone of the workspace.
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingLocation"
+    ApiResponse_OrderingLocations:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingLocations"
+    OrderingSlot:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+    OrderingSlots:
+      type: object
+      required: [location_id, channel, date, time_zone, slots]
+      properties:
+        location_id:
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        date:
+          type: string
+          format: date
+        time_zone:
+          type: string
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingSlot"
+    ApiResponse_OrderingSlots:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingSlots"
+    OrderingOrderStatus:
+      description: Where an order is in its life. Closed.
+      type: string
+      enum:
+        - awaiting_payment
+        - placed
+        - accepted
+        - preparing
+        - ready
+        - handed_over
+        - completed
+        - declined
+        - abandoned
+        - cancelled
+        - refunded
+    OrderingPaymentMethod:
+      description: How the guest pays. Closed; only `pay_at_counter` is accepted for now.
+      type: string
+      enum: [pay_at_counter, vipps]
+    OrderingOrderTiming:
+      description: "When the guest wants the order. Defaults to `{ kind: asap }`."
+      oneOf:
+        - type: object
+          required: [kind]
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              enum: [asap]
+        - type: object
+          required: [kind, at]
+          additionalProperties: false
+          properties:
+            kind:
+              type: string
+              enum: [scheduled]
+            at:
+              description: ISO 8601 with `Z` or an explicit offset.
+              type: string
+              format: date-time
+    OrderingOrderLineInput:
+      type: object
+      required: [product_id, quantity]
+      additionalProperties: false
+      properties:
+        product_id:
+          type: string
+          maxLength: 64
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+        option_ids:
+          description: Chosen option ids, flat. Default `[]`.
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        note:
+          type: string
+          maxLength: 200
+    OrderingOrderCustomer:
+      type: object
+      required: [name, phone]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        phone:
+          description: Norwegian mobile or E.164.
+          type: string
+        email:
+          type: string
+          format: email
+          maxLength: 254
+    OrderingOrderPreferences:
+      type: object
+      required: [cutlery]
+      additionalProperties: false
+      properties:
+        allergy_note:
+          description: Shown to the kitchen only; never returned by the API.
+          type: string
+          maxLength: 200
+        cutlery:
+          type: boolean
+        no_contact:
+          type: boolean
+    OrderingCreateOrderInput:
+      description: >-
+        A new order. Strict: an unknown field (a price included) is 400
+        `VALIDATION_ERROR`. Optional fields are omitted, never null.
+      type: object
+      required: [location_id, channel, lines, customer, preferences, payment_method]
+      additionalProperties: false
+      properties:
+        location_id:
+          description: Location id from `GET /api/v1/ordering/locations`.
+          type: string
+          maxLength: 64
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        timing:
+          $ref: "#/components/schemas/OrderingOrderTiming"
+        table_token:
+          description: The token from the table QR code; required for `dine_in`.
+          type: string
+          maxLength: 64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingOrderLineInput"
+        customer:
+          $ref: "#/components/schemas/OrderingOrderCustomer"
+        preferences:
+          $ref: "#/components/schemas/OrderingOrderPreferences"
+        payment_method:
+          $ref: "#/components/schemas/OrderingPaymentMethod"
+    OrderingOrderCreated:
+      type: object
+      required: [order_id, order_number, status]
+      properties:
+        order_id:
+          type: string
+        order_number:
+          description: What the guest is told, e.g. `P-1021-004`.
+          type: string
+        status:
+          $ref: "#/components/schemas/OrderingOrderStatus"
+    ApiResponse_OrderingOrderCreated:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingOrderCreated"
+    OrderingCustomerOrderLine:
+      type: object
+      required: [name, quantity, options, unit_price_ore, line_total_ore]
+      properties:
+        name:
+          type: string
+        quantity:
+          type: integer
+        options:
+          type: array
+          items:
+            type: object
+            required: [name]
+            properties:
+              name:
+                type: string
+        unit_price_ore:
+          description: One of the dish with its options, VAT included.
+          type: integer
+        line_total_ore:
+          description: "`unit_price_ore` × `quantity`."
+          type: integer
+    OrderingVatLine:
+      type: object
+      required: [rate_bp, net_ore, vat_ore]
+      properties:
+        rate_bp:
+          type: integer
+        net_ore:
+          type: integer
+        vat_ore:
+          type: integer
+    OrderingPaymentState:
+      description: Closed.
+      type: string
+      enum: [none, pending, reserved, captured, released, refunded]
+    OrderingCustomerOrder:
+      description: >-
+        The guest's view of an order. Never carries contact details, the
+        allergy note or notes. Optional fields are omitted, never null.
+      type: object
+      required:
+        - order_id
+        - order_number
+        - status
+        - channel
+        - timing
+        - lines
+        - subtotal_ore
+        - total_ore
+        - vat_breakdown
+        - payment
+        - created_at
+        - updated_at
+      properties:
+        order_id:
+          type: string
+        order_number:
+          type: string
+        status:
+          $ref: "#/components/schemas/OrderingOrderStatus"
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        table_label:
+          description: Dine-in only.
+          type: string
+        timing:
+          type: object
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [asap, scheduled]
+            at:
+              description: Scheduled only.
+              type: string
+              format: date-time
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingCustomerOrderLine"
+        subtotal_ore:
+          type: integer
+        total_ore:
+          type: integer
+        vat_breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderingVatLine"
+        payment:
+          type: object
+          required: [method, state]
+          properties:
+            method:
+              $ref: "#/components/schemas/OrderingPaymentMethod"
+            state:
+              $ref: "#/components/schemas/OrderingPaymentState"
+        ready_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ApiResponse_OrderingCustomerOrder:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingCustomerOrder"
+    OrderingDeclineReason:
+      description: Why the restaurant declined. Closed.
+      type: string
+      enum: [sold_out, too_busy, closing_soon, other, timeout]
+    OrderingOrderStatusView:
+      type: object
+      required: [order_id, order_number, status, updated_at, timeline]
+      properties:
+        order_id:
+          type: string
+        order_number:
+          type: string
+        status:
+          $ref: "#/components/schemas/OrderingOrderStatus"
+        ready_at:
+          type: string
+          format: date-time
+        decline_reason:
+          $ref: "#/components/schemas/OrderingDeclineReason"
+        updated_at:
+          type: string
+          format: date-time
+        timeline:
+          type: array
+          items:
+            type: object
+            required: [status, at]
+            properties:
+              status:
+                $ref: "#/components/schemas/OrderingOrderStatus"
+              at:
+                type: string
+                format: date-time
+    ApiResponse_OrderingOrderStatusView:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingOrderStatusView"
+    OrderingTable:
+      type: object
+      required: [location_id, table_label]
+      properties:
+        location_id:
+          type: string
+        table_label:
+          type: string
+    ApiResponse_OrderingTable:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/OrderingTable"
+    OrderingErrorDetails:
+      type: object
+      properties:
+        ids:
+          description: "`SOLD_OUT`, `UNAVAILABLE`: the product and option ids."
+          type: array
+          items:
+            type: string
+        line_index:
+          description: "`INVALID_OPTIONS`, `INVALID_CART`: the 0-based line at fault."
+          type: integer
+        reason:
+          description: >-
+            `CLOSED`: the channel state reason; `INVALID_CUSTOMER`: name,
+            phone, email or allergy_note.
+          type: string
+        status:
+          description: "`INVALID_TRANSITION`: the current order status."
+          type: string
+    OrderingError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              description: Plain English; show your own copy for the code.
+              type: string
+            details:
+              $ref: "#/components/schemas/OrderingErrorDetails"

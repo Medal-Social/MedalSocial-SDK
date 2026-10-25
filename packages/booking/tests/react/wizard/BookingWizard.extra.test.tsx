@@ -1038,6 +1038,103 @@ describe('useBooking — the corners', () => {
     expect(result.current.slots.loadingMore).toBe(false);
   });
 
+  it('asks a fully loaded stylist’s hours again on a same-day retry', async () => {
+    const before = [OPEN_WEEK[3]];
+    const after = [OPEN_WEEK[4]];
+    let personal = before;
+    const asked: URL[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        asked.push(url);
+        return {
+          ok: true,
+          json: async () => ({
+            slots: [],
+            resources: [BJARNE],
+            days: url.searchParams.has('resource_id') ? personal : OPEN_WEEK,
+          }),
+        };
+      })
+    );
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE],
+            fromTs: NOW,
+            toTs: NOW + 31 * 86400000,
+            maxAdvanceDays: 90,
+            slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    const stylistHours = () =>
+      asked.filter(
+        (url) => url.pathname.endsWith('/schedule') && url.searchParams.has('resource_id')
+      ).length;
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toEqual(before));
+    await waitFor(() => expect(result.current.slots.loadingMore).toBe(false));
+    const read = stylistHours();
+    personal = after;
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.schedule.openDays).toEqual(after));
+    expect(stylistHours()).toBeGreaterThan(read);
+  });
+
+  it('does not show a stylist’s old hours when the same-day reread fails', async () => {
+    const personal = [OPEN_WEEK[3]];
+    let failHours = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown) => {
+        const url = new URL(String(input), 'https://example.test');
+        const stylist = url.searchParams.has('resource_id');
+        if (failHours && stylist && url.pathname.endsWith('/schedule'))
+          return { ok: false, status: 502, json: async () => ({}) };
+        return {
+          ok: true,
+          json: async () => ({
+            slots: [],
+            resources: [BJARNE],
+            days: stylist ? personal : OPEN_WEEK,
+          }),
+        };
+      })
+    );
+    const { result } = renderHook(() =>
+      useBooking(
+        options({
+          seed: {
+            services: [KIDS],
+            resources: [BJARNE],
+            fromTs: NOW,
+            toTs: NOW + 31 * 86400000,
+            maxAdvanceDays: 90,
+            slots: { [KIDS.id]: [slot(2, 13, BJARNE.id)] },
+            schedules: { [KIDS.id]: OPEN_WEEK },
+          },
+        })
+      )
+    );
+    act(() => result.current.people.choosePeople([{ key: 'g1' }], true));
+    act(() => result.current.pickService(KIDS));
+    act(() => result.current.pickResource(BJARNE.id));
+    await waitFor(() => expect(result.current.schedule.openDays).toEqual(personal));
+    await waitFor(() => expect(result.current.slots.loadingMore).toBe(false));
+    failHours = true;
+    act(() => result.current.refresh());
+    await waitFor(() => expect(result.current.slots.failed).toBe(true));
+    expect(result.current.schedule.openDays).toBeNull();
+  });
+
   it('keeps unknown stylists loading until the full range answers while showing known openings', async () => {
     let finish: (value: unknown) => void = () => {};
     const pending = new Promise((resolve) => {

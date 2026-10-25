@@ -9,19 +9,32 @@ permissions: {}
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
+    # pull_request_target reports whoever triggered the latest event as
+    # github.actor. That is not the pull request author, and the head ref
+    # may be a fork. Only run for a same-repo PR opened by one of these bots.
     if: |
-      github.actor == 'dependabot[bot]' ||
-      github.actor == 'renovate[bot]' ||
-      github.actor == 'medal-social-release-bot[bot]'
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        github.actor == 'medal-social-release-bot[bot]' ||
+        (
+          (github.actor == 'dependabot[bot]' || github.actor == 'renovate[bot]') &&
+          github.event.pull_request.user.login == github.actor
+        )
+      )
     steps:
-      - name: Generate token from Medal Bot app
+      - name: Generate token
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
-      - uses: hmarr/auto-approve-action@05a696a09d381a5a0d142c755f7eacbb19eb6525 # v4
+      - name: Approve Dependabot and Renovate pull requests
+        if: |
+          github.actor != 'medal-social-release-bot[bot]' &&
+          github.event.pull_request.user.login == github.actor &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: hmarr/auto-approve-action@05a696a09d381a5a0d142c755f7eacbb19eb6525 # v4
         with:
           github-token: ${{ steps.app-token.outputs.token }}
 

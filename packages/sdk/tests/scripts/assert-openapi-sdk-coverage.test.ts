@@ -119,6 +119,41 @@ describe("scripts/assert-openapi-sdk-coverage.mjs — API parity failures", () =
     expect(output).toContain("API [NOK, SEK]");
   });
 
+  it("sees drift in every oneOf branch that shares a location, not only the last", () => {
+    const branch = (kind: string) => ({
+      type: "object",
+      required: ["kind"],
+      properties: { kind: { type: "string", enum: [kind] } },
+    });
+    const drifted = reference();
+    const paths = drifted.paths as Record<string, Record<string, unknown>>;
+    paths["/api/v1/ordering/orders"] = {
+      post: {
+        operationId: "createOrderingOrder",
+        tags: ["Ordering"],
+        requestBody: {
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                // The FIRST branch drifted (asap -> now); the last one still matches.
+                properties: { timing: { oneOf: [branch("now"), branch("scheduled")] } },
+              },
+            },
+          },
+        },
+        responses: { "201": {} },
+      },
+    };
+    const path = write("oneof-drift.json", drifted);
+
+    const { code, output } = run(["--reference", path]);
+
+    expect(code).toBe(1);
+    expect(output).toContain("POST /api/v1/ordering/orders @ requestBody.timing.kind enum drift");
+    expect(output).toContain("API [now, scheduled]");
+  });
+
   it("fails when a request enum the API closes is an open string in the SDK", () => {
     const drifted = reference();
     const paths = drifted.paths as Record<string, Record<string, unknown>>;

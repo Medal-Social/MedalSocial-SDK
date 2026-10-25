@@ -14,6 +14,9 @@
     "packages/booking": {
       "entry": ["src/next/cache/*.ts", "scripts/*.mjs", "tests/support/server-only.ts"]
     },
+    "packages/ordering": {
+      "entry": ["scripts/*.mjs", "tests/support/server-only.ts"]
+    },
     "examples/*": {}
   },
   "ignoreExportsUsedInFile": true,

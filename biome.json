@@ -23,7 +23,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/booking/**"],
+      "includes": ["packages/booking/**", "packages/ordering/**"],
       "javascript": {
         "formatter": {
           "quoteStyle": "single",
@@ -32,7 +32,7 @@
       }
     },
     {
-      "includes": ["packages/booking/src/core/**"],
+      "includes": ["packages/booking/src/core/**", "packages/ordering/src/core/**"],
       "linter": {
         "rules": {
           "style": {
@@ -49,7 +49,7 @@
                 "patterns": [
                   {
                     "group": ["react/*", "react-dom/*", "next/*", "@medalsocial/meda/*"],
-                    "message": "/core imports no framework: see packages/booking/README.md."
+                    "message": "/core imports no framework: see the package README."
                   }
                 ]
               }
