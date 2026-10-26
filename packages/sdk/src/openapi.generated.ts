@@ -1681,7 +1681,7 @@ export interface paths {
     put?: never;
     /**
      * Place an online order
-     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED` and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). For now only `pay_at_counter` for takeaway and dine-in is accepted; delivery, Vipps and scheduled timing are refused. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`, `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own, or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps: `return_url` missing or not on one of the workspace's sites) and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). Vipps: the answer is `status: awaiting_payment` with `payment.redirect_url`, where the customer pays; Vipps sends them back to `return_url` with `order_id` added. The order is placed once Vipps authorizes the payment and abandoned when unpaid after 30 minutes; the money is captured when the kitchen accepts, released on a decline, timeout or cancel before that, and refunded on a cancel after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`: Vipps refused, or could not be reached, as the payment was created. Delivery and scheduled timing are refused for now. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
      */
     post: operations["createOrderingOrder"];
     delete?: never;
@@ -4081,7 +4081,7 @@ export interface components {
       | "cancelled"
       | "refunded";
     /**
-     * @description How the guest pays. Closed; only `pay_at_counter` is accepted for now.
+     * @description How the guest pays. Closed; `vipps` needs `return_url`.
      * @enum {string}
      */
     OrderingPaymentMethod: "pay_at_counter" | "vipps";
@@ -4132,12 +4132,24 @@ export interface components {
       customer: components["schemas"]["OrderingOrderCustomer"];
       preferences: components["schemas"]["OrderingOrderPreferences"];
       payment_method: components["schemas"]["OrderingPaymentMethod"];
+      /**
+       * Format: uri
+       * @description Required with `vipps`: the page on one of the workspace's sites Vipps sends the customer back to (`order_id` is added).
+       */
+      return_url?: string;
     };
     OrderingOrderCreated: {
       order_id: string;
       /** @description What the guest is told, e.g. `P-1021-004`. */
       order_number: string;
       status: components["schemas"]["OrderingOrderStatus"];
+      /** @description Vipps orders awaiting payment: where the customer pays. */
+      payment?: {
+        /** @enum {string} */
+        method: "vipps";
+        /** Format: uri */
+        redirect_url: string;
+      };
     };
     ApiResponse_OrderingOrderCreated: {
       data: components["schemas"]["OrderingOrderCreated"];
@@ -4162,7 +4174,14 @@ export interface components {
      * @description Closed.
      * @enum {string}
      */
-    OrderingPaymentState: "none" | "pending" | "reserved" | "captured" | "released" | "refunded";
+    OrderingPaymentState:
+      | "none"
+      | "pending"
+      | "reserved"
+      | "captured"
+      | "released"
+      | "refunded"
+      | "failed";
     /** @description The guest's view of an order. Never carries contact details, the allergy note or notes. Optional fields are omitted, never null. */
     OrderingCustomerOrder: {
       order_id: string;
@@ -4207,6 +4226,10 @@ export interface components {
       order_id: string;
       order_number: string;
       status: components["schemas"]["OrderingOrderStatus"];
+      payment: {
+        method: components["schemas"]["OrderingPaymentMethod"];
+        state: components["schemas"]["OrderingPaymentState"];
+      };
       /** Format: date-time */
       ready_at?: string;
       decline_reason?: components["schemas"]["OrderingDeclineReason"];
@@ -7090,6 +7113,15 @@ export interface operations {
       };
       /** @description A business refusal; see the description for the codes and details. */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrderingError"];
+        };
+      };
+      /** @description Vipps orders: `PAYMENT_UNAVAILABLE` (Vipps refused the payment) or `PAYMENT_PROVIDER_UNAVAILABLE` (Vipps could not be reached). */
+      502: {
         headers: {
           [name: string]: unknown;
         };

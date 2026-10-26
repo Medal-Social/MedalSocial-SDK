@@ -186,7 +186,9 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `SOLD_OUT`, `UNAVAILABLE` — `details.ids` are the product and option ids.
  * - `INVALID_OPTIONS` — `details.line_index` is the line at fault.
  * - `INVALID_CART` — empty, too many lines, bad quantity or note; `details.line_index` when one line is at fault.
- * - `PAYMENT_METHOD_NOT_ALLOWED` — only `pay_at_counter` for now.
+ * - `PAYMENT_METHOD_NOT_ALLOWED` — the location does not take this payment method.
+ * - `PAYMENT_UNAVAILABLE` — Vipps: the workspace has no Vipps of its own, or the total is under 1 kr.
+ * - `RETURN_URL_NOT_ALLOWED` — Vipps: `return_url` missing or not on one of the workspace's sites.
  * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email` or `allergy_note`.
  */
 export type OrderingRefusalCode =
@@ -200,6 +202,8 @@ export type OrderingRefusalCode =
   | "INVALID_OPTIONS"
   | "INVALID_CART"
   | "PAYMENT_METHOD_NOT_ALLOWED"
+  | "PAYMENT_UNAVAILABLE"
+  | "RETURN_URL_NOT_ALLOWED"
   | "INVALID_CUSTOMER";
 
 /**

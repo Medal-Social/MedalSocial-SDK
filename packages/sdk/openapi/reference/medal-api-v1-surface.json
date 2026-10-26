@@ -1,5 +1,5 @@
 {
-  "note": "Generated surface snapshot of the Medal API's published OpenAPI document \u2014 paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
+  "note": "Generated surface snapshot of the Medal API's published OpenAPI document — paths, methods and enums only. Refresh with `node scripts/assert-openapi-sdk-coverage.mjs --reference-source <monorepo>/apps/web/src/lib/openapi-spec.ts --write-reference openapi/reference/medal-api-v1-surface.json`.",
   "generated_at": "2026-09-29",
   "source": "C:/Users/ali-ws/Downloads/medal-monorepo/.claude/worktrees/exciting-jennings-4b7075/apps/web/src/lib/openapi-spec.ts",
   "operation_count": 111,
@@ -1274,6 +1274,7 @@
         "requestBody.preferences.cutlery#type": ["boolean"],
         "requestBody.preferences.no_contact#type": ["boolean"],
         "requestBody.payment_method": ["pay_at_counter", "vipps"],
+        "requestBody.return_url#type": ["string"],
         "responses.200#type": ["object"],
         "responses.200.data#type": ["object"],
         "responses.200.data.order_id#type": ["string"],
@@ -1291,6 +1292,9 @@
           "ready",
           "refunded"
         ],
+        "responses.200.data.payment#type": ["object"],
+        "responses.200.data.payment.method": ["vipps"],
+        "responses.200.data.payment.redirect_url#type": ["string"],
         "responses.201#type": ["object"],
         "responses.201.data#type": ["object"],
         "responses.201.data.order_id#type": ["string"],
@@ -1307,7 +1311,10 @@
           "preparing",
           "ready",
           "refunded"
-        ]
+        ],
+        "responses.201.data.payment#type": ["object"],
+        "responses.201.data.payment.method": ["vipps"],
+        "responses.201.data.payment.redirect_url#type": ["string"]
       }
     },
     "GET /api/v1/ordering/orders/{id}": {
@@ -1356,6 +1363,7 @@
         "responses.200.data.payment.method": ["pay_at_counter", "vipps"],
         "responses.200.data.payment.state": [
           "captured",
+          "failed",
           "none",
           "pending",
           "refunded",
@@ -1435,6 +1443,17 @@
           "preparing",
           "ready",
           "refunded"
+        ],
+        "responses.200.data.payment#type": ["object"],
+        "responses.200.data.payment.method": ["pay_at_counter", "vipps"],
+        "responses.200.data.payment.state": [
+          "captured",
+          "failed",
+          "none",
+          "pending",
+          "refunded",
+          "released",
+          "reserved"
         ],
         "responses.200.data.ready_at#type": ["string"],
         "responses.200.data.decline_reason": [
