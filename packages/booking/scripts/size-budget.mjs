@@ -208,7 +208,9 @@ const BUDGETS = [
     // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.82 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.65 KB.
-    gzipBytes: 21.8 * 1024,
+    // Raised 21.8 → 21.9 KB for the adult-word check on nested providers:
+    // measured 21.82 KB.
+    gzipBytes: 21.9 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -276,7 +278,9 @@ const BUDGETS = [
     // Raised 25.0 → 25.6 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 25.11 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 26.94 KB.
-    gzipBytes: 27.1 * 1024,
+    // Raised 27.1 → 27.2 KB for numbered guest grown-ups, `screens.disabledNext` and
+    // the adult-word checks: measured 27.10 KB locally, 27.11 KB in CI.
+    gzipBytes: 27.2 * 1024,
   },
 ];
 
