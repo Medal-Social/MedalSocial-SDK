@@ -214,6 +214,19 @@ describe('several guest grown-ups', () => {
     expect(mergeLabels('nb', optedIn)['wizard.party.adult']).toBe('Person {n}');
   });
 
+  it('reads the built-in number in an earlier pack as no choice, a site’s own as one', () => {
+    // A whole pack under a later `people.adult`: the word wins.
+    expect(
+      mergeLabels('nb', mergeLabels('en'), { 'people.adult': 'Gjest' })['wizard.party.adult']
+    ).toBeUndefined();
+    // A numbered word of the site's own stays, wherever the rename comes from.
+    expect(
+      mergeLabels('nb', { 'wizard.party.adult': 'Gjest {n}' }, { 'people.adult': 'Gjest' })[
+        'wizard.party.adult'
+      ]
+    ).toBe('Gjest {n}');
+  });
+
   it('falls back to `people.adult` for a pack without the key', () => {
     const { 'wizard.party.adult': _numbered, ...older } = TEST_LABELS;
     const legacy = createBookingKit(PARITY_CONFIG, older as typeof TEST_LABELS);

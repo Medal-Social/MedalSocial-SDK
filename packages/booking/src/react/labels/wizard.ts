@@ -7,6 +7,7 @@
  */
 
 import type { BookingLabel } from '../../core/labels';
+import { BUILT_IN_ADULT_NUMBERED } from './adult-word';
 
 export interface WizardLabels {
   /** «Bestill time» — the header's title. */
@@ -144,7 +145,7 @@ export const WIZARD_LABELS_NB: WizardLabels = {
   'wizard.party.sizeWord.three': 'tre',
   'wizard.party.sizeWord.other': 'flere',
   'wizard.party.child': 'Barn {n}',
-  'wizard.party.adult': 'Person {n}',
+  'wizard.party.adult': BUILT_IN_ADULT_NUMBERED,
   'wizard.party.named': '{name} · {age}',
   'wizard.who.lastVisit': 'Sist: {service}, {date}',
   'wizard.who.lastVisitFallback': 'besøk',
@@ -194,7 +195,7 @@ export const WIZARD_LABELS_EN: WizardLabels = {
   'wizard.party.sizeWord.three': 'three',
   'wizard.party.sizeWord.other': 'several',
   'wizard.party.child': 'Child {n}',
-  'wizard.party.adult': 'Person {n}',
+  'wizard.party.adult': BUILT_IN_ADULT_NUMBERED,
   'wizard.party.named': '{name} · {age}',
   'wizard.who.lastVisit': 'Last: {service}, {date}',
   'wizard.who.lastVisitFallback': 'visit',
