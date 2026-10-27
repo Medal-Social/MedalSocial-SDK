@@ -683,8 +683,15 @@ is required: mint one per order the guest places, keep it with the cart, and
 send the same key on a retry so a lost response never places the order twice.
 Pass the guest's IP as `clientIp` to get the per-IP rate limit (10/min per
 site and IP) instead of only the per-key one. Never send prices — the server
-prices every line from its own menu. For now only `pay_at_counter` for
-takeaway and dine-in is accepted.
+prices every line from its own menu. `payment_method` is `pay_at_counter`
+(takeaway and dine-in) or `vipps`. A Vipps order needs `return_url` (a page on
+one of the workspace's sites) and answers `status: 'awaiting_payment'` with
+`payment.redirect_url` — send the guest there; Vipps sends them back to
+`return_url` with `order_id` added, and `status()` carries `payment.state`.
+The order rings in the kitchen once Vipps authorizes the payment; unpaid
+after 30 minutes it is `abandoned`. Vipps refusals: `PAYMENT_UNAVAILABLE`,
+`RETURN_URL_NOT_ALLOWED` (422), and 502 `PAYMENT_UNAVAILABLE` /
+`PAYMENT_PROVIDER_UNAVAILABLE` as the payment is created.
 
 ```ts
 import { isOrderingRefusal } from '@medalsocial/sdk';
@@ -708,7 +715,8 @@ try {
   // 422 refusals: CLOSED (details.reason), CUTOFF, CHANNEL_NOT_AVAILABLE,
   // PREORDER_DISABLED, TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
   // INVALID_OPTIONS / INVALID_CART (details.line_index),
-  // PAYMENT_METHOD_NOT_ALLOWED, INVALID_CUSTOMER (details.reason).
+  // PAYMENT_METHOD_NOT_ALLOWED, PAYMENT_UNAVAILABLE, RETURN_URL_NOT_ALLOWED,
+  // INVALID_CUSTOMER (details.reason).
   if (isOrderingRefusal(error) && error.code === 'SOLD_OUT') {
     markSoldOut(error.details?.ids ?? []);
   } else throw error;

@@ -50,6 +50,8 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set<OrderingRefusalCode>([
   "INVALID_OPTIONS",
   "INVALID_CART",
   "PAYMENT_METHOD_NOT_ALLOWED",
+  "PAYMENT_UNAVAILABLE",
+  "RETURN_URL_NOT_ALLOWED",
   "INVALID_CUSTOMER",
 ]);
 

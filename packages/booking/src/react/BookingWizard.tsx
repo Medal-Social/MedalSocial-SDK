@@ -582,6 +582,7 @@ function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSele
                       priceOre: booking.derived.total,
                     },
               canContinue: booking.derived.canAdvance,
+              disableUntilReady: kit.config.screens.disabledNext,
               notice:
                 state.error === null
                   ? null

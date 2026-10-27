@@ -65,6 +65,58 @@ describe('BookingProvider and useBookingKit', () => {
     expect(result.current.classNames.time).toEqual({ chip: 'b', root: 'r' });
   });
 
+  it('keeps a component’s own grown-up word under a provider’s whole built-in pack', () => {
+    const { result } = renderHook(() => useBookingKit({ labels: { 'people.adult': 'Gjest' } }), {
+      wrapper: ({ children }) => (
+        <BookingProvider config={PARITY_CONFIG} labels={mergeLabels('nb')}>
+          {children}
+        </BookingProvider>
+      ),
+    });
+    expect(result.current.kit.labels['people.adult']).toBe('Gjest');
+    expect(result.current.kit.labels['wizard.party.adult']).toBeUndefined();
+  });
+
+  it('keeps an inner provider’s grown-up word under an outer provider’s built-in pack', () => {
+    const { result } = renderHook(() => useBookingKit({}), {
+      wrapper: ({ children }) => (
+        <BookingProvider config={PARITY_CONFIG} labels={mergeLabels('nb')}>
+          <BookingProvider labels={{ 'people.adult': 'Gjest' }}>{children}</BookingProvider>
+        </BookingProvider>
+      ),
+    });
+    expect(result.current.kit.labels['people.adult']).toBe('Gjest');
+    expect(result.current.kit.labels['wizard.party.adult']).toBeUndefined();
+  });
+
+  it('keeps the numbering an inner provider opts in to with its own word', () => {
+    const { result } = renderHook(() => useBookingKit({}), {
+      wrapper: ({ children }) => (
+        <BookingProvider config={PARITY_CONFIG} labels={mergeLabels('nb')}>
+          <BookingProvider labels={{ 'people.adult': 'Gjest', 'wizard.party.adult': 'Person {n}' }}>
+            {children}
+          </BookingProvider>
+        </BookingProvider>
+      ),
+    });
+    expect(result.current.kit.labels['wizard.party.adult']).toBe('Person {n}');
+  });
+
+  it('keeps a numbered word the config chose when the provider renames the grown-up', () => {
+    const config = {
+      ...PARITY_CONFIG,
+      labels: mergeLabels('nb', { 'wizard.party.adult': 'Gjest {n}' }),
+    };
+    const { result } = renderHook(() => useBookingKit({}), {
+      wrapper: ({ children }) => (
+        <BookingProvider config={config} labels={{ 'people.adult': 'Gjest' }}>
+          {children}
+        </BookingProvider>
+      ),
+    });
+    expect(result.current.kit.labels['wizard.party.adult']).toBe('Gjest {n}');
+  });
+
   it('takes a provider’s labels when the inner one names none', () => {
     const { result } = renderHook(() => useBookingKit({}), {
       wrapper: ({ children }) => (

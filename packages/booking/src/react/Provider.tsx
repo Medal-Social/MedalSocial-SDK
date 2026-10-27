@@ -53,6 +53,7 @@ import { type ComponentType, createContext, type ReactNode, useContext, useMemo 
 import type { BookingConfig } from '../core/config';
 import { type BookingKit, createBookingKit } from './kit';
 import type { BookingLabels, BookingLabelsInput } from './labels';
+import { keepSiteAdultWord } from './labels/adult-word';
 
 /** Per-screen slot classes (see each meda screen's `…Slot` type for the slots). */
 export interface BookingClassNames {
@@ -129,6 +130,17 @@ export interface BookingProviderProps extends BookingOverrides {
   children?: ReactNode;
 }
 
+/**
+ * A nested provider's words over its parent's. The adult-word check runs here,
+ * while the two are still separate layers: once flattened, a parent's whole
+ * built-in pack and an inner `people.adult` look like one layer that opted in.
+ */
+function nestLabels(parent: BookingLabelsInput, own: BookingLabelsInput): BookingLabelsInput {
+  const merged = { ...parent, ...own };
+  keepSiteAdultWord(merged as Record<string, unknown>, [parent, own]);
+  return merged;
+}
+
 export function BookingProvider({
   config,
   labels,
@@ -141,7 +153,7 @@ export function BookingProvider({
     () => ({
       config: config ?? parent?.config,
       labels:
-        parent?.labels && labels ? { ...parent.labels, ...labels } : (labels ?? parent?.labels),
+        parent?.labels && labels ? nestLabels(parent.labels, labels) : (labels ?? parent?.labels),
       classNames: mergeClassNames(parent?.classNames, classNames),
       components: { ...parent?.components, ...components },
     }),
@@ -257,6 +269,7 @@ function mergedLabels(
       ? { 'details.marketing.text': config.consent.marketing.text }
       : {}),
   } as BookingLabels;
+  keepSiteAdultWord(merged as unknown as Record<string, unknown>, [outer, inner]);
   if (merged['who.heading'] === undefined) {
     console.warn(
       '[@medalsocial/booking] No label pack: pass `labels: mergeLabels(locale, …)` from ' +
