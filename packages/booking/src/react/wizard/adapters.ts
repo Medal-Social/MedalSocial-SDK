@@ -101,8 +101,30 @@ export function addedChildEntries(
 }
 
 /**
+ * What a grown-up's seat is called: «Meg selv» for the parent, «Voksen» for
+ * one guest grown-up — and, once several share that generic word, «Person 1»,
+ * «Person 2» (`wizard.party.adult`, numbered among those grown-ups only), so
+ * no two tabs read the same.
+ */
+function adultNamer(
+  labels: BookingKit['labels'],
+  people: readonly (WizardPerson | undefined)[]
+): (person: WizardPerson) => string {
+  const generic = people.filter(
+    (person): person is WizardPerson => person?.adult === true && person.key !== SELF_KEY
+  );
+  const numbered = labels['wizard.party.adult'];
+  return (person) => {
+    if (person.key === SELF_KEY) return labelText(labels['people.self']);
+    if (generic.length < 2 || numbered === undefined) return labelText(labels['people.adult']);
+    return fill(numbered, { n: generic.indexOf(person) + 1 });
+  };
+}
+
+/**
  * What step 2 calls each person: the child's name and age on the day, «Barn
- * 2» for a guest's second child, «Meg selv» / «Voksen» for a grown-up.
+ * 2» for a guest's second child, «Meg selv» / «Voksen» for a grown-up — or
+ * «Person 1», «Person 2» for several guest grown-ups.
  */
 export function partyPeople(
   kit: BookingKit,
@@ -111,13 +133,10 @@ export function partyPeople(
   suggestionFor: (person: WizardPerson) => BookingSuggestion | null
 ): ServicePartyPerson[] {
   const { labels } = kit;
+  const adultName = adultNamer(labels, people);
   return people.map((person, index) => {
     if (person.adult) {
-      return {
-        key: person.key,
-        label: labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult']),
-        adult: true,
-      };
+      return { key: person.key, label: adultName(person), adult: true };
     }
     if (person.name === undefined) {
       return {
@@ -341,11 +360,12 @@ export function seatChoices(
   state: WizardState
 ): Array<{ who: string; serviceIds: string[]; resourceId: string | null }> {
   const { labels } = kit;
+  const adultName = adultNamer(labels, state.people);
   return state.items.map((item, index) => {
     const person = state.people[index];
     let who: string;
     if (person?.adult) {
-      who = labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult']);
+      who = adultName(person);
     } else {
       who = person?.name ?? fill(labels['wizard.party.child'], { n: index + 1 });
     }

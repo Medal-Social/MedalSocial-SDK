@@ -28,7 +28,7 @@ to the page that imports it: use `/react/wizard` on a booking page and
 does not matter.
 
 Peer dependencies: `zod` 4, `react`/`react-dom` 19 (for `/react`),
-and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.13 and `lucide-react` (all
+and optionally `next` ≥ 16.3, `@medalsocial/meda` ^3.15 and `lucide-react` (all
 three needed by `/react`).
 
 ## Configuration
@@ -93,7 +93,7 @@ Policy-following pages prefetch at most 31 calendar days. Prefetched openings ar
 
 ### Opt-in screens (`screens`)
 
-Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.13, the peer range). The
+Each switch turns on one screen feature (needs `@medalsocial/meda` ^3.15, the peer range). The
 built-in packs carry their words; override them with `labels`.
 
 | Switch | What the parent sees |
@@ -103,6 +103,7 @@ built-in packs carry their words; override them with `labels`.
 | `dayFullness` | Each day chip shows how much room it has, or «fullt» for an open day searched for everyone (`time.dayChip.*`) |
 | `summaryDetail` | The sticky bar's time and price on a second line, so a phone's ellipsis does not eat them |
 | `hideDisabledNext` | The bar's «Neste» only while it does something; the step's hint in its place (`summary.hint.*`) |
+| `disabledNext` | On the multi-select service step (`party.maxServicesPerPerson` > 1), «Neste» is drawn disabled until everyone has a service, instead of staying pressable |
 | `firstAvailableFaces` | «Første ledige» drawn as the faces of the stylists who can do the basket |
 | `stylistEdgeFade` | The phone's sideways stylist row fades at its edge |
 | `guestParty` | A guest picks a number of children and «me too» instead of the chips, so a parent and child book together without an account; the step opens with one child seated (also in the server render) (`who.party.*`) |

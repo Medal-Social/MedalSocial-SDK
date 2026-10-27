@@ -60,6 +60,7 @@ const STATUS: OrderingOrderStatusView = {
   order_id: "ord_1",
   order_number: "P-1022-004",
   status: "declined",
+  payment: { method: "pay_at_counter", state: "none" },
   decline_reason: "too_busy",
   updated_at: "2026-10-22T16:05:00.000Z",
   timeline: [
@@ -254,6 +255,43 @@ describe("ordering.orders.create", () => {
     expect(err.status).toBe(status);
     expect(err.code).toBe(code);
     expect(isOrderingRefusal(err)).toBe(false);
+  });
+
+  it("sends a Vipps order's return_url and returns where the customer pays", async () => {
+    const vippsInput: OrderingCreateOrderInput = {
+      ...ORDER_INPUT,
+      payment_method: "vipps",
+      return_url: "https://bistro.no/takk",
+    };
+    const awaiting: OrderingOrderCreated = {
+      order_id: "ord_2",
+      order_number: "P-1022-005",
+      status: "awaiting_payment",
+      payment: { method: "vipps", redirect_url: "https://pay.vipps.no/abc" },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string)).toMatchObject({
+        payment_method: "vipps",
+        return_url: "https://bistro.no/takk",
+      });
+      return ok(awaiting, 201);
+    });
+    const result = await medal().ordering.orders.create(vippsInput, { idempotencyKey: "k2" });
+    expect(result.data.payment?.redirect_url).toBe("https://pay.vipps.no/abc");
+  });
+
+  it("narrows the Vipps refusals PAYMENT_UNAVAILABLE and RETURN_URL_NOT_ALLOWED", async () => {
+    for (const code of ["PAYMENT_UNAVAILABLE", "RETURN_URL_NOT_ALLOWED"] as const) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(apiError(422, code, "Refused"));
+      const error = await failure(
+        medal().ordering.orders.create(
+          { ...ORDER_INPUT, payment_method: "vipps", return_url: "https://bistro.no/takk" },
+          { idempotencyKey: `k-${code}` },
+        ),
+      );
+      expect(isOrderingRefusal(error)).toBe(true);
+      expect(error.code).toBe(code satisfies OrderingRefusalCode);
+    }
   });
 
   it("passes the caller's AbortSignal through", async () => {

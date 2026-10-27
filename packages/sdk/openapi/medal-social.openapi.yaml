@@ -2732,11 +2732,22 @@ paths:
         `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
         and `UNAVAILABLE` (`ids`: the product and option ids),
         `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when
-        one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED` and
+        one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`,
+        `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own,
+        or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps:
+        `return_url` missing or not on one of the workspace's sites) and
         `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note).
-        For now only `pay_at_counter` for takeaway and dine-in is accepted;
-        delivery, Vipps and scheduled timing are refused. Rate limits: 60/min
-        per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+        Vipps: the answer is `status: awaiting_payment` with
+        `payment.redirect_url`, where the customer pays; Vipps sends them back
+        to `return_url` with `order_id` added. The order is placed once Vipps
+        authorizes the payment and abandoned when unpaid after 30 minutes;
+        the money is captured when the kitchen accepts, released on a
+        decline, timeout or cancel before that, and refunded on a cancel
+        after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`:
+        Vipps refused, or could not be reached, as the payment was created.
+        Delivery and scheduled timing are refused for now. Rate limits:
+        60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per
+        site and IP.
       parameters:
         - name: Idempotency-Key
           in: header
@@ -2779,6 +2790,14 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_OrderingOrderCreated"
         "422":
           description: A business refusal; see the description for the codes and details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderingError"
+        "502":
+          description: >-
+            Vipps orders: `PAYMENT_UNAVAILABLE` (Vipps refused the payment) or
+            `PAYMENT_PROVIDER_UNAVAILABLE` (Vipps could not be reached).
           content:
             application/json:
               schema:
@@ -3049,6 +3068,8 @@ components:
         - ORDERING_NOT_ENABLED
         - ORDER_NOT_FOUND
         - PAYMENT_METHOD_NOT_ALLOWED
+        - PAYMENT_PROVIDER_UNAVAILABLE
+        - PAYMENT_UNAVAILABLE
         - PILOT_ASK_FAILED
         - PORTAL_CODE_INVALID
         - PORTAL_SESSION_INVALID
@@ -3056,6 +3077,7 @@ components:
         - PREORDER_DISABLED
         - PREVIEW_RECEIPT_REQUIRED
         - RATE_LIMITED
+        - RETURN_URL_NOT_ALLOWED
         - SEND_FAILED
         - SOLD_OUT
         - TABLE_NOT_FOUND
@@ -7867,7 +7889,7 @@ components:
         - cancelled
         - refunded
     OrderingPaymentMethod:
-      description: How the guest pays. Closed; only `pay_at_counter` is accepted for now.
+      description: How the guest pays. Closed; `vipps` needs `return_url`.
       type: string
       enum: [pay_at_counter, vipps]
     OrderingOrderTiming:
@@ -7970,6 +7992,13 @@ components:
           $ref: "#/components/schemas/OrderingOrderPreferences"
         payment_method:
           $ref: "#/components/schemas/OrderingPaymentMethod"
+        return_url:
+          description: >-
+            Required with `vipps`: the page on one of the workspace's sites
+            Vipps sends the customer back to (`order_id` is added).
+          type: string
+          format: uri
+          maxLength: 2000
     OrderingOrderCreated:
       type: object
       required: [order_id, order_number, status]
@@ -7981,6 +8010,17 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/OrderingOrderStatus"
+        payment:
+          description: "Vipps orders awaiting payment: where the customer pays."
+          type: object
+          required: [method, redirect_url]
+          properties:
+            method:
+              type: string
+              enum: [vipps]
+            redirect_url:
+              type: string
+              format: uri
     ApiResponse_OrderingOrderCreated:
       type: object
       required: [data]
@@ -8022,7 +8062,7 @@ components:
     OrderingPaymentState:
       description: Closed.
       type: string
-      enum: [none, pending, reserved, captured, released, refunded]
+      enum: [none, pending, reserved, captured, released, refunded, failed]
     OrderingCustomerOrder:
       description: >-
         The guest's view of an order. Never carries contact details, the
@@ -8105,7 +8145,7 @@ components:
       enum: [sold_out, too_busy, closing_soon, other, timeout]
     OrderingOrderStatusView:
       type: object
-      required: [order_id, order_number, status, updated_at, timeline]
+      required: [order_id, order_number, status, payment, updated_at, timeline]
       properties:
         order_id:
           type: string
@@ -8113,6 +8153,14 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/OrderingOrderStatus"
+        payment:
+          type: object
+          required: [method, state]
+          properties:
+            method:
+              $ref: "#/components/schemas/OrderingPaymentMethod"
+            state:
+              $ref: "#/components/schemas/OrderingPaymentState"
         ready_at:
           type: string
           format: date-time
