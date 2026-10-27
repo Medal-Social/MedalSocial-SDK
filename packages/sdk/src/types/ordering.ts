@@ -142,8 +142,17 @@ export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
  * The body of `ordering.orders.create()`. Never send a price: every price,
  * VAT rate and name comes from the server menu, and an unknown field is a
  * `400 VALIDATION_ERROR`. Leave optional fields out rather than sending `null`.
+ * A `vipps` order needs `return_url` (a page on one of the workspace's sites);
+ * `pay_at_counter` takes none.
  */
-export type OrderingCreateOrderInput = Schemas["OrderingCreateOrderInput"];
+export type OrderingCreateOrderInput = Omit<
+  Schemas["OrderingCreateOrderInput"],
+  "payment_method" | "return_url"
+> &
+  (
+    | { payment_method: "pay_at_counter"; return_url?: never }
+    | { payment_method: "vipps"; return_url: string }
+  );
 
 /** What a placed order answers with: the id to read it by, the number the guest is told, and its status. */
 export type OrderingOrderCreated = Schemas["OrderingOrderCreated"];

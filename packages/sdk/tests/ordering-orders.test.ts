@@ -285,7 +285,7 @@ describe("ordering.orders.create", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(apiError(422, code, "Refused"));
       const error = await failure(
         medal().ordering.orders.create(
-          { ...ORDER_INPUT, payment_method: "vipps" },
+          { ...ORDER_INPUT, payment_method: "vipps", return_url: "https://bistro.no/takk" },
           { idempotencyKey: `k-${code}` },
         ),
       );

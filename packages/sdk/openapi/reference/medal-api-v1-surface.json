@@ -1396,6 +1396,17 @@
           "ready",
           "refunded"
         ],
+        "responses.200.data.payment#type": ["object"],
+        "responses.200.data.payment.method": ["pay_at_counter", "vipps"],
+        "responses.200.data.payment.state": [
+          "captured",
+          "failed",
+          "none",
+          "pending",
+          "refunded",
+          "released",
+          "reserved"
+        ],
         "responses.200.data.ready_at#type": ["string"],
         "responses.200.data.decline_reason": [
           "closing_soon",
