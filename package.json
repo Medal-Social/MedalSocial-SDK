@@ -34,14 +34,14 @@
     ]
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.3",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
-    "@commitlint/cli": "^21.2.3",
-    "@commitlint/config-conventional": "^21.2.3",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "@secretlint/secretlint-rule-preset-recommend": "^13.0.7",
     "husky": "^9.1.7",
-    "knip": "^6.41.0",
+    "knip": "^6.43.0",
     "lint-staged": "^17.6.0",
     "only-allow": "^1.2.2",
     "secretlint": "^13.0.7"
