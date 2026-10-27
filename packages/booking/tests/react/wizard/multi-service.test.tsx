@@ -532,6 +532,76 @@ describe('<BookingWizard> — the multi-select service step', () => {
     expect(summaryBar(container)).not.toBeNull();
   });
 
+  it('takes the `service.bar` class on the step’s own sticky bar', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    const { container } = render(
+      <BookingWizard
+        config={MULTI_SERVICE_CONFIG}
+        labels={TEST_LABELS}
+        guardian={null}
+        classNames={{ service: { bar: 'service-bar' } }}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+    await asAdultGuest(user);
+    const bar = container.querySelector('.service-bar');
+    expect(bar).not.toBeNull();
+    expect(within(bar as HTMLElement).getByRole('button', { name: 'Neste' })).toBeInTheDocument();
+  });
+
+  it('numbers two guest grown-ups’ tabs «Person 1», «Person 2»', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    render(
+      <BookingWizard
+        config={{
+          ...MULTI_SERVICE_CONFIG,
+          screens: { ...MULTI_SERVICE_CONFIG.screens, guestParty: true, adultStepper: true },
+        }}
+        labels={TEST_LABELS}
+        guardian={null}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+    // The guest party opens with one child; two grown-ups join it.
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Barn 1',
+      'Person 1',
+      'Person 2',
+    ]);
+  });
+
+  it('keeps a site’s own grown-up word on every tab when only the props set it', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    render(
+      <BookingWizard
+        config={{
+          ...MULTI_SERVICE_CONFIG,
+          labels: TEST_LABELS,
+          screens: { ...MULTI_SERVICE_CONFIG.screens, guestParty: true, adultStepper: true },
+        }}
+        labels={{ 'people.adult': 'Gjest' }}
+        guardian={null}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Barn 1',
+      'Gjest',
+      'Gjest',
+    ]);
+  });
+
   it('stays on the step when «Neste» is pressed with nothing ticked', async () => {
     stubApi();
     const user = userEvent.setup();
@@ -539,6 +609,29 @@ describe('<BookingWizard> — the multi-select service step', () => {
     await asAdultGuest(user);
     await user.click(screen.getByRole('button', { name: 'Neste' }));
     expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+  });
+
+  it('keeps «Neste» pressable with nothing ticked by default', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep();
+    await asAdultGuest(user);
+    expect(screen.getByRole('button', { name: 'Neste' })).not.toBeDisabled();
+  });
+
+  it('holds «Neste» disabled until a service is ticked with `screens.disabledNext`', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep({
+      ...MULTI_SERVICE_CONFIG,
+      screens: { ...MULTI_SERVICE_CONFIG.screens, disabledNext: true },
+    });
+    await asAdultGuest(user);
+    expect(screen.getByRole('button', { name: 'Neste' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /Klipp/ }));
+    expect(screen.getByRole('button', { name: 'Neste' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
   });
 
   it('refuses a fourth service politely, and forgets the refusal on the next tick', async () => {
