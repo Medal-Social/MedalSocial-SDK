@@ -13,13 +13,20 @@ export const BUILT_IN_ADULT_NUMBERED = 'Person {n}';
  * `people.adult` as before. A site opts in to numbering by setting
  * `wizard.party.adult` itself, in the same layer as its word or a later one;
  * a numbered word of its own (not the built-in one) is always kept, wherever
- * it came from.
+ * it came from. An earlier layer's `'Person {n}'` reads as the built-in pack's,
+ * since the two cannot be told apart.
  */
 export function keepSiteAdultWord(
   merged: Record<string, unknown>,
   layers: ReadonlyArray<Readonly<Record<string, unknown>> | null | undefined>
 ): void {
   if (merged['wizard.party.adult'] !== BUILT_IN_ADULT_NUMBERED) return;
-  const last = (key: string) => layers.findLastIndex((layer) => isBookingLabel(layer?.[key]));
+  // A reverse loop, not `findLastIndex`: the package targets ES2022.
+  const last = (key: string) => {
+    for (let index = layers.length - 1; index >= 0; index -= 1) {
+      if (isBookingLabel(layers[index]?.[key])) return index;
+    }
+    return -1;
+  };
   if (last('people.adult') > last('wizard.party.adult')) delete merged['wizard.party.adult'];
 }
