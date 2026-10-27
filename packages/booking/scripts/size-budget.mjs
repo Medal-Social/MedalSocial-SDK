@@ -208,7 +208,9 @@ const BUDGETS = [
     // Raised 19.7 → 20.3 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.82 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.65 KB.
-    gzipBytes: 21.8 * 1024,
+    // Raised 21.8 → 21.9 KB for the adult-word check on nested providers:
+    // measured 21.82 KB.
+    gzipBytes: 21.9 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
