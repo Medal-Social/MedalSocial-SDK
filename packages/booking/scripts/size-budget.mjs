@@ -166,7 +166,9 @@ const BUDGETS = [
     // Raised 28.8 → 29.4 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.86 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.74 KB.
-    gzipBytes: 30.9 * 1024,
+    // Raised 30.9 → 31.0 KB for numbered guest grown-ups and `screens.disabledNext`
+    // (passed to meda's `selection.disableUntilReady`): measured 30.91 KB.
+    gzipBytes: 31.0 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -233,7 +235,9 @@ const BUDGETS = [
     // Raised 28.9 → 29.5 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 28.96 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.84 KB.
-    gzipBytes: 31.0 * 1024,
+    // Raised 31.0 → 31.1 KB for numbered guest grown-ups, `screens.disabledNext` and
+    // the layer-aware adult-word check: measured 31.02 KB.
+    gzipBytes: 31.1 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised

@@ -1,5 +1,29 @@
 # @medalsocial/booking
 
+## 0.8.1
+
+### Patch Changes
+
+- [#257](https://github.com/Medal-Social/MedalSocial-SDK/pull/257) [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910) Thanks [@alioftech](https://github.com/alioftech)! - «Prøv igjen» asks a stylist's opening hours again even when they had finished loading the same day, instead of republishing the cached hours. A partly read stylist still resumes at the unread tail.
+- Updated dependencies [[`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910), [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910), [`61c9002`](https://github.com/Medal-Social/MedalSocial-SDK/commit/61c90024956d878bd7c4d32d16c08aaabc0e1910)]:
+  - @medalsocial/sdk@1.17.0
+
+## 0.8.0
+
+### Minor Changes
+
+- [#244](https://github.com/Medal-Social/MedalSocial-SDK/pull/244) [`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f) Thanks [@adaadev](https://github.com/adaadev)! - Expose the workspace's public booking horizon and add `window.followPolicy` to let booking pages follow the saved setting. Policy-aware pages include the boundary date, isolate seeds by horizon, and fail closed when the setting cannot be read. Static window configurations remain compatible.
+
+### Patch Changes
+
+- [#244](https://github.com/Medal-Social/MedalSocial-SDK/pull/244) [`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f) Thanks [@adaadev](https://github.com/adaadev)! - Recheck the saved horizon before cached booking reads, retire stale policy entries, and keep normalized upstream requests within the bounded read limit.
+
+- [#244](https://github.com/Medal-Social/MedalSocial-SDK/pull/244) [`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f) Thanks [@adaadev](https://github.com/adaadev)! - README: a site's stylesheet needs `@source` for the package's `dist/react`. Tailwind does not scan `node_modules`, so without it the classes only this package uses (the desktop panel's column grid) are never generated.
+
+- [#244](https://github.com/Medal-Social/MedalSocial-SDK/pull/244) [`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f) Thanks [@adaadev](https://github.com/adaadev)! - Stable `data-testid` attributes on the wizard steps and key controls (`BOOKING_TEST_IDS`) for synthetic monitoring and promote gates: step containers, each service / stylist / day / slot option, and the slots error and empty states. No visual or behaviour change.
+- Updated dependencies [[`13b838e`](https://github.com/Medal-Social/MedalSocial-SDK/commit/13b838e525b296bc4efc1e61a63c1c9f3234a49f)]:
+  - @medalsocial/sdk@1.16.0
+
 ## 0.7.0
 
 ### Minor Changes
