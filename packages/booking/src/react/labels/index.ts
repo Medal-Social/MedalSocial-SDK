@@ -18,6 +18,7 @@ import {
   LABEL_PACKS,
   labelPackFor,
 } from '../../core/labels';
+import { keepSiteAdultWord } from './adult-word';
 import { LOGIN_LABELS_EN, LOGIN_LABELS_NB, type LoginLabels } from './login';
 import { MANAGE_LABELS_EN, MANAGE_LABELS_NB, type ManageLabels } from './manage';
 import { PORTAL_LABELS_EN, PORTAL_LABELS_NB, type PortalLabels } from './portal';
@@ -83,5 +84,6 @@ export function mergeLabels(
       if (isBookingLabel(value)) merged[key] = value;
     }
   }
+  keepSiteAdultWord(merged, overrides);
   return merged as unknown as BookingLabels;
 }
