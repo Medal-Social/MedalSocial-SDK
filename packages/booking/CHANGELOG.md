@@ -1,5 +1,23 @@
 # @medalsocial/booking
 
+## 0.9.0
+
+### Minor Changes
+
+- [#272](https://github.com/Medal-Social/MedalSocial-SDK/pull/272) [`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27) Thanks [@alioftech](https://github.com/alioftech)! - Config `screens.disabledNext` (default `false`): on the multi-select service step (`party.maxServicesPerPerson` > 1), «Neste» is drawn disabled (meda's `selection.disableUntilReady`) until every seated person has a service, instead of staying pressable and doing nothing. Needs `@medalsocial/meda` 3.15; peer range `^3.15.0`.
+
+- [#272](https://github.com/Medal-Social/MedalSocial-SDK/pull/272) [`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27) Thanks [@alioftech](https://github.com/alioftech)! - Several guest grown-ups are told apart. Once two or more seats share the generic `people.adult` word («Voksen»), the service step's tabs and «who cuts whom» call them «Person 1», «Person 2», … from the new `wizard.party.adult` label (`Person {n}` in both built-in packs, numbered among those grown-ups only). A lone grown-up, «Meg selv» and the children keep their names.
+  
+  A site that sets its own `people.adult` keeps that word on every seat until it opts in by setting `wizard.party.adult` too. This works through `mergeLabels` and through the components' `labels` props. The key is optional, so an older pack still type-checks. Also adds a wizard test for the `service.bar` class slot on the multi-select step's sticky bar.
+
+### Patch Changes
+
+- [#272](https://github.com/Medal-Social/MedalSocial-SDK/pull/272) [`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27) Thanks [@alioftech](https://github.com/alioftech)! - A site's own word for a grown-up now survives in two more setups. A component's `people.adult` under a provider given a whole built-in pack (`labels={mergeLabels('nb')}`) is no longer replaced by «Person {n}»: the built-in numbered word in an earlier layer is not an opt-in. A numbered word the site chose itself (for example `'Gjest {n}'` in `config.labels`) is now kept when a provider or component renames the grown-up.
+
+- [#272](https://github.com/Medal-Social/MedalSocial-SDK/pull/272) [`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27) Thanks [@alioftech](https://github.com/alioftech)! - Nested providers keep an inner provider's word for a grown-up: `<BookingProvider labels={mergeLabels('nb')}>` around `<BookingProvider labels={{ 'people.adult': 'Gjest' }}>` no longer numbers several guest grown-ups «Person 1», «Person 2». The adult-word check now runs where a provider merges its parent's words, before they are flattened into one layer.
+- Updated dependencies [[`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27)]:
+  - @medalsocial/sdk@1.18.0
+
 ## 0.8.1
 
 ### Patch Changes
