@@ -123,7 +123,11 @@ export interface OrderingSlotsOptions {
  */
 export type OrderingOrderStatus = Schemas["OrderingOrderStatus"];
 
-/** How the guest pays. Only `pay_at_counter` is accepted for now. */
+/**
+ * How the guest pays: `pay_at_counter` (no `return_url`) or `vipps`, which
+ * needs a `return_url` on one of the workspace's sites and answers with
+ * `status: 'awaiting_payment'` and the `payment.redirect_url` to send the guest to.
+ */
 export type OrderingPaymentMethod = Schemas["OrderingPaymentMethod"];
 
 /** When the guest wants the order: as soon as possible (the default) or at a scheduled instant. */
