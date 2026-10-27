@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.18.0
+
+### Minor Changes
+
+- [#272](https://github.com/Medal-Social/MedalSocial-SDK/pull/272) [`dbc136f`](https://github.com/Medal-Social/MedalSocial-SDK/commit/dbc136f43b9e3deb287d623c8ec02045e9719b27) Thanks [@alioftech](https://github.com/alioftech)! - Restaurant ordering with Vipps: `ordering.orders.create()` takes `payment_method: 'vipps'` with a `return_url` and resolves `status: 'awaiting_payment'` with `payment.redirect_url`, where the guest pays. `orders.status()` now carries `payment: { method, state }`, and `OrderingPaymentState` gains `failed`. `OrderingRefusalCode` gains `PAYMENT_UNAVAILABLE` and `RETURN_URL_NOT_ALLOWED`; `MedalErrorCode` also gains `PAYMENT_PROVIDER_UNAVAILABLE`, `PAYMENT_UNAVAILABLE` and `RETURN_URL_NOT_ALLOWED`.
+
 ## 1.17.0
 
 ### Minor Changes
