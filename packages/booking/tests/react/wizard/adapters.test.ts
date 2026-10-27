@@ -196,6 +196,24 @@ describe('several guest grown-ups', () => {
     expect(mergeLabels('en')['wizard.party.adult']).toBe('Person {n}');
   });
 
+  it('keeps a site’s own `people.adult` for several grown-ups unless it opts in', () => {
+    const site = mergeLabels('nb', { 'people.adult': 'Person' });
+    expect(site['wizard.party.adult']).toBeUndefined();
+    const own = createBookingKit(PARITY_CONFIG, site);
+    expect(labelsOf([guestAdult(1), guestAdult(2)], own)).toEqual(['Person', 'Person']);
+
+    const optedIn = mergeLabels(
+      'nb',
+      { 'people.adult': 'Person' },
+      { 'wizard.party.adult': 'Person {n}' }
+    );
+    const numbered = createBookingKit(PARITY_CONFIG, optedIn);
+    expect(labelsOf([guestAdult(1), guestAdult(2)], numbered)).toEqual(['Person 1', 'Person 2']);
+    // A whole pack merged again keeps what the first merge decided.
+    expect(mergeLabels('nb', site)['wizard.party.adult']).toBeUndefined();
+    expect(mergeLabels('nb', optedIn)['wizard.party.adult']).toBe('Person {n}');
+  });
+
   it('falls back to `people.adult` for a pack without the key', () => {
     const { 'wizard.party.adult': _numbered, ...older } = TEST_LABELS;
     const legacy = createBookingKit(PARITY_CONFIG, older as typeof TEST_LABELS);

@@ -576,6 +576,32 @@ describe('<BookingWizard> — the multi-select service step', () => {
     ]);
   });
 
+  it('keeps a site’s own grown-up word on every tab when only the props set it', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    render(
+      <BookingWizard
+        config={{
+          ...MULTI_SERVICE_CONFIG,
+          labels: TEST_LABELS,
+          screens: { ...MULTI_SERVICE_CONFIG.screens, guestParty: true, adultStepper: true },
+        }}
+        labels={{ 'people.adult': 'Gjest' }}
+        guardian={null}
+        seed={{ services: SERVICES, resources: RESOURCES, fromTs: NOW }}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'En voksen til' }));
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Barn 1',
+      'Gjest',
+      'Gjest',
+    ]);
+  });
+
   it('stays on the step when «Neste» is pressed with nothing ticked', async () => {
     stubApi();
     const user = userEvent.setup();

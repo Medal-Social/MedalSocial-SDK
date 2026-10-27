@@ -53,6 +53,7 @@ import { type ComponentType, createContext, type ReactNode, useContext, useMemo 
 import type { BookingConfig } from '../core/config';
 import { type BookingKit, createBookingKit } from './kit';
 import type { BookingLabels, BookingLabelsInput } from './labels';
+import { keepSiteAdultWord } from './labels/adult-word';
 
 /** Per-screen slot classes (see each meda screen's `…Slot` type for the slots). */
 export interface BookingClassNames {
@@ -257,6 +258,7 @@ function mergedLabels(
       ? { 'details.marketing.text': config.consent.marketing.text }
       : {}),
   } as BookingLabels;
+  keepSiteAdultWord(merged as unknown as Record<string, unknown>, [outer, inner]);
   if (merged['who.heading'] === undefined) {
     console.warn(
       '[@medalsocial/booking] No label pack: pass `labels: mergeLabels(locale, …)` from ' +
