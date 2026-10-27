@@ -142,8 +142,17 @@ export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
  * The body of `ordering.orders.create()`. Never send a price: every price,
  * VAT rate and name comes from the server menu, and an unknown field is a
  * `400 VALIDATION_ERROR`. Leave optional fields out rather than sending `null`.
+ * A `vipps` order needs `return_url` (a page on one of the workspace's sites);
+ * `pay_at_counter` takes none.
  */
-export type OrderingCreateOrderInput = Schemas["OrderingCreateOrderInput"];
+export type OrderingCreateOrderInput = Omit<
+  Schemas["OrderingCreateOrderInput"],
+  "payment_method" | "return_url"
+> &
+  (
+    | { payment_method: "pay_at_counter"; return_url?: never }
+    | { payment_method: "vipps"; return_url: string }
+  );
 
 /** What a placed order answers with: the id to read it by, the number the guest is told, and its status. */
 export type OrderingOrderCreated = Schemas["OrderingOrderCreated"];
@@ -186,7 +195,9 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `SOLD_OUT`, `UNAVAILABLE` — `details.ids` are the product and option ids.
  * - `INVALID_OPTIONS` — `details.line_index` is the line at fault.
  * - `INVALID_CART` — empty, too many lines, bad quantity or note; `details.line_index` when one line is at fault.
- * - `PAYMENT_METHOD_NOT_ALLOWED` — only `pay_at_counter` for now.
+ * - `PAYMENT_METHOD_NOT_ALLOWED` — the location does not take this payment method.
+ * - `PAYMENT_UNAVAILABLE` — Vipps: the workspace has no Vipps of its own, or the total is under 1 kr.
+ * - `RETURN_URL_NOT_ALLOWED` — Vipps: `return_url` missing or not on one of the workspace's sites.
  * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email` or `allergy_note`.
  */
 export type OrderingRefusalCode =
@@ -200,6 +211,8 @@ export type OrderingRefusalCode =
   | "INVALID_OPTIONS"
   | "INVALID_CART"
   | "PAYMENT_METHOD_NOT_ALLOWED"
+  | "PAYMENT_UNAVAILABLE"
+  | "RETURN_URL_NOT_ALLOWED"
   | "INVALID_CUSTOMER";
 
 /**
