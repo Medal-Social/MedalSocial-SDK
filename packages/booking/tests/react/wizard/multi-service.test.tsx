@@ -611,6 +611,29 @@ describe('<BookingWizard> — the multi-select service step', () => {
     expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
   });
 
+  it('keeps «Neste» pressable with nothing ticked by default', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep();
+    await asAdultGuest(user);
+    expect(screen.getByRole('button', { name: 'Neste' })).not.toBeDisabled();
+  });
+
+  it('holds «Neste» disabled until a service is ticked with `screens.disabledNext`', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    renderStep({
+      ...MULTI_SERVICE_CONFIG,
+      screens: { ...MULTI_SERVICE_CONFIG.screens, disabledNext: true },
+    });
+    await asAdultGuest(user);
+    expect(screen.getByRole('button', { name: 'Neste' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /Klipp/ }));
+    expect(screen.getByRole('button', { name: 'Neste' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Neste' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+  });
+
   it('refuses a fourth service politely, and forgets the refusal on the next tick', async () => {
     stubApi();
     const user = userEvent.setup();
