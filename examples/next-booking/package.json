@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@medalsocial/booking": "workspace:*",
-    "@medalsocial/meda": "^3.13.0",
+    "@medalsocial/meda": "^3.15.0",
     "lucide-react": "^1.58.0",
     "next": "16.4.2",
     "react": "19.3.1",

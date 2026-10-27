@@ -90,6 +90,7 @@ describe('resolveBookingConfig — screens', () => {
       dayFullness: false,
       summaryDetail: false,
       hideDisabledNext: false,
+      disabledNext: false,
       firstAvailableFaces: false,
       stylistEdgeFade: false,
       guestParty: false,

@@ -63,8 +63,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/booking
       '@medalsocial/meda':
-        specifier: ^3.13.0
-        version: 3.13.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: ^3.15.0
+        version: 3.15.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       lucide-react:
         specifier: ^1.58.0
         version: 1.58.0(@types/react@19.3.0)(react@19.3.1)
@@ -107,8 +107,8 @@ importers:
         version: 0.0.1
     devDependencies:
       '@medalsocial/meda':
-        specifier: ^3.13.0
-        version: 3.13.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: ^3.15.0
+        version: 3.15.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@testing-library/jest-dom':
         specifier: ^7.0.1
         version: 7.0.1(@testing-library/dom@10.4.2)(vitest@5.0.5)
@@ -1014,8 +1014,8 @@ packages:
     resolution: {integrity: sha512-6QEf6yqFbETdwGITKq57aYoPfX/3K8XFNwsAlx0C1M7o8cb79sv1M3w+tWuWvIcSbNqrLF7OD7YpZMVVz335hQ==}
     engines: {node: '>=20.0.0'}
 
-  '@medalsocial/meda@3.13.0':
-    resolution: {integrity: sha512-4OfdvBFfQC2T+jvsw0QhUeD+UH7hQWW3tJ7nxPnh0oW+DPiWBOz9dNrhUk41nHOxfIzEPZPjL4f/vwX7PGo3MA==}
+  '@medalsocial/meda@3.15.0':
+    resolution: {integrity: sha512-fn+dU3/vhUk8es0MfaIcYLILSCWobYiP1BLyGmzT4Ad/PbhzEdR6NbDp3KCldaBwoN4iXDdTFX9DUT9qjWla2A==}
     engines: {node: '>=22'}
     peerDependencies:
       '@dnd-kit/core': ^6.3.1
@@ -4059,7 +4059,7 @@ snapshots:
       tinyglobby: 0.2.17
       yaml: 2.9.1
 
-  '@medalsocial/meda@3.13.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@medalsocial/meda@3.15.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(lucide-react@1.58.0(@types/react@19.3.0)(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@base-ui/react': 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       class-variance-authority: 0.7.1
