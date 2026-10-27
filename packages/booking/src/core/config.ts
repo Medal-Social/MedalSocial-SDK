@@ -169,6 +169,8 @@ export interface BookingConfig {
    * - `dayFullness` — each day chip shows how much room the day has.
    * - `summaryDetail` — the sticky bar's time and price on a second line.
    * - `hideDisabledNext` — the bar's «next» only while it does something.
+   * - `disabledNext` — on the multi-select service step, «next» is drawn
+   *   disabled until every seated person has a service.
    * - `firstAvailableFaces` — «first available» drawn as the qualified
    *   stylists' faces.
    * - `stylistEdgeFade` — the phone stylist row fades at its edge.
@@ -201,6 +203,7 @@ export interface BookingConfig {
     dayFullness: boolean;
     summaryDetail: boolean;
     hideDisabledNext: boolean;
+    disabledNext: boolean;
     firstAvailableFaces: boolean;
     stylistEdgeFade: boolean;
     guestParty: boolean;
@@ -307,6 +310,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       dayFullness: false,
       summaryDetail: false,
       hideDisabledNext: false,
+      disabledNext: false,
       firstAvailableFaces: false,
       stylistEdgeFade: false,
       guestParty: false,
@@ -518,6 +522,7 @@ const schema = z
       dayFullness: z.boolean(),
       summaryDetail: z.boolean(),
       hideDisabledNext: z.boolean(),
+      disabledNext: z.boolean(),
       firstAvailableFaces: z.boolean(),
       stylistEdgeFade: z.boolean(),
       guestParty: z.boolean(),

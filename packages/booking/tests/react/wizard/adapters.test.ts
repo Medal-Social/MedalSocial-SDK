@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { guestChild, type WizardPerson, type WizardService } from '../../../src/core/machine';
+import {
+  guestAdult,
+  guestChild,
+  type WizardPerson,
+  type WizardService,
+} from '../../../src/core/machine';
 import type { BookingResourceDto } from '../../../src/core/types';
 import { createBookingKit } from '../../../src/react/kit';
 import { mergeLabels } from '../../../src/react/labels';
 import {
+  partyPeople,
   partySizeWord,
   recapProps,
   seatChoices,
@@ -147,6 +153,84 @@ describe('seatChoices', () => {
   it('names a grown-up guest seat', () => {
     const seats = seatChoices(kit, seated([guestChild(1), { key: 'adult', adult: true }]));
     expect(seats[1].who).toBe(TEST_LABELS['people.adult']);
+  });
+});
+
+describe('several guest grown-ups', () => {
+  const none = () => null;
+  const labelsOf = (people: WizardPerson[], k = kit) =>
+    partyPeople(k, people, none, none).map((person) => person.label);
+
+  it('numbers them «Person 1», «Person 2» on the service step’s tabs', () => {
+    expect(labelsOf([guestAdult(1), guestAdult(2)])).toEqual(['Person 1', 'Person 2']);
+  });
+
+  it('numbers only the grown-ups sharing the generic word, not the children or «Meg selv»', () => {
+    expect(labelsOf([guestChild(1), guestAdult(1), guestAdult(2), guestAdult(3)])).toEqual([
+      String(TEST_LABELS['wizard.party.child']).replace('{n}', '1'),
+      'Person 1',
+      'Person 2',
+      'Person 3',
+    ]);
+    expect(labelsOf([{ key: 'self', adult: true }, guestAdult(2), guestAdult(3)])).toEqual([
+      TEST_LABELS['people.self'],
+      'Person 1',
+      'Person 2',
+    ]);
+  });
+
+  it('keeps one grown-up — alone or beside «Meg selv» — as `people.adult`', () => {
+    expect(labelsOf([guestChild(1), guestAdult(1)])[1]).toBe(TEST_LABELS['people.adult']);
+    expect(labelsOf([{ key: 'self', adult: true }, guestAdult(2)])).toEqual([
+      TEST_LABELS['people.self'],
+      TEST_LABELS['people.adult'],
+    ]);
+  });
+
+  it('reads the number from the pack, in English too', () => {
+    const custom = createBookingKit(
+      PARITY_CONFIG,
+      mergeLabels('nb', TEST_LABELS, { 'wizard.party.adult': ['Gjest ', '{n}'] })
+    );
+    expect(labelsOf([guestAdult(1), guestAdult(2)], custom)).toEqual(['Gjest 1', 'Gjest 2']);
+    expect(mergeLabels('en')['wizard.party.adult']).toBe('Person {n}');
+  });
+
+  it('keeps a site’s own `people.adult` for several grown-ups unless it opts in', () => {
+    const site = mergeLabels('nb', { 'people.adult': 'Person' });
+    expect(site['wizard.party.adult']).toBeUndefined();
+    const own = createBookingKit(PARITY_CONFIG, site);
+    expect(labelsOf([guestAdult(1), guestAdult(2)], own)).toEqual(['Person', 'Person']);
+
+    const optedIn = mergeLabels(
+      'nb',
+      { 'people.adult': 'Person' },
+      { 'wizard.party.adult': 'Person {n}' }
+    );
+    const numbered = createBookingKit(PARITY_CONFIG, optedIn);
+    expect(labelsOf([guestAdult(1), guestAdult(2)], numbered)).toEqual(['Person 1', 'Person 2']);
+    // A whole pack merged again keeps what the first merge decided.
+    expect(mergeLabels('nb', site)['wizard.party.adult']).toBeUndefined();
+    expect(mergeLabels('nb', optedIn)['wizard.party.adult']).toBe('Person {n}');
+  });
+
+  it('falls back to `people.adult` for a pack without the key', () => {
+    const { 'wizard.party.adult': _numbered, ...older } = TEST_LABELS;
+    const legacy = createBookingKit(PARITY_CONFIG, older as typeof TEST_LABELS);
+    expect(labelsOf([guestAdult(1), guestAdult(2)], legacy)).toEqual([
+      TEST_LABELS['people.adult'],
+      TEST_LABELS['people.adult'],
+    ]);
+  });
+
+  it('names the seats in «who cuts whom» the same way', () => {
+    let state = reduce(initialState(), {
+      type: 'choosePeople',
+      people: [guestAdult(1), guestAdult(2)],
+    });
+    state = reduce(state, { type: 'pickServiceFor', index: 0, service: KLIPP });
+    state = reduce(state, { type: 'pickServiceFor', index: 1, service: KLIPP });
+    expect(seatChoices(kit, state).map((seat) => seat.who)).toEqual(['Person 1', 'Person 2']);
   });
 });
 
