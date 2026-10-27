@@ -10,13 +10,15 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="" aria-current="page">OrderingCreateOrderInput</a></li></ul>
 <h1>Type Alias OrderingCreateOrderInput</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">OrderingCreateOrderInput</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Schemas</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;OrderingCreateOrderInput&quot;</span><span class="tsd-signature-symbol">]</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">OrderingCreateOrderInput</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Omit</span><span class="tsd-signature-symbol">&lt;</span><br/>    <span class="tsd-signature-type">Schemas</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;OrderingCreateOrderInput&quot;</span><span class="tsd-signature-symbol">]</span><span class="tsd-signature-symbol">,</span><br/>    <span class="tsd-signature-type">&quot;payment_method&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;return_url&quot;</span><span class="tsd-signature-symbol">,</span><br/><span class="tsd-signature-symbol">&gt;</span> <span class="tsd-signature-symbol">&amp;</span> (<br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">payment_method</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;pay_at_counter&quot;</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">return_url</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">never</span> <span class="tsd-signature-symbol">}</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-symbol">{</span> <span class="tsd-kind-property">payment_method</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;vipps&quot;</span><span class="tsd-signature-symbol">;</span> <span class="tsd-kind-property">return_url</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span> <span class="tsd-signature-symbol">}</span><br/>)</div>
 <div class="tsd-comment tsd-typography"><p>The body of <code>ordering.orders.create()</code>. Never send a price: every price,
 VAT rate and name comes from the server menu, and an unknown field is a
-<code>400 VALIDATION_ERROR</code>. Leave optional fields out rather than sending <code>null</code>.</p>
+<code>400 VALIDATION_ERROR</code>. Leave optional fields out rather than sending <code>null</code>.
+A <code>vipps</code> order needs <code>return_url</code> (a page on one of the workspace's sites);
+<code>pay_at_counter</code> takes none.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/7767ce3851ab06898feb7a711b1e0d48d03b0312/packages/sdk/src/types/ordering.ts#L146">packages/sdk/src/types/ordering.ts:146</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/dbc136f43b9e3deb287d623c8ec02045e9719b27/packages/sdk/src/types/ordering.ts#L148">packages/sdk/src/types/ordering.ts:148</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
