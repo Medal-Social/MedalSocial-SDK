@@ -3655,8 +3655,14 @@ components:
       type: string
       enum: [lead, subscriber, customer, churned]
     EmailStatus:
+      description: >-
+        `subscribed` is marketing permission. `unsubscribed` is an opt-out.
+        `bounced` / `complained` mark an undeliverable address or a spam
+        report. `not_opted_in` is an address nobody has asked or objected
+        for (no marketing permission, no opt-out); it receives no marketing
+        e-mail. A create without `email_status` stores `subscribed`.
       type: string
-      enum: [subscribed, unsubscribed, bounced, complained]
+      enum: [subscribed, unsubscribed, bounced, complained, not_opted_in]
     ContactAddress:
       description: >-
         A contact's postal address. Keys are camelCase (`postalCode`) — the

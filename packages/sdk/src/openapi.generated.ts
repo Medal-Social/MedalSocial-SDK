@@ -2055,8 +2055,11 @@ export interface components {
     };
     /** @enum {string} */
     ContactStatus: "lead" | "subscriber" | "customer" | "churned";
-    /** @enum {string} */
-    EmailStatus: "subscribed" | "unsubscribed" | "bounced" | "complained";
+    /**
+     * @description `subscribed` is marketing permission. `unsubscribed` is an opt-out. `bounced` / `complained` mark an undeliverable address or a spam report. `not_opted_in` is an address nobody has asked or objected for (no marketing permission, no opt-out); it receives no marketing e-mail. A create without `email_status` stores `subscribed`.
+     * @enum {string}
+     */
+    EmailStatus: "subscribed" | "unsubscribed" | "bounced" | "complained" | "not_opted_in";
     /** @description A contact's postal address. Keys are camelCase (`postalCode`) — the one object in /api/v1 that is not snake_case — and closed: any other key is a 400 VALIDATION_ERROR. */
     ContactAddress: {
       street?: string;
