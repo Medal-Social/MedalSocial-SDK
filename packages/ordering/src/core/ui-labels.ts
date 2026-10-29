@@ -56,7 +56,8 @@ export interface OrderingLabels {
   viewCart: string;
   yourOrder: string;
   total: string;
-  /** `{name}`: the dish. */
+  remove: string;
+  /** `{name}`: the dish — the remove button's name for a screen reader. */
   removeLine: string;
   cartEmpty: string;
   droppedTitle: string;
@@ -171,6 +172,7 @@ const NB: OrderingLabels = {
   viewCart: 'Se bestillingen · {price}',
   yourOrder: 'Din bestilling',
   total: 'Totalt',
+  remove: 'Fjern',
   removeLine: 'Fjern {name}',
   cartEmpty: 'Bestillingen er tom.',
   droppedTitle: 'Noe er tatt ut av bestillingen',
@@ -279,6 +281,7 @@ const EN: OrderingLabels = {
   viewCart: 'View order · {price}',
   yourOrder: 'Your order',
   total: 'Total',
+  remove: 'Remove',
   removeLine: 'Remove {name}',
   cartEmpty: 'Your order is empty.',
   droppedTitle: 'Something was taken out of your order',

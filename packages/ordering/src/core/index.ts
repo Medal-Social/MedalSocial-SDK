@@ -50,6 +50,12 @@ export {
   type PlaceOrderRequest,
 } from './checkout';
 export {
+  fetchOrderStatus,
+  type PlaceOrderOptions,
+  placeOrder,
+  type RouteResult,
+} from './client';
+export {
   type BuildOrderLinkInput,
   buildOrderLink,
   CHANNEL_QUERY_KEY,
@@ -129,5 +135,6 @@ export {
   ORDER_STEPS,
   orderStatusLabel,
   orderStepIndex,
+  STATUS_POLL_MS,
 } from './status';
 export { fill, mergeLabels, ORDERING_LABELS, type OrderingLabels } from './ui-labels';

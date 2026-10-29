@@ -6,6 +6,9 @@
 import type { OrderingOrderStatus } from '@medalsocial/sdk';
 import { type LabelLocale, labelLocale } from './labels';
 
+/** How often a receipt reads the status while there is something to wait for. */
+export const STATUS_POLL_MS = 15_000;
+
 export const ORDER_STATUS_LABELS: Readonly<
   Record<OrderingOrderStatus, Readonly<Record<LabelLocale, string>>>
 > = {
