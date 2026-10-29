@@ -68,16 +68,22 @@ describe('ClosedNotice', () => {
   });
 
   it('uses the clock when no `now` is given, and a site’s own words', () => {
-    render(
-      <ClosedNotice
-        id="closed"
-        nextOpenAt={Date.now() + 60_000}
-        labels={{ closed: 'Stengt.', opensToday: 'Opp {time}' }}
-      />
-    );
-    const notice = screen.getByRole('status');
-    expect(notice).toHaveAttribute('id', 'closed');
-    expect(notice).toHaveTextContent(/^Stengt\.Opp \d\d:\d\d$/);
+    // Midday in Oslo, so «a minute from now» is today at any hour the suite runs.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-22T10:00:00Z') });
+    try {
+      render(
+        <ClosedNotice
+          id="closed"
+          nextOpenAt={Date.now() + 60_000}
+          labels={{ closed: 'Stengt.', opensToday: 'Opp {time}' }}
+        />
+      );
+      const notice = screen.getByRole('status');
+      expect(notice).toHaveAttribute('id', 'closed');
+      expect(notice).toHaveTextContent(/^Stengt\.Opp 12:01$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders no opening on the server without `now`, and the client adds it after hydrating', async () => {
