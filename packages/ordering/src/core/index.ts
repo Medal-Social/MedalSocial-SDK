@@ -1,8 +1,9 @@
 /**
  * `@medalsocial/ordering/core` — the framework-free rules behind a Medal
  * ordering site: money in øre, table and channel links, the cart draft, the
- * modifier rules, the hours engine (channel state and slots, the Medal API's
- * own), the allergen/dietary labels and the components' words
+ * modifier rules, the cart check and checkout's details check (the Medal
+ * API's own), the order status words, the hours engine (channel state and
+ * slots, the Medal API's own), the allergen/dietary labels and the components' words
  * (`ORDERING_LABELS`, server-safe). No React, Next or
  * `server-only`; runs in a browser, Node or a Worker.
  */
@@ -10,13 +11,44 @@
 export type {
   OrderingAllergen,
   OrderingChannel,
+  OrderingCustomerOrder,
   OrderingDietary,
+  OrderingLocation,
+  OrderingLocations,
   OrderingMenu,
   OrderingMenuCategory,
   OrderingMenuItem,
   OrderingModifierGroup,
   OrderingModifierOption,
+  OrderingOrderCreated,
+  OrderingOrderLineInput,
+  OrderingOrderStatus,
+  OrderingOrderStatusView,
+  OrderingPaymentMethod,
+  OrderingSlot,
+  OrderingSlots,
+  OrderingTable,
 } from '@medalsocial/sdk';
+export {
+  CART_LIMITS,
+  type CartCheck,
+  type CartLine,
+  checkCart,
+  type DroppedLine,
+  type DroppedReason,
+  type ResolvedCart,
+  resolveCart,
+  toOrderLine,
+} from './cart';
+export {
+  CUSTOMER_LIMITS,
+  type CustomerField,
+  checkCustomer,
+  isPhoneNumber,
+  type OrderingRouteError,
+  type OrderingRouteErrorCode,
+  type PlaceOrderRequest,
+} from './checkout';
 export {
   type BuildOrderLinkInput,
   buildOrderLink,
@@ -44,6 +76,7 @@ export {
   newIdempotencyKey,
   type OrderDraft,
 } from './draft-store';
+export { refusalMessage } from './errors';
 export {
   addIsoDays,
   type Channel as EngineChannel,
@@ -88,4 +121,13 @@ export {
   validateSelections,
 } from './modifiers';
 export { createMoney, formatOre, type Money, type MoneyOptions } from './money';
+export { openingLine } from './opening';
+export {
+  isFinalStatus,
+  isUnsuccessfulStatus,
+  ORDER_STATUS_LABELS,
+  ORDER_STEPS,
+  orderStatusLabel,
+  orderStepIndex,
+} from './status';
 export { fill, mergeLabels, ORDERING_LABELS, type OrderingLabels } from './ui-labels';
