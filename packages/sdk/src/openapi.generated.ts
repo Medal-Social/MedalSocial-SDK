@@ -4290,7 +4290,7 @@ export interface components {
       lines: components["schemas"]["OrderingOrderLineInput"][];
       customer: components["schemas"]["OrderingOrderCustomer"];
       preferences: components["schemas"]["OrderingOrderPreferences"];
-      /** @description The `id` of one of the logged-in customer's saved addresses (needs `X-Portal-Session`). Not on their profile: 422 `SAVED_ADDRESS_NOT_FOUND`. */
+      /** @description Delivery: the `id` of one of the logged-in customer's saved addresses (needs `X-Portal-Session`). It is the delivery address: `delivery.quote_id` must be quoted for its `address_id`, and its floor, comment and door code apply unless `delivery` types them. Not on their profile: 422 `SAVED_ADDRESS_NOT_FOUND`. */
       saved_address_id?: string;
       payment_method: components["schemas"]["OrderingPaymentMethod"];
       /**

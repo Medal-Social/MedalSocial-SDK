@@ -812,8 +812,10 @@ await medal.ordering.orders.create(
     })),
     customer: { name: 'Test Customer', phone: '+4790000000' },
     preferences: {},                   // the customer's defaults
-    // Delivery only, where the restaurant offers it: one of their saved addresses.
+    // Delivery instead: channel 'delivery', one of their saved addresses, and a
+    // quote for that address's address_id (its door code and floor come along).
     // saved_address_id: prefs.addresses[0].id,
+    // delivery: { verified_address_id: prefs.addresses[0].address_id, quote_id },
     payment_method: 'vipps',
     return_url: 'https://example.com/order/done',
   },
