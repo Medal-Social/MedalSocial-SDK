@@ -230,7 +230,11 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `CLOSED` — the channel is not open; `details.reason` is the channel state reason.
  * - `CUTOFF` — past the last order time.
  * - `CHANNEL_NOT_AVAILABLE` — the channel is not offered.
- * - `PREORDER_DISABLED` — scheduled timing is not offered (for now).
+ * - `PREORDER_DISABLED` — the location takes no pre-orders (`preorder_days` 0).
+ * - `SLOT_TAKEN` — a pre-order's slot has gone by or is inside the prep time
+ *   (a delivery slot under 1 h ahead): pick another from `slots()`. A slot
+ *   the location does not offer is `CLOSED` (`details.reason` `closed`,
+ *   `paused` or `too_far`).
  * - `TABLE_NOT_FOUND` — dine-in without a valid `table_token` at this location.
  * - `SOLD_OUT`, `UNAVAILABLE` — `details.ids` are the product and option ids.
  * - `INVALID_OPTIONS` — `details.line_index` is the line at fault.
@@ -250,6 +254,7 @@ export type OrderingRefusalCode =
   | "CUTOFF"
   | "CHANNEL_NOT_AVAILABLE"
   | "PREORDER_DISABLED"
+  | "SLOT_TAKEN"
   | "TABLE_NOT_FOUND"
   | "SOLD_OUT"
   | "UNAVAILABLE"

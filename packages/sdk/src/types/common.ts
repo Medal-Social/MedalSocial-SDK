@@ -115,6 +115,7 @@ export type MedalErrorCode =
   | "RETURN_URL_NOT_ALLOWED"
   | "SAVED_ADDRESS_NOT_FOUND"
   | "SEND_FAILED"
+  | "SLOT_TAKEN"
   | "SOLD_OUT"
   | "TABLE_NOT_FOUND"
   | "UNAUTHORIZED"
