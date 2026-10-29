@@ -1126,6 +1126,161 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/portal/ordering/preferences": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The signed-in customer's ordering profile
+     * @description Saved delivery addresses (newest use first), the allergy note, the cutlery and contactless defaults, favourite product ids and the ordering marketing consent. Per customer and `Cache-Control: no-store`. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `read:portal`), `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+     */
+    get: operations["getPortalOrderingPreferences"];
+    /**
+     * Update the signed-in customer's ordering profile
+     * @description Partial and STRICT: only the supplied fields change. `allergy_note` is at most 200 characters after trimming; `null` or a blank string removes it. `favourites` replaces the whole list (at most 30 active product ids). `marketing_consent` records an explicit opt-in or opt-out with its time and source. Answers the profile as it is after the change. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks `write:portal`), `403 ORDERING_NOT_ENABLED`, `422 FAVOURITE_LIMIT`, `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+     */
+    put: operations["updatePortalOrderingPreferences"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/ordering/addresses": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Save a delivery address to the signed-in customer's profile
+     * @description STRICT body. `address_id` is a verified address from `POST /api/v1/delivery/addresses/resolve`. `door_code` is stored encrypted and never returned (the address answers `has_door_code`). At most five saved addresses. Not idempotency-keyed. Errors: `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `422 ADDRESS_LIMIT`, `422 ADDRESS_NOT_VERIFIED`, `429 RATE_LIMITED`.
+     */
+    post: operations["addPortalOrderingAddress"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/ordering/addresses/{id}": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description `id` of a saved address from `addresses` in the ordering profile. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove a saved delivery address
+     * @description Another customer's address and an unknown id are the same `404 ADDRESS_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `404 ADDRESS_NOT_FOUND`, `429 RATE_LIMITED`.
+     */
+    delete: operations["removePortalOrderingAddress"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/ordering/favourites/{product_id}": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description A product id from the menu. */
+        product_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Add a favourite product
+     * @description No body. Adding a favourite that is already there changes nothing. At most 30 favourites. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `422 FAVOURITE_LIMIT`, `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+     */
+    put: operations["addPortalOrderingFavourite"];
+    post?: never;
+    /**
+     * Remove a favourite product
+     * @description No body. Removing a product that is not a favourite changes nothing. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+     */
+    delete: operations["removePortalOrderingFavourite"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/ordering/orders": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * The signed-in customer's last orders
+     * @description The last 10 orders, newest first, with line names and chosen option names as they were ordered. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+     */
+    get: operations["listPortalOrderingOrders"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/portal/ordering/orders/{order_id}/reorder": {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description `order_id` of one of the signed-in customer's orders. */
+        order_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Rebuild one of the customer's orders as a cart on today's menu
+     * @description No body; places nothing. Answers the order's lines priced from today's menu, and `dropped` for every line that cannot be ordered again (`sold_out`, `removed` or `unavailable`). Place the cart with `POST /api/v1/ordering/orders`. An order that is not this customer's is `404 ORDER_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `404 ORDER_NOT_FOUND`, `429 RATE_LIMITED`.
+     */
+    post: operations["reorderPortalOrderingOrder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/gdpr/export": {
     parameters: {
       query?: never;
@@ -1681,7 +1836,7 @@ export interface paths {
     put?: never;
     /**
      * Place an online order
-     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`, `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own, or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps: `return_url` missing or not on one of the workspace's sites) and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). Vipps: the answer is `status: awaiting_payment` with `payment.redirect_url`, where the customer pays; Vipps sends them back to `return_url` with `order_id` added. The order is placed once Vipps authorizes the payment and abandoned when unpaid after 30 minutes; the money is captured when the kitchen accepts, released on a decline, timeout or cancel before that, and refunded on a cancel after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`: Vipps refused, or could not be reached, as the payment was created. Delivery (`channel: delivery`, Vipps only) needs `delivery` with a verified address and a quote from `POST /api/v1/delivery/quotes`: 422 `QUOTE_NOT_USABLE` when the quote does not fit the order and `QUOTE_EXPIRED` when it runs out within a minute; the fee is the quote's and comes back as `delivery_fee_ore`. Scheduled timing is refused for now. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`, `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own, or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps: `return_url` missing or not on one of the workspace's sites) and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note) and `SAVED_ADDRESS_NOT_FOUND` (`saved_address_id` is not on the logged-in customer's profile). With `X-Portal-Session` the order is the logged-in customer's: their cutlery and contactless defaults apply when `preferences.cutlery` / `no_contact` are left out, their saved allergy note is copied when none is typed unless `preferences.include_allergy_note` is `false`, and `saved_address_id` picks one of their saved addresses. A session header that is present but unknown, expired or revoked is 401 `PORTAL_SESSION_INVALID` and places nothing. Vipps: the answer is `status: awaiting_payment` with `payment.redirect_url`, where the customer pays; Vipps sends them back to `return_url` with `order_id` added. The order is placed once Vipps authorizes the payment and abandoned when unpaid after 30 minutes; the money is captured when the kitchen accepts, released on a decline, timeout or cancel before that, and refunded on a cancel after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`: Vipps refused, or could not be reached, as the payment was created. Delivery (`channel: delivery`, Vipps only) needs `delivery` with a verified address and a quote from `POST /api/v1/delivery/quotes`: 422 `QUOTE_NOT_USABLE` when the quote does not fit the order and `QUOTE_EXPIRED` when it runs out within a minute; the fee is the quote's and comes back as `delivery_fee_ore`. Scheduled timing is refused for now. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
      */
     post: operations["createOrderingOrder"];
     delete?: never;
@@ -4117,8 +4272,12 @@ export interface components {
     OrderingOrderPreferences: {
       /** @description Shown to the kitchen only; never returned by the API. */
       allergy_note?: string;
-      cutlery: boolean;
+      /** @description Optional: left out, a logged-in customer's `cutlery_default` applies, and cutlery is on for a guest. */
+      cutlery?: boolean;
+      /** @description Optional: left out, a logged-in customer's `contactless_default` applies. */
       no_contact?: boolean;
+      /** @description With `X-Portal-Session` and no `allergy_note` typed: copy the customer's saved allergy note to the order. Default `true`; send `false` to leave it out. A typed `allergy_note` always wins. */
+      include_allergy_note?: boolean;
     };
     /** @description A new order. Strict: an unknown field (a price included) is 400 `VALIDATION_ERROR`. Optional fields are omitted, never null. */
     OrderingCreateOrderInput: {
@@ -4131,6 +4290,8 @@ export interface components {
       lines: components["schemas"]["OrderingOrderLineInput"][];
       customer: components["schemas"]["OrderingOrderCustomer"];
       preferences: components["schemas"]["OrderingOrderPreferences"];
+      /** @description Delivery: the `id` of one of the logged-in customer's saved addresses (needs `X-Portal-Session`). It is the delivery address: `delivery.quote_id` must be quoted for its `address_id`, and its floor, comment and door code apply unless `delivery` types them. Not on their profile: 422 `SAVED_ADDRESS_NOT_FOUND`. */
+      saved_address_id?: string;
       payment_method: components["schemas"]["OrderingPaymentMethod"];
       /**
        * Format: uri
@@ -4292,6 +4453,132 @@ export interface components {
         message: string;
         details?: components["schemas"]["OrderingErrorDetails"];
       };
+    };
+    /** @description The verified street address behind a saved address. */
+    PortalOrderingAddress: {
+      street: string;
+      house_number: string;
+      post_code: string;
+      city: string;
+    };
+    /** @description A delivery address saved to the customer's profile. `address` is `null` when the verified address can no longer be read. The door code is never returned; `has_door_code` says whether one is stored. */
+    PortalOrderingSavedAddress: {
+      /** @description The saved address's own id; pass it as `saved_address_id` to an order. */
+      id: string;
+      label: string;
+      /** @description The verified address id from `POST /api/v1/delivery/addresses/resolve`. */
+      address_id: string;
+      address: components["schemas"]["PortalOrderingAddress"] | null;
+      floor: string | null;
+      comment: string | null;
+      has_door_code: boolean;
+      /**
+       * Format: date-time
+       * @description ISO 8601 UTC.
+       */
+      last_used_at: string;
+    };
+    /** @description The customer's explicit ordering marketing decision, with when and where it was given. */
+    PortalOrderingMarketingConsent: {
+      given: boolean;
+      /**
+       * Format: date-time
+       * @description ISO 8601 UTC.
+       */
+      at: string;
+      /** @enum {string} */
+      source: "order_checkout";
+    };
+    /** @description The signed-in customer's ordering profile. */
+    PortalOrderingPreferences: {
+      addresses: components["schemas"]["PortalOrderingSavedAddress"][];
+      allergy_note: string | null;
+      cutlery_default: boolean;
+      contactless_default: boolean;
+      /** @description Favourite product ids. */
+      favourites: string[];
+      marketing_consent: components["schemas"]["PortalOrderingMarketingConsent"] | null;
+    };
+    ApiResponse_PortalOrderingPreferences: {
+      data: components["schemas"]["PortalOrderingPreferences"];
+    };
+    /** @description Partial and strict; only the supplied fields change. */
+    PortalOrderingPreferencesPatch: {
+      /** @description At most 200 characters after trimming; `null` or blank removes the note. */
+      allergy_note?: string | null;
+      cutlery_default?: boolean;
+      contactless_default?: boolean;
+      /** @description Replaces the whole list. Active product ids, at most 30. */
+      favourites?: string[];
+      /** @description An explicit opt-in (`true`) or opt-out (`false`), recorded with time and source. */
+      marketing_consent?: boolean;
+    };
+    /** @description A verified address to save. Strict. */
+    PortalOrderingAddressInput: {
+      /** @description A verified address id from `POST /api/v1/delivery/addresses/resolve`. */
+      address_id: string;
+      label?: string;
+      /** @description Stored encrypted; never returned. */
+      door_code?: string;
+      floor?: string;
+      comment?: string;
+    };
+    PortalOrderingOrderLine: {
+      product_id: string;
+      name: string;
+      quantity: number;
+      /** @description The chosen option names, as ordered. */
+      options: string[];
+    };
+    /** @description One of the customer's past orders. Money is integer øre, VAT included. */
+    PortalOrderingOrder: {
+      order_id: string;
+      order_number: string;
+      status: components["schemas"]["OrderingOrderStatus"];
+      channel: components["schemas"]["OrderingChannel"];
+      location_id: string;
+      /**
+       * Format: date-time
+       * @description ISO 8601 UTC.
+       */
+      created_at: string;
+      lines: components["schemas"]["PortalOrderingOrderLine"][];
+      total_ore: number;
+    };
+    ApiResponse_PortalOrderingOrders: {
+      data: components["schemas"]["PortalOrderingOrder"][];
+    };
+    /** @description A cart line priced from today's menu. Money is integer øre, VAT included. */
+    PortalOrderingReorderLine: {
+      product_id: string;
+      name: string;
+      quantity: number;
+      option_ids: string[];
+      /** @description The option names, in the order of `option_ids`. */
+      options: string[];
+      note?: string;
+      unit_price_ore: number;
+      line_total_ore: number;
+    };
+    /** @description A line of the old order that cannot be ordered again. */
+    PortalOrderingDroppedLine: {
+      name: string;
+      /** @enum {string} */
+      reason: "sold_out" | "removed" | "unavailable";
+    };
+    /** @description An old order rebuilt as a cart on today's menu. Nothing is placed; send the lines to `POST /api/v1/ordering/orders`. */
+    PortalOrderingReorder: {
+      location_id: string;
+      channel: components["schemas"]["OrderingChannel"];
+      cart: {
+        lines: components["schemas"]["PortalOrderingReorderLine"][];
+        subtotal_ore: number;
+        total_ore: number;
+      };
+      dropped: components["schemas"]["PortalOrderingDroppedLine"][];
+    };
+    ApiResponse_PortalOrderingReorder: {
+      data: components["schemas"]["PortalOrderingReorder"];
     };
   };
   responses: {
@@ -6265,6 +6552,218 @@ export interface operations {
       default: components["responses"]["ApiError"];
     };
   };
+  getPortalOrderingPreferences: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The ordering profile. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  updatePortalOrderingPreferences: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalOrderingPreferencesPatch"];
+      };
+    };
+    responses: {
+      /** @description The ordering profile after the change. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  addPortalOrderingAddress: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PortalOrderingAddressInput"];
+      };
+    };
+    responses: {
+      /** @description The ordering profile with the new address. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  removePortalOrderingAddress: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description `id` of a saved address from `addresses` in the ordering profile. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The ordering profile without the address. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  addPortalOrderingFavourite: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description A product id from the menu. */
+        product_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The ordering profile with the favourite. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  removePortalOrderingFavourite: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description A product id from the menu. */
+        product_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The ordering profile without the favourite. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingPreferences"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  listPortalOrderingOrders: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The orders. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingOrders"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  reorderPortalOrderingOrder: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description The `session_token` returned by `verifyPortalLogin`. A bearer credential for ONE contact — the site's server keeps it in an HttpOnly cookie and forwards it here. Missing answers `401 PORTAL_SESSION_REQUIRED`; unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID`. */
+        "X-Portal-Session": components["parameters"]["PortalSession"];
+      };
+      path: {
+        /** @description `order_id` of one of the signed-in customer's orders. */
+        order_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The cart. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_PortalOrderingReorder"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
   requestGdprExport: {
     parameters: {
       query?: never;
@@ -7107,6 +7606,8 @@ export interface operations {
         "Idempotency-Key": string;
         /** @description The IP address of the guest's browser, as your server saw it. Optional and untrusted: it only selects the per-IP rate-limit bucket (IPv6 per /64). A value that is not an IP literal is ignored. */
         "X-Medal-Client-Ip"?: string;
+        /** @description A logged-in customer's `session_token` (from `verifyPortalLogin`). When present the order is placed for THAT customer, with their profile defaults and saved addresses. Unknown, expired or revoked answers `401 PORTAL_SESSION_INVALID` and places nothing. Omit it for a guest order. */
+        "X-Portal-Session"?: string;
       };
       path?: never;
       cookie?: never;

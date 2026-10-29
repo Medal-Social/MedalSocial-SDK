@@ -1879,6 +1879,217 @@ paths:
           description: Contact erased and session revoked.
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/preferences:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: getPortalOrderingPreferences
+      summary: The signed-in customer's ordering profile
+      description: >-
+        Saved delivery addresses (newest use first), the allergy note, the
+        cutlery and contactless defaults, favourite product ids and the
+        ordering marketing consent. Per customer and `Cache-Control:
+        no-store`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks
+        `read:portal`), `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+    put:
+      tags: [Portal]
+      operationId: updatePortalOrderingPreferences
+      summary: Update the signed-in customer's ordering profile
+      description: >-
+        Partial and STRICT: only the supplied fields change. `allergy_note`
+        is at most 200 characters after trimming; `null` or a blank string
+        removes it. `favourites` replaces the whole list (at most 30 active
+        product ids). `marketing_consent` records an explicit opt-in or
+        opt-out with its time and source. Answers the profile as it is after
+        the change. Errors: `400 VALIDATION_ERROR`,
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN` (key lacks `write:portal`), `403 ORDERING_NOT_ENABLED`,
+        `422 FAVOURITE_LIMIT`, `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalOrderingPreferencesPatch"
+      responses:
+        "200":
+          description: The ordering profile after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/addresses:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: addPortalOrderingAddress
+      summary: Save a delivery address to the signed-in customer's profile
+      description: >-
+        STRICT body. `address_id` is a verified address from
+        `POST /api/v1/delivery/addresses/resolve`. `door_code` is stored
+        encrypted and never returned (the address answers `has_door_code`).
+        At most five saved addresses. Not idempotency-keyed. Errors:
+        `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `422 ADDRESS_LIMIT`,
+        `422 ADDRESS_NOT_VERIFIED`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalOrderingAddressInput"
+      responses:
+        "201":
+          description: The ordering profile with the new address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/addresses/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: id
+        in: path
+        required: true
+        description: "`id` of a saved address from `addresses` in the ordering profile."
+        schema:
+          type: string
+          maxLength: 64
+    delete:
+      tags: [Portal]
+      operationId: removePortalOrderingAddress
+      summary: Remove a saved delivery address
+      description: >-
+        Another customer's address and an unknown id are the same
+        `404 ADDRESS_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `404 ADDRESS_NOT_FOUND`,
+        `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile without the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/favourites/{product_id}:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: product_id
+        in: path
+        required: true
+        description: A product id from the menu.
+        schema:
+          type: string
+          maxLength: 64
+    put:
+      tags: [Portal]
+      operationId: addPortalOrderingFavourite
+      summary: Add a favourite product
+      description: >-
+        No body. Adding a favourite that is already there changes nothing.
+        At most 30 favourites. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `422 FAVOURITE_LIMIT`,
+        `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile with the favourite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Portal]
+      operationId: removePortalOrderingFavourite
+      summary: Remove a favourite product
+      description: >-
+        No body. Removing a product that is not a favourite changes nothing.
+        Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile without the favourite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/orders:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: listPortalOrderingOrders
+      summary: The signed-in customer's last orders
+      description: >-
+        The last 10 orders, newest first, with line names and chosen option
+        names as they were ordered. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The orders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingOrders"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/orders/{order_id}/reorder:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: order_id
+        in: path
+        required: true
+        description: "`order_id` of one of the signed-in customer's orders."
+        schema:
+          type: string
+          maxLength: 64
+    post:
+      tags: [Portal]
+      operationId: reorderPortalOrderingOrder
+      summary: Rebuild one of the customer's orders as a cart on today's menu
+      description: >-
+        No body; places nothing. Answers the order's lines priced from
+        today's menu, and `dropped` for every line that cannot be ordered
+        again (`sold_out`, `removed` or `unavailable`). Place the cart with
+        `POST /api/v1/ordering/orders`. An order that is not this customer's
+        is `404 ORDER_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `404 ORDER_NOT_FOUND`,
+        `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The cart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingReorder"
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/gdpr/export:
     post:
       tags: [GDPR]
@@ -2736,7 +2947,16 @@ paths:
         `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own,
         or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps:
         `return_url` missing or not on one of the workspace's sites) and
-        `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note).
+        `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note) and
+        `SAVED_ADDRESS_NOT_FOUND` (`saved_address_id` is not on the
+        logged-in customer's profile). With `X-Portal-Session` the order is
+        the logged-in customer's: their cutlery and contactless defaults apply
+        when `preferences.cutlery` / `no_contact` are left out, their saved
+        allergy note is copied when none is typed unless
+        `preferences.include_allergy_note` is `false`, and
+        `saved_address_id` picks one of their saved addresses. A session
+        header that is present but unknown, expired or revoked is 401
+        `PORTAL_SESSION_INVALID` and places nothing.
         Vipps: the answer is `status: awaiting_payment` with
         `payment.redirect_url`, where the customer pays; Vipps sends them back
         to `return_url` with `order_id` added. The order is placed once Vipps
@@ -2774,6 +2994,17 @@ paths:
           schema:
             type: string
             maxLength: 45
+        - name: X-Portal-Session
+          in: header
+          required: false
+          description: >-
+            A logged-in customer's `session_token` (from `verifyPortalLogin`).
+            When present the order is placed for THAT customer, with their
+            profile defaults and saved addresses. Unknown, expired or revoked
+            answers `401 PORTAL_SESSION_INVALID` and places nothing. Omit it
+            for a guest order.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -3033,6 +3264,9 @@ components:
       # (the codes come from handler throws, not from a registry), and would make
       # every generated client reject a code the server adds next week.
       x-medal-error-codes:
+        - ADDRESS_LIMIT
+        - ADDRESS_NOT_FOUND
+        - ADDRESS_NOT_VERIFIED
         - AI_GENERATION_FAILED
         - AI_QUOTA_EXCEEDED
         - CAPABILITY_API_PATH_INVALID
@@ -3053,6 +3287,7 @@ components:
         - CONTACT_NOT_FOUND
         - CONVERSATION_NOT_LINKABLE
         - CUTOFF
+        - FAVOURITE_LIMIT
         - FORBIDDEN
         - GRANT_NOT_FOUND
         - IDEMPOTENCY_CONFLICT
@@ -3081,10 +3316,12 @@ components:
         - PORTAL_SESSION_REQUIRED
         - PREORDER_DISABLED
         - PREVIEW_RECEIPT_REQUIRED
+        - PRODUCT_NOT_FOUND
         - QUOTE_EXPIRED
         - QUOTE_NOT_USABLE
         - RATE_LIMITED
         - RETURN_URL_NOT_ALLOWED
+        - SAVED_ADDRESS_NOT_FOUND
         - SEND_FAILED
         - SOLD_OUT
         - TABLE_NOT_FOUND
@@ -7958,7 +8195,6 @@ components:
           maxLength: 254
     OrderingOrderPreferences:
       type: object
-      required: [cutlery]
       additionalProperties: false
       properties:
         allergy_note:
@@ -7966,8 +8202,20 @@ components:
           type: string
           maxLength: 200
         cutlery:
+          description: >-
+            Optional: left out, a logged-in customer's `cutlery_default`
+            applies, and cutlery is on for a guest.
           type: boolean
         no_contact:
+          description: >-
+            Optional: left out, a logged-in customer's `contactless_default`
+            applies.
+          type: boolean
+        include_allergy_note:
+          description: >-
+            With `X-Portal-Session` and no `allergy_note` typed: copy the
+            customer's saved allergy note to the order. Default `true`; send
+            `false` to leave it out. A typed `allergy_note` always wins.
           type: boolean
     OrderingCreateOrderInput:
       description: >-
@@ -7997,6 +8245,15 @@ components:
           $ref: "#/components/schemas/OrderingOrderCustomer"
         preferences:
           $ref: "#/components/schemas/OrderingOrderPreferences"
+        saved_address_id:
+          description: >-
+            Delivery: the `id` of one of the logged-in customer's saved
+            addresses (needs `X-Portal-Session`). It is the delivery address:
+            `delivery.quote_id` must be quoted for its `address_id`, and its
+            floor, comment and door code apply unless `delivery` types them.
+            Not on their profile: 422 `SAVED_ADDRESS_NOT_FOUND`.
+          type: string
+          maxLength: 64
         payment_method:
           $ref: "#/components/schemas/OrderingPaymentMethod"
         return_url:
@@ -8290,3 +8547,256 @@ components:
               type: string
             details:
               $ref: "#/components/schemas/OrderingErrorDetails"
+    PortalOrderingAddress:
+      description: The verified street address behind a saved address.
+      type: object
+      required: [street, house_number, post_code, city]
+      properties:
+        street:
+          type: string
+        house_number:
+          type: string
+        post_code:
+          type: string
+        city:
+          type: string
+    PortalOrderingSavedAddress:
+      description: >-
+        A delivery address saved to the customer's profile. `address` is
+        `null` when the verified address can no longer be read. The door code
+        is never returned; `has_door_code` says whether one is stored.
+      type: object
+      required:
+        [id, label, address_id, address, floor, comment, has_door_code, last_used_at]
+      properties:
+        id:
+          description: The saved address's own id; pass it as `saved_address_id` to an order.
+          type: string
+        label:
+          type: string
+        address_id:
+          description: The verified address id from `POST /api/v1/delivery/addresses/resolve`.
+          type: string
+        address:
+          oneOf:
+            - $ref: "#/components/schemas/PortalOrderingAddress"
+            - type: "null"
+        floor:
+          type: [string, "null"]
+        comment:
+          type: [string, "null"]
+        has_door_code:
+          type: boolean
+        last_used_at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+    PortalOrderingMarketingConsent:
+      description: The customer's explicit ordering marketing decision, with when and where it was given.
+      type: object
+      required: [given, at, source]
+      properties:
+        given:
+          type: boolean
+        at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [order_checkout]
+    PortalOrderingPreferences:
+      description: The signed-in customer's ordering profile.
+      type: object
+      required:
+        [addresses, allergy_note, cutlery_default, contactless_default, favourites, marketing_consent]
+      properties:
+        addresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingSavedAddress"
+        allergy_note:
+          type: [string, "null"]
+        cutlery_default:
+          type: boolean
+        contactless_default:
+          type: boolean
+        favourites:
+          description: Favourite product ids.
+          type: array
+          items:
+            type: string
+        marketing_consent:
+          oneOf:
+            - $ref: "#/components/schemas/PortalOrderingMarketingConsent"
+            - type: "null"
+    ApiResponse_PortalOrderingPreferences:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalOrderingPreferences"
+    PortalOrderingPreferencesPatch:
+      description: Partial and strict; only the supplied fields change.
+      type: object
+      additionalProperties: false
+      properties:
+        allergy_note:
+          description: At most 200 characters after trimming; `null` or blank removes the note.
+          type: [string, "null"]
+        cutlery_default:
+          type: boolean
+        contactless_default:
+          type: boolean
+        favourites:
+          description: Replaces the whole list. Active product ids, at most 30.
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 64
+        marketing_consent:
+          description: An explicit opt-in (`true`) or opt-out (`false`), recorded with time and source.
+          type: boolean
+    PortalOrderingAddressInput:
+      description: A verified address to save. Strict.
+      type: object
+      required: [address_id]
+      additionalProperties: false
+      properties:
+        address_id:
+          description: A verified address id from `POST /api/v1/delivery/addresses/resolve`.
+          type: string
+          maxLength: 64
+        label:
+          type: string
+          maxLength: 40
+        door_code:
+          description: Stored encrypted; never returned.
+          type: string
+          maxLength: 20
+        floor:
+          type: string
+          maxLength: 20
+        comment:
+          type: string
+          maxLength: 200
+    PortalOrderingOrderLine:
+      type: object
+      required: [product_id, name, quantity, options]
+      properties:
+        product_id:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        options:
+          description: The chosen option names, as ordered.
+          type: array
+          items:
+            type: string
+    PortalOrderingOrder:
+      description: One of the customer's past orders. Money is integer øre, VAT included.
+      type: object
+      required:
+        [order_id, order_number, status, channel, location_id, created_at, lines, total_ore]
+      properties:
+        order_id:
+          type: string
+        order_number:
+          type: string
+        status:
+          $ref: "#/components/schemas/OrderingOrderStatus"
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        location_id:
+          type: string
+        created_at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingOrderLine"
+        total_ore:
+          type: integer
+    ApiResponse_PortalOrderingOrders:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingOrder"
+    PortalOrderingReorderLine:
+      description: A cart line priced from today's menu. Money is integer øre, VAT included.
+      type: object
+      required:
+        [product_id, name, quantity, option_ids, options, unit_price_ore, line_total_ore]
+      properties:
+        product_id:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        option_ids:
+          type: array
+          items:
+            type: string
+        options:
+          description: The option names, in the order of `option_ids`.
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        unit_price_ore:
+          type: integer
+        line_total_ore:
+          type: integer
+    PortalOrderingDroppedLine:
+      description: A line of the old order that cannot be ordered again.
+      type: object
+      required: [name, reason]
+      properties:
+        name:
+          type: string
+        reason:
+          type: string
+          enum: [sold_out, removed, unavailable]
+    PortalOrderingReorder:
+      description: >-
+        An old order rebuilt as a cart on today's menu. Nothing is placed;
+        send the lines to `POST /api/v1/ordering/orders`.
+      type: object
+      required: [location_id, channel, cart, dropped]
+      properties:
+        location_id:
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        cart:
+          type: object
+          required: [lines, subtotal_ore, total_ore]
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: "#/components/schemas/PortalOrderingReorderLine"
+            subtotal_ore:
+              type: integer
+            total_ore:
+              type: integer
+        dropped:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingDroppedLine"
+    ApiResponse_PortalOrderingReorder:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalOrderingReorder"

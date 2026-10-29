@@ -224,6 +224,14 @@ export { Helpdesk } from "./resources/helpdesk";
 export type { OrderingReadOptions, OrderingRefusalError } from "./resources/ordering";
 export { isOrderingRefusal, Ordering, OrderingOrders } from "./resources/ordering";
 export { Portal, PortalSessionScope } from "./resources/portal";
+export {
+  PortalOrdering,
+  PortalOrderingAddresses,
+  PortalOrderingFavourites,
+  PortalOrderingOrders,
+  PortalOrderingPreferencesApi,
+  PortalOrderingSessionScope,
+} from "./resources/portal-ordering";
 export { Posts } from "./resources/posts";
 export { Scan } from "./resources/scan";
 export { Webhooks } from "./resources/webhooks";
@@ -482,6 +490,19 @@ export type {
   PortalVippsStart,
   PortalVippsStartInput,
 } from "./types/portal";
+export type {
+  PortalOrderingAddress,
+  PortalOrderingAddressInput,
+  PortalOrderingDroppedLine,
+  PortalOrderingMarketingConsent,
+  PortalOrderingOrder,
+  PortalOrderingOrderLine,
+  PortalOrderingPreferences,
+  PortalOrderingPreferencesPatch,
+  PortalOrderingReorder,
+  PortalOrderingReorderLine,
+  PortalOrderingSavedAddress,
+} from "./types/portal-ordering";
 export type {
   Channel,
   CreatePostInput,

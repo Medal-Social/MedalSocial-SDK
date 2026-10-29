@@ -537,6 +537,57 @@ strings.
 
 None of the portal calls carries an `Idempotency-Key`: the two login routes cannot duplicate anything, and the session routes are either reads or terminal.
 
+#### Restaurant ordering profile, history and reorder
+
+For a restaurant's own site with online ordering: the logged-in customer's
+saved delivery addresses, allergy note, cutlery and contactless defaults,
+favourites and marketing consent, their last orders, and «order again». Same
+credentials as the rest of the portal (session token first, sent as
+`X-Portal-Session`); every response is `no-store`, and a workspace without
+online ordering answers `403 ORDERING_NOT_ENABLED`.
+
+```ts
+const token = session.session_token;
+
+// The profile — every write below answers it too
+const { data: prefs } = await medal.portal.ordering.preferences.get(token);
+await medal.portal.ordering.preferences.update(token, {
+  allergy_note: 'Peanøtter',     // ≤ 200 after trimming; null or '' removes it
+  cutlery_default: false,
+  contactless_default: true,
+  marketing_consent: true,       // explicit, recorded with time and source
+}); // favourites: [...] replaces the whole list (≤ 30) — 422 FAVOURITE_LIMIT / PRODUCT_NOT_FOUND
+
+// Saved delivery addresses (≤ 5) — address_id comes from POST /api/v1/delivery/addresses/resolve
+await medal.portal.ordering.addresses.add(token, {
+  address_id,
+  label: 'Hjem',                 // ≤ 40
+  door_code: '0000',             // ≤ 20, stored encrypted, never returned (has_door_code)
+  floor: '3',
+  comment: 'Ring på',
+}); // 201 — 422 ADDRESS_LIMIT / ADDRESS_NOT_VERIFIED
+await medal.portal.ordering.addresses.remove(token, prefs.addresses[0].id); // 404 ADDRESS_NOT_FOUND
+
+// Favourites one at a time (add is idempotent)
+await medal.portal.ordering.favourites.add(token, productId);
+await medal.portal.ordering.favourites.remove(token, productId);
+
+// The last 10 orders, newest first, and «order again»
+const { data: orders } = await medal.portal.ordering.orders.list(token);
+const { data: cart } = await medal.portal.ordering.orders.reorder(token, orders[0].order_id);
+// cart.cart.lines are priced from today's menu; cart.dropped lists what is
+// sold_out, removed or unavailable. Nothing is placed — check out with
+// medal.ordering.orders.create(..., { portalSession: token }).
+// bound form: const ordering = medal.portal.session(token).ordering;
+// ordering.preferences(), updatePreferences(patch), addAddress(input), removeAddress(id),
+// addFavourite(id), removeFavourite(id), orders(), reorder(orderId)
+```
+
+`preferences.update`, `addresses.add` and `addresses.remove` are sent exactly
+once (a retry would repeat a consent event, save an address twice or report a
+removal as a 404); the reads, the favourite toggles and `reorder` retry like
+any other call.
+
 #### Log in with Vipps
 
 Two server calls; the middle leg is the customer's browser.
@@ -716,7 +767,7 @@ try {
   // PREORDER_DISABLED, TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
   // INVALID_OPTIONS / INVALID_CART (details.line_index),
   // PAYMENT_METHOD_NOT_ALLOWED, PAYMENT_UNAVAILABLE, RETURN_URL_NOT_ALLOWED,
-  // INVALID_CUSTOMER (details.reason).
+  // INVALID_CUSTOMER (details.reason), SAVED_ADDRESS_NOT_FOUND.
   if (isOrderingRefusal(error) && error.code === 'SOLD_OUT') {
     markSoldOut(error.details?.ids ?? []);
   } else throw error;
@@ -733,6 +784,43 @@ const { data: view } = await medal.ordering.orders.status(orderId);
 // Cancel before the restaurant answers. Once it has, 409 INVALID_TRANSITION
 // with details.status — the guest has to call the restaurant.
 await medal.ordering.orders.cancel(orderId);
+```
+
+A logged-in customer's order: pass their portal session token as
+`portalSession` (sent as `X-Portal-Session`). The order is then theirs, their
+cutlery and contactless defaults apply to `preferences` left out (cutlery is
+on for a guest), their saved allergy note is copied when none is typed unless
+`preferences.include_allergy_note` is `false`, and `saved_address_id` picks
+one of their saved addresses (422 `SAVED_ADDRESS_NOT_FOUND` otherwise). A dead
+session is 401 `PORTAL_SESSION_INVALID` and places nothing. See
+[Restaurant ordering profile](#restaurant-ordering-profile-history-and-reorder).
+
+```ts
+// «Order again»: the reorder answer is for display; send only the line inputs.
+const { data: again } = await medal.portal.ordering.orders.reorder(token, orderId);
+const idempotencyKey = crypto.randomUUID(); // one per checkout; reuse it on retries
+
+await medal.ordering.orders.create(
+  {
+    location_id: again.location_id,
+    channel: again.channel,
+    lines: again.cart.lines.map(({ product_id, quantity, option_ids, note }) => ({
+      product_id,
+      quantity,
+      option_ids,
+      ...(note !== undefined ? { note } : {}),
+    })),
+    customer: { name: 'Test Customer', phone: '+4790000000' },
+    preferences: {},                   // the customer's defaults
+    // Delivery instead: channel 'delivery', one of their saved addresses, and a
+    // quote for that address's address_id (its door code and floor come along).
+    // saved_address_id: prefs.addresses[0].id,
+    // delivery: { verified_address_id: prefs.addresses[0].address_id, quote_id },
+    payment_method: 'vipps',
+    return_url: 'https://example.com/order/done',
+  },
+  { idempotencyKey, portalSession: token },
+);
 ```
 
 ### Helpdesk
