@@ -4683,6 +4683,11 @@ export interface components {
       prep_minutes?: number;
       /** @description The order total in øre, for free delivery over a threshold. For an online order: the cart subtotal. */
       order_total?: number;
+      /**
+       * Format: date-time
+       * @description A pre-order: the slot the customer picked, 1 hour to 7 days ahead (ISO 8601 with `Z` or an offset). The quote is for a dropoff at that time, and an order with `timing.kind: scheduled` takes only a quote made for its slot (else `422 QUOTE_NOT_USABLE`). Omit for an order as soon as possible.
+       */
+      scheduled_dropoff_time?: string;
     };
     /** @description An amount in integer øre. */
     DeliveryMoney: {

@@ -246,6 +246,18 @@ describe("delivery.quotes.create", () => {
     expect(result).toEqual({ data: QUOTE });
   });
 
+  it("sends a pre-order's slot as scheduled_dropoff_time", async () => {
+    const slot = { address_id: "addr_1", scheduled_dropoff_time: "2026-10-24T18:30:00+02:00" };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      expect(JSON.parse(init?.body as string)).toEqual(slot);
+      return ok(QUOTE, 201);
+    });
+
+    const { data } = await medal().delivery.quotes.create(slot);
+
+    expect(data).toEqual(QUOTE);
+  });
+
   it("sends just the address when that is all there is, and reads a null fee", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       expect(JSON.parse(init?.body as string)).toEqual({ address_id: "addr_1" });

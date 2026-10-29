@@ -33,6 +33,10 @@ export type DeliveryResolvedAddress = Schemas["DeliveryResolvedAddress"];
  * - `order_total`: whole øre 0-100 000 000, for free delivery over a
  *   threshold. For an online order it MUST be the cart subtotal — an order
  *   whose subtotal differs refuses the quote (`422 QUOTE_NOT_USABLE`).
+ * - `scheduled_dropoff_time`: a pre-order's slot (ISO 8601 with `Z` or an
+ *   offset, 1 hour to 7 days ahead). The quote is for a dropoff then, and a
+ *   `timing: { kind: 'scheduled', at }` order takes only a quote made for its
+ *   own slot (`422 QUOTE_NOT_USABLE`). Omit for an order as soon as possible.
  */
 export type DeliveryQuoteInput = Schemas["DeliveryQuoteInput"];
 

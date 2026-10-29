@@ -10,6 +10,7 @@ const MESSAGE: Readonly<Record<OrderingRouteErrorCode, keyof OrderingLabels>> = 
   CUTOFF: 'errorCutoff',
   CHANNEL_NOT_AVAILABLE: 'errorChannel',
   PREORDER_DISABLED: 'errorPreorder',
+  SLOT_TAKEN: 'errorSlotTaken',
   TABLE_NOT_FOUND: 'errorTable',
   SOLD_OUT: 'errorSoldOut',
   UNAVAILABLE: 'errorUnavailable',

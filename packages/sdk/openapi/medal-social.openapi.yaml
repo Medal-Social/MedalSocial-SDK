@@ -9066,6 +9066,15 @@ components:
           type: integer
           minimum: 0
           maximum: 100000000
+        scheduled_dropoff_time:
+          description: >-
+            A pre-order: the slot the customer picked, 1 hour to 7 days ahead
+            (ISO 8601 with `Z` or an offset). The quote is for a dropoff at
+            that time, and an order with `timing.kind: scheduled` takes only
+            a quote made for its slot (else `422 QUOTE_NOT_USABLE`). Omit for
+            an order as soon as possible.
+          type: string
+          format: date-time
     DeliveryMoney:
       description: An amount in integer øre.
       type: object
