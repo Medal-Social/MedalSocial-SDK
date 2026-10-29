@@ -333,6 +333,53 @@ server cache are the 60-second "ISR". Add `export const dynamic =
   menu is dropped and the error answered. `onError` sees every failed Medal read,
   for the site's logger.
 
+### Checkout and order routes
+
+Every route takes `{ apiKey, baseUrl?, onError? }`, answers
+`{ data }` or the same fixed-word `{ error: { code, message } }`
+(`OrderingRouteErrorCode` in `/core`), and never puts the key in a response.
+
+```ts
+// app/api/ordering/locations/route.ts
+export const GET = createLocationsRoute({ apiKey, location });
+// app/api/ordering/slots/route.ts — ?channel=takeaway&date=2026-10-30
+export const GET = createSlotsRoute({ apiKey, location });
+// app/api/ordering/table/route.ts — ?t=<token from the table QR>
+export const GET = createTableRoute({ apiKey });
+// app/api/ordering/orders/route.ts
+export const POST = createPlaceOrderRoute({
+  apiKey,
+  location,
+  returnUrl: 'https://example.no/api/ordering/vipps-return',
+});
+// app/api/ordering/order/route.ts and …/status/route.ts — ?id=<order id>
+export const GET = createOrderRoute({ apiKey });
+export const GET = createOrderStatusRoute({ apiKey });
+// app/api/ordering/vipps-return/route.ts
+export const GET = createVippsReturnRoute({
+  apiKey,
+  receiptPath: '/bestill/kvittering',
+  fallbackPath: '/bestill',
+});
+```
+
+- **Place order** — the browser posts a `PlaceOrderRequest` with the draft's
+  `Idempotency-Key` (`placeOrder` in `/core` does both). The route refuses a
+  cross-origin `Origin` (403), anything but JSON (415), a missing key (400), a
+  body over 32 KB (413), and any key a `PlaceOrderRequest` does not have — a
+  price, `location_id`, `return_url` — (400). It adds `location_id` and, for
+  Vipps, `return_url` from its own options, forwards the guest's IP
+  (`cf-connecting-ip`, the first `x-forwarded-for`, `x-real-ip`, or your
+  `clientIp(request)`) for Medal's per-IP limit, and answers `201`. Medal's
+  refusals pass through as `422` with their code and only `ids`, `line_index`
+  and `reason`. Delivery is not taken yet (plan 8c).
+- **Locations** are cached 15 s and slots 60 s on the CDN; the table, the
+  order and its status are `no-store`.
+- **Vipps return** — Medal sends the guest back with `?order_id=`; the route
+  checks the order exists and answers `303` to `<receiptPath>/<id>`, or to
+  `fallbackPath` for a missing or unknown order. The receipt page polls the
+  status (`OrderStatus`), so a payment still settling shows as such.
+
 ## Parity
 
 `src/core/hours.ts` is the Medal API's hours engine, and
