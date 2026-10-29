@@ -147,22 +147,42 @@ export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
  * VAT rate and name comes from the server menu, and an unknown field is a
  * `400 VALIDATION_ERROR`. Leave optional fields out rather than sending `null`.
  * A `vipps` order needs `return_url` (a page on one of the workspace's sites);
- * `pay_at_counter` takes none.
+ * `pay_at_counter` takes none. A `delivery` order is Vipps only and needs
+ * `delivery` ({@link OrderingDeliveryInput}); no other channel takes it.
  */
 export type OrderingCreateOrderInput = Omit<
   Schemas["OrderingCreateOrderInput"],
-  "payment_method" | "return_url"
+  "channel" | "payment_method" | "return_url" | "delivery"
 > &
   (
-    | { payment_method: "pay_at_counter"; return_url?: never }
-    | { payment_method: "vipps"; return_url: string }
+    | {
+        channel: Exclude<Schemas["OrderingChannel"], "delivery">;
+        payment_method: "pay_at_counter";
+        return_url?: never;
+        delivery?: never;
+      }
+    | {
+        channel: Exclude<Schemas["OrderingChannel"], "delivery">;
+        payment_method: "vipps";
+        return_url: string;
+        delivery?: never;
+      }
+    | {
+        channel: "delivery";
+        payment_method: "vipps";
+        return_url: string;
+        delivery: OrderingDeliveryInput;
+      }
   );
 
 /**
  * A delivery order's address, quote and door details (`channel: 'delivery'`,
- * Vipps only). Get `verified_address_id` from `delivery.addresses.resolve()`
- * and `quote_id` from `delivery.quotes.create()` with `order_total` = the
- * cart's subtotal. The fee is the quote's; never send it.
+ * Vipps only). The SDK has no delivery resource yet: call the Medal API with
+ * the same key. `verified_address_id` is the `address_id` of
+ * `POST /api/v1/delivery/addresses/resolve` (scope `delivery.address.read`),
+ * and `quote_id` the `quote_id` of `POST /api/v1/delivery/quotes` (scope
+ * `delivery.quote.create`) made with `order_total` = the cart's subtotal. The
+ * fee is the quote's; never send it.
  */
 export type OrderingDeliveryInput = Schemas["OrderingDeliveryInput"];
 

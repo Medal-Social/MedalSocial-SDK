@@ -327,6 +327,28 @@ describe("ordering.orders.create", () => {
     }
   });
 
+  it("types a delivery order as Vipps with delivery details, and delivery details as delivery only", () => {
+    // @ts-expect-error: a delivery order needs `delivery`.
+    const noDetails: OrderingCreateOrderInput = {
+      ...ORDER_INPUT,
+      channel: "delivery",
+      payment_method: "vipps",
+      return_url: "https://bistro.no/takk",
+    };
+    // @ts-expect-error: delivery is Vipps only.
+    const atCounter: OrderingCreateOrderInput = {
+      ...ORDER_INPUT,
+      channel: "delivery",
+      delivery: { verified_address_id: "a", quote_id: "q" },
+    };
+    // @ts-expect-error: `delivery` is for the delivery channel only.
+    const takeaway: OrderingCreateOrderInput = {
+      ...ORDER_INPUT,
+      delivery: { verified_address_id: "a", quote_id: "q" },
+    };
+    expect([noDetails, atCounter, takeaway]).toHaveLength(3);
+  });
+
   it("passes the caller's AbortSignal through", async () => {
     const controller = new AbortController();
     controller.abort(new Error("gone"));

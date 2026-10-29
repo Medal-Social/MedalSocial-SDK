@@ -80,6 +80,11 @@ export function deliveryWindowLabel(
 ): string {
   const min = clock(eta.min, timeZone);
   const max = clock(eta.max, timeZone);
-  const time = min === max ? min : `${min}–${max}`;
-  return DELIVERED_AROUND[labelLocale(locale)].replace('{time}', time);
+  // One time only for one instant: two instants on the same clock (a DST
+  // rollback) still read as a window.
+  const range = Date.parse(eta.min) === Date.parse(eta.max) ? min : `${min}–${max}`;
+  const pack = labelLocale(locale);
+  // A right-to-left paragraph would reverse «19:05–19:15»: keep the window left-to-right.
+  const time = pack === 'ar' ? `\u2066${range}\u2069` : range;
+  return DELIVERED_AROUND[pack].replace('{time}', time);
 }
