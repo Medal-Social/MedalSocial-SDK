@@ -12,6 +12,7 @@
 // written as `checkCart` answers: the total and each line's total for a cart
 // it prices, the code and its `ids`/`lineIndex` for one it refuses.
 
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -248,7 +249,15 @@ try {
     return { name, lines, result };
   });
   writeFileSync(out, `${JSON.stringify({ menu: MENU, cases: table }, null, 2)}\n`);
-  console.log(`wrote ${table.length} cases to ${out}`);
+  const biome = spawnSync('pnpm', ['exec', 'biome', 'format', '--write', out], {
+    cwd: root,
+    stdio: 'inherit',
+  });
+  if (biome.status !== 0) {
+    console.error('[export-cart-fixtures] biome format failed');
+    process.exit(1);
+  }
+  console.log(`[export-cart-fixtures] ${table.length} cases → ${out}`);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

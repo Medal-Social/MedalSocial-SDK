@@ -56,10 +56,12 @@ function checkout(props: Partial<CheckoutProps> = {}) {
 
 async function fillDetails(
   user: ReturnType<typeof userEvent.setup>,
-  details = { name: 'Kari', phone: '912 34 567' }
+  details = { name: 'Kari', phone: '912 34 567' },
+  nameLabel = 'Navn',
+  phoneLabel = 'Mobilnummer'
 ) {
-  await user.type(screen.getByLabelText('Navn'), details.name);
-  await user.type(screen.getByLabelText('Mobilnummer'), details.phone);
+  await user.type(screen.getByLabelText(nameLabel), details.name);
+  await user.type(screen.getByLabelText(phoneLabel), details.phone);
 }
 
 describe('Checkout', () => {
@@ -251,6 +253,61 @@ describe('Checkout', () => {
       at: '2026-10-30T16:15:00Z',
     });
     expect(loadSlots).toHaveBeenCalledWith({ channel: 'takeaway', date: '2026-10-29' });
+  });
+
+  it('keeps only the latest day’s slots, in English, and goes back to as soon as possible', async () => {
+    const answers: Record<string, (s: OrderingSlot[]) => void> = {};
+    const failures: Record<string, (e: Error) => void> = {};
+    const loadSlots = vi.fn(
+      ({ date }: { date: string }) =>
+        new Promise<OrderingSlot[]>((resolve, reject) => {
+          answers[date] = resolve;
+          failures[date] = reject;
+        })
+    );
+    const { user, onPlace } = checkout({ loadSlots, locale: 'en' });
+    await user.click(screen.getByRole('radio', { name: 'Choose a time' }));
+    const day = screen.getByLabelText('Day');
+    expect([...(day as HTMLSelectElement).options].map((o) => o.text)).toEqual([
+      'Today',
+      'Tomorrow',
+      'Saturday 31 October',
+    ]);
+    await user.selectOptions(day, '2026-10-31');
+    await user.selectOptions(day, '2026-10-30');
+    expect(loadSlots.mock.calls.map((c) => c[0].date)).toEqual([
+      '2026-10-29',
+      '2026-10-31',
+      '2026-10-30',
+    ]);
+    await act(async () => failures['2026-10-31']?.(new Error('late')));
+    await act(async () =>
+      answers['2026-10-29']?.([{ start: '2026-10-29T15:00:00Z', end: '2026-10-29T15:15:00Z' }])
+    );
+    expect(screen.getByText('Finding free times …')).toBeInTheDocument();
+    await act(async () =>
+      answers['2026-10-30']?.([{ start: '2026-10-30T15:00:00Z', end: '2026-10-30T15:15:00Z' }])
+    );
+    expect(
+      [...(screen.getByLabelText('Time') as HTMLSelectElement).options].map((o) => o.text)
+    ).toEqual(['Please choose a time.', '16:00']);
+    await user.click(screen.getByRole('radio', { name: 'As soon as possible' }));
+    expect(screen.queryByLabelText('Time')).toBeNull();
+    await fillDetails(user, { name: 'Kari', phone: '91234567' }, 'Name', 'Mobile number');
+    await user.click(screen.getByRole('button', { name: /Pay with Vipps/ }));
+    expect(onPlace.mock.calls[0]?.[0].timing).toBeUndefined();
+  });
+
+  it('refuses an allergy note over the limit before sending', async () => {
+    const { user, onPlace } = checkout({
+      initial: { name: 'Kari', phone: '91234567', allergyNote: 'x'.repeat(201) },
+    });
+    await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
+    expect(onPlace).not.toHaveBeenCalled();
+    const note = screen.getByLabelText('Allergier (valgfritt)');
+    expect(note).toHaveFocus();
+    expect(note).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByText('Allerginotatet kan være opptil 200 tegn.')).toBeInTheDocument();
   });
 
   it('shows the loading line, and reads a failed slot load as none', async () => {

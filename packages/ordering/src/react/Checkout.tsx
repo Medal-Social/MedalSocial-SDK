@@ -85,8 +85,7 @@ export interface CheckoutProps {
 type FieldErrors = Partial<Record<CustomerField | 'slot', string>>;
 
 function channelLabel(channel: OrderingChannel, labels: OrderingLabels): string {
-  if (channel === 'dine_in') return labels.channelDineIn;
-  return channel === 'delivery' ? labels.channelDelivery : labels.channelTakeaway;
+  return channel === 'dine_in' ? labels.channelDineIn : labels.channelTakeaway;
 }
 
 /** «I dag», «I morgen», then «fredag 31. oktober». */
