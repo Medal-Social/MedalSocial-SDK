@@ -10,7 +10,8 @@ import type {
 import { MedalApiError, MedalNetworkError, MedalTimeoutError } from '@medalsocial/sdk';
 import type { PlaceOrderRequest } from '../../src/core/checkout';
 
-export const KEY = 'medal_sk_live_0123456789SECRETabcdef';
+/** A placeholder, not a credential: the leak checks look for this exact text. */
+export const KEY = 'test-placeholder-api-key-not-a-credential';
 export const UPSTREAM = 'https://medal.example.test';
 export const SITE = 'https://site.example.test';
 
@@ -96,7 +97,8 @@ export function leakyFailures(): unknown[] {
 export function expectClean(seen: string[]): void {
   for (const text of seen) {
     if (text.includes(KEY)) throw new Error(`key leaked:\n${text}`);
-    if (text.includes(UPSTREAM)) throw new Error(`upstream leaked:\n${text}`);
+    // A leak check, not a URL check: any occurrence of the upstream origin fails.
+    if (text.split(UPSTREAM).length > 1) throw new Error(`upstream leaked:\n${text}`);
     if (text.includes('Bearer')) throw new Error(`auth leaked:\n${text}`);
     if (/\bat .+:\d+:\d+/.test(text)) throw new Error(`stack leaked:\n${text}`);
   }

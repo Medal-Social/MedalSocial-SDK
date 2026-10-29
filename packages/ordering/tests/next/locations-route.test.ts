@@ -91,6 +91,26 @@ describe('createLocationsRoute', () => {
     expect(data?.locations).toEqual([]);
   });
 
+  it.each([
+    ['over 64 characters', 'x'.repeat(65)],
+    ['not a string', 42 as unknown as string],
+  ])(
+    'a location that is set but %s is NOT_CONFIGURED, never the whole list',
+    async (_n, location) => {
+      const { GET, onError } = setup({ location });
+      const response = await GET(req());
+      expect(response.status).toBe(500);
+      expect((await json(response)).error?.code).toBe('NOT_CONFIGURED');
+      expect(onError).toHaveBeenCalled();
+    }
+  );
+
+  it('a null location means every location', async () => {
+    const { GET } = setup({ location: null as unknown as string });
+    const { data } = await json<OrderingLocations>(await GET(req()));
+    expect(data?.locations).toHaveLength(2);
+  });
+
   it('a blank location means every location', async () => {
     const { GET } = setup({ location: '  ' });
     const { data } = await json<OrderingLocations>(await GET(req()));

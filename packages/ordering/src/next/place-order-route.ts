@@ -83,10 +83,13 @@ export interface PlaceOrderRouteOptions extends RouteBaseOptions<PlaceOrderClien
    */
   returnUrl?: string | ((request: Request) => string);
   /**
-   * The guest's IP address, for Medal's per-IP rate limit. Default: the first
-   * of `cf-connecting-ip`, the first `x-forwarded-for` entry and `x-real-ip`.
-   * Pass it when the site sits behind a proxy that sets none of those (or
-   * lets the client set them); when passed, the headers are not read.
+   * The guest's IP address, for Medal's per-IP order limit (10 a minute per
+   * site and IP). Read it from what your platform guarantees — on Cloudflare
+   * `(r) => r.headers.get('cf-connecting-ip')`, which Cloudflare sets and
+   * overwrites; behind your own proxy, the entry that proxy appends. No
+   * header is trusted by default: a guest can send any of them, and a forged
+   * one would move their orders into another visitor's bucket. Without it no
+   * IP is sent, and Medal limits by the site's key alone.
    */
   clientIp?: (request: Request) => string | null | undefined;
 }
@@ -127,6 +130,26 @@ const REFUSAL: Readonly<Record<OrderingRefusalCode, true>> = {
   SAVED_ADDRESS_NOT_FOUND: true,
 };
 const REFUSAL_CODES: ReadonlySet<string> = new Set(Object.keys(REFUSAL));
+
+/**
+ * The origin the browser asked for: `x-forwarded-host` (its first entry) or
+ * `host`, with `x-forwarded-proto` (https unless the host is local), falling
+ * back to `request.url`. On Cloudflare and behind a proxy `request.url` can
+ * name an internal host the browser's `Origin` never will. A cross-site page
+ * cannot set these headers on a JSON POST without a CORS preflight, which
+ * this route does not answer.
+ */
+function siteOrigin(request: Request): string {
+  const own = new URL(request.url).origin;
+  const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host'))
+    ?.split(',')[0]
+    ?.trim();
+  if (!host) return own;
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+  const proto =
+    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || (local ? 'http' : 'https');
+  return URL.canParse(`${proto}://${host}`) ? new URL(`${proto}://${host}`).origin : own;
+}
 
 function failure(status: number, code: OrderingRouteErrorCode, message: string): ErrorBody {
   return { status, code, message };
@@ -221,11 +244,14 @@ function parsePlaceOrder(value: unknown): PlaceOrderRequest | null {
   if (!isString(customer.name) || !isString(customer.phone)) return null;
   if (!optional(customer.email, isString)) return null;
 
-  if (!only(preferences, ['allergy_note', 'cutlery', 'no_contact'])) return null;
-  if (!isBoolean(preferences.cutlery) || !optional(preferences.allergy_note, isString)) {
+  if (!only(preferences, ['allergy_note', 'cutlery', 'no_contact', 'include_allergy_note'])) {
     return null;
   }
-  if (!optional(preferences.no_contact, isBoolean)) return null;
+  if (!optional(preferences.allergy_note, isString)) return null;
+  if (!optional(preferences.cutlery, isBoolean) || !optional(preferences.no_contact, isBoolean)) {
+    return null;
+  }
+  if (!optional(preferences.include_allergy_note, isBoolean)) return null;
 
   return defined({
     channel,
@@ -239,8 +265,9 @@ function parsePlaceOrder(value: unknown): PlaceOrderRequest | null {
     }),
     preferences: defined({
       allergy_note: preferences.allergy_note as string | undefined,
-      cutlery: preferences.cutlery,
+      cutlery: preferences.cutlery as boolean | undefined,
       no_contact: preferences.no_contact as boolean | undefined,
+      include_allergy_note: preferences.include_allergy_note as boolean | undefined,
     }),
     payment_method: payment,
   });
@@ -362,18 +389,12 @@ export function createPlaceOrderRoute(
         return undefined;
       }
     }
-    const headers = request.headers;
-    const candidates = [
-      headers.get('cf-connecting-ip'),
-      headers.get('x-forwarded-for')?.split(',')[0],
-      headers.get('x-real-ip'),
-    ];
-    return candidates.map((value) => value?.trim()).find((value) => value) || undefined;
+    return undefined;
   }
 
   return async function POST(request: Request): Promise<Response> {
     const origin = request.headers.get('origin');
-    if (origin !== null && origin !== new URL(request.url).origin) {
+    if (origin !== null && origin !== siteOrigin(request)) {
       return errorResponse(CROSS_ORIGIN);
     }
     if (mediaType(request.headers.get('content-type')) !== 'application/json') {

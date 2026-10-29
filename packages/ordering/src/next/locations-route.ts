@@ -26,6 +26,7 @@ import {
   dataResponse,
   errorResponse,
   lazyClient,
+  locationIsSet,
   NOT_CONFIGURED,
   READ_DEADLINE_MS,
   type RouteBaseOptions,
@@ -90,15 +91,22 @@ export function createLocationsRoute(
       report(new Error('The Medal API key is not configured'));
       return errorResponse(NOT_CONFIGURED);
     }
+    const only = locationIsSet(options.location) ? configuredLocation(options.location) : undefined;
+    if (only === null) {
+      // Set but not a location id: refuse rather than list every location.
+      report(new Error('The ordering location is not configured'));
+      return errorResponse(NOT_CONFIGURED);
+    }
     let data: OrderingLocations;
     try {
       data = await current(api);
     } catch (error) {
       return errorResponse(readFailure(error, null));
     }
-    const only = configuredLocation(options.location);
     const listed =
-      only === null ? data : { ...data, locations: data.locations.filter((l) => l.id === only) };
+      only === undefined
+        ? data
+        : { ...data, locations: data.locations.filter((l) => l.id === only) };
     return dataResponse(listed, CACHE_CONTROL);
   };
 }

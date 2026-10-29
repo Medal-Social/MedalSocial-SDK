@@ -131,6 +131,15 @@ export function readOrderId(value: string | null): string | null {
 const MAX_LOCATION_LENGTH = 64;
 
 /** A configured location id, trimmed, or `null` when unset, blank or over 64 characters. */
+/**
+ * Whether a location is configured at all: `undefined` or blank is not, so a
+ * route that may serve every location does; anything else is checked by
+ * `configuredLocation`.
+ */
+export function locationIsSet(value: unknown): boolean {
+  return typeof value === 'string' ? value.trim() !== '' : value !== undefined && value !== null;
+}
+
 export function configuredLocation(value: unknown): string | null {
   const location = typeof value === 'string' ? value.trim() : '';
   return location === '' || location.length > MAX_LOCATION_LENGTH ? null : location;

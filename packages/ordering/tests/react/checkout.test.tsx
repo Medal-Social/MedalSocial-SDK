@@ -218,7 +218,7 @@ describe('Checkout', () => {
     const loadSlots = vi.fn(async ({ date }: { date: string }) =>
       date === '2026-10-30' ? slots : []
     );
-    const { user, onPlace } = checkout({ loadSlots });
+    const { user, onPlace } = checkout({ loadSlots, allowScheduled: true });
     await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
     const day = screen.getByLabelText('Dag');
     expect([...(day as HTMLSelectElement).options].map((o) => o.text)).toEqual([
@@ -265,7 +265,7 @@ describe('Checkout', () => {
           failures[date] = reject;
         })
     );
-    const { user, onPlace } = checkout({ loadSlots, locale: 'en' });
+    const { user, onPlace } = checkout({ loadSlots, allowScheduled: true, locale: 'en' });
     await user.click(screen.getByRole('radio', { name: 'Choose a time' }));
     const day = screen.getByLabelText('Day');
     expect([...(day as HTMLSelectElement).options].map((o) => o.text)).toEqual([
@@ -319,13 +319,30 @@ describe('Checkout', () => {
         takeaway: { enabled: true, open: false, opens_at: '2026-10-30T09:00:00Z' },
       },
     });
-    const { unmount } = checkout({ loadSlots, location: closedNow });
+    const { unmount } = checkout({ loadSlots, allowScheduled: true, location: closedNow });
     // Closed now, but it takes orders ahead: only a slot, no «as soon as possible».
     expect(screen.queryByRole('radio', { name: 'Så snart som mulig' })).toBeNull();
     expect(screen.getByText('Henter ledige tider …')).toBeInTheDocument();
     await act(async () => fail(new Error('down')));
     expect(screen.getByText('Ingen ledige tider denne dagen.')).toBeInTheDocument();
     unmount();
+  });
+
+  it('offers no chosen time unless scheduled orders are allowed', () => {
+    const closedNow = location({
+      channels: {
+        ...location().channels,
+        takeaway: { enabled: true, open: false, opens_at: '2026-10-30T09:00:00Z' },
+      },
+    });
+    const { unmount } = checkout({ loadSlots: async () => [] });
+    expect(screen.queryByRole('radio', { name: 'Velg tidspunkt' })).toBeNull();
+    unmount();
+    checkout({ loadSlots: async () => [], location: closedNow });
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Restauranten tar ikke imot bestillinger nå.'
+    );
+    expect(screen.queryByLabelText('Tidspunkt')).toBeNull();
   });
 
   it('closed shows next opening', () => {
@@ -391,6 +408,7 @@ describe('Checkout', () => {
         onPlace={vi.fn()}
         onPlaced={vi.fn()}
         loadSlots={async () => []}
+        allowScheduled
       />
     );
     expect(screen.getByRole('radio', { name: 'Så snart som mulig' })).toBeChecked();
@@ -399,6 +417,7 @@ describe('Checkout', () => {
   it('has no axe violations', async () => {
     const { container, user } = checkout({
       loadSlots: async () => [],
+      allowScheduled: true,
       table: { token: 't', label: '1' },
     });
     await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));

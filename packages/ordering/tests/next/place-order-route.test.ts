@@ -85,10 +85,56 @@ describe('createPlaceOrderRoute — success', () => {
     expect(sent(create).input).toEqual({ ...full, location_id: 'loc_1' });
   });
 
+  it('takes preferences without cutlery, and include_allergy_note', async () => {
+    const { POST, create } = setup();
+    const body = { ...ORDER, preferences: { include_allergy_note: false } };
+    expect((await POST(post(body))).status).toBe(201);
+    expect(sent(create).input?.preferences).toEqual({ include_allergy_note: false });
+    expect(
+      (await POST(post({ ...ORDER, preferences: { include_allergy_note: 'no' } }))).status
+    ).toBe(400);
+    expect((await POST(post({ ...ORDER, preferences: { cutlery: 'yes' } }))).status).toBe(400);
+  });
+
   it('takes an asap timing', async () => {
     const { POST, create } = setup();
     await POST(post({ ...ORDER, timing: { kind: 'asap' } }));
     expect(sent(create).input?.timing).toEqual({ kind: 'asap' });
+  });
+
+  it('takes the Origin of the host the browser asked for behind a proxy', async () => {
+    const { POST } = setup();
+    const internal = (headers: Record<string, string>) =>
+      new Request('http://internal:3000/api/ordering/orders', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': IDEMPOTENCY_KEY,
+          ...headers,
+        },
+        body: JSON.stringify(ORDER),
+      });
+    const site = new URL(SITE).host;
+    expect(
+      (await POST(internal({ origin: SITE, 'x-forwarded-host': `${site}, internal` }))).status
+    ).toBe(201);
+    expect((await POST(internal({ origin: SITE, host: site }))).status).toBe(201);
+    expect(
+      (await POST(internal({ origin: 'http://localhost:3000', host: 'localhost:3000' }))).status
+    ).toBe(201);
+    expect(
+      (
+        await POST(
+          internal({
+            origin: 'http://shop.test',
+            'x-forwarded-host': 'shop.test',
+            'x-forwarded-proto': 'http',
+          })
+        )
+      ).status
+    ).toBe(201);
+    expect((await POST(internal({ origin: SITE, host: 'bad host' }))).status).toBe(403);
+    expect((await POST(internal({ origin: 'https://evil.test', host: site }))).status).toBe(403);
   });
 
   it('accepts a charset on the content type and a matching Origin', async () => {
@@ -398,7 +444,7 @@ describe('createPlaceOrderRoute — strict body', () => {
 
   it('a __proto__ key is refused, not merged', async () => {
     const { POST, create } = setup();
-    const body = JSON.stringify(ORDER).replace('{', '{"__proto__":{"location_id":"loc_evil"},');
+    const body = `{"__proto__":{"location_id":"loc_evil"},${JSON.stringify(ORDER).slice(1)}`;
     const response = await POST(post(body));
     expect(response.status).toBe(400);
     expect(create).not.toHaveBeenCalled();
@@ -412,33 +458,17 @@ describe('createPlaceOrderRoute — client IP', () => {
     return sent(create).options?.clientIp;
   }
 
-  it('prefers cf-connecting-ip', async () => {
+  it('trusts no header by default: a guest could forge any of them', async () => {
     expect(
       await ipFor({
-        'cf-connecting-ip': ' 203.0.113.1 ',
+        'cf-connecting-ip': '203.0.113.1',
         'x-forwarded-for': '198.51.100.1',
         'x-real-ip': '192.0.2.1',
       })
-    ).toBe('203.0.113.1');
+    ).toBeUndefined();
   });
 
-  it('then the FIRST x-forwarded-for entry', async () => {
-    expect(
-      await ipFor({ 'x-forwarded-for': ' 198.51.100.1 , 10.0.0.1', 'x-real-ip': '192.0.2.1' })
-    ).toBe('198.51.100.1');
-  });
-
-  it('then x-real-ip', async () => {
-    expect(await ipFor({ 'x-forwarded-for': ' , 10.0.0.1', 'x-real-ip': '192.0.2.1' })).toBe(
-      '192.0.2.1'
-    );
-  });
-
-  it('none when no header names one', async () => {
-    expect(await ipFor({ 'cf-connecting-ip': '  ' })).toBeUndefined();
-  });
-
-  it('options.clientIp wins over every header', async () => {
+  it('takes the IP from options.clientIp', async () => {
     const clientIp = vi.fn(() => ' 2001:db8::1 ');
     expect(await ipFor({ 'cf-connecting-ip': '203.0.113.1' }, { clientIp })).toBe('2001:db8::1');
     expect(clientIp).toHaveBeenCalledWith(expect.any(Request));

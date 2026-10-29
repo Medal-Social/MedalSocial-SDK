@@ -66,7 +66,15 @@ function detail(view: OrderingOrderStatusView, timeZone: string, labels: Orderin
   return lines;
 }
 
-export function OrderStatus({
+/**
+ * Keyed by the order: a page that shows another order in the same place gets
+ * a fresh status, not the last order's.
+ */
+export function OrderStatus(props: OrderStatusProps) {
+  return <Status key={props.orderId} {...props} />;
+}
+
+function Status({
   orderId,
   load,
   initial,
@@ -90,6 +98,8 @@ export function OrderStatus({
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let reading = false;
+    /** The order does not exist: nothing will change, so nothing is read again. */
+    let gone = false;
 
     async function read() {
       clearTimeout(timer);
@@ -109,13 +119,16 @@ export function OrderStatus({
         if (isFinalStatus(result.data.status)) return;
       } else {
         setFailed(result.error.code === 'ORDER_NOT_FOUND' ? 'not_found' : 'unavailable');
-        if (result.error.code === 'ORDER_NOT_FOUND') return;
+        if (result.error.code === 'ORDER_NOT_FOUND') {
+          gone = true;
+          return;
+        }
       }
       timer = setTimeout(read, intervalMs);
     }
 
     function onVisible() {
-      if (document.visibilityState === 'visible') void read();
+      if (!gone && document.visibilityState === 'visible') void read();
     }
 
     if (!hasInitial) void read();

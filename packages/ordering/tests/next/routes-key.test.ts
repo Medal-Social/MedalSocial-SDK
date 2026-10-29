@@ -200,7 +200,12 @@ describe('ordering routes — key never in response', () => {
       });
     });
     vi.stubGlobal('fetch', fetchMock);
-    const POST = createPlaceOrderRoute({ apiKey: KEY, baseUrl: UPSTREAM, location: 'loc_1' });
+    const POST = createPlaceOrderRoute({
+      apiKey: KEY,
+      baseUrl: UPSTREAM,
+      location: 'loc_1',
+      clientIp: (r) => r.headers.get('x-forwarded-for')?.split(',')[0],
+    });
 
     const ok = await POST(postOrder(ORDER, { 'x-forwarded-for': '198.51.100.7, 10.0.0.1' }));
     expect(ok.status).toBe(201);

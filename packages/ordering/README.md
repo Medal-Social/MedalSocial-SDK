@@ -216,7 +216,8 @@ export function Menu({ menu, closed }: { menu: OrderingMenu; closed?: { nextOpen
   notice naming the lines the menu could no longer serve.
 - `Checkout` — one form: pickup or dine-in (dine-in only with a table from
   the QR code; the choice shows only when there is one), as soon as possible
-  or a slot (`loadSlots`), name, mobile and e-mail, an allergy note with
+  or a slot (`loadSlots` with `allowScheduled`, off until the restaurant takes
+  orders ahead), name, mobile and e-mail, an allergy note with
   «Kontakt restauranten ved alvorlig allergi.», cutlery, and Vipps or pay at
   the counter as the location allows. The details are checked before
   anything is sent and the first field at fault gets the focus; a refusal is
@@ -368,9 +369,12 @@ export const GET = createVippsReturnRoute({
   cross-origin `Origin` (403), anything but JSON (415), a missing key (400), a
   body over 32 KB (413), and any key a `PlaceOrderRequest` does not have — a
   price, `location_id`, `return_url` — (400). It adds `location_id` and, for
-  Vipps, `return_url` from its own options, forwards the guest's IP
-  (`cf-connecting-ip`, the first `x-forwarded-for`, `x-real-ip`, or your
-  `clientIp(request)`) for Medal's per-IP limit, and answers `201`. Medal's
+  Vipps, `return_url` from its own options, forwards the guest's IP for
+  Medal's per-IP limit only from your `clientIp(request)` (no header is
+  trusted by default — a guest can forge any of them; on Cloudflare pass
+  `(r) => r.headers.get('cf-connecting-ip')`), and answers `201`. An `Origin`
+  must match the host the browser asked for (`x-forwarded-host` or `host`,
+  then `request.url`). Medal's
   refusals pass through as `422` with their code and only `ids`, `line_index`
   and `reason`. Delivery is not taken yet (plan 8c).
 - **Locations** are cached 15 s and slots 60 s on the CDN; the table, the

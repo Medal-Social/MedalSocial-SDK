@@ -65,8 +65,15 @@ export interface CheckoutProps {
   channel?: OrderingChannel;
   /** A dine-in table from the table's QR code. Without one, dine-in is not offered. */
   table?: { token: string; label?: string };
-  /** The free slots of a day. Left out: only «as soon as possible». */
+  /** The free slots of a day, for a scheduled order. */
   loadSlots?: (query: { channel: OrderingChannel; date: string }) => Promise<OrderingSlot[]>;
+  /**
+   * Offer a chosen time (with `loadSlots`). Off by default: the Medal API
+   * refuses scheduled orders (`PREORDER_DISABLED`) until the restaurant
+   * takes orders ahead, so a guest is never led through the form to a
+   * refusal. With it off a closed channel shows the closed notice.
+   */
+  allowScheduled?: boolean;
   onPlace: (request: PlaceOrderRequest) => Promise<RouteResult<OrderingOrderCreated>>;
   onPlaced: (order: OrderingOrderCreated) => void;
   onRefused?: (error: OrderingRouteError) => void;
@@ -107,6 +114,7 @@ export function Checkout({
   channel: startChannel,
   table,
   loadSlots,
+  allowScheduled = false,
   onPlace,
   onPlaced,
   onRefused,
@@ -130,7 +138,7 @@ export function Checkout({
   const channel = channels.find((c) => c === chosenChannel) ?? channels[0];
   const state = channel === undefined ? undefined : location.channels[channel];
   const canAsap = state?.open === true;
-  const canSchedule = loadSlots !== undefined && channel !== 'dine_in';
+  const canSchedule = allowScheduled && loadSlots !== undefined && channel !== 'dine_in';
 
   const [timingKind, setTimingKind] = useState<'asap' | 'scheduled'>('asap');
   const timing = canAsap ? (canSchedule ? timingKind : 'asap') : canSchedule ? 'scheduled' : null;
@@ -243,8 +251,13 @@ export function Checkout({
       return;
     }
     setFailure(refusalMessage(error, labels, { opens }));
-    failureRef.current?.focus();
   }
+
+  // Focus the message once it is on screen: before the render it is empty
+  // and hidden, and focusing a hidden element does nothing.
+  useEffect(() => {
+    if (failure !== null) failureRef.current?.focus();
+  }, [failure]);
 
   function described(field: keyof FieldErrors, hint?: string): string | undefined {
     const ids = [hint, errors[field] ? `${id}-${field}-error` : undefined].filter(Boolean);

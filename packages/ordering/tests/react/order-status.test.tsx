@@ -132,6 +132,18 @@ describe('OrderStatus', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Vi får ikke');
   });
 
+  it('starts afresh for another order in the same place', async () => {
+    const load = answers(ok({ order_id: 'o2', order_number: 'P-2', status: 'placed' }));
+    const { rerender } = render(
+      <OrderStatus orderId="o1" load={load} initial={view({ status: 'completed' })} />
+    );
+    expect(screen.getByRole('heading')).toHaveTextContent('P-1029-004');
+    rerender(<OrderStatus orderId="o2" load={load} />);
+    await tick(0);
+    expect(load).toHaveBeenCalledWith('o2', expect.any(AbortSignal));
+    expect(screen.getByRole('heading')).toHaveTextContent('Bestilling P-2');
+  });
+
   it('stops on an order that does not exist', async () => {
     const load = answers({ ok: false, error: { code: 'ORDER_NOT_FOUND', message: 'x' } });
     render(<OrderStatus orderId="nope" load={load} locale="en" />);
@@ -139,6 +151,7 @@ describe('OrderStatus', () => {
     expect(screen.getByRole('heading')).toHaveTextContent('Order status');
     expect(screen.getByRole('status')).toHaveTextContent('We could not find this order.');
     await tick(STATUS_POLL_MS * 3);
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(load).toHaveBeenCalledOnce();
   });
 
