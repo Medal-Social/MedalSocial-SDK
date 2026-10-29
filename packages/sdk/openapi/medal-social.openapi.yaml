@@ -58,6 +58,12 @@ tags:
       server-side with the workspace API key. Module-gated: a workspace without
       online ordering gets 403 `ORDERING_NOT_ENABLED` on every route. Amounts
       are integer øre; VAT is in basis points (1500 = 15 %).
+  - name: Delivery
+    description: >-
+      Wolt delivery for a restaurant's online store, through Medal, called
+      server-side with the workspace API key: autocomplete a Norwegian
+      address, verify it against Kartverket, and get a live Wolt price with
+      the restaurant's customer fee applied. Amounts are integer NOK øre.
 paths:
   /api/v1/posts:
     get:
@@ -3159,6 +3165,150 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_OrderingTable"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/addresses:
+    get:
+      tags: [Delivery]
+      operationId: suggestDeliveryAddresses
+      summary: Autocomplete a delivery address
+      description: >-
+        Requires `delivery.address.read`. Up to 8 Norwegian street addresses
+        for what the customer typed, nearest the restaurant first: Kartverket
+        (the national address register) first, Google Places only when
+        Kartverket has no hit. Ids are opaque: resolve one with
+        `POST /api/v1/delivery/addresses/resolve` before quoting. Fewer than 3
+        characters (after normalising) answers an empty list. A `q` over 200
+        characters or a malformed `session` is 400 `VALIDATION_ERROR`; too
+        many lookups is 429 `RATE_LIMITED` (retry in a minute).
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: What the customer typed so far.
+          schema:
+            type: string
+            maxLength: 200
+        - name: session
+          in: query
+          required: false
+          description: >-
+            One token per address the customer enters (a UUID, say); pass the
+            same one to resolve.
+          schema:
+            $ref: "#/components/schemas/DeliveryAddressSession"
+      responses:
+        "200":
+          description: Suggestions, nearest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryAddressSuggestions"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/addresses/resolve:
+    post:
+      tags: [Delivery]
+      operationId: resolveDeliveryAddress
+      summary: Verify a suggested address
+      description: >-
+        Requires `delivery.address.read`. Turns a suggestion `id` into a
+        verified address with coordinates. Only an address in the Kartverket
+        register with a house number is verified; a Google suggestion is
+        confirmed against Kartverket, whose postcode wins. 422
+        `ADDRESS_NOT_VERIFIED` when there is no such door or no house number;
+        503 `ADDRESS_LOOKUP_UNAVAILABLE` when the register could not be
+        reached; 429 `RATE_LIMITED` for too many lookups. The answer's
+        `address_id` is what `POST /api/v1/delivery/quotes`, saved addresses
+        and delivery orders take.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              additionalProperties: false
+              properties:
+                id:
+                  description: "`id` of a suggestion from `GET /api/v1/delivery/addresses`."
+                  type: string
+                  minLength: 1
+                  maxLength: 320
+                session:
+                  $ref: "#/components/schemas/DeliveryAddressSession"
+      responses:
+        "200":
+          description: The verified address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryResolvedAddress"
+        "422":
+          description: "`ADDRESS_NOT_VERIFIED`: not in the register, or no house number."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "`ADDRESS_LOOKUP_UNAVAILABLE`: the register could not be reached."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/quotes:
+    post:
+      tags: [Delivery]
+      operationId: createDeliveryQuote
+      summary: Get a live delivery price
+      description: >-
+        Requires `delivery.quote.create`; 30/min per key, and every call asks
+        Wolt for a fresh binding price. Applies the restaurant's customer fee
+        policy (Wolt's price, a fixed fee, or free over an order total) and
+        waits up to 20 s for Wolt (504 `QUOTE_TIMEOUT` past that). For an
+        online order send `order_total` = the cart subtotal in øre and pass
+        `quote_id` with the same `address_id` as `delivery.quote_id` /
+        `delivery.verified_address_id` to `POST /api/v1/ordering/orders`
+        before `valid_until`; make a new quote when the subtotal changes or
+        within a minute of `valid_until` (the order is refused with 422
+        `QUOTE_NOT_USABLE` / `QUOTE_EXPIRED`). Errors: 400 `INVALID_REQUEST`,
+        409 `DELIVERY_NOT_SET_UP` / `DELIVERY_PAUSED` / `VENUE_UNAVAILABLE`,
+        422 `ADDRESS_NOT_VERIFIED` / `NOT_DELIVERABLE` (Wolt cannot deliver
+        there right now) / `ADDRESS_NOT_DELIVERABLE` (Wolt will not promise
+        delivery to that address).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryQuoteInput"
+      responses:
+        "201":
+          description: A binding price.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryQuote"
+        "409":
+          description: "`DELIVERY_NOT_SET_UP`, `DELIVERY_PAUSED` or `VENUE_UNAVAILABLE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: "`ADDRESS_NOT_VERIFIED`, `ADDRESS_NOT_DELIVERABLE` or `NOT_DELIVERABLE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "504":
+          description: "`QUOTE_TIMEOUT`: Wolt did not answer in time."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        default:
+          $ref: "#/components/responses/ApiError"
 components:
   securitySchemes:
     bearerAuth:
@@ -3265,6 +3415,8 @@ components:
       # every generated client reject a code the server adds next week.
       x-medal-error-codes:
         - ADDRESS_LIMIT
+        - ADDRESS_LOOKUP_UNAVAILABLE
+        - ADDRESS_NOT_DELIVERABLE
         - ADDRESS_NOT_FOUND
         - ADDRESS_NOT_VERIFIED
         - AI_GENERATION_FAILED
@@ -3287,6 +3439,8 @@ components:
         - CONTACT_NOT_FOUND
         - CONVERSATION_NOT_LINKABLE
         - CUTOFF
+        - DELIVERY_NOT_SET_UP
+        - DELIVERY_PAUSED
         - FAVOURITE_LIMIT
         - FORBIDDEN
         - GRANT_NOT_FOUND
@@ -3301,8 +3455,10 @@ components:
         - INVALID_INPUT
         - INVALID_OAUTH_RESOURCE
         - INVALID_OPTIONS
+        - INVALID_REQUEST
         - INVALID_RETURN_URL
         - INVALID_TRANSITION
+        - NOT_DELIVERABLE
         - NOT_FOUND
         - ORDERING_LOCATION_NOT_FOUND
         - ORDERING_NOT_ENABLED
@@ -3319,6 +3475,7 @@ components:
         - PRODUCT_NOT_FOUND
         - QUOTE_EXPIRED
         - QUOTE_NOT_USABLE
+        - QUOTE_TIMEOUT
         - RATE_LIMITED
         - RETURN_URL_NOT_ALLOWED
         - SAVED_ADDRESS_NOT_FOUND
@@ -3329,6 +3486,7 @@ components:
         - UNAVAILABLE
         - UPSTREAM_UNAVAILABLE
         - VALIDATION_ERROR
+        - VENUE_UNAVAILABLE
         - VIPPS_IDENTITY_CONFLICT
         - VIPPS_NOT_CONFIGURED
     Pagination:
@@ -8800,3 +8958,152 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PortalOrderingReorder"
+    DeliveryAddressSession:
+      description: >-
+        One token per address the customer enters (a UUID, say), sent to
+        both the autocomplete and the resolve call.
+      type: string
+      pattern: "^[A-Za-z0-9_-]{8,64}$"
+    DeliveryAddressSuggestion:
+      description: An autocomplete suggestion. `id` is opaque; resolve it before quoting.
+      type: object
+      required: [id, label, secondary]
+      properties:
+        id:
+          type: string
+        label:
+          description: The street address, e.g. `Storgata 1`.
+          type: string
+        secondary:
+          description: The postcode and town, e.g. `0155 Oslo`.
+          type: string
+    ApiResponse_DeliveryAddressSuggestions:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DeliveryAddressSuggestion"
+    DeliveryResolvedAddress:
+      description: >-
+        A verified Norwegian address with a house number. `address_id` is what
+        quotes, saved addresses and delivery orders take.
+      type: object
+      required:
+        [address_id, label, street, house_number, post_code, city, lat, lon, source]
+      properties:
+        address_id:
+          type: string
+        label:
+          type: string
+        street:
+          type: string
+        house_number:
+          type: string
+        post_code:
+          type: string
+        city:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        source:
+          description: Where the suggestion came from; the address itself is always checked against Kartverket.
+          type: string
+          enum: [kartverket, google]
+    ApiResponse_DeliveryResolvedAddress:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DeliveryResolvedAddress"
+    DeliveryQuoteInput:
+      type: object
+      required: [address_id]
+      additionalProperties: false
+      properties:
+        address_id:
+          description: "`address_id` from `POST /api/v1/delivery/addresses/resolve`."
+          type: string
+          minLength: 1
+          maxLength: 64
+        venue_id:
+          description: The pickup place; defaults to the nearest open one.
+          type: string
+          minLength: 1
+          maxLength: 64
+        bags:
+          description: How many bags the courier carries; 1 when omitted.
+          type: integer
+          minimum: 1
+          maximum: 20
+        prep_minutes:
+          description: >-
+            Minutes until the order is ready for pickup. Omit to use the
+            venue's ordering prep time (busy mode included), or 15 when it has
+            none.
+          type: integer
+          minimum: 0
+          maximum: 60
+        order_total:
+          description: >-
+            The order total in øre, for free delivery over a threshold. For an
+            online order: the cart subtotal.
+          type: integer
+          minimum: 0
+          maximum: 100000000
+    DeliveryMoney:
+      description: An amount in integer øre.
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: integer
+        currency:
+          type: string
+          enum: [NOK]
+    DeliveryQuote:
+      description: >-
+        A binding Wolt price. `customer_fee` is what the store charges its
+        customer, `cost` Wolt's price to the restaurant.
+      type: object
+      required:
+        [quote_id, customer_fee, cost, eta_minutes, delivered_by, valid_until, address, venue_id]
+      properties:
+        quote_id:
+          type: string
+        customer_fee:
+          anyOf:
+            - $ref: "#/components/schemas/DeliveryMoney"
+            - type: "null"
+        cost:
+          anyOf:
+            - $ref: "#/components/schemas/DeliveryMoney"
+            - type: "null"
+        eta_minutes:
+          description: Minutes until the order reaches the customer if booked now.
+          type: [integer, "null"]
+        delivered_by:
+          description: >-
+            When the order reaches the customer if booked now (ISO 8601 UTC).
+            Never a pickup time; the booked order carries the final time.
+          type: [string, "null"]
+          format: date-time
+        valid_until:
+          description: When the price runs out (ISO 8601 UTC).
+          type: [string, "null"]
+          format: date-time
+        address:
+          description: The address as Wolt will deliver to it.
+          type: string
+        venue_id:
+          type: [string, "null"]
+    ApiResponse_DeliveryQuote:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DeliveryQuote"

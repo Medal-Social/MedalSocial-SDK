@@ -183,12 +183,11 @@ export type OrderingCreateOrderInput = Omit<
 
 /**
  * A delivery order's address, quote and door details (`channel: 'delivery'`,
- * Vipps only). The SDK has no delivery resource yet: call the Medal API with
- * the same key. `verified_address_id` is the `address_id` of
- * `POST /api/v1/delivery/addresses/resolve` (scope `delivery.address.read`),
- * and `quote_id` the `quote_id` of `POST /api/v1/delivery/quotes` (scope
- * `delivery.quote.create`) made with `order_total` = the cart's subtotal. The
- * fee is the quote's; never send it.
+ * Vipps only). `verified_address_id` is the `address_id` of
+ * `delivery.addresses.resolve()` (scope `delivery.address.read`), and
+ * `quote_id` the `quote_id` of `delivery.quotes.create()` (scope
+ * `delivery.quote.create`) made for that address with `order_total` = the
+ * cart's subtotal. The fee is the quote's; never send it.
  */
 export type OrderingDeliveryInput = Schemas["OrderingDeliveryInput"];
 
