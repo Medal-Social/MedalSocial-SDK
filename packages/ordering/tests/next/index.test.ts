@@ -6,6 +6,9 @@ describe('/next entry', () => {
     const next = await import('../../src/next/index');
     expect(Object.keys(next).sort()).toEqual([
       'DEFAULT_REVALIDATE_SECONDS',
+      'createAddressResolveRoute',
+      'createAddressSuggestRoute',
+      'createDeliveryQuoteRoute',
       'createLocationsRoute',
       'createMenuRoute',
       'createOrderRoute',

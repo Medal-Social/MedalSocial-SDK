@@ -9,6 +9,7 @@
  */
 import type {
   OrderingChannel,
+  OrderingDeliveryInput,
   OrderingOrderCustomer,
   OrderingOrderLineInput,
   OrderingOrderPreferences,
@@ -25,10 +26,23 @@ export const CUSTOMER_LIMITS = { maxName: 80, maxEmail: 254, maxAllergyNote: 200
  * never the location or a return URL: the route sets those from its own
  * configuration. The order's idempotency key travels as the
  * `Idempotency-Key` header, from the cart draft.
+ *
+ * A delivery is Vipps only and carries `delivery`: the resolved address, the
+ * quote asked for with the cart's subtotal, and the door details. No other
+ * channel takes `delivery`.
  */
-export interface PlaceOrderRequest {
-  /** Pickup or dine-in; delivery needs an address and a quote (plan 8c). */
-  channel: Exclude<OrderingChannel, 'delivery'>;
+export type PlaceOrderRequest = PlaceOrderBase &
+  (
+    | {
+        channel: Exclude<OrderingChannel, 'delivery'>;
+        payment_method: OrderingPaymentMethod;
+        delivery?: never;
+      }
+    | { channel: 'delivery'; payment_method: 'vipps'; delivery: OrderingDeliveryInput }
+  );
+
+/** What every `PlaceOrderRequest` has, whatever the channel. */
+export interface PlaceOrderBase {
   /** Omitted: as soon as possible. */
   timing?: OrderingOrderTiming;
   /** Dine-in: the token from the table's QR code. */
@@ -36,7 +50,6 @@ export interface PlaceOrderRequest {
   lines: OrderingOrderLineInput[];
   customer: OrderingOrderCustomer;
   preferences: OrderingOrderPreferences;
-  payment_method: OrderingPaymentMethod;
 }
 
 /**
@@ -52,6 +65,11 @@ export interface PlaceOrderRequest {
  * - `RATE_LIMITED` — too many orders from this address; wait a minute.
  * - `NOT_CONFIGURED` — the site has no API key or location.
  * - `SERVICE_UNAVAILABLE` — Medal could not be reached; try again.
+ * - `ADDRESS_NOT_VERIFIED` — delivery: not a door in the address register
+ *   (often a missing house number).
+ * - `ADDRESS_NOT_DELIVERABLE` — delivery: Wolt cannot deliver there now.
+ * - `DELIVERY_UNAVAILABLE` — delivery is not set up, paused, or the venue is closed to it.
+ * - `QUOTE_TIMEOUT` — the delivery price did not come in time; ask again.
  */
 export type OrderingRouteErrorCode =
   | OrderingRefusalCode
@@ -62,7 +80,11 @@ export type OrderingRouteErrorCode =
   | 'IDEMPOTENCY_CONFLICT'
   | 'RATE_LIMITED'
   | 'NOT_CONFIGURED'
-  | 'SERVICE_UNAVAILABLE';
+  | 'SERVICE_UNAVAILABLE'
+  | 'ADDRESS_NOT_VERIFIED'
+  | 'ADDRESS_NOT_DELIVERABLE'
+  | 'DELIVERY_UNAVAILABLE'
+  | 'QUOTE_TIMEOUT';
 
 /** An error from the site's ordering routes: `{ error: { code, message, details? } }`. */
 export interface OrderingRouteError {

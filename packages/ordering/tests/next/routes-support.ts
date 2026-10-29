@@ -1,5 +1,8 @@
 /** What the ordering route suites share: the secret, fixtures and response readers. */
 import type {
+  DeliveryAddressSuggestion,
+  DeliveryQuote,
+  DeliveryResolvedAddress,
   OrderingCustomerOrder,
   OrderingLocations,
   OrderingOrderCreated,
@@ -57,6 +60,34 @@ export const ORDER: PlaceOrderRequest = {
   customer: { name: 'Kari', phone: '+4791234567' },
   preferences: { cutlery: true },
   payment_method: 'pay_at_counter',
+};
+
+export const SUGGESTIONS: DeliveryAddressSuggestion[] = [
+  { id: 'kv_1', label: 'Storgata 1', secondary: '0155 Oslo' },
+  { id: 'kv_2', label: 'Storgata 10', secondary: '0155 Oslo' },
+];
+
+export const ADDRESS: DeliveryResolvedAddress = {
+  address_id: 'addr_1',
+  label: 'Storgata 1, 0155 Oslo',
+  street: 'Storgata',
+  house_number: '1',
+  post_code: '0155',
+  city: 'Oslo',
+  lat: 59.91,
+  lon: 10.75,
+  source: 'kartverket',
+};
+
+export const QUOTE: DeliveryQuote = {
+  quote_id: 'q_1',
+  customer_fee: { amount: 5900, currency: 'NOK' },
+  cost: { amount: 7900, currency: 'NOK' },
+  eta_minutes: 35,
+  delivered_by: '2026-10-29T17:35:00Z',
+  valid_until: '2026-10-29T17:05:00Z',
+  address: 'Storgata 1, 0155 Oslo',
+  venue_id: 'v_1',
 };
 
 /** Everything a client can see of a response: status line, headers and body. */

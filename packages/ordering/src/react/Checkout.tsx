@@ -1,8 +1,8 @@
 /**
  * Checkout: one form, in the order a guest thinks it through — how they get
  * the food (shown only when there is a choice), when (as soon as possible, or
- * a slot), their details, allergies and cutlery, and how they pay — then the
- * order button with the total.
+ * a slot) or where (a delivery's address and door), their details, allergies
+ * and cutlery, and how they pay — then the order button with the total.
  *
  * Controlled through props: the page passes the location (from the locations
  * route), the resolved cart and `onPlace`, which sends the order (with
@@ -16,9 +16,22 @@
  * sent; the first field at fault gets the focus. While an order is on its way
  * the button does nothing more, so a double press cannot send it twice.
  *
- * Delivery is not offered here yet: it needs an address and a quote (plan 8c).
+ * Delivery is offered when the location has it on and takes Vipps, and the
+ * page passes `suggestAddress`, `resolveAddress` and `quoteDelivery` (the
+ * site's delivery routes). It is as soon as possible and Vipps only. Once the
+ * address is verified the price is asked for with the cart's subtotal, and
+ * the fee, when it arrives and the total include it; the order button waits
+ * for a price. A new price is asked for when the subtotal changes and before
+ * the old one runs out (`quoteNeedsRefresh`; a price with no stated expiry
+ * only when the subtotal changes). A new or cleared address drops the price,
+ * a request for it still on its way, and its error. When the API refuses the
+ * price all the same (`QUOTE_EXPIRED`, `QUOTE_NOT_USABLE`), a new one is
+ * asked for and shown, and the guest presses again to accept it — never a
+ * silent order at a price they did not see.
  */
 import type {
+  DeliveryQuote,
+  DeliveryResolvedAddress,
   OrderingChannel,
   OrderingLocation,
   OrderingOrderCreated,
@@ -35,17 +48,37 @@ import {
   type PlaceOrderRequest,
 } from '../core/checkout';
 import type { RouteResult } from '../core/client';
+import {
+  checkDelivery,
+  DELIVERY_LIMITS,
+  type DeliveryField,
+  deliveryFeeOre,
+  quoteNeedsRefresh,
+  quoteRefreshDelay,
+} from '../core/delivery';
 import { refusalMessage } from '../core/errors';
 import { addIsoDays, localIsoDate } from '../core/hours';
-import { labelLocale } from '../core/labels';
+import { deliveryWindowLabel, labelLocale } from '../core/labels';
 import { createMoney, type Money } from '../core/money';
 import { openingLine, wallClock } from '../core/opening';
 import { fill, mergeLabels, type OrderingLabels } from '../core/ui-labels';
+import { AddressCombobox, type AddressComboboxProps } from './AddressCombobox';
 import { ClosedNotice } from './ClosedNotice';
 import { cx } from './cx';
 
 /** The channels this checkout offers, in the order it lists them. */
-const OFFERED: readonly PlaceOrderRequest['channel'][] = ['takeaway', 'dine_in'];
+const OFFERED: readonly OrderingChannel[] = ['takeaway', 'dine_in', 'delivery'];
+
+/** A refused price: ask for a new one and let the guest accept it. */
+const REPRICE: ReadonlySet<string> = new Set(['QUOTE_EXPIRED', 'QUOTE_NOT_USABLE']);
+
+/** A failed price that asking again may fix. */
+const RETRY: ReadonlySet<string> = new Set(['QUOTE_TIMEOUT', 'SERVICE_UNAVAILABLE']);
+
+const UNAVAILABLE: OrderingRouteError = {
+  code: 'SERVICE_UNAVAILABLE',
+  message: 'The delivery price could not be fetched.',
+};
 
 export interface CheckoutDetails {
   name?: string;
@@ -53,6 +86,11 @@ export interface CheckoutDetails {
   email?: string;
   allergyNote?: string;
   cutlery?: boolean;
+  floor?: string;
+  doorCode?: string;
+  deliveryComment?: string;
+  /** Leave a delivery at the door (`no_contact`). */
+  contactless?: boolean;
 }
 
 export interface CheckoutProps {
@@ -74,6 +112,18 @@ export interface CheckoutProps {
    * refusal. With it off a closed channel shows the closed notice.
    */
   allowScheduled?: boolean;
+  /**
+   * Delivery's address lookup and price (`fetchAddressSuggestions`,
+   * `resolveAddress` and `requestDeliveryQuote` from `/core`, on the site's
+   * routes). Delivery is offered only when all three are passed.
+   */
+  suggestAddress?: AddressComboboxProps['suggest'];
+  resolveAddress?: AddressComboboxProps['resolve'];
+  /** `order_total` is the cart's subtotal in øre. */
+  quoteDelivery?: (input: {
+    address_id: string;
+    order_total: number;
+  }) => Promise<RouteResult<DeliveryQuote>>;
   onPlace: (request: PlaceOrderRequest) => Promise<RouteResult<OrderingOrderCreated>>;
   onPlaced: (order: OrderingOrderCreated) => void;
   onRefused?: (error: OrderingRouteError) => void;
@@ -89,9 +139,29 @@ export interface CheckoutProps {
   className?: string;
 }
 
-type FieldErrors = Partial<Record<CustomerField | 'slot', string>>;
+type FieldErrors = Partial<Record<CustomerField | DeliveryField | 'slot', string>>;
+
+/** The fields in the order they are on screen: the first at fault gets the focus. */
+const FIELD_ORDER = [
+  'slot',
+  'floor',
+  'door_code',
+  'delivery_comment',
+  'name',
+  'phone',
+  'email',
+  'allergy_note',
+] as const;
+
+/** A price and what it was asked for. */
+interface HeldQuote {
+  quote: DeliveryQuote;
+  addressId: string;
+  subtotalOre: number;
+}
 
 function channelLabel(channel: OrderingChannel, labels: OrderingLabels): string {
+  if (channel === 'delivery') return labels.channelDelivery;
   return channel === 'dine_in' ? labels.channelDineIn : labels.channelTakeaway;
 }
 
@@ -115,6 +185,9 @@ export function Checkout({
   table,
   loadSlots,
   allowScheduled = false,
+  suggestAddress,
+  resolveAddress,
+  quoteDelivery,
   onPlace,
   onPlaced,
   onRefused,
@@ -131,14 +204,24 @@ export function Checkout({
   const id = useId();
   const clock = now ?? new Date();
 
+  const deliveryOffered =
+    suggestAddress !== undefined &&
+    resolveAddress !== undefined &&
+    quoteDelivery !== undefined &&
+    location.payment_methods.vipps;
   const channels = OFFERED.filter(
-    (c) => location.channels[c].enabled && (c !== 'dine_in' || table !== undefined)
+    (c) =>
+      location.channels[c].enabled &&
+      (c !== 'dine_in' || table !== undefined) &&
+      (c !== 'delivery' || deliveryOffered)
   );
   const [chosenChannel, setChannel] = useState<OrderingChannel | undefined>(startChannel);
   const channel = channels.find((c) => c === chosenChannel) ?? channels[0];
+  const isDelivery = channel === 'delivery';
   const state = channel === undefined ? undefined : location.channels[channel];
   const canAsap = state?.open === true;
-  const canSchedule = allowScheduled && loadSlots !== undefined && channel !== 'dine_in';
+  // Delivery is as soon as possible: a price is for a courier booked now.
+  const canSchedule = allowScheduled && loadSlots !== undefined && channel === 'takeaway';
 
   const [timingKind, setTimingKind] = useState<'asap' | 'scheduled'>('asap');
   const timing = canAsap ? (canSchedule ? timingKind : 'asap') : canSchedule ? 'scheduled' : null;
@@ -154,8 +237,30 @@ export function Checkout({
   const [email, setEmail] = useState(initial?.email ?? '');
   const [allergyNote, setAllergyNote] = useState(initial?.allergyNote ?? '');
   const [cutlery, setCutlery] = useState(initial?.cutlery ?? true);
+  const [floor, setFloor] = useState(initial?.floor ?? '');
+  const [doorCode, setDoorCode] = useState(initial?.doorCode ?? '');
+  const [deliveryComment, setDeliveryComment] = useState(initial?.deliveryComment ?? '');
+  const [contactless, setContactless] = useState(initial?.contactless ?? false);
 
-  const methods = (['vipps', 'pay_at_counter'] as const).filter((m) => location.payment_methods[m]);
+  const [address, setAddress] = useState<DeliveryResolvedAddress | null>(null);
+  const [quote, setQuote] = useState<HeldQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState<OrderingRouteError | null>(null);
+  // Bumped to ask for a price again: on a timer, a retry, or a refused price.
+  const [quoteTick, setQuoteTick] = useState(0);
+  // A refused price is being replaced: show the new one for the guest to accept.
+  const [repricing, setRepricing] = useState(false);
+  const held = useRef<HeldQuote | null>(null);
+  const quoteTurn = useRef(0);
+  // The latest prop, so a page passing a new function each render does not ask again.
+  const quoteFn = useRef(quoteDelivery);
+  useEffect(() => {
+    quoteFn.current = quoteDelivery;
+  });
+
+  const methods: OrderingPaymentMethod[] = isDelivery
+    ? ['vipps']
+    : (['vipps', 'pay_at_counter'] as const).filter((m) => location.payment_methods[m]);
   const [chosenMethod, setMethod] = useState<OrderingPaymentMethod | undefined>(undefined);
   const method =
     chosenMethod !== undefined && methods.includes(chosenMethod) ? chosenMethod : methods[0];
@@ -188,7 +293,99 @@ export function Checkout({
     state === undefined ? null : openingLine(state.opens_at, clock, timeZone, locale, labels);
   const closed = channel === undefined || timing === null;
   const empty = cart.lines.length === 0;
-  const price = money.formatOre(cart.totalOre);
+  const subtotal = cart.totalOre;
+  const addressId = address?.address_id;
+
+  function keepQuote(next: HeldQuote | null) {
+    held.current = next;
+    setQuote(next);
+  }
+
+  /** A new or cleared address: the price, its request and its error were for the old one. */
+  function changeAddress(next: DeliveryResolvedAddress | null) {
+    setAddress(next);
+    quoteTurn.current += 1;
+    keepQuote(null);
+    setQuoting(false);
+    setQuoteError(null);
+  }
+
+  // Ask for a price for the address and the subtotal, unless the one held still holds.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `quoteTick` is the ask-again signal.
+  useEffect(() => {
+    const ask = quoteFn.current;
+    if (!isDelivery || addressId === undefined || empty || ask === undefined) return;
+    const current = held.current;
+    if (
+      current?.addressId === addressId &&
+      !quoteNeedsRefresh(current.quote, {
+        subtotalOre: subtotal,
+        quotedSubtotalOre: current.subtotalOre,
+      })
+    ) {
+      // It fits again (the cart went back): a request for another subtotal no longer counts.
+      quoteTurn.current += 1;
+      setQuoting(false);
+      return;
+    }
+    quoteTurn.current += 1;
+    const mine = quoteTurn.current;
+    const settle = (result: RouteResult<DeliveryQuote>) => {
+      if (mine !== quoteTurn.current) return;
+      setQuoting(false);
+      if (result.ok) {
+        keepQuote({ quote: result.data, addressId, subtotalOre: subtotal });
+      } else {
+        keepQuote(null);
+        setQuoteError(result.error);
+      }
+    };
+    setQuoting(true);
+    setQuoteError(null);
+    ask({ address_id: addressId, order_total: subtotal }).then(settle, () =>
+      settle({ ok: false, error: UNAVAILABLE })
+    );
+  }, [isDelivery, addressId, subtotal, empty, quoteTick]);
+
+  // Ask again before the price runs out; a late answer after unmounting is dropped.
+  useEffect(() => {
+    const delay = quote === null ? null : quoteRefreshDelay(quote.quote);
+    // A quote already due on arrival (a fast clock, a short validity) is asked
+    // again when the guest presses order, not on a 0 ms timer: that would
+    // loop, a Wolt call each turn, and spend the route's quote budget.
+    if (!isDelivery || delay === null || delay === 0) return;
+    const timer = setTimeout(() => setQuoteTick((t) => t + 1), delay);
+    return () => clearTimeout(timer);
+  }, [isDelivery, quote]);
+  useEffect(
+    () => () => {
+      quoteTurn.current += 1;
+    },
+    []
+  );
+
+  /** Drop the held price and ask for a new one for the guest to accept. */
+  function reprice() {
+    keepQuote(null);
+    setRepricing(true);
+    setQuoteTick((t) => t + 1);
+  }
+
+  // A price counts only for this address and this subtotal, and not while a new one is coming.
+  const usable =
+    isDelivery &&
+    !quoting &&
+    quote !== null &&
+    quote.addressId === addressId &&
+    quote.subtotalOre === subtotal
+      ? quote
+      : null;
+  const fee = usable === null ? 0 : deliveryFeeOre(usable.quote);
+  const feeWords = fee === 0 ? labels.freeDelivery : money.formatOre(fee);
+  const deliveredBy = usable?.quote.delivered_by;
+  const price = money.formatOre(subtotal + fee);
+  const notice =
+    repricing && usable !== null ? fill(labels.deliveryNewPrice, { price: feeWords }) : null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -200,6 +397,18 @@ export function Checkout({
     };
     const next: FieldErrors = {};
     if (timing === 'scheduled' && slot === '') next.slot = labels.chooseSlot;
+    const door = {
+      floor: floor.trim(),
+      door_code: doorCode.trim(),
+      comment: deliveryComment.trim(),
+    };
+    const doorField = isDelivery ? checkDelivery(door) : null;
+    if (doorField !== null) {
+      next[doorField] = refusalMessage(
+        { code: 'INVALID_CUSTOMER', details: { reason: doorField } },
+        labels
+      );
+    }
     const field = checkCustomer(customer, allergyNote);
     if (field !== null)
       next[field] = refusalMessage(
@@ -208,27 +417,50 @@ export function Checkout({
       );
     setErrors(next);
     setFailure(null);
-    const first = (['slot', 'name', 'phone', 'email', 'allergy_note'] as const).find(
-      (k) => next[k]
-    );
+    setRepricing(false);
+    const first = FIELD_ORDER.find((k) => next[k]);
     if (first !== undefined) {
       fields.current[first]?.focus();
       return;
     }
+    // A price that ran out while the tab slept (timers wait then) is asked for again first.
+    if (
+      usable !== null &&
+      quoteNeedsRefresh(usable.quote, { subtotalOre: subtotal, quotedSubtotalOre: subtotal })
+    ) {
+      reprice();
+      return;
+    }
 
     const note = allergyNote.trim();
-    const request: PlaceOrderRequest = {
-      channel,
-      ...(timing === 'scheduled' ? { timing: { kind: 'scheduled', at: slot } } : {}),
+    const base = {
+      ...(timing === 'scheduled' ? { timing: { kind: 'scheduled' as const, at: slot } } : {}),
       ...(channel === 'dine_in' && table ? { table_token: table.token } : {}),
       lines: cart.lines.map(toOrderLine),
       customer,
       preferences: {
         cutlery: channel === 'dine_in' ? false : cutlery,
         ...(note ? { allergy_note: note } : {}),
+        ...(isDelivery ? { no_contact: contactless } : {}),
       },
-      payment_method: method,
     };
+    // A delivery without a price is never sent (the button waits for one; Enter does not).
+    const request: PlaceOrderRequest | null =
+      channel !== 'delivery'
+        ? { ...base, channel, payment_method: method }
+        : usable && {
+            ...base,
+            channel,
+            payment_method: 'vipps',
+            delivery: {
+              verified_address_id: usable.addressId,
+              quote_id: usable.quote.quote_id,
+              ...(door.floor ? { floor: door.floor } : {}),
+              ...(door.door_code ? { door_code: door.door_code } : {}),
+              ...(door.comment ? { comment: door.comment } : {}),
+            },
+          };
+    if (request === null) return;
     setPlacing(true);
     let result: RouteResult<OrderingOrderCreated>;
     try {
@@ -244,10 +476,15 @@ export function Checkout({
     setPlacing(false);
     const { error } = result;
     onRefused?.(error);
-    const reason = error.details?.reason;
-    if (error.code === 'INVALID_CUSTOMER' && reason && reason in fields.current) {
+    if (isDelivery && REPRICE.has(error.code)) {
+      reprice();
+      return;
+    }
+    const reason = error.details?.reason as keyof FieldErrors | undefined;
+    const target = reason === undefined ? undefined : fields.current[reason];
+    if (error.code === 'INVALID_CUSTOMER' && reason && target) {
       setErrors({ [reason]: refusalMessage(error, labels) });
-      fields.current[reason as CustomerField]?.focus();
+      target.focus();
       return;
     }
     setFailure(refusalMessage(error, labels, { opens }));
@@ -255,9 +492,10 @@ export function Checkout({
 
   // Focus the message once it is on screen: before the render it is empty
   // and hidden, and focusing a hidden element does nothing.
+  const message = failure ?? notice;
   useEffect(() => {
-    if (failure !== null) failureRef.current?.focus();
-  }, [failure]);
+    if (message !== null) failureRef.current?.focus();
+  }, [message]);
 
   function described(field: keyof FieldErrors, hint?: string): string | undefined {
     const ids = [hint, errors[field] ? `${id}-${field}-error` : undefined].filter(Boolean);
@@ -392,6 +630,123 @@ export function Checkout({
             </div>
           ) : null}
 
+          {isDelivery && suggestAddress && resolveAddress ? (
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-1 font-medium">{labels.addressLegend}</legend>
+              <AddressCombobox
+                suggest={suggestAddress}
+                resolve={resolveAddress}
+                onResolved={changeAddress}
+                initialValue={address?.label}
+                locale={locale}
+                labels={overrides}
+              />
+              <div aria-live="polite" className="flex flex-col gap-1">
+                {usable !== null ? (
+                  <>
+                    <p className="font-medium">
+                      {fee === 0
+                        ? labels.freeDelivery
+                        : fill(labels.deliveryFee, { price: feeWords })}
+                    </p>
+                    {deliveredBy ? (
+                      <p className="text-sm text-muted-foreground">
+                        {deliveryWindowLabel(
+                          { min: deliveredBy, max: deliveredBy },
+                          locale,
+                          timeZone
+                        )}
+                      </p>
+                    ) : null}
+                  </>
+                ) : quoteError !== null && !quoting ? (
+                  <p className="text-sm font-medium text-destructive">
+                    {refusalMessage(quoteError, labels)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {addressId === undefined
+                      ? labels.deliveryChooseAddress
+                      : labels.deliveryQuoting}
+                  </p>
+                )}
+              </div>
+              {quoteError !== null &&
+              !quoting &&
+              addressId !== undefined &&
+              RETRY.has(quoteError.code) ? (
+                <button
+                  type="button"
+                  onClick={() => setQuoteTick((t) => t + 1)}
+                  className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
+                >
+                  {labels.deliveryRetry}
+                </button>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex min-w-32 flex-1 flex-col gap-1">
+                  <label htmlFor={`${id}-floor`}>{labels.floor}</label>
+                  <input
+                    id={`${id}-floor`}
+                    ref={(node) => {
+                      fields.current.floor = node;
+                    }}
+                    value={floor}
+                    maxLength={DELIVERY_LIMITS.maxFloor}
+                    aria-invalid={errors.floor ? 'true' : undefined}
+                    aria-describedby={described('floor')}
+                    onChange={(event) => setFloor(event.target.value)}
+                    className={input}
+                  />
+                  {errorText('floor')}
+                </div>
+                <div className="flex min-w-32 flex-1 flex-col gap-1">
+                  <label htmlFor={`${id}-door_code`}>{labels.doorCode}</label>
+                  <input
+                    id={`${id}-door_code`}
+                    ref={(node) => {
+                      fields.current.door_code = node;
+                    }}
+                    value={doorCode}
+                    autoComplete="off"
+                    maxLength={DELIVERY_LIMITS.maxDoorCode}
+                    aria-invalid={errors.door_code ? 'true' : undefined}
+                    aria-describedby={described('door_code')}
+                    onChange={(event) => setDoorCode(event.target.value)}
+                    className={input}
+                  />
+                  {errorText('door_code')}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor={`${id}-delivery_comment`}>{labels.deliveryComment}</label>
+                <textarea
+                  id={`${id}-delivery_comment`}
+                  ref={(node) => {
+                    fields.current.delivery_comment = node;
+                  }}
+                  value={deliveryComment}
+                  rows={2}
+                  maxLength={DELIVERY_LIMITS.maxComment}
+                  aria-invalid={errors.delivery_comment ? 'true' : undefined}
+                  aria-describedby={described('delivery_comment')}
+                  onChange={(event) => setDeliveryComment(event.target.value)}
+                  className="rounded-lg border border-input bg-background p-2 aria-invalid:border-destructive"
+                />
+                {errorText('delivery_comment')}
+              </div>
+              <label className={choice}>
+                <input
+                  type="checkbox"
+                  checked={contactless}
+                  onChange={(event) => setContactless(event.target.checked)}
+                  className="size-5 accent-primary"
+                />
+                <span>{labels.contactless}</span>
+              </label>
+            </fieldset>
+          ) : null}
+
           <fieldset className="flex flex-col gap-3">
             <legend className="mb-1 font-medium">{labels.detailsLegend}</legend>
             <div className="flex flex-col gap-1">
@@ -516,18 +871,20 @@ export function Checkout({
           role="alert"
           className="font-medium text-destructive outline-none empty:hidden"
         >
-          {failure ?? ''}
+          {message ?? ''}
         </p>
         <button
           type="submit"
-          disabled={closed || empty || method === undefined}
+          disabled={closed || empty || method === undefined || (isDelivery && usable === null)}
           aria-disabled={placing ? 'true' : undefined}
           aria-busy={placing ? 'true' : undefined}
           className="min-h-12 w-full rounded-full bg-primary px-4 font-semibold text-primary-foreground aria-disabled:opacity-60 disabled:opacity-40"
         >
           {placing
             ? labels.placing
-            : fill(method === 'vipps' ? labels.payWithVipps : labels.placeOrder, { price })}
+            : isDelivery && quoting
+              ? labels.deliveryQuoting
+              : fill(method === 'vipps' ? labels.payWithVipps : labels.placeOrder, { price })}
         </button>
       </div>
     </form>

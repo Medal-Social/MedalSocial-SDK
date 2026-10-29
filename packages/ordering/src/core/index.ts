@@ -2,16 +2,20 @@
  * `@medalsocial/ordering/core` — the framework-free rules behind a Medal
  * ordering site: money in øre, table and channel links, the cart draft, the
  * modifier rules, the cart check and checkout's details check (the Medal
- * API's own), the order status words, the hours engine (channel state and
+ * API's own), delivery's quote freshness and lookup session, the order status words, the hours engine (channel state and
  * slots, the Medal API's own), the allergen/dietary labels and the components' words
  * (`ORDERING_LABELS`, server-safe). No React, Next or
  * `server-only`; runs in a browser, Node or a Worker.
  */
 
 export type {
+  DeliveryAddressSuggestion,
+  DeliveryQuote,
+  DeliveryResolvedAddress,
   OrderingAllergen,
   OrderingChannel,
   OrderingCustomerOrder,
+  OrderingDeliveryInput,
   OrderingDietary,
   OrderingLocation,
   OrderingLocations,
@@ -47,13 +51,18 @@ export {
   isPhoneNumber,
   type OrderingRouteError,
   type OrderingRouteErrorCode,
+  type PlaceOrderBase,
   type PlaceOrderRequest,
 } from './checkout';
 export {
+  type AddressQuery,
+  fetchAddressSuggestions,
   fetchOrderStatus,
   type PlaceOrderOptions,
   placeOrder,
   type RouteResult,
+  requestDeliveryQuote,
+  resolveAddress,
 } from './client';
 export {
   type BuildOrderLinkInput,
@@ -66,6 +75,18 @@ export {
   parseTable,
   TABLE_QUERY_KEY,
 } from './deep-link';
+export {
+  checkDelivery,
+  DELIVERY_LIMITS,
+  type DeliveryDetails,
+  type DeliveryField,
+  deliveryFeeOre,
+  newLookupSession,
+  QUOTE_REFRESH_MARGIN_MS,
+  type QuoteFreshness,
+  quoteNeedsRefresh,
+  quoteRefreshDelay,
+} from './delivery';
 export {
   createDraftStore,
   DRAFT_MAX_AGE_MS,

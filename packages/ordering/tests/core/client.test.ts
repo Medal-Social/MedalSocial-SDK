@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlaceOrderRequest } from '../../src/core/checkout';
-import { fetchOrderStatus, placeOrder } from '../../src/core/client';
+import {
+  fetchAddressSuggestions,
+  fetchOrderStatus,
+  placeOrder,
+  requestDeliveryQuote,
+  resolveAddress,
+} from '../../src/core/client';
 
 const REQUEST: PlaceOrderRequest = {
   channel: 'takeaway',
@@ -102,5 +108,57 @@ describe('fetchOrderStatus', () => {
       error: { code: 'ORDER_NOT_FOUND', message: 'No such order.' },
     });
     expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe('/s?site=a&id=o1');
+  });
+});
+
+describe('the delivery helpers', () => {
+  it('fetchAddressSuggestions reads the suggest route with q and session, no-store', async () => {
+    const suggestions = [{ id: 'kv_1', label: 'Storgata 1', secondary: '0155 Oslo' }];
+    const fetch = answer(200, { data: suggestions });
+    vi.stubGlobal('fetch', fetch);
+    const signal = new AbortController().signal;
+    expect(
+      await fetchAddressSuggestions(
+        '/api/ordering/address',
+        { q: 'storgata 1&x', session: 's_12345678' },
+        signal
+      )
+    ).toEqual({ ok: true, data: suggestions });
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/ordering/address?q=storgata%201%26x&session=s_12345678');
+    expect(init).toMatchObject({ method: 'GET', cache: 'no-store' });
+    await fetchAddressSuggestions('/a?site=b', { q: 'x', session: 's' });
+    expect((fetch.mock.calls[1] as unknown as [string])[0]).toBe('/a?site=b&q=x&session=s');
+  });
+
+  it('resolveAddress posts the id and session as JSON', async () => {
+    const error = { code: 'ADDRESS_NOT_VERIFIED', message: 'Not verified.' };
+    const fetch = answer(422, { error });
+    vi.stubGlobal('fetch', fetch);
+    expect(await resolveAddress('/r', { id: 'kv_1', session: 's_12345678' })).toEqual({
+      ok: false,
+      error,
+    });
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/r');
+    expect(init.method).toBe('POST');
+    expect(init.headers).toEqual({ 'content-type': 'application/json' });
+    expect(JSON.parse(init.body as string)).toEqual({ id: 'kv_1', session: 's_12345678' });
+  });
+
+  it('requestDeliveryQuote posts the address and the subtotal, and waits out the route', async () => {
+    const quote = { quote_id: 'q_1' };
+    const fetch = answer(201, { data: quote });
+    vi.stubGlobal('fetch', fetch);
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    expect(await requestDeliveryQuote('/q', { address_id: 'a_1', order_total: 25_000 })).toEqual({
+      ok: true,
+      data: quote,
+    });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ address_id: 'a_1', order_total: 25_000 });
+    // The route gives Medal 25 s; the browser waits longer than that.
+    expect(timeout).toHaveBeenCalledWith(30_000);
+    timeout.mockRestore();
   });
 });

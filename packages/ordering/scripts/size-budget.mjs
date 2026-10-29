@@ -62,9 +62,14 @@ const BUDGETS = [
     // larger word packs they reach through `/core`: 14.14 KB measured, budget
     // +15%. A menu page that imports only `MenuList` and `ItemSheet` from the
     // unbundled build does not ship checkout.
+    // Raised for delivery checkout (plan 8c): `AddressCombobox` (the WAI-ARIA
+    // address field), Checkout's address, door and price handling (asking
+    // again before a price runs out and after a refused one), and the
+    // delivery words in nb and en it reaches through `/core`: 17.77 KB
+    // measured, budget +15%. `/core` itself stayed within its budget.
     name: '@medalsocial/ordering/react — whole entry',
     contents: "export * from './dist/react/index.mjs';",
-    gzipBytes: 16.3 * 1024,
+    gzipBytes: 20.4 * 1024,
   },
 ];
 

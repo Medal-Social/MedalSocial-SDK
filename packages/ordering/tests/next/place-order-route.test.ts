@@ -220,6 +220,126 @@ describe('createPlaceOrderRoute — Vipps', () => {
   });
 });
 
+describe('createPlaceOrderRoute — delivery', () => {
+  const DELIVERY = {
+    verified_address_id: 'addr_1',
+    quote_id: 'q_1',
+    floor: '3',
+    door_code: '1234',
+    comment: 'Ring twice',
+  };
+  const order = {
+    ...ORDER,
+    channel: 'delivery',
+    payment_method: 'vipps',
+    preferences: { cutlery: true, no_contact: true },
+    delivery: DELIVERY,
+  };
+
+  it('forwards the address, quote and door details with the return page', async () => {
+    const { POST, create } = setup();
+    const response = await POST(post(order));
+    expect(response.status).toBe(201);
+    expect(sent(create).input).toEqual({
+      ...order,
+      location_id: 'loc_1',
+      return_url: `${SITE}/order/return`,
+    });
+  });
+
+  it('takes every delivery field at the API’s limits, untrimmed', async () => {
+    const { POST, create } = setup();
+    const delivery = {
+      verified_address_id: 'a'.repeat(64),
+      quote_id: 'q'.repeat(64),
+      floor: 'x'.repeat(20),
+      door_code: 'x'.repeat(20),
+      comment: 'x'.repeat(500),
+    };
+    expect((await POST(post({ ...order, delivery }))).status).toBe(201);
+    expect(sent(create).input?.delivery).toEqual(delivery);
+  });
+
+  it('takes the address and quote alone', async () => {
+    const { POST, create } = setup();
+    const delivery = { verified_address_id: 'addr_1', quote_id: 'q_1' };
+    await POST(post({ ...order, delivery }));
+    expect(sent(create).input?.delivery).toEqual(delivery);
+  });
+
+  it('needs the Vipps return page', async () => {
+    const { POST, create } = setup({ returnUrl: undefined });
+    expect((await POST(post(order))).status).toBe(500);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['paid at the counter', { ...order, payment_method: 'pay_at_counter' }],
+    ['without delivery', { ...order, delivery: undefined }],
+    ['with delivery that is not an object', { ...order, delivery: 'addr_1' }],
+    ['with a fee', { ...order, delivery: { ...DELIVERY, fee_ore: 0 } }],
+    ['with a venue', { ...order, delivery: { ...DELIVERY, venue_id: 'v_1' } }],
+    ['without the address', { ...order, delivery: { quote_id: 'q_1' } }],
+    ['without the quote', { ...order, delivery: { verified_address_id: 'addr_1' } }],
+    ['with a numeric quote', { ...order, delivery: { ...DELIVERY, quote_id: 1 } }],
+    ['with a numeric floor', { ...order, delivery: { ...DELIVERY, floor: 3 } }],
+    ['with a numeric door code', { ...order, delivery: { ...DELIVERY, door_code: 1234 } }],
+    ['with a null comment', { ...order, delivery: { ...DELIVERY, comment: null } }],
+    ['with an empty address id', { ...order, delivery: { ...DELIVERY, verified_address_id: '' } }],
+    [
+      'with an address id over 64 characters',
+      { ...order, delivery: { ...DELIVERY, verified_address_id: 'a'.repeat(65) } },
+    ],
+    ['with an empty quote id', { ...order, delivery: { ...DELIVERY, quote_id: '' } }],
+    [
+      'with a quote id over 64 characters',
+      { ...order, delivery: { ...DELIVERY, quote_id: 'q'.repeat(65) } },
+    ],
+    [
+      'with a floor over 20 characters',
+      { ...order, delivery: { ...DELIVERY, floor: 'x'.repeat(21) } },
+    ],
+    [
+      'with a door code over 20 characters',
+      { ...order, delivery: { ...DELIVERY, door_code: 'x'.repeat(21) } },
+    ],
+    [
+      'with a comment over 500 characters',
+      { ...order, delivery: { ...DELIVERY, comment: 'x'.repeat(501) } },
+    ],
+    ['for pickup', { ...ORDER, payment_method: 'vipps', delivery: DELIVERY }],
+  ])('refuses a delivery %s with 400 before any Medal call', async (_n, body) => {
+    const { POST, create } = setup();
+    const response = await POST(post(body));
+    expect(response.status).toBe(400);
+    expect((await json(response)).error?.code).toBe('INVALID_REQUEST');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each(['QUOTE_EXPIRED', 'QUOTE_NOT_USABLE'])(
+    'passes a %s refusal through for the checkout to ask again',
+    async (code) => {
+      const { POST, create } = setup();
+      create.mockRejectedValueOnce(new MedalApiError(422, code, 'x'));
+      const response = await POST(post(order));
+      expect(response.status).toBe(422);
+      expect((await json(response)).error?.code).toBe(code);
+    }
+  );
+
+  it('passes a refused door detail through with its reason', async () => {
+    const { POST, create } = setup();
+    create.mockRejectedValueOnce(
+      new MedalApiError(422, 'INVALID_CUSTOMER', 'x', { reason: 'door_code' })
+    );
+    const response = await POST(post(order));
+    expect((await json(response)).error).toMatchObject({
+      code: 'INVALID_CUSTOMER',
+      details: { reason: 'door_code' },
+    });
+  });
+});
+
 describe('createPlaceOrderRoute — location and return_url never come from the request', () => {
   it.each([
     ['location_id', { location_id: 'loc_evil' }],
@@ -404,7 +524,7 @@ describe('createPlaceOrderRoute — strict body', () => {
     ['an unknown top-level key', { ...ORDER, coupon: 'FREE' }],
     ['a total', { ...ORDER, total_ore: 0 }],
     ['an unknown channel', { ...ORDER, channel: 'drone' }],
-    ['delivery, which needs an address and a quote', { ...ORDER, channel: 'delivery' }],
+    ['delivery without an address and a quote', { ...ORDER, channel: 'delivery' }],
     ['a channel in another case', { ...ORDER, channel: 'Takeaway' }],
     ['an unknown payment method', { ...ORDER, payment_method: 'cash' }],
     ['a null optional field', { ...ORDER, timing: null }],

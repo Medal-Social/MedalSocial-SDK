@@ -1,7 +1,9 @@
 /**
  * What every ordering route shares: the lazily built SDK client, how a Medal
- * failure is recognised, the `{ error: { code, message } }` answer and the
- * site's `onError` hook that must never break a response.
+ * failure is recognised, the `{ error: { code, message } }` answer, the
+ * site's `onError` hook that must never break a response, and the checks a
+ * browser `POST` passes before its body is read (same origin, JSON, a capped
+ * body) with the strict-shape helpers its body is read with.
  */
 
 import { Medal, MedalApiError } from '@medalsocial/sdk';
@@ -34,17 +36,19 @@ export interface RouteBaseOptions<Client> {
 
 /**
  * The client to call Medal with: the injected one, else one built from the
- * key on first use (and kept), else `undefined` while no key is set.
+ * key on first use (and kept), else `undefined` while no key is set. Each
+ * attempt gives up after `attemptTimeoutMs` (a quote waits longer).
  */
 export function lazyClient<Client>(
-  options: Pick<RouteBaseOptions<Client>, 'apiKey' | 'baseUrl' | 'medal'>
+  options: Pick<RouteBaseOptions<Client>, 'apiKey' | 'baseUrl' | 'medal'>,
+  attemptTimeoutMs = ATTEMPT_TIMEOUT_MS
 ): () => Client | Medal | undefined {
   let client: Client | Medal | undefined = options.medal;
   return () => {
     if (client) return client;
     const key = typeof options.apiKey === 'string' ? options.apiKey.trim() : '';
     if (key === '') return undefined;
-    client = new Medal(key, { baseUrl: options.baseUrl, timeout: ATTEMPT_TIMEOUT_MS });
+    client = new Medal(key, { baseUrl: options.baseUrl, timeout: attemptTimeoutMs });
     return client;
   };
 }
@@ -60,6 +64,25 @@ export function reporter(
       // The site's logger failing must not turn into a failed response.
     }
   };
+}
+
+/**
+ * The guest's IP from the site's `clientIp(request)`, trimmed, or `undefined`
+ * without one (no header is trusted by default). A throw from it is reported
+ * and counts as none.
+ */
+export function readClientIp(
+  clientIp: ((request: Request) => string | null | undefined) | undefined,
+  request: Request,
+  report: (error: unknown) => void
+): string | undefined {
+  if (!clientIp) return undefined;
+  try {
+    return clientIp(request)?.trim() || undefined;
+  } catch (error) {
+    report(error);
+    return undefined;
+  }
 }
 
 /** The parts of a Medal API failure the routes read. */
@@ -201,6 +224,8 @@ export interface ReadSpec<Client, Args> {
   notFound: ErrorBody | null;
   /** `Cache-Control` of a success. */
   cacheControl: string;
+  /** A failed call in the site's words. Default `readFailure(error, notFound)`. */
+  failure?: (error: unknown) => ErrorBody;
 }
 
 /**
@@ -227,7 +252,96 @@ export function readRoute<Client, Args>(
       return dataResponse(data, spec.cacheControl);
     } catch (error) {
       report(error);
-      return errorResponse(readFailure(error, spec.notFound));
+      return errorResponse(spec.failure ? spec.failure(error) : readFailure(error, spec.notFound));
     }
   };
 }
+
+/**
+ * The origin the browser asked for: `x-forwarded-host` (its first entry) or
+ * `host`, with `x-forwarded-proto` (https unless the host is local), falling
+ * back to `request.url`. On Cloudflare and behind a proxy `request.url` can
+ * name an internal host the browser's `Origin` never will. A cross-site page
+ * cannot set these headers on a JSON POST without a CORS preflight, which
+ * no ordering route answers.
+ */
+function siteOrigin(request: Request): string {
+  const own = new URL(request.url).origin;
+  const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host'))
+    ?.split(',')[0]
+    ?.trim();
+  if (!host) return own;
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+  const proto =
+    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || (local ? 'http' : 'https');
+  return URL.canParse(`${proto}://${host}`) ? new URL(`${proto}://${host}`).origin : own;
+}
+
+/** The media type of a `Content-Type`, without parameters, lower-cased. */
+function mediaType(header: string | null): string {
+  const [type = ''] = (header ?? '').split(';');
+  return type.trim().toLowerCase();
+}
+
+/**
+ * A browser `POST`'s first checks, before its body is read: an `Origin`, when
+ * sent, must be the site's own (`crossOrigin`, a 403) — a page on another
+ * site cannot post with the visitor's browser — and the body must be
+ * `application/json` (`notJson`, a 415), which a cross-site form cannot send
+ * without a CORS preflight. `null` when both pass.
+ */
+export function postGuard(
+  request: Request,
+  refusals: { crossOrigin: ErrorBody; notJson: ErrorBody }
+): ErrorBody | null {
+  const origin = request.headers.get('origin');
+  if (origin !== null && origin !== siteOrigin(request)) return refusals.crossOrigin;
+  if (mediaType(request.headers.get('content-type')) !== 'application/json') {
+    return refusals.notJson;
+  }
+  return null;
+}
+
+/**
+ * The body as text, or `null` when it is over `maxBytes`. Read chunk by
+ * chunk so an endless body stops at the cap; a declared `Content-Length`
+ * over it is refused without reading. Rejects for a failing stream or bytes
+ * that are not UTF-8.
+ */
+export async function readBody(request: Request, maxBytes: number): Promise<string | null> {
+  if (Number(request.headers.get('content-length')) > maxBytes) return null;
+  const bytes = new Uint8Array(maxBytes);
+  let length = 0;
+  if (request.body) {
+    const reader = request.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (length + value.byteLength > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      bytes.set(value, length);
+      length += value.byteLength;
+    }
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
+}
+
+export type Json = Record<string, unknown>;
+
+export function isRecord(value: unknown): value is Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A plain object with only these keys. */
+export function only(value: unknown, keys: readonly string[]): value is Json {
+  return isRecord(value) && Object.keys(value).every((key) => keys.includes(key));
+}
+
+/** Absent, or a value `check` takes. `null` is not absent: Medal omits, never nulls. */
+export function optional(value: unknown, check: (value: unknown) => boolean): boolean {
+  return value === undefined || check(value);
+}
+
+export const isString = (value: unknown): value is string => typeof value === 'string';

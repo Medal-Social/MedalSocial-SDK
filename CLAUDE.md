@@ -74,8 +74,12 @@ and is never published.
   (`checkCart`, the API's `priceCart` on the wire shape, totals only — VAT is
   the server's) and `resolveCart`, checkout's details check, the status words,
   the error copy (`refusalMessage`) and the browser's `placeOrder` /
-  `fetchOrderStatus`. `/react` holds `MenuList`, `ItemSheet`, `CartBar`,
-  `CartList`, `Checkout`, `OrderStatus` and `ClosedNotice` (presentational,
+  `fetchOrderStatus`, plus delivery's `quoteNeedsRefresh` (subtotal changed,
+  or within 90 s of `valid_until`), `newLookupSession` and the address/quote
+  calls. `/react` holds `MenuList`, `ItemSheet`, `CartBar`,
+  `CartList`, `Checkout` (delivery with a quote it re-asks for, and a
+  refused price shown for the guest to accept), `AddressCombobox`,
+  `OrderStatus` and `ClosedNotice` (presentational,
   controlled by props; `/react` exports components only), native accessible
   markup styled with Tailwind classes on the shadcn/meda colour tokens — no
   meda or lucide dependency, and `verify:paths` refuses any runtime import
@@ -84,7 +88,10 @@ and is never published.
   cache revalidated with Medal's ETag, `?at=` window-checked, minute-rounded
   LRU-cached and budgeted per window, `ETag`/`304` and public `Cache-Control` out, fixed-word
   errors that never carry the key; an injected `store` needs a
-  `storeKeyPrefix`, and each store call is bounded to 1.5 s). The modifier rules are
+  `storeKeyPrefix`, and each store call is bounded to 1.5 s), the order,
+  status and Vipps routes, and the delivery routes (address suggest/resolve
+  and a quote route budgeted per minute, 25 s, never a venue from the
+  browser). The modifier rules are
   the Medal API's own (same checks, same order, same reason names) — change
   them only together with the server. So is the hours engine
   (`src/core/hours.ts`: `channelState`, `slots`, `slotsForDate`,

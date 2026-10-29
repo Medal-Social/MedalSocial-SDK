@@ -96,6 +96,32 @@ export interface OrderingLabels {
   allergyWarning: string;
   allergyNoteError: string;
   cutlery: string;
+  /** Delivery: the address, the door and the price. */
+  addressLegend: string;
+  address: string;
+  addressHint: string;
+  /** Announced when the address list changes. `{n}`: how many. */
+  addressCountOne: string;
+  addressCountMany: string;
+  addressNone: string;
+  addressChecking: string;
+  floor: string;
+  doorCode: string;
+  deliveryComment: string;
+  /** `no_contact`: the courier leaves the food at the door. */
+  contactless: string;
+  /** `{n}`: the limit. */
+  floorError: string;
+  doorCodeError: string;
+  deliveryCommentError: string;
+  /** `{price}`: the delivery fee. */
+  deliveryFee: string;
+  freeDelivery: string;
+  deliveryChooseAddress: string;
+  deliveryQuoting: string;
+  /** `{price}`: the new fee, after the old price was refused. */
+  deliveryNewPrice: string;
+  deliveryRetry: string;
   paymentLegend: string;
   payVipps: string;
   payAtCounter: string;
@@ -126,6 +152,10 @@ export interface OrderingLabels {
   errorNotEnabled: string;
   errorNotFound: string;
   errorGeneric: string;
+  errorAddressNotVerified: string;
+  errorAddressNotDeliverable: string;
+  errorDeliveryUnavailable: string;
+  errorQuoteTimeout: string;
   /** The order's status. `{number}`: the order number. */
   orderNumber: string;
   orderSteps: string;
@@ -212,6 +242,26 @@ const NB: OrderingLabels = {
   allergyWarning: 'Kontakt restauranten ved alvorlig allergi.',
   allergyNoteError: 'Allerginotatet kan være opptil {n} tegn.',
   cutlery: 'Jeg vil ha bestikk',
+  addressLegend: 'Leveringsadresse',
+  address: 'Adresse',
+  addressHint: 'Gate og husnummer, for eksempel Storgata 1.',
+  addressCountOne: '1 adresse',
+  addressCountMany: '{n} adresser',
+  addressNone: 'Fant ingen adresser.',
+  addressChecking: 'Sjekker adressen …',
+  floor: 'Etasje (valgfritt)',
+  doorCode: 'Dørkode (valgfritt)',
+  deliveryComment: 'Beskjed til budet (valgfritt)',
+  contactless: 'Lever på døren',
+  floorError: 'Etasje kan være opptil {n} tegn.',
+  doorCodeError: 'Dørkoden kan være opptil {n} tegn.',
+  deliveryCommentError: 'Beskjeden til budet kan være opptil {n} tegn.',
+  deliveryFee: 'Levering · {price}',
+  freeDelivery: 'Gratis levering',
+  deliveryChooseAddress: 'Velg adressen fra listen for å se leveringsprisen.',
+  deliveryQuoting: 'Henter leveringspris …',
+  deliveryNewPrice: 'Ny leveringspris: {price}. Trykk bestill igjen for å godta.',
+  deliveryRetry: 'Prøv igjen',
   paymentLegend: 'Betaling',
   payVipps: 'Vipps',
   payAtCounter: 'Betal i disken',
@@ -240,6 +290,12 @@ const NB: OrderingLabels = {
   errorNotEnabled: 'Nettbestilling er ikke tilgjengelig her.',
   errorNotFound: 'Vi fant ikke bestillingen.',
   errorGeneric: 'Noe gikk galt. Prøv igjen om litt.',
+  errorAddressNotVerified: 'Vi fant ikke adressen. Husk husnummer.',
+  errorAddressNotDeliverable:
+    'Vi kan ikke levere til denne adressen nå. Prøv en annen adresse, eller hent selv.',
+  errorDeliveryUnavailable:
+    'Levering er ikke tilgjengelig akkurat nå. Velg en annen måte å få maten på.',
+  errorQuoteTimeout: 'Det tok for lang tid å hente leveringsprisen. Prøv igjen.',
   orderNumber: 'Bestilling {number}',
   orderSteps: 'Status for bestillingen',
   readyAt: 'Klar ca. kl. {time}',
@@ -324,6 +380,26 @@ const EN: OrderingLabels = {
   allergyWarning: 'Please contact the restaurant about a serious allergy.',
   allergyNoteError: 'The allergy note can be up to {n} characters.',
   cutlery: 'I would like cutlery',
+  addressLegend: 'Delivery address',
+  address: 'Address',
+  addressHint: 'Street and house number, for example Storgata 1.',
+  addressCountOne: '1 address',
+  addressCountMany: '{n} addresses',
+  addressNone: 'No addresses found.',
+  addressChecking: 'Checking the address …',
+  floor: 'Floor (optional)',
+  doorCode: 'Door code (optional)',
+  deliveryComment: 'Note for the courier (optional)',
+  contactless: 'Leave it at the door',
+  floorError: 'The floor can be up to {n} characters.',
+  doorCodeError: 'The door code can be up to {n} characters.',
+  deliveryCommentError: 'The note for the courier can be up to {n} characters.',
+  deliveryFee: 'Delivery · {price}',
+  freeDelivery: 'Free delivery',
+  deliveryChooseAddress: 'Choose your address from the list to see the delivery price.',
+  deliveryQuoting: 'Getting the delivery price …',
+  deliveryNewPrice: 'New delivery price: {price}. Press order again to accept it.',
+  deliveryRetry: 'Try again',
   paymentLegend: 'Payment',
   payVipps: 'Vipps',
   payAtCounter: 'Pay at the counter',
@@ -353,6 +429,12 @@ const EN: OrderingLabels = {
   errorNotEnabled: 'Online ordering is not available here.',
   errorNotFound: 'We could not find this order.',
   errorGeneric: 'Something went wrong. Please try again in a moment.',
+  errorAddressNotVerified: 'We could not find that address. Remember the house number.',
+  errorAddressNotDeliverable:
+    'We cannot deliver to this address right now. Try another address, or pick up.',
+  errorDeliveryUnavailable:
+    'Delivery is not available right now. Please choose another way to get your food.',
+  errorQuoteTimeout: 'Getting the delivery price took too long. Please try again.',
   orderNumber: 'Order {number}',
   orderSteps: 'Order status',
   readyAt: 'Ready at about {time}',
