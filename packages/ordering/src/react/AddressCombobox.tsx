@@ -11,7 +11,9 @@
  * changes the text again. Nothing is fetched here but through those props.
  *
  * Suggestions are asked for 250 ms after the last keystroke, from three
- * letters on; a newer lookup aborts the one before. A polite live region says
+ * letters on; a newer lookup aborts the one before, and leaving the field
+ * drops a lookup still to come (an option pressed with the mouse or a finger
+ * keeps the focus, so it is picked, not dropped). A polite live region says
  * how many addresses were found. Both calls of one lookup share a session
  * token, and every finished lookup starts a new one. An address the register
  * does not know (`ADDRESS_NOT_VERIFIED`, often a missing house number) is
@@ -73,6 +75,8 @@ export function AddressCombobox({
   const session = useRef<string | null>(null);
   // Every keystroke and pick is a new turn; an answer from an older turn is dropped.
   const turn = useRef(0);
+  // Every lookup and every blur: a blur drops the suggestions on their way, not a pick's check.
+  const lookup = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inflight = useRef<AbortController | null>(null);
   const resolved = useRef(initialValue !== '');
@@ -117,8 +121,10 @@ export function AddressCombobox({
     timer.current = setTimeout(() => {
       const controller = new AbortController();
       inflight.current = controller;
+      lookup.current += 1;
+      const asked = lookup.current;
       const settle = (found: DeliveryAddressSuggestion[], words: string) => {
-        if (mine !== turn.current) return;
+        if (mine !== turn.current || asked !== lookup.current) return;
         setOptions(found);
         setOpen(found.length > 0);
         setStatus(words);
@@ -211,6 +217,10 @@ export function AddressCombobox({
           onChange={(event) => change(event.target.value)}
           onKeyDown={keyDown}
           onBlur={() => {
+            // A lookup still to come must not reopen the list once the guest has left.
+            clearTimeout(timer.current);
+            inflight.current?.abort();
+            lookup.current += 1;
             setOpen(false);
             setActive(-1);
           }}

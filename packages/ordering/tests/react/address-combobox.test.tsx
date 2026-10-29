@@ -140,6 +140,58 @@ describe('AddressCombobox', () => {
     expect(input).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('leaving the field during the wait drops the lookup still to come', async () => {
+    vi.useFakeTimers();
+    const suggest = vi.fn<Suggest>(async () => ({ ok: true, data: SUGGESTIONS }));
+    render(<AddressCombobox suggest={suggest} resolve={vi.fn()} onResolved={vi.fn()} />);
+    const input = screen.getByRole('combobox');
+    fireEvent.change(input, { target: { value: 'storgata' } });
+    fireEvent.blur(input);
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(suggest).not.toHaveBeenCalled();
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('leaving the field while a lookup is on its way keeps its answer from opening the list', async () => {
+    let answer: (r: RouteResult<DeliveryAddressSuggestion[]>) => void = () => {};
+    const suggest = vi.fn<Suggest>(() => new Promise((resolve) => (answer = resolve)));
+    const { input, user } = combobox({ suggest });
+    await user.type(input, 'storgata');
+    await waitFor(() => expect(suggest).toHaveBeenCalled());
+    const signal = suggest.mock.calls[0]?.[2];
+    await user.tab();
+    expect(signal?.aborted).toBe(true);
+    await act(async () => answer({ ok: true, data: SUGGESTIONS }));
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryAllByRole('option')).toHaveLength(0);
+    expect(announced()).toBe('');
+  });
+
+  it('a pointer pick wins over the blur: pressing an option keeps the focus and picks it', async () => {
+    const { input, user, resolve, onResolved } = combobox();
+    await user.type(input, 'storgata');
+    const option = await screen.findByRole('option', { name: /Storgata 12/ });
+    // The press is prevented, so the field never blurs and the list stays.
+    expect(fireEvent.mouseDown(option)).toBe(false);
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('aria-expanded', 'true');
+    await user.click(option);
+    expect(resolve).toHaveBeenCalledWith('kv_3', expect.any(String));
+    await waitFor(() => expect(onResolved).toHaveBeenCalledWith(ADDRESS));
+  });
+
+  it('leaving the field while the pick is checked keeps the verified address', async () => {
+    let finish: (r: RouteResult<DeliveryResolvedAddress>) => void = () => {};
+    const resolve = vi.fn<Resolve>(() => new Promise((r) => (finish = r)));
+    const { input, user, onResolved } = combobox({ resolve });
+    await user.type(input, 'storgata');
+    await user.click(await screen.findByRole('option', { name: /Storgata 12/ }));
+    await user.tab();
+    await act(async () => finish({ ok: true, data: ADDRESS }));
+    expect(onResolved).toHaveBeenCalledWith(ADDRESS);
+    expect(input).toHaveValue('Storgata 1, 0155 Oslo');
+  });
+
   it('Enter with the list open and nothing chosen does nothing', async () => {
     const onSubmit = vi.fn((event: Event) => event.preventDefault());
     const suggest = vi.fn<Suggest>(async () => ({ ok: true, data: SUGGESTIONS }));

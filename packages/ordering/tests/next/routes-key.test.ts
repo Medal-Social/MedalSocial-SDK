@@ -196,7 +196,7 @@ function cases(): Case[] {
       name: 'delivery quote',
       handler: createDeliveryQuoteRoute({
         apiKey: KEY,
-        maxQuotesPerMinute: 100,
+        maxQuotesPerMinute: 30,
         medal: { delivery: { quotes: { create: quote } } } as never,
       }),
       call: quote,

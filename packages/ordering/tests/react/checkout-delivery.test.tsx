@@ -351,6 +351,63 @@ describe('Checkout — delivery', () => {
     expect(onPlace).not.toHaveBeenCalled();
   });
 
+  it('a price without valid_until is ordered with at the press: no timer, no new price', async () => {
+    const { user, quoteDelivery, onPlace } = checkout();
+    quoteDelivery.mockResolvedValue({ ok: true, data: quote({ valid_until: null }) });
+    await chooseAddress(user);
+    await screen.findByText(`Levering · 59 kr`);
+    await fillDetails(user);
+    await user.click(orderButton());
+    expect(onPlace).toHaveBeenCalledOnce();
+    expect(onPlace.mock.calls[0]?.[0].delivery?.quote_id).toBe('q_1');
+    expect(quoteDelivery).toHaveBeenCalledOnce();
+  });
+
+  it('a late price for a subtotal the cart left does not replace the one that fits again', async () => {
+    const answers: ((r: RouteResult<DeliveryQuote>) => void)[] = [];
+    const quoteDelivery = vi.fn<QuoteFn>(() => new Promise((r) => answers.push(r)));
+    const { user, rerender, resolveAddress, suggestAddress, onPlace } = checkout({
+      quoteDelivery,
+    });
+    await chooseAddress(user);
+    await waitFor(() => expect(answers).toHaveLength(1));
+    await act(async () => answers[0]?.({ ok: true, data: quote() }));
+    await screen.findByText(`Levering · 59 kr`);
+    const bigger = resolveCart(MENU, [
+      { lineId: 'l1', itemId: 'burger', quantity: 3, selections: { size: ['large'] } },
+    ]);
+    const view = (cart: typeof CART) => (
+      <Checkout
+        location={DELIVERS}
+        timeZone="Europe/Oslo"
+        cart={cart}
+        channel="delivery"
+        suggestAddress={suggestAddress}
+        resolveAddress={resolveAddress}
+        quoteDelivery={quoteDelivery}
+        onPlace={onPlace}
+        onPlaced={vi.fn()}
+        now={NOW}
+      />
+    );
+    rerender(view(bigger));
+    await waitFor(() => expect(answers).toHaveLength(2));
+    // Back to the first cart: its price still fits, and the bigger cart's answer is stale.
+    rerender(view(CART));
+    expect(screen.getByText(`Levering · 59 kr`)).toBeInTheDocument();
+    await act(async () =>
+      answers[1]?.({ ok: true, data: quote({ quote_id: 'q_big', customer_fee: null }) })
+    );
+    expect(screen.getByText(`Levering · 59 kr`)).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: `Betal med Vipps · 288,50${NBSP}kr` });
+    expect(button).toBeEnabled();
+    await fillDetails(user);
+    await user.click(button);
+    expect(onPlace).toHaveBeenCalledOnce();
+    expect(onPlace.mock.calls[0]?.[0].delivery?.quote_id).toBe('q_1');
+    expect(answers).toHaveLength(2);
+  });
+
   it('says why there is no price, and offers to try again when it may help', async () => {
     const { user, quoteDelivery } = checkout();
     quoteDelivery.mockResolvedValueOnce({
@@ -389,6 +446,34 @@ describe('Checkout — delivery', () => {
     await screen.findByText(`Levering · 59 kr`);
     await user.type(screen.getByRole('combobox'), 'x');
     expect(screen.getByText('Velg adressen fra listen for å se leveringsprisen.')).toBeVisible();
+    expect(orderButton()).toBeDisabled();
+  });
+
+  it('an edited address takes a failed price’s words and its retry away', async () => {
+    const { user, quoteDelivery } = checkout();
+    quoteDelivery.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'QUOTE_TIMEOUT', message: 'x' },
+    });
+    await chooseAddress(user);
+    const words = 'Det tok for lang tid å hente leveringsprisen. Prøv igjen.';
+    expect(await screen.findByText(words)).toBeInTheDocument();
+    await user.type(screen.getByRole('combobox'), 'x');
+    expect(screen.queryByText(words)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Prøv igjen' })).toBeNull();
+    expect(screen.getByText('Velg adressen fra listen for å se leveringsprisen.')).toBeVisible();
+  });
+
+  it('an edited address drops a price still on its way', async () => {
+    let finish: (r: RouteResult<DeliveryQuote>) => void = () => {};
+    const quoteDelivery = vi.fn<QuoteFn>(() => new Promise((r) => (finish = r)));
+    const { user } = checkout({ quoteDelivery });
+    await chooseAddress(user);
+    await waitFor(() => expect(quoteDelivery).toHaveBeenCalled());
+    await user.type(screen.getByRole('combobox'), 'x');
+    expect(screen.queryByText('Henter leveringspris …')).toBeNull();
+    await act(async () => finish({ ok: true, data: quote() }));
+    expect(screen.queryByText(`Levering · 59 kr`)).toBeNull();
     expect(orderButton()).toBeDisabled();
   });
 

@@ -9,6 +9,7 @@ import {
   createAddressResolveRoute,
   createAddressSuggestRoute,
   createDeliveryQuoteRoute,
+  type DeliveryQuoteRouteOptions,
 } from '../../src/next/delivery-routes';
 import { ADDRESS, json, KEY, QUOTE, SITE, SUGGESTIONS, UPSTREAM } from './routes-support';
 
@@ -225,17 +226,20 @@ describe('createDeliveryQuoteRoute', () => {
     options?: DeliveryQuoteOptions
   ) => Promise<{ data: typeof QUOTE }>;
 
-  function setup(maxQuotesPerMinute?: number) {
+  function setup(options: Partial<DeliveryQuoteRouteOptions> = {}) {
     const create = vi.fn<CreateFn>(async () => ({ data: QUOTE }));
     const onError = vi.fn();
     const POST = createDeliveryQuoteRoute({
       apiKey: KEY,
       medal: { delivery: { quotes: { create } } },
       onError,
-      maxQuotesPerMinute,
+      ...options,
     });
     return { POST, create, onError };
   }
+  /** The client IP as Cloudflare sets it. */
+  const cfIp = (request: Request) => request.headers.get('cf-connecting-ip');
+  const from = (ip: string) => post(PATH, BODY, { 'cf-connecting-ip': ip });
   const PATH = '/api/ordering/delivery-quote';
   const BODY = { address_id: 'addr_1', order_total: 25_000 };
 
@@ -295,7 +299,7 @@ describe('createDeliveryQuoteRoute', () => {
 
   it('spends at most maxQuotesPerMinute Medal calls a minute, then 503 without a call', async () => {
     vi.useFakeTimers({ now: Date.parse('2026-10-29T17:00:00Z'), toFake: ['Date'] });
-    const { POST, create } = setup(2);
+    const { POST, create } = setup({ maxQuotesPerMinute: 2 });
     expect((await POST(post(PATH, BODY))).status).toBe(201);
     create.mockRejectedValueOnce(new MedalApiError(504, 'QUOTE_TIMEOUT', 'x'));
     expect((await POST(post(PATH, BODY))).status).toBe(504);
@@ -316,15 +320,169 @@ describe('createDeliveryQuoteRoute', () => {
     for (let i = 0; i < 20; i += 1) await POST(post(PATH, BODY));
     expect((await POST(post(PATH, BODY))).status).toBe(503);
     expect(create).toHaveBeenCalledTimes(20);
-    const off = setup(0);
+    const off = setup({ maxQuotesPerMinute: 0 });
     expect((await off.POST(post(PATH, BODY))).status).toBe(503);
     expect(off.create).not.toHaveBeenCalled();
   });
 
-  it.each([-1, 1.5, Number.NaN])('refuses maxQuotesPerMinute %s at setup', (max) => {
+  it.each([-1, 1.5, Number.NaN, 31])('refuses maxQuotesPerMinute %s at setup', (max) => {
     expect(() => createDeliveryQuoteRoute({ apiKey: KEY, maxQuotesPerMinute: max })).toThrow(
       RangeError
     );
+  });
+
+  it('takes up to the key’s 30 quotes a minute', () => {
+    expect(() => createDeliveryQuoteRoute({ apiKey: KEY, maxQuotesPerMinute: 30 })).not.toThrow();
+  });
+
+  it('spends at most maxQuotesPerClientPerMinute for one IP, before the shared budget', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-29T17:00:00Z'), toFake: ['Date'] });
+    const { POST, create } = setup({
+      clientIp: cfIp,
+      maxQuotesPerMinute: 3,
+      maxQuotesPerClientPerMinute: 2,
+    });
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    const spent = await POST(from('203.0.113.1'));
+    expect(spent.status).toBe(503);
+    expect((await json(spent)).error?.code).toBe('SERVICE_UNAVAILABLE');
+    // The refused one took nothing from the shared budget: another visitor gets its last quote.
+    expect((await POST(from('198.51.100.7'))).status).toBe(201);
+    expect((await POST(from('198.51.100.8'))).status).toBe(503);
+    expect(create).toHaveBeenCalledTimes(3);
+    vi.setSystemTime(Date.parse('2026-10-29T17:01:00Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+  });
+
+  it('gives each IP 5 quotes a minute by default, and without an IP only the shared budget', async () => {
+    const { POST, create } = setup({ clientIp: cfIp });
+    for (let i = 0; i < 5; i += 1) expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    expect((await POST(from('203.0.113.1'))).status).toBe(503);
+    // No IP (the header not set, or blank): only the route's 20 a minute apply.
+    for (let i = 0; i < 6; i += 1) expect((await POST(post(PATH, BODY))).status).toBe(201);
+    expect((await POST(from('  '))).status).toBe(201);
+    expect(create).toHaveBeenCalledTimes(12);
+  });
+
+  it('a throwing clientIp counts as no IP and is reported', async () => {
+    const boom = new Error('no header');
+    const { POST, create, onError } = setup({
+      clientIp: () => {
+        throw boom;
+      },
+      maxQuotesPerClientPerMinute: 1,
+    });
+    expect((await POST(post(PATH, BODY))).status).toBe(201);
+    expect((await POST(post(PATH, BODY))).status).toBe(201);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledWith(boom);
+  });
+
+  it('keeps at most 1,000 IPs, dropping the oldest window first', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-29T17:00:00Z'), toFake: ['Date'] });
+    const crowd = async (count: number) => {
+      for (let i = 0; i < count; i += 1) await POST(from(`10.0.${i >> 8}.${i & 255}`));
+    };
+    let { POST } = setup({
+      clientIp: cfIp,
+      maxQuotesPerMinute: 30,
+      maxQuotesPerClientPerMinute: 1,
+    });
+    // The shared window starts now; the guest's own one 59 s later.
+    await POST(from('192.0.2.1'));
+    vi.setSystemTime(Date.parse('2026-10-29T17:00:59Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    await crowd(999);
+    // A minute after the shared window opened it is new again; the guest's own is not.
+    vi.setSystemTime(Date.parse('2026-10-29T17:01:00Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(503);
+
+    vi.setSystemTime(Date.parse('2026-10-29T17:00:00Z'));
+    ({ POST } = setup({ clientIp: cfIp, maxQuotesPerMinute: 30, maxQuotesPerClientPerMinute: 1 }));
+    await POST(from('192.0.2.1'));
+    vi.setSystemTime(Date.parse('2026-10-29T17:00:59Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    // One IP more than the map holds: the two oldest windows are dropped, the guest's among them.
+    await crowd(1_000);
+    vi.setSystemTime(Date.parse('2026-10-29T17:01:00Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+  });
+
+  it.each([0, -1, 1.5, 21])('refuses maxQuotesPerClientPerMinute %s at setup', (max) => {
+    expect(() =>
+      createDeliveryQuoteRoute({ apiKey: KEY, maxQuotesPerClientPerMinute: max })
+    ).toThrow(RangeError);
+  });
+
+  it('refuses a per-client limit over the route’s, and checks none with quotes off', () => {
+    expect(() =>
+      createDeliveryQuoteRoute({
+        apiKey: KEY,
+        maxQuotesPerMinute: 3,
+        maxQuotesPerClientPerMinute: 4,
+      })
+    ).toThrow(RangeError);
+    expect(() =>
+      createDeliveryQuoteRoute({
+        apiKey: KEY,
+        maxQuotesPerMinute: 3,
+        maxQuotesPerClientPerMinute: 3,
+      })
+    ).not.toThrow();
+    expect(() => createDeliveryQuoteRoute({ apiKey: KEY, maxQuotesPerMinute: 0 })).not.toThrow();
+  });
+
+  it('asks allowQuote after its own checks, and answers 503 without a call when it says no', async () => {
+    const allowQuote = vi.fn(async (_request: Request) => false);
+    const { POST, create } = setup({ allowQuote });
+    const request = post(PATH, BODY);
+    const response = await POST(request);
+    expect(response.status).toBe(503);
+    expect((await json(response)).error?.code).toBe('SERVICE_UNAVAILABLE');
+    expect(allowQuote).toHaveBeenCalledExactlyOnceWith(request);
+    expect(create).not.toHaveBeenCalled();
+    // A body refused, or a budget spent here, never reaches the shared limiter.
+    await POST(post(PATH, { address_id: 'addr_1' }));
+    const off = setup({ allowQuote, maxQuotesPerMinute: 0 });
+    await off.POST(post(PATH, BODY));
+    expect(allowQuote).toHaveBeenCalledOnce();
+  });
+
+  it('calls Medal when allowQuote says yes, at once or later', async () => {
+    const { POST, create } = setup({ allowQuote: () => true });
+    expect((await POST(post(PATH, BODY))).status).toBe(201);
+    const later = setup({ allowQuote: async () => true });
+    expect((await later.POST(post(PATH, BODY))).status).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
+    expect(later.create).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      'throws',
+      () => {
+        throw new Error('kv down');
+      },
+    ],
+    ['rejects', async () => Promise.reject(new Error('kv down'))],
+  ])('a limiter that %s lets the quote through, reported', async (_n, allowQuote) => {
+    const { POST, create, onError } = setup({ allowQuote });
+    expect((await POST(post(PATH, BODY))).status).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(new Error('kv down'));
+  });
+
+  it('a limiter slower than 1.5 s lets the quote through, reported', async () => {
+    vi.useFakeTimers();
+    const { POST, create, onError } = setup({ allowQuote: () => new Promise<boolean>(() => {}) });
+    const pending = POST(post(PATH, BODY));
+    await vi.advanceTimersByTimeAsync(1_499);
+    expect(create).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await pending).status).toBe(201);
+    expect(create).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(expect.any(Error));
   });
 
   it('gives Medal 25 s, one attempt, aborting with the visitor', async () => {
@@ -349,6 +507,26 @@ describe('createDeliveryQuoteRoute', () => {
     controller.abort();
     expect((await pending).status).toBe(502);
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers its own 25 s deadline with 504 QUOTE_TIMEOUT', async () => {
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+    const { POST, create, onError } = setup();
+    create.mockImplementationOnce(
+      (_input, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+        })
+    );
+    const pending = POST(post(PATH, BODY));
+    await vi.waitFor(() => expect(create).toHaveBeenCalled());
+    deadline.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+    const response = await pending;
+    expect(response.status).toBe(504);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect((await json(response)).error?.code).toBe('QUOTE_TIMEOUT');
+    expect(onError).toHaveBeenCalledOnce();
   });
 
   it('builds its client with a 25 s attempt, sent once', async () => {

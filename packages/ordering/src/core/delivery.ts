@@ -6,7 +6,10 @@
  * The API refuses an order whose quote runs out within a minute
  * (`QUOTE_EXPIRED`) or whose fee band no longer matches the cart's subtotal
  * (`QUOTE_NOT_USABLE`), so a checkout asks again before either: 90 s before
- * `valid_until`, and whenever the subtotal changes.
+ * `valid_until`, and whenever the subtotal changes. A quote without a
+ * `valid_until` (the API allows `null`), or with one that is not a date,
+ * states no expiry: only a changed subtotal asks again, and should the API
+ * refuse it all the same, the refusal does.
  */
 import type { DeliveryQuote } from '@medalsocial/sdk';
 
@@ -56,14 +59,15 @@ export interface QuoteFreshness {
 
 /**
  * Whether to ask for a new quote before ordering: within 90 s of
- * `valid_until` (or past it, or without one), or when the cart's subtotal is
- * no longer the one quoted — crossing a free-delivery threshold changes the
- * fee band, which the API refuses as `QUOTE_NOT_USABLE`.
+ * `valid_until` (or past it), or when the cart's subtotal is no longer the
+ * one quoted — crossing a free-delivery threshold changes the fee band, which
+ * the API refuses as `QUOTE_NOT_USABLE`. Without a usable `valid_until` only
+ * the subtotal counts: there is no clock to go by.
  */
 export function quoteNeedsRefresh(quote: DeliveryQuote, freshness: QuoteFreshness): boolean {
   if (freshness.subtotalOre !== freshness.quotedSubtotalOre) return true;
   const at = refreshAt(quote);
-  return at === null || (freshness.now ?? Date.now()) >= at;
+  return at !== null && (freshness.now ?? Date.now()) >= at;
 }
 
 /**

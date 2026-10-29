@@ -66,6 +66,25 @@ export function reporter(
   };
 }
 
+/**
+ * The guest's IP from the site's `clientIp(request)`, trimmed, or `undefined`
+ * without one (no header is trusted by default). A throw from it is reported
+ * and counts as none.
+ */
+export function readClientIp(
+  clientIp: ((request: Request) => string | null | undefined) | undefined,
+  request: Request,
+  report: (error: unknown) => void
+): string | undefined {
+  if (!clientIp) return undefined;
+  try {
+    return clientIp(request)?.trim() || undefined;
+  } catch (error) {
+    report(error);
+    return undefined;
+  }
+}
+
 /** The parts of a Medal API failure the routes read. */
 export interface ApiFailure {
   status: number;

@@ -24,8 +24,9 @@
  * - A body of at most 32 KB (`413`) that is exactly a `PlaceOrderRequest`
  *   (`400`): an unknown key anywhere — a price, `location_id`, `return_url` —
  *   is refused, not dropped. A delivery must be Vipps and carry `delivery`
- *   (the address and quote ids, and floor, door code and courier note as
- *   text); no other channel may.
+ *   (the address and quote ids of 1–64 characters, and floor and door code
+ *   of up to 20 and the courier note of up to 500, as text); no other
+ *   channel may.
  *
  * The route adds `location_id` from `location` and, for Vipps (so every
  * delivery), `return_url`
@@ -64,6 +65,7 @@ import {
   postGuard,
   type RouteBaseOptions,
   readBody,
+  readClientIp,
   reporter,
 } from './shared';
 
@@ -114,6 +116,12 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 /** The whole Medal call, the SDK's retries included. */
 const PLACE_DEADLINE_MS = 15_000;
 
+/** The API's caps on a delivery, counted untrimmed (the checkout trims). */
+const MAX_DELIVERY_ID_LENGTH = 64;
+const MAX_FLOOR_LENGTH = 20;
+const MAX_DOOR_CODE_LENGTH = 20;
+const MAX_DELIVERY_COMMENT_LENGTH = 500;
+
 const CHANNELS: readonly PlaceOrderRequest['channel'][] = ['dine_in', 'takeaway', 'delivery'];
 const PAYMENT_METHODS: readonly OrderingPaymentMethod[] = ['pay_at_counter', 'vipps'];
 
@@ -151,6 +159,11 @@ const BAD_BODY = failure(400, 'INVALID_REQUEST', 'The order is not one this site
 const UNAVAILABLE = failure(502, 'SERVICE_UNAVAILABLE', 'Orders cannot be placed right now.');
 
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
+/** Text of at most `max` characters (at least one when `min` is 1). */
+const text =
+  (max: number, min = 0) =>
+  (value: unknown): value is string =>
+    isString(value) && value.length >= min && value.length <= max;
 const isStrings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(isString);
 
@@ -179,15 +192,17 @@ function parseLine(value: unknown): OrderingOrderLineInput | null {
   });
 }
 
-/** A delivery's address, quote and door details: exactly these keys, all text. */
+/** A delivery's address, quote and door details: exactly these keys, text within the caps. */
 function parseDelivery(value: unknown): OrderingDeliveryInput | null {
   if (!only(value, ['verified_address_id', 'quote_id', 'floor', 'door_code', 'comment'])) {
     return null;
   }
   const { verified_address_id, quote_id, floor, door_code, comment } = value;
-  if (!isString(verified_address_id) || !isString(quote_id)) return null;
-  if (!optional(floor, isString) || !optional(door_code, isString)) return null;
-  if (!optional(comment, isString)) return null;
+  const isId = text(MAX_DELIVERY_ID_LENGTH, 1);
+  if (!isId(verified_address_id) || !isId(quote_id)) return null;
+  if (!optional(floor, text(MAX_FLOOR_LENGTH))) return null;
+  if (!optional(door_code, text(MAX_DOOR_CODE_LENGTH))) return null;
+  if (!optional(comment, text(MAX_DELIVERY_COMMENT_LENGTH))) return null;
   return defined({
     verified_address_id,
     quote_id,
@@ -343,18 +358,6 @@ export function createPlaceOrderRoute(
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
   }
 
-  function clientIp(request: Request): string | undefined {
-    if (options.clientIp) {
-      try {
-        return options.clientIp(request)?.trim() || undefined;
-      } catch (error) {
-        report(error);
-        return undefined;
-      }
-    }
-    return undefined;
-  }
-
   return async function POST(request: Request): Promise<Response> {
     const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON });
     if (refused) return errorResponse(refused);
@@ -393,7 +396,7 @@ export function createPlaceOrderRoute(
     try {
       const { data } = await api.ordering.orders.create(input, {
         idempotencyKey,
-        clientIp: clientIp(request),
+        clientIp: readClientIp(options.clientIp, request, report),
         signal: deadline(request, PLACE_DEADLINE_MS),
       });
       return dataResponse(data, 'no-store', 201);

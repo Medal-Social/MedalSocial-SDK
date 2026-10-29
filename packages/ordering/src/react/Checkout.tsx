@@ -22,10 +22,12 @@
  * address is verified the price is asked for with the cart's subtotal, and
  * the fee, when it arrives and the total include it; the order button waits
  * for a price. A new price is asked for when the subtotal changes and before
- * the old one runs out (`quoteNeedsRefresh`). When the API refuses the price
- * all the same (`QUOTE_EXPIRED`, `QUOTE_NOT_USABLE`), a new one is asked for
- * and shown, and the guest presses again to accept it — never a silent
- * order at a price they did not see.
+ * the old one runs out (`quoteNeedsRefresh`; a price with no stated expiry
+ * only when the subtotal changes). A new or cleared address drops the price,
+ * a request for it still on its way, and its error. When the API refuses the
+ * price all the same (`QUOTE_EXPIRED`, `QUOTE_NOT_USABLE`), a new one is
+ * asked for and shown, and the guest presses again to accept it — never a
+ * silent order at a price they did not see.
  */
 import type {
   DeliveryQuote,
@@ -299,6 +301,15 @@ export function Checkout({
     setQuote(next);
   }
 
+  /** A new or cleared address: the price, its request and its error were for the old one. */
+  function changeAddress(next: DeliveryResolvedAddress | null) {
+    setAddress(next);
+    quoteTurn.current += 1;
+    keepQuote(null);
+    setQuoting(false);
+    setQuoteError(null);
+  }
+
   // Ask for a price for the address and the subtotal, unless the one held still holds.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `quoteTick` is the ask-again signal.
   useEffect(() => {
@@ -312,6 +323,9 @@ export function Checkout({
         quotedSubtotalOre: current.subtotalOre,
       })
     ) {
+      // It fits again (the cart went back): a request for another subtotal no longer counts.
+      quoteTurn.current += 1;
+      setQuoting(false);
       return;
     }
     quoteTurn.current += 1;
@@ -622,7 +636,7 @@ export function Checkout({
               <AddressCombobox
                 suggest={suggestAddress}
                 resolve={resolveAddress}
-                onResolved={setAddress}
+                onResolved={changeAddress}
                 initialValue={address?.label}
                 locale={locale}
                 labels={overrides}
@@ -657,7 +671,10 @@ export function Checkout({
                   </p>
                 )}
               </div>
-              {quoteError !== null && !quoting && RETRY.has(quoteError.code) ? (
+              {quoteError !== null &&
+              !quoting &&
+              addressId !== undefined &&
+              RETRY.has(quoteError.code) ? (
                 <button
                   type="button"
                   onClick={() => setQuoteTick((t) => t + 1)}

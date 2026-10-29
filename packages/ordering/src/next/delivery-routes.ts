@@ -18,9 +18,13 @@
  * A quote is a Wolt call on the workspace key's budget (30 a minute) and can
  * take 20 s, so the quote route takes only the address and the cart's
  * subtotal — never a venue, bags or prep time from the browser — gives Medal
- * one attempt of up to 25 s, and spends at most `maxQuotesPerMinute` Medal
- * calls a minute in each route instance (a script cannot drain the key);
- * past it, `503 SERVICE_UNAVAILABLE` without a call.
+ * one attempt of up to 25 s (past it, `504 QUOTE_TIMEOUT`), and spends at
+ * most `maxQuotesPerClientPerMinute` Medal calls a minute on one IP and
+ * `maxQuotesPerMinute` on everyone in each route instance, then asks the
+ * site's shared limiter (`allowQuote`) when it has one; past any of them,
+ * `503 SERVICE_UNAVAILABLE` without a call. The counters live in the
+ * instance: across instances only `allowQuote` and Medal's own 30 a minute
+ * for the key hold.
  *
  * Medal's delivery refusals become fixed-word codes the checkout tells
  * apart (see `OrderingRouteErrorCode`): `ADDRESS_NOT_VERIFIED` (`422`),
@@ -55,6 +59,7 @@ import {
   READ_DEADLINE_MS,
   type RouteBaseOptions,
   readBody,
+  readClientIp,
   readFailure,
   readRoute,
   reporter,
@@ -102,14 +107,48 @@ export type AddressResolveRouteOptions = RouteBaseOptions<AddressResolveClient>;
 export interface DeliveryQuoteRouteOptions extends RouteBaseOptions<DeliveryQuoteClient> {
   /**
    * Most Medal quote calls a minute in this route instance; past it the route
-   * answers `503 SERVICE_UNAVAILABLE` without calling Medal. A non-negative
-   * integer; `0` turns quotes off. Default 20, under the key's 30.
+   * answers `503 SERVICE_UNAVAILABLE` without calling Medal. An integer from
+   * 0 to 30, the key's own quote limit; `0` turns quotes off. Default 20.
    */
   maxQuotesPerMinute?: number;
+  /**
+   * The guest's IP address, for `maxQuotesPerClientPerMinute`. Read it from
+   * what your platform guarantees — on Cloudflare `(r) =>
+   * r.headers.get('cf-connecting-ip')`, which Cloudflare sets and overwrites;
+   * behind your own proxy, the entry that proxy appends. No header is trusted
+   * by default: a guest can send any of them, and a forged one would move
+   * their quotes into another visitor's count. Without it only
+   * `maxQuotesPerMinute` applies.
+   */
+  clientIp?: (request: Request) => string | null | undefined;
+  /**
+   * Most Medal quote calls a minute for one IP (from `clientIp`) in this route
+   * instance, counted before `maxQuotesPerMinute`, so one visitor cannot spend
+   * everyone's. A positive integer up to `maxQuotesPerMinute`. Default 5 (or
+   * `maxQuotesPerMinute` when that is lower).
+   */
+  maxQuotesPerClientPerMinute?: number;
+  /**
+   * A limiter shared by every instance (a KV counter, Redis, a Durable
+   * Object), asked after this instance's own limits and before the Medal call.
+   * `false` answers `503 SERVICE_UNAVAILABLE` without a call. A throw, or no
+   * answer within 1.5 s, lets the quote through and is reported to `onError`:
+   * a limiter outage must not stop delivery, and Medal still holds the key to
+   * 30 quotes a minute (its `429` answers `503` here).
+   */
+  allowQuote?: (request: Request) => boolean | Promise<boolean>;
 }
 
 const DEFAULT_MAX_QUOTES_PER_MINUTE = 20;
+/** The workspace key's quote limit at Medal. */
+const KEY_QUOTES_PER_MINUTE = 30;
+const DEFAULT_MAX_QUOTES_PER_CLIENT = 5;
+/** The IPs one instance counts at once; past it the oldest window is dropped. */
+const MAX_CLIENTS = 1_000;
 const MINUTE_MS = 60_000;
+
+/** How long the shared limiter may take before the quote goes ahead without it. */
+const ALLOW_QUOTE_WAIT_MS = 1_500;
 
 /** The quote's one Medal attempt: the server waits up to 20 s for Wolt. */
 const QUOTE_DEADLINE_MS = 25_000;
@@ -147,6 +186,7 @@ const NOT_DELIVERABLE = failure(
   'Delivery to this address is not possible right now.'
 );
 const DELIVERY_OFF = failure(409, 'DELIVERY_UNAVAILABLE', 'Delivery is not available right now.');
+const TIMED_OUT = failure(504, 'QUOTE_TIMEOUT', 'The delivery price did not come in time.');
 
 /** Medal's delivery codes the browser tells apart. */
 const DELIVERY_FAILURE: Readonly<Record<string, ErrorBody>> = {
@@ -156,7 +196,7 @@ const DELIVERY_FAILURE: Readonly<Record<string, ErrorBody>> = {
   DELIVERY_NOT_SET_UP: DELIVERY_OFF,
   DELIVERY_PAUSED: DELIVERY_OFF,
   VENUE_UNAVAILABLE: DELIVERY_OFF,
-  QUOTE_TIMEOUT: failure(504, 'QUOTE_TIMEOUT', 'The delivery price did not come in time.'),
+  QUOTE_TIMEOUT: TIMED_OUT,
 };
 
 /** A failed delivery call in the site's words; anything else as a read route answers it. */
@@ -274,15 +314,28 @@ export function createDeliveryQuoteRoute(
   options: DeliveryQuoteRouteOptions
 ): (request: Request) => Promise<Response> {
   const maxQuotes = options.maxQuotesPerMinute ?? DEFAULT_MAX_QUOTES_PER_MINUTE;
-  if (!Number.isSafeInteger(maxQuotes) || maxQuotes < 0) {
+  if (!Number.isSafeInteger(maxQuotes) || maxQuotes < 0 || maxQuotes > KEY_QUOTES_PER_MINUTE) {
     throw new RangeError(
-      `createDeliveryQuoteRoute: maxQuotesPerMinute must be a non-negative integer, got ${maxQuotes}`
+      `createDeliveryQuoteRoute: maxQuotesPerMinute must be an integer from 0 to 30, got ${maxQuotes}`
+    );
+  }
+  const perClient =
+    options.maxQuotesPerClientPerMinute ?? Math.min(DEFAULT_MAX_QUOTES_PER_CLIENT, maxQuotes);
+  // With quotes off there is nothing to share out.
+  if (
+    maxQuotes > 0 &&
+    (!Number.isSafeInteger(perClient) || perClient < 1 || perClient > maxQuotes)
+  ) {
+    throw new RangeError(
+      `createDeliveryQuoteRoute: maxQuotesPerClientPerMinute must be an integer from 1 to maxQuotesPerMinute (${maxQuotes}), got ${perClient}`
     );
   }
   // One attempt that may take the whole deadline: the SDK sends a quote once.
   const medal = lazyClient(options, QUOTE_DEADLINE_MS);
   const report = reporter(options.onError);
   const budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
+  // Each IP's minute, in the order the windows opened: the first is the oldest.
+  const clients = new Map<string, { windowStart: number; used: number }>();
 
   /** Take one quote from this minute's budget; `false` when it is spent. */
   function spendQuote(): boolean {
@@ -294,6 +347,42 @@ export function createDeliveryQuoteRoute(
     if (budget.used >= maxQuotes) return false;
     budget.used += 1;
     return true;
+  }
+
+  /** Take one quote from this IP's minute; `false` when it is spent. */
+  function spendClientQuote(ip: string): boolean {
+    const now = Date.now();
+    let minute = clients.get(ip);
+    if (minute === undefined || now - minute.windowStart >= MINUTE_MS) {
+      // A new window goes to the end, so the map stays oldest first.
+      clients.delete(ip);
+      if (clients.size >= MAX_CLIENTS) clients.delete(clients.keys().next().value as string);
+      minute = { windowStart: now, used: 0 };
+      clients.set(ip, minute);
+    }
+    if (minute.used >= perClient) return false;
+    minute.used += 1;
+    return true;
+  }
+
+  /** The shared limiter's answer: only `false` refuses; a throw or a late answer lets it through. */
+  async function allowed(request: Request): Promise<boolean> {
+    if (!options.allowQuote) return true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const late = new Promise<true>((resolve) => {
+        timer = setTimeout(() => {
+          report(new Error('allowQuote did not answer within 1.5 s'));
+          resolve(true);
+        }, ALLOW_QUOTE_WAIT_MS);
+      });
+      return (await Promise.race([options.allowQuote(request), late])) !== false;
+    } catch (error) {
+      report(error);
+      return true;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   return async function POST(request: Request): Promise<Response> {
@@ -311,14 +400,21 @@ export function createDeliveryQuoteRoute(
       report(new Error('The Medal API key is not configured'));
       return errorResponse(NOT_CONFIGURED);
     }
+    const ip = readClientIp(options.clientIp, request, report);
+    // The IP's own minute first, so a refused visitor takes nothing from everyone's.
+    if (ip !== undefined && !spendClientQuote(ip)) return errorResponse(BUDGET_SPENT);
     if (!spendQuote()) return errorResponse(BUDGET_SPENT);
+    if (!(await allowed(request))) return errorResponse(BUDGET_SPENT);
+    const timeout = AbortSignal.timeout(QUOTE_DEADLINE_MS);
     try {
       const { data } = await api.delivery.quotes.create(parsed.body, {
-        signal: deadline(request, QUOTE_DEADLINE_MS),
+        signal: AbortSignal.any([request.signal, timeout]),
       });
       return dataResponse(data, 'no-store', 201);
     } catch (error) {
       report(error);
+      // The route's own deadline, not the visitor leaving: the price did not come in time.
+      if (timeout.aborted && !request.signal.aborted) return errorResponse(TIMED_OUT);
       return errorResponse(deliveryFailure(error));
     }
   };

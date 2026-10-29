@@ -58,9 +58,13 @@ describe('quoteNeedsRefresh', () => {
     expect(quoteNeedsRefresh(quote({ valid_until: '2026-10-29T16:00:00Z' }), same)).toBe(true);
   });
 
-  it('refreshes a quote without valid_until, or with one that is not a date', () => {
-    expect(quoteNeedsRefresh(quote({ valid_until: null }), same)).toBe(true);
-    expect(quoteNeedsRefresh(quote({ valid_until: 'soon' }), same)).toBe(true);
+  it('keeps a quote without valid_until, or with one that is not a date, for the same subtotal', () => {
+    // No stated expiry: no clock to refresh by. A refusal at ordering asks again.
+    expect(quoteNeedsRefresh(quote({ valid_until: null }), same)).toBe(false);
+    expect(quoteNeedsRefresh(quote({ valid_until: 'soon' }), same)).toBe(false);
+    const changed = { ...same, subtotalOre: 25_100 };
+    expect(quoteNeedsRefresh(quote({ valid_until: null }), changed)).toBe(true);
+    expect(quoteNeedsRefresh(quote({ valid_until: 'soon' }), changed)).toBe(true);
   });
 
   it('refreshes when the subtotal changed: the fee band may have', () => {

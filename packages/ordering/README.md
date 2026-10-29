@@ -128,7 +128,8 @@ const quote = await requestDeliveryQuote('/api/ordering/delivery-quote', {
 });
 deliveryFeeOre(quote.data); // 5900, or 0 when the store charges none
 
-// Ask again when the subtotal changed, or within 90 s of `valid_until`.
+// Ask again when the subtotal changed, or within 90 s of `valid_until`
+// (a quote without one, `null`, states no expiry: the subtotal alone counts).
 quoteNeedsRefresh(quote.data, { subtotalOre: cart.totalOre, quotedSubtotalOre });
 
 checkDelivery({ floor, door_code, comment }); // null | 'floor' | 'door_code' | 'delivery_comment'
@@ -427,7 +428,11 @@ export const GET = createAddressSuggestRoute({ apiKey });
 // app/api/ordering/address/resolve/route.ts — POST { id, session }
 export const POST = createAddressResolveRoute({ apiKey });
 // app/api/ordering/delivery-quote/route.ts — POST { address_id, order_total }
-export const POST = createDeliveryQuoteRoute({ apiKey });
+export const POST = createDeliveryQuoteRoute({
+  apiKey,
+  // Cloudflare sets and overwrites this header; trust no other by default.
+  clientIp: (r) => r.headers.get('cf-connecting-ip'),
+});
 ```
 
 - **Place order** — the browser posts a `PlaceOrderRequest` with the draft's
@@ -443,8 +448,9 @@ export const POST = createDeliveryQuoteRoute({ apiKey });
   then `request.url`). Medal's
   refusals pass through as `422` with their code and only `ids`, `line_index`
   and `reason`. A delivery must be Vipps with a `delivery` of exactly the
-  address and quote ids and the optional floor, door code and comment (all
-  text); no other channel may carry one.
+  address and quote ids (1–64 characters) and the optional floor and door
+  code (up to 20) and comment (up to 500), all text; no other channel may
+  carry one.
 - **Locations** are cached 15 s and slots 60 s on the CDN; the table, the
   order and its status are `no-store`.
 - **Delivery** — address suggestions (`GET ?q=&session=`, `q` up to 200
@@ -453,9 +459,21 @@ export const POST = createDeliveryQuoteRoute({ apiKey });
   all `no-store`. The two `POST`s take the place route's origin, JSON and
   size checks (4 KB) and refuse any other key. The quote route never takes a
   venue, bags or prep time from the browser, gives Medal one attempt of up to
-  25 s, and makes at most `maxQuotesPerMinute` (default 20) Medal calls a
-  minute in each route instance — a quote is a Wolt call on the key's 30 a
-  minute — then answers `503 SERVICE_UNAVAILABLE` without one. Medal's
+  25 s (its own deadline answers `504 QUOTE_TIMEOUT`), and makes at most
+  `maxQuotesPerClientPerMinute` (default 5) Medal calls a minute for one IP
+  and `maxQuotesPerMinute` (default 20, at most 30) for everyone, in each
+  route instance — a quote is a Wolt call on the key's 30 a minute — then
+  answers `503 SERVICE_UNAVAILABLE` without one. The IP comes only from your
+  `clientIp(request)`, as for the place route; without it only the
+  instance's minute applies. Those counters live in one instance's memory
+  (up to 1,000 IPs, the oldest dropped first): with several instances or
+  isolates each counts on its own, so pass `allowQuote(request)` — a KV
+  counter, Redis or a Durable Object shared by all — to hold one limit
+  across them. It is asked after the instance's own limits and before the
+  Medal call; `false` answers the same `503`. A throw, or no answer within
+  1.5 s, lets the quote through and goes to `onError`: a limiter outage must
+  not stop delivery, and Medal still holds the key to 30 quotes a minute
+  (its `429` answers `503`). Medal's
   answers become `422 ADDRESS_NOT_VERIFIED`, `422 ADDRESS_NOT_DELIVERABLE`
   (also for `NOT_DELIVERABLE`), `409 DELIVERY_UNAVAILABLE` (not set up,
   paused, venue unavailable) and `504 QUOTE_TIMEOUT`; a `429` is `503

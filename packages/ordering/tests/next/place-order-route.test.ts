@@ -247,6 +247,19 @@ describe('createPlaceOrderRoute — delivery', () => {
     });
   });
 
+  it('takes every delivery field at the API’s limits, untrimmed', async () => {
+    const { POST, create } = setup();
+    const delivery = {
+      verified_address_id: 'a'.repeat(64),
+      quote_id: 'q'.repeat(64),
+      floor: 'x'.repeat(20),
+      door_code: 'x'.repeat(20),
+      comment: 'x'.repeat(500),
+    };
+    expect((await POST(post({ ...order, delivery }))).status).toBe(201);
+    expect(sent(create).input?.delivery).toEqual(delivery);
+  });
+
   it('takes the address and quote alone', async () => {
     const { POST, create } = setup();
     const delivery = { verified_address_id: 'addr_1', quote_id: 'q_1' };
@@ -272,6 +285,28 @@ describe('createPlaceOrderRoute — delivery', () => {
     ['with a numeric floor', { ...order, delivery: { ...DELIVERY, floor: 3 } }],
     ['with a numeric door code', { ...order, delivery: { ...DELIVERY, door_code: 1234 } }],
     ['with a null comment', { ...order, delivery: { ...DELIVERY, comment: null } }],
+    ['with an empty address id', { ...order, delivery: { ...DELIVERY, verified_address_id: '' } }],
+    [
+      'with an address id over 64 characters',
+      { ...order, delivery: { ...DELIVERY, verified_address_id: 'a'.repeat(65) } },
+    ],
+    ['with an empty quote id', { ...order, delivery: { ...DELIVERY, quote_id: '' } }],
+    [
+      'with a quote id over 64 characters',
+      { ...order, delivery: { ...DELIVERY, quote_id: 'q'.repeat(65) } },
+    ],
+    [
+      'with a floor over 20 characters',
+      { ...order, delivery: { ...DELIVERY, floor: 'x'.repeat(21) } },
+    ],
+    [
+      'with a door code over 20 characters',
+      { ...order, delivery: { ...DELIVERY, door_code: 'x'.repeat(21) } },
+    ],
+    [
+      'with a comment over 500 characters',
+      { ...order, delivery: { ...DELIVERY, comment: 'x'.repeat(501) } },
+    ],
     ['for pickup', { ...ORDER, payment_method: 'vipps', delivery: DELIVERY }],
   ])('refuses a delivery %s with 400 before any Medal call', async (_n, body) => {
     const { POST, create } = setup();
