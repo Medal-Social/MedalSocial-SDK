@@ -374,7 +374,9 @@ export class OrderingOrders {
     const clientIp = options.clientIp?.trim();
     const headers: Record<string, string> = {};
     if (clientIp) headers["x-medal-client-ip"] = clientIp;
-    if (options.portalSession) headers["x-portal-session"] = options.portalSession;
+    // A blank token is a guest order, not a 401.
+    const portalSession = options.portalSession?.trim();
+    if (portalSession) headers["x-portal-session"] = portalSession;
     return this.client.post<OrderCreatedEnvelope>("/api/v1/ordering/orders", input, {
       idempotencyKey,
       headers: Object.keys(headers).length > 0 ? headers : undefined,

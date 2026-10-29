@@ -562,7 +562,7 @@ await medal.portal.ordering.preferences.update(token, {
 await medal.portal.ordering.addresses.add(token, {
   address_id,
   label: 'Hjem',                 // ≤ 40
-  door_code: '1234',             // ≤ 20, stored encrypted, never returned (has_door_code)
+  door_code: '0000',             // ≤ 20, stored encrypted, never returned (has_door_code)
   floor: '3',
   comment: 'Ring på',
 }); // 201 — 422 ADDRESS_LIMIT / ADDRESS_NOT_VERIFIED
@@ -578,8 +578,9 @@ const { data: cart } = await medal.portal.ordering.orders.reorder(token, orders[
 // cart.cart.lines are priced from today's menu; cart.dropped lists what is
 // sold_out, removed or unavailable. Nothing is placed — check out with
 // medal.ordering.orders.create(..., { portalSession: token }).
-// bound form: me.ordering.preferences(), updatePreferences(patch), addAddress(input),
-// removeAddress(id), addFavourite(id), removeFavourite(id), orders(), reorder(orderId)
+// bound form: const ordering = medal.portal.session(token).ordering;
+// ordering.preferences(), updatePreferences(patch), addAddress(input), removeAddress(id),
+// addFavourite(id), removeFavourite(id), orders(), reorder(orderId)
 ```
 
 `preferences.update`, `addresses.add` and `addresses.remove` are sent exactly
@@ -795,18 +796,28 @@ session is 401 `PORTAL_SESSION_INVALID` and places nothing. See
 [Restaurant ordering profile](#restaurant-ordering-profile-history-and-reorder).
 
 ```ts
+// «Order again»: the reorder answer is for display; send only the line inputs.
+const { data: again } = await medal.portal.ordering.orders.reorder(token, orderId);
+const idempotencyKey = crypto.randomUUID(); // one per checkout; reuse it on retries
+
 await medal.ordering.orders.create(
   {
-    location_id: loc.id,
-    channel: 'delivery',
-    lines: cart.lines,
-    customer: { name: 'Kari', phone: '+4791234567' },
+    location_id: again.location_id,
+    channel: again.channel,
+    lines: again.cart.lines.map(({ product_id, quantity, option_ids, note }) => ({
+      product_id,
+      quantity,
+      option_ids,
+      ...(note !== undefined ? { note } : {}),
+    })),
+    customer: { name: 'Test Customer', phone: '+4790000000' },
     preferences: {},                   // the customer's defaults
-    saved_address_id: 'sa_1',
+    // Delivery only, where the restaurant offers it: one of their saved addresses.
+    // saved_address_id: prefs.addresses[0].id,
     payment_method: 'vipps',
     return_url: 'https://example.com/order/done',
   },
-  { idempotencyKey: cart.idempotencyKey, portalSession: token },
+  { idempotencyKey, portalSession: token },
 );
 ```
 

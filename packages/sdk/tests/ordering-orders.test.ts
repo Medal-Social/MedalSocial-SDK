@@ -388,7 +388,15 @@ describe("ordering.orders.create", () => {
     });
     await medal().ordering.orders.create(ORDER_INPUT, { idempotencyKey: "k1", portalSession: "s" });
     await medal().ordering.orders.create(ORDER_INPUT, { idempotencyKey: "k2", portalSession: "" });
-    expect(seen).toEqual(["s", null]);
+    await medal().ordering.orders.create(ORDER_INPUT, {
+      idempotencyKey: "k3",
+      portalSession: " \n",
+    });
+    await medal().ordering.orders.create(ORDER_INPUT, {
+      idempotencyKey: "k4",
+      portalSession: " s2 ",
+    });
+    expect(seen).toEqual(["s", null, null, "s2"]);
   });
 
   it("narrows SAVED_ADDRESS_NOT_FOUND and leaves a 401 PORTAL_SESSION_INVALID a plain API error", async () => {

@@ -186,7 +186,7 @@ describe("portal.ordering.addresses", () => {
     const input = {
       address_id: "addr_1",
       label: "Hjem",
-      door_code: "1234",
+      door_code: "0000",
       floor: "3",
       comment: "Bak huset",
     };
