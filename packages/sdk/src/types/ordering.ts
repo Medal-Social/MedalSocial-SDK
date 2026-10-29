@@ -158,6 +158,17 @@ export type OrderingCreateOrderInput = Omit<
     | { payment_method: "vipps"; return_url: string }
   );
 
+/**
+ * A delivery order's address, quote and door details (`channel: 'delivery'`,
+ * Vipps only). Get `verified_address_id` from `delivery.addresses.resolve()`
+ * and `quote_id` from `delivery.quotes.create()` with `order_total` = the
+ * cart's subtotal. The fee is the quote's; never send it.
+ */
+export type OrderingDeliveryInput = Schemas["OrderingDeliveryInput"];
+
+/** When the courier brings a delivery (`customer_eta` on the order and its status). */
+export type OrderingCustomerEta = Schemas["OrderingCustomerEta"];
+
 /** What a placed order answers with: the id to read it by, the number the guest is told, and its status. */
 export type OrderingOrderCreated = Schemas["OrderingOrderCreated"];
 
@@ -193,7 +204,7 @@ export type OrderingTable = Schemas["OrderingTable"];
  *
  * - `CLOSED` — the channel is not open; `details.reason` is the channel state reason.
  * - `CUTOFF` — past the last order time.
- * - `CHANNEL_NOT_AVAILABLE` — the channel is not offered (delivery, for now).
+ * - `CHANNEL_NOT_AVAILABLE` — the channel is not offered.
  * - `PREORDER_DISABLED` — scheduled timing is not offered (for now).
  * - `TABLE_NOT_FOUND` — dine-in without a valid `table_token` at this location.
  * - `SOLD_OUT`, `UNAVAILABLE` — `details.ids` are the product and option ids.
@@ -202,7 +213,11 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `PAYMENT_METHOD_NOT_ALLOWED` — the location does not take this payment method.
  * - `PAYMENT_UNAVAILABLE` — Vipps: the workspace has no Vipps of its own, or the total is under 1 kr.
  * - `RETURN_URL_NOT_ALLOWED` — Vipps: `return_url` missing or not on one of the workspace's sites.
- * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email` or `allergy_note`.
+ * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email`, `allergy_note`,
+ *   or for delivery `floor`, `door_code` or `delivery_comment`.
+ * - `QUOTE_NOT_USABLE` — delivery: the quote is not for this workspace, venue,
+ *   address or the cart's fee band; ask for a new price.
+ * - `QUOTE_EXPIRED` — delivery: the quote runs out within a minute; ask for a new price.
  */
 export type OrderingRefusalCode =
   | "CLOSED"
@@ -217,7 +232,9 @@ export type OrderingRefusalCode =
   | "PAYMENT_METHOD_NOT_ALLOWED"
   | "PAYMENT_UNAVAILABLE"
   | "RETURN_URL_NOT_ALLOWED"
-  | "INVALID_CUSTOMER";
+  | "INVALID_CUSTOMER"
+  | "QUOTE_NOT_USABLE"
+  | "QUOTE_EXPIRED";
 
 /**
  * The `details` of an ordering error, as the API sends it (snake_case). Only

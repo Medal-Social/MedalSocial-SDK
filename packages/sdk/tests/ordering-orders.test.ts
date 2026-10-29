@@ -294,6 +294,39 @@ describe("ordering.orders.create", () => {
     }
   });
 
+  it("sends a delivery order's address, quote and door details, and narrows the quote refusals", async () => {
+    const deliveryInput: OrderingCreateOrderInput = {
+      ...ORDER_INPUT,
+      channel: "delivery",
+      payment_method: "vipps",
+      return_url: "https://bistro.no/takk",
+      preferences: { cutlery: true, no_contact: true },
+      delivery: {
+        verified_address_id: "addr_1",
+        quote_id: "quote_1",
+        floor: "3",
+        door_code: "1234",
+        comment: "Ring på ved ankomst",
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(async (_url, init) => {
+      expect(JSON.parse(init?.body as string)).toMatchObject({
+        channel: "delivery",
+        delivery: { verified_address_id: "addr_1", quote_id: "quote_1", door_code: "1234" },
+      });
+      return ok({ ...CREATED, status: "awaiting_payment" }, 201);
+    });
+    await medal().ordering.orders.create(deliveryInput, { idempotencyKey: "k-delivery" });
+    for (const code of ["QUOTE_NOT_USABLE", "QUOTE_EXPIRED"] as const) {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(apiError(422, code, "Refused"));
+      const error = await failure(
+        medal().ordering.orders.create(deliveryInput, { idempotencyKey: `k-${code}` }),
+      );
+      expect(isOrderingRefusal(error)).toBe(true);
+      expect(error.code).toBe(code satisfies OrderingRefusalCode);
+    }
+  });
+
   it("passes the caller's AbortSignal through", async () => {
     const controller = new AbortController();
     controller.abort(new Error("gone"));
@@ -319,6 +352,17 @@ describe("ordering.orders.get / status / cancel", () => {
     });
     const result = await medal().ordering.orders.get(" ord_1 ");
     expect(result).toEqual({ data: ORDER });
+  });
+
+  it("reads a delivery's fee and window", async () => {
+    const delivery: OrderingOrderStatusView = {
+      ...STATUS,
+      status: "handed_over",
+      customer_eta: { min: "2026-10-22T17:05:00.000Z", max: "2026-10-22T17:15:00.000Z" },
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(ok(delivery));
+    const result = await medal().ordering.orders.status("ord_1");
+    expect(result.data.customer_eta?.max).toBe("2026-10-22T17:15:00.000Z");
   });
 
   it("GETs the status view of an order", async () => {

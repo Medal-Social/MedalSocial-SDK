@@ -4,6 +4,7 @@ import {
   ALLERGEN_LABELS,
   allergenLabel,
   DIETARY_LABELS,
+  deliveryWindowLabel,
   dietaryLabel,
   labelLocale,
 } from '../../src/core/labels';
@@ -78,5 +79,18 @@ describe('labels', () => {
     expect(allergenLabel('milk', 'ar')).toBe('الحليب');
     expect(dietaryLabel('vegan', 'nb')).toBe('Vegansk');
     expect(dietaryLabel('lactose_free', 'de')).toBe('Lactose-free');
+  });
+});
+
+describe('deliveryWindowLabel', () => {
+  const eta = { min: '2026-10-22T17:05:00.000Z', max: '2026-10-22T17:15:00.000Z' };
+  it('shows the window in the restaurant time zone', () => {
+    expect(deliveryWindowLabel(eta, 'nb-NO', 'Europe/Oslo')).toBe('Levert ca. 19:05–19:15');
+    expect(deliveryWindowLabel(eta, 'en', 'Europe/Oslo')).toBe('Delivered around 19:05–19:15');
+  });
+  it('one time when Wolt gives a single instant', () => {
+    expect(deliveryWindowLabel({ min: eta.min, max: eta.min }, 'no', 'Europe/Oslo')).toBe(
+      'Levert ca. 19:05'
+    );
   });
 });

@@ -4,7 +4,7 @@
  * values, so a value the API adds fails the typecheck here until it has a
  * label in every language.
  */
-import type { OrderingAllergen, OrderingDietary } from '@medalsocial/sdk';
+import type { OrderingAllergen, OrderingCustomerEta, OrderingDietary } from '@medalsocial/sdk';
 
 export type LabelLocale = 'nb' | 'en' | 'ar';
 
@@ -50,4 +50,36 @@ export function allergenLabel(allergen: OrderingAllergen, locale: string): strin
 
 export function dietaryLabel(mark: OrderingDietary, locale: string): string {
   return DIETARY_LABELS[mark][labelLocale(locale)];
+}
+
+const DELIVERED_AROUND: LabelSet = {
+  nb: 'Levert ca. {time}',
+  en: 'Delivered around {time}',
+  ar: 'يصل حوالي {time}',
+};
+
+/** «19:05» in the restaurant's time zone, 24-hour, Western digits. */
+function clock(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone,
+  }).format(new Date(iso));
+}
+
+/**
+ * A delivery's window for the order page: «Levert ca. 19:05–19:15» from the
+ * order's `customer_eta`, or one time when Wolt gives a single instant.
+ * `timeZone` is the restaurant's (e.g. `Europe/Oslo`).
+ */
+export function deliveryWindowLabel(
+  eta: OrderingCustomerEta,
+  locale: string,
+  timeZone: string
+): string {
+  const min = clock(eta.min, timeZone);
+  const max = clock(eta.max, timeZone);
+  const time = min === max ? min : `${min}–${max}`;
+  return DELIVERED_AROUND[labelLocale(locale)].replace('{time}', time);
 }
