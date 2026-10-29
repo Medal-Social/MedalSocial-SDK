@@ -91,28 +91,34 @@ export function createVippsReturnRoute(
   const medal = lazyClient(options);
   const report = reporter(options.onError);
 
-  function redirect(request: Request, path: string): Response {
+  /**
+   * A relative `Location`: the browser resolves it against the URL it asked
+   * for. `request.url` can name an internal host on Cloudflare or behind a
+   * proxy, which a guest coming back from Vipps could not reach. Both paths
+   * start with a single `/` (checked above), so it never leaves the site.
+   */
+  function redirect(path: string): Response {
     return new Response(null, {
       status: 303,
-      headers: { location: new URL(path, request.url).href, 'cache-control': 'no-store' },
+      headers: { location: path, 'cache-control': 'no-store' },
     });
   }
 
   return async function GET(request: Request): Promise<Response> {
     const id = readOrderId(new URL(request.url).searchParams.get('order_id'));
-    if (id === null) return redirect(request, fallbackPath);
+    if (id === null) return redirect(fallbackPath);
     const receipt = `${receiptPath}/${encodeURIComponent(id)}`;
     const api = medal();
     if (!api) {
       report(new Error('The Medal API key is not configured'));
-      return redirect(request, fallbackPath);
+      return redirect(fallbackPath);
     }
     try {
       await api.ordering.orders.status(id, { signal: deadline(request, READ_DEADLINE_MS) });
-      return redirect(request, receipt);
+      return redirect(receipt);
     } catch (error) {
       report(error);
-      return redirect(request, isTransient(error) ? receipt : fallbackPath);
+      return redirect(isTransient(error) ? receipt : fallbackPath);
     }
   };
 }

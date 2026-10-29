@@ -62,24 +62,24 @@ describe('createVippsReturnRoute', () => {
   it('redirects a known order to its receipt, 303 and uncached', async () => {
     const { GET, status } = setup();
     const response = await GET(req('?order_id=ord_1'));
-    expectRedirect(response, `${SITE}/order/ord_1`);
+    expectRedirect(response, `/order/ord_1`);
     expect(status).toHaveBeenCalledWith('ord_1', { signal: expect.any(AbortSignal) });
   });
 
   it('encodes the id into the receipt path', async () => {
     const { GET } = setup();
     const response = await GET(req('?order_id=a%2F..%2F%3Fb'));
-    expectRedirect(response, `${SITE}/order/a%2F..%2F%3Fb`);
+    expectRedirect(response, `/order/a%2F..%2F%3Fb`);
   });
 
   it('joins a receipt path with a trailing slash once', async () => {
     const { GET } = setup({ receiptPath: '/kvittering/' });
-    expectRedirect(await GET(req('?order_id=ord_1')), `${SITE}/kvittering/ord_1`);
+    expectRedirect(await GET(req('?order_id=ord_1')), `/kvittering/ord_1`);
   });
 
   it('takes the root as the receipt path', async () => {
     const { GET } = setup({ receiptPath: '/' });
-    expectRedirect(await GET(req('?order_id=ord_1')), `${SITE}/ord_1`);
+    expectRedirect(await GET(req('?order_id=ord_1')), `/ord_1`);
   });
 
   it.each([
@@ -89,7 +89,7 @@ describe('createVippsReturnRoute', () => {
     ['a dot segment', '?order_id=..'],
   ])('sends %s to the fallback without a Medal call', async (_n, query) => {
     const { GET, status } = setup();
-    expectRedirect(await GET(req(query)), `${SITE}/checkout?vipps=failed`);
+    expectRedirect(await GET(req(query)), `/checkout?vipps=failed`);
     expect(status).not.toHaveBeenCalled();
   });
 
@@ -100,7 +100,7 @@ describe('createVippsReturnRoute', () => {
   ])('sends %s to the fallback, reported', async (_n, error) => {
     const { GET, status, onError } = setup();
     status.mockRejectedValueOnce(error);
-    expectRedirect(await GET(req('?order_id=ord_1')), `${SITE}/checkout?vipps=failed`);
+    expectRedirect(await GET(req('?order_id=ord_1')), `/checkout?vipps=failed`);
     expect(onError).toHaveBeenCalledWith(error);
   });
 
@@ -111,14 +111,24 @@ describe('createVippsReturnRoute', () => {
   ])('still sends the guest to the receipt on %s (the receipt polls)', async (_n, error) => {
     const { GET, status, onError } = setup();
     status.mockRejectedValueOnce(error);
-    expectRedirect(await GET(req('?order_id=ord_1')), `${SITE}/order/ord_1`);
+    expectRedirect(await GET(req('?order_id=ord_1')), `/order/ord_1`);
     expect(onError).toHaveBeenCalledWith(error);
   });
 
   it('never redirects off the site, whatever the query says', async () => {
     const { GET } = setup();
     const response = await GET(req('?order_id=ord_1&return=https://evil.example/&next=//evil'));
-    expect(new URL(response.headers.get('location') ?? '').origin).toBe(SITE);
+    expect(response.headers.get('location')).toBe('/order/ord_1');
+  });
+
+  it('answers a relative Location, so an internal request.url never reaches the guest', async () => {
+    const { GET } = setup();
+    const response = await GET(
+      new Request('http://localhost:3000/api/ordering/vipps-return?order_id=ord_1', {
+        headers: { 'x-forwarded-host': new URL(SITE).host },
+      })
+    );
+    expectRedirect(response, '/order/ord_1');
   });
 
   it('a missing key sends the guest to the fallback, reported', async () => {
@@ -129,7 +139,7 @@ describe('createVippsReturnRoute', () => {
       fallbackPath: '/checkout',
       onError,
     });
-    expectRedirect(await GET(req('?order_id=ord_1')), `${SITE}/checkout`);
+    expectRedirect(await GET(req('?order_id=ord_1')), `/checkout`);
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });

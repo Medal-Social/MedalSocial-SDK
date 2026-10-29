@@ -380,7 +380,8 @@ export const GET = createVippsReturnRoute({
 - **Locations** are cached 15 s and slots 60 s on the CDN; the table, the
   order and its status are `no-store`.
 - **Vipps return** — Medal sends the guest back with `?order_id=`; the route
-  checks the order exists and answers `303` to `<receiptPath>/<id>`, or to
+  checks the order exists and answers `303` with a relative `Location`
+  (so an internal `request.url` never reaches the guest) to `<receiptPath>/<id>`, or to
   `fallbackPath` for a missing or unknown order. The receipt page polls the
   status (`OrderStatus`), so a payment still settling shows as such.
 
