@@ -70,6 +70,7 @@ export {
   ALLERGEN_LABELS,
   allergenLabel,
   DIETARY_LABELS,
+  deliveryWindowLabel,
   dietaryLabel,
   type LabelLocale,
   type LabelSet,

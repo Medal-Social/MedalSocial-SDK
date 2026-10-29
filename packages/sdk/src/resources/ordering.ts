@@ -53,6 +53,8 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set<OrderingRefusalCode>([
   "PAYMENT_UNAVAILABLE",
   "RETURN_URL_NOT_ALLOWED",
   "INVALID_CUSTOMER",
+  "QUOTE_NOT_USABLE",
+  "QUOTE_EXPIRED",
 ]);
 
 /**

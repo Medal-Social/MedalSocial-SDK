@@ -1681,7 +1681,7 @@ export interface paths {
     put?: never;
     /**
      * Place an online order
-     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`, `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own, or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps: `return_url` missing or not on one of the workspace's sites) and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). Vipps: the answer is `status: awaiting_payment` with `payment.redirect_url`, where the customer pays; Vipps sends them back to `return_url` with `order_id` added. The order is placed once Vipps authorizes the payment and abandoned when unpaid after 30 minutes; the money is captured when the kitchen accepts, released on a decline, timeout or cancel before that, and refunded on a cancel after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`: Vipps refused, or could not be reached, as the payment was created. Delivery and scheduled timing are refused for now. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
+     * @description Requires `ordering.order.create` and an `Idempotency-Key` header (missing: 400 `IDEMPOTENCY_KEY_REQUIRED`). The same key and body returns the order it made: 201 the first time, 200 on a replay. The same key with a different body is 409 `IDEMPOTENCY_KEY_CONFLICT` (or `IDEMPOTENCY_CONFLICT` once the API's record expired); a first attempt still running is 409 `IDEMPOTENCY_IN_PROGRESS`. Never send a price: every price, VAT rate and name comes from the server menu, and an unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404 `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed code and `details`: `CLOSED` (`reason`: the channel state reason), `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`, `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT` and `UNAVAILABLE` (`ids`: the product and option ids), `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`, `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own, or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps: `return_url` missing or not on one of the workspace's sites) and `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note). Vipps: the answer is `status: awaiting_payment` with `payment.redirect_url`, where the customer pays; Vipps sends them back to `return_url` with `order_id` added. The order is placed once Vipps authorizes the payment and abandoned when unpaid after 30 minutes; the money is captured when the kitchen accepts, released on a decline, timeout or cancel before that, and refunded on a cancel after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`: Vipps refused, or could not be reached, as the payment was created. Delivery (`channel: delivery`, Vipps only) needs `delivery` with a verified address and a quote from `POST /api/v1/delivery/quotes`: 422 `QUOTE_NOT_USABLE` when the quote does not fit the order and `QUOTE_EXPIRED` when it runs out within a minute; the fee is the quote's and comes back as `delivery_fee_ore`. Scheduled timing is refused for now. Rate limits: 60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per site and IP.
      */
     post: operations["createOrderingOrder"];
     delete?: never;
@@ -4137,6 +4137,26 @@ export interface components {
        * @description Required with `vipps`: the page on one of the workspace's sites Vipps sends the customer back to (`order_id` is added).
        */
       return_url?: string;
+      delivery?: components["schemas"]["OrderingDeliveryInput"];
+    };
+    /** @description Required with `channel: delivery` (Vipps only): the verified address and the quote from `POST /api/v1/delivery/quotes` (made with `order_total` = the cart's subtotal), and what the courier needs at the door. The fee is the quote's; never send it. */
+    OrderingDeliveryInput: {
+      /** @description `address_id` from `POST /api/v1/delivery/addresses/resolve`. */
+      verified_address_id: string;
+      /** @description `quote_id` from `POST /api/v1/delivery/quotes`, valid for at least one more minute. */
+      quote_id: string;
+      floor?: string;
+      /** @description Stored encrypted, given to the courier, removed a day after the order ends. */
+      door_code?: string;
+      /** @description A note for the courier. */
+      comment?: string;
+    };
+    /** @description When the courier brings a delivery, from Wolt (the earliest and latest instant). */
+    OrderingCustomerEta: {
+      /** Format: date-time */
+      min: string;
+      /** Format: date-time */
+      max: string;
     };
     OrderingOrderCreated: {
       order_id: string;
@@ -4201,6 +4221,8 @@ export interface components {
       };
       lines: components["schemas"]["OrderingCustomerOrderLine"][];
       subtotal_ore: number;
+      /** @description The delivery fee in `total_ore` (0 for pickup and dine-in). */
+      delivery_fee_ore?: number;
       total_ore: number;
       vat_breakdown: components["schemas"]["OrderingVatLine"][];
       payment: {
@@ -4209,6 +4231,7 @@ export interface components {
       };
       /** Format: date-time */
       ready_at?: string;
+      customer_eta?: components["schemas"]["OrderingCustomerEta"];
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
@@ -4232,6 +4255,7 @@ export interface components {
       };
       /** Format: date-time */
       ready_at?: string;
+      customer_eta?: components["schemas"]["OrderingCustomerEta"];
       decline_reason?: components["schemas"]["OrderingDeclineReason"];
       /** Format: date-time */
       updated_at: string;

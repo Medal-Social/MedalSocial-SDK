@@ -2745,7 +2745,12 @@ paths:
         decline, timeout or cancel before that, and refunded on a cancel
         after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`:
         Vipps refused, or could not be reached, as the payment was created.
-        Delivery and scheduled timing are refused for now. Rate limits:
+        Delivery (`channel: delivery`, Vipps only) needs `delivery` with a
+        verified address and a quote from `POST /api/v1/delivery/quotes`:
+        422 `QUOTE_NOT_USABLE` when the quote does not fit the order and
+        `QUOTE_EXPIRED` when it runs out within a minute; the fee is the
+        quote's and comes back as `delivery_fee_ore`. Scheduled timing is
+        refused for now. Rate limits:
         60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per
         site and IP.
       parameters:
@@ -3076,6 +3081,8 @@ components:
         - PORTAL_SESSION_REQUIRED
         - PREORDER_DISABLED
         - PREVIEW_RECEIPT_REQUIRED
+        - QUOTE_EXPIRED
+        - QUOTE_NOT_USABLE
         - RATE_LIMITED
         - RETURN_URL_NOT_ALLOWED
         - SEND_FAILED
@@ -7999,6 +8006,48 @@ components:
           type: string
           format: uri
           maxLength: 2000
+        delivery:
+          $ref: "#/components/schemas/OrderingDeliveryInput"
+    OrderingDeliveryInput:
+      description: >-
+        Required with `channel: delivery` (Vipps only): the verified address
+        and the quote from `POST /api/v1/delivery/quotes` (made with
+        `order_total` = the cart's subtotal), and what the courier needs at the
+        door. The fee is the quote's; never send it.
+      type: object
+      required: [verified_address_id, quote_id]
+      additionalProperties: false
+      properties:
+        verified_address_id:
+          description: "`address_id` from `POST /api/v1/delivery/addresses/resolve`."
+          type: string
+          maxLength: 64
+        quote_id:
+          description: "`quote_id` from `POST /api/v1/delivery/quotes`, valid for at least one more minute."
+          type: string
+          maxLength: 64
+        floor:
+          type: string
+          maxLength: 20
+        door_code:
+          description: Stored encrypted, given to the courier, removed a day after the order ends.
+          type: string
+          maxLength: 20
+        comment:
+          description: A note for the courier.
+          type: string
+          maxLength: 500
+    OrderingCustomerEta:
+      description: When the courier brings a delivery, from Wolt (the earliest and latest instant).
+      type: object
+      required: [min, max]
+      properties:
+        min:
+          type: string
+          format: date-time
+        max:
+          type: string
+          format: date-time
     OrderingOrderCreated:
       type: object
       required: [order_id, order_number, status]
@@ -8110,6 +8159,9 @@ components:
             $ref: "#/components/schemas/OrderingCustomerOrderLine"
         subtotal_ore:
           type: integer
+        delivery_fee_ore:
+          description: The delivery fee in `total_ore` (0 for pickup and dine-in).
+          type: integer
         total_ore:
           type: integer
         vat_breakdown:
@@ -8127,6 +8179,8 @@ components:
         ready_at:
           type: string
           format: date-time
+        customer_eta:
+          $ref: "#/components/schemas/OrderingCustomerEta"
         created_at:
           type: string
           format: date-time
@@ -8164,6 +8218,8 @@ components:
         ready_at:
           type: string
           format: date-time
+        customer_eta:
+          $ref: "#/components/schemas/OrderingCustomerEta"
         decline_reason:
           $ref: "#/components/schemas/OrderingDeclineReason"
         updated_at:
