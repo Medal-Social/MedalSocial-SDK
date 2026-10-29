@@ -336,7 +336,10 @@ export function Checkout({
   // Ask again before the price runs out; a late answer after unmounting is dropped.
   useEffect(() => {
     const delay = quote === null ? null : quoteRefreshDelay(quote.quote);
-    if (!isDelivery || delay === null) return;
+    // A quote already due on arrival (a fast clock, a short validity) is asked
+    // again when the guest presses order, not on a 0 ms timer: that would
+    // loop, a Wolt call each turn, and spend the route's quote budget.
+    if (!isDelivery || delay === null || delay === 0) return;
     const timer = setTimeout(() => setQuoteTick((t) => t + 1), delay);
     return () => clearTimeout(timer);
   }, [isDelivery, quote]);

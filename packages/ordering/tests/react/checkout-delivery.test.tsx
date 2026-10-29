@@ -337,6 +337,20 @@ describe('Checkout — delivery', () => {
     expect(onPlace.mock.calls[0]?.[0].delivery?.quote_id).toBe('q_2');
   });
 
+  it('a price already due on arrival is asked for once at the press, never in a loop', async () => {
+    const { user, quoteDelivery, onPlace } = checkout();
+    // Valid for 60 s: inside the 90 s margin the moment it arrives (a fast clock, a short validity).
+    quoteDelivery.mockResolvedValue({ ok: true, data: quote({}, 60_000) });
+    await chooseAddress(user);
+    await screen.findByText(`Levering · 59 kr`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(quoteDelivery).toHaveBeenCalledTimes(1);
+    await fillDetails(user);
+    await user.click(orderButton());
+    expect(quoteDelivery).toHaveBeenCalledTimes(2);
+    expect(onPlace).not.toHaveBeenCalled();
+  });
+
   it('says why there is no price, and offers to try again when it may help', async () => {
     const { user, quoteDelivery } = checkout();
     quoteDelivery.mockResolvedValueOnce({
