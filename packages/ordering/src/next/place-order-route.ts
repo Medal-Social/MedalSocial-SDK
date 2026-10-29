@@ -34,7 +34,6 @@
  */
 
 import type {
-  OrderingChannel,
   OrderingCreateOrderInput,
   OrderingCreateOrderOptions,
   OrderingOrderCreated,
@@ -101,24 +100,33 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 /** The whole Medal call, the SDK's retries included. */
 const PLACE_DEADLINE_MS = 15_000;
 
-const CHANNELS: readonly OrderingChannel[] = ['dine_in', 'takeaway', 'delivery'];
+/**
+ * Delivery is not taken here yet: it needs a verified address and a quote,
+ * which this route does not handle (plan 8c). A delivery body is a `400`.
+ */
+const CHANNELS: readonly PlaceOrderRequest['channel'][] = ['dine_in', 'takeaway'];
 const PAYMENT_METHODS: readonly OrderingPaymentMethod[] = ['pay_at_counter', 'vipps'];
 
-const REFUSAL_CODES: ReadonlySet<string> = new Set<OrderingRefusalCode>([
-  'CLOSED',
-  'CUTOFF',
-  'CHANNEL_NOT_AVAILABLE',
-  'PREORDER_DISABLED',
-  'TABLE_NOT_FOUND',
-  'SOLD_OUT',
-  'UNAVAILABLE',
-  'INVALID_OPTIONS',
-  'INVALID_CART',
-  'PAYMENT_METHOD_NOT_ALLOWED',
-  'PAYMENT_UNAVAILABLE',
-  'RETURN_URL_NOT_ALLOWED',
-  'INVALID_CUSTOMER',
-]);
+/** Keyed by the SDK's own list, so a refusal code it adds fails the typecheck here until it passes through. */
+const REFUSAL: Readonly<Record<OrderingRefusalCode, true>> = {
+  CLOSED: true,
+  CUTOFF: true,
+  CHANNEL_NOT_AVAILABLE: true,
+  PREORDER_DISABLED: true,
+  TABLE_NOT_FOUND: true,
+  SOLD_OUT: true,
+  UNAVAILABLE: true,
+  INVALID_OPTIONS: true,
+  INVALID_CART: true,
+  PAYMENT_METHOD_NOT_ALLOWED: true,
+  PAYMENT_UNAVAILABLE: true,
+  RETURN_URL_NOT_ALLOWED: true,
+  INVALID_CUSTOMER: true,
+  QUOTE_NOT_USABLE: true,
+  QUOTE_EXPIRED: true,
+  SAVED_ADDRESS_NOT_FOUND: true,
+};
+const REFUSAL_CODES: ReadonlySet<string> = new Set(Object.keys(REFUSAL));
 
 function failure(status: number, code: OrderingRouteErrorCode, message: string): ErrorBody {
   return { status, code, message };

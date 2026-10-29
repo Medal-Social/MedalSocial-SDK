@@ -116,6 +116,8 @@ export interface OrderingLabels {
   errorPaymentMethod: string;
   errorVipps: string;
   errorCustomer: string;
+  errorQuote: string;
+  errorSavedAddress: string;
   errorRateLimited: string;
   errorInProgress: string;
   errorConflict: string;
@@ -227,6 +229,8 @@ const NB: OrderingLabels = {
   errorPaymentMethod: 'Denne betalingsmåten tas ikke imot her. Velg en annen.',
   errorVipps: 'Vipps er ikke tilgjengelig akkurat nå. Velg en annen betalingsmåte.',
   errorCustomer: 'Sjekk opplysningene dine.',
+  errorQuote: 'Leveringsprisen gjelder ikke lenger. Vi henter en ny pris.',
+  errorSavedAddress: 'Den lagrede adressen finnes ikke lenger. Velg en annen adresse.',
   errorRateLimited: 'Mange bestillinger på kort tid. Vent et minutt og prøv igjen.',
   errorInProgress: 'Bestillingen sendes fortsatt. Vent litt og prøv igjen.',
   errorConflict: 'Bestillingen ble endret mens den ble sendt. Prøv igjen.',
@@ -337,6 +341,8 @@ const EN: OrderingLabels = {
   errorPaymentMethod: 'This way of paying is not taken here. Please choose another.',
   errorVipps: 'Vipps is not available right now. Please choose another way to pay.',
   errorCustomer: 'Please check your details.',
+  errorQuote: 'The delivery price no longer applies. We will get a new price.',
+  errorSavedAddress: 'The saved address no longer exists. Please choose another address.',
   errorRateLimited: 'Many orders in a short time. Please wait a minute and try again.',
   errorInProgress: 'Your order is still being sent. Please wait a moment and try again.',
   errorConflict: 'Your order changed while it was being sent. Please try again.',

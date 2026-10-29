@@ -358,6 +358,7 @@ describe('createPlaceOrderRoute — strict body', () => {
     ['an unknown top-level key', { ...ORDER, coupon: 'FREE' }],
     ['a total', { ...ORDER, total_ore: 0 }],
     ['an unknown channel', { ...ORDER, channel: 'drone' }],
+    ['delivery, which needs an address and a quote', { ...ORDER, channel: 'delivery' }],
     ['a channel in another case', { ...ORDER, channel: 'Takeaway' }],
     ['an unknown payment method', { ...ORDER, payment_method: 'cash' }],
     ['a null optional field', { ...ORDER, timing: null }],
@@ -469,6 +470,8 @@ describe('createPlaceOrderRoute — Medal failures', () => {
     ['CLOSED', { reason: 'closed', ids: 'nope', line_index: -1 }, { reason: 'closed' }],
     ['INVALID_CART', { line_index: 1.5, ids: ['a', 2] }, undefined],
     ['CUTOFF', undefined, undefined],
+    ['QUOTE_EXPIRED', undefined, undefined],
+    ['SAVED_ADDRESS_NOT_FOUND', undefined, undefined],
     ['TABLE_NOT_FOUND', 'not an object', undefined],
     ['PAYMENT_UNAVAILABLE', ['ids'], undefined],
   ])(

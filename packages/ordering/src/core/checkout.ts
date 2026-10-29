@@ -27,7 +27,8 @@ export const CUSTOMER_LIMITS = { maxName: 80, maxEmail: 254, maxAllergyNote: 200
  * `Idempotency-Key` header, from the cart draft.
  */
 export interface PlaceOrderRequest {
-  channel: OrderingChannel;
+  /** Pickup or dine-in; delivery needs an address and a quote (plan 8c). */
+  channel: Exclude<OrderingChannel, 'delivery'>;
   /** Omitted: as soon as possible. */
   timing?: OrderingOrderTiming;
   /** Dine-in: the token from the table's QR code. */

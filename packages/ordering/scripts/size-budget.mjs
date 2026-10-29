@@ -43,17 +43,28 @@ const BUDGETS = [
     // unchanged so a site answers "open now?" and lists pickup times exactly as
     // the API will, which rules out trimming it here — 6.75 KB measured,
     // budget +15%. A page that imports no hours function ships none of it.
+    // Raised for cart and checkout (plan 8a/8b): the API's cart check
+    // (`checkCart`), `resolveCart`, checkout's details check, the order status
+    // words in nb/en/ar, the error copy and the browser's `placeOrder` /
+    // `fetchOrderStatus` — and most of all the word packs, which gained the
+    // cart, checkout, error and status words in nb and en (~90 strings each).
+    // 12.01 KB measured, budget +15%, still under the plan's 25 KB cap. A page
+    // still ships only what it imports.
     name: '@medalsocial/ordering/core — whole entry',
     contents: "export * from './dist/core/index.mjs';",
-    gzipBytes: 7.8 * 1024,
+    gzipBytes: 13.8 * 1024,
   },
   {
     // Everything `/react` exports: the menu list, the dish sheet, the closed
     // notice and the label packs, with the `/core` modules they reach. React
-    // is the consumer's. Measured 5.97 KB when introduced.
+    // is the consumer's. Measured 5.97 KB when introduced. Raised for
+    // `CartBar`, `CartList`, `Checkout` and `OrderStatus` (plan 8a/8b) and the
+    // larger word packs they reach through `/core`: 14.14 KB measured, budget
+    // +15%. A menu page that imports only `MenuList` and `ItemSheet` from the
+    // unbundled build does not ship checkout.
     name: '@medalsocial/ordering/react — whole entry',
     contents: "export * from './dist/react/index.mjs';",
-    gzipBytes: 6.9 * 1024,
+    gzipBytes: 16.3 * 1024,
   },
 ];
 

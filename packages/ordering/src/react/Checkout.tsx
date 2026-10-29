@@ -45,7 +45,7 @@ import { ClosedNotice } from './ClosedNotice';
 import { cx } from './cx';
 
 /** The channels this checkout offers, in the order it lists them. */
-const OFFERED: readonly OrderingChannel[] = ['takeaway', 'dine_in'];
+const OFFERED: readonly PlaceOrderRequest['channel'][] = ['takeaway', 'dine_in'];
 
 export interface CheckoutDetails {
   name?: string;
@@ -127,8 +127,7 @@ export function Checkout({
     (c) => location.channels[c].enabled && (c !== 'dine_in' || table !== undefined)
   );
   const [chosenChannel, setChannel] = useState<OrderingChannel | undefined>(startChannel);
-  const channel =
-    chosenChannel !== undefined && channels.includes(chosenChannel) ? chosenChannel : channels[0];
+  const channel = channels.find((c) => c === chosenChannel) ?? channels[0];
   const state = channel === undefined ? undefined : location.channels[channel];
   const canAsap = state?.open === true;
   const canSchedule = loadSlots !== undefined && channel !== 'dine_in';
