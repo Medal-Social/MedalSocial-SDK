@@ -1925,6 +1925,66 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/delivery/addresses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Autocomplete a delivery address
+     * @description Requires `delivery.address.read`. Up to 8 Norwegian street addresses for what the customer typed, nearest the restaurant first: Kartverket (the national address register) first, Google Places only when Kartverket has no hit. Ids are opaque: resolve one with `POST /api/v1/delivery/addresses/resolve` before quoting. Fewer than 3 characters (after normalising) answers an empty list. A `q` over 200 characters or a malformed `session` is 400 `VALIDATION_ERROR`; too many lookups is 429 `RATE_LIMITED` (retry in a minute).
+     */
+    get: operations["suggestDeliveryAddresses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/delivery/addresses/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Verify a suggested address
+     * @description Requires `delivery.address.read`. Turns a suggestion `id` into a verified address with coordinates. Only an address in the Kartverket register with a house number is verified; a Google suggestion is confirmed against Kartverket, whose postcode wins. 422 `ADDRESS_NOT_VERIFIED` when there is no such door or no house number; 503 `ADDRESS_LOOKUP_UNAVAILABLE` when the register could not be reached; 429 `RATE_LIMITED` for too many lookups. The answer's `address_id` is what `POST /api/v1/delivery/quotes`, saved addresses and delivery orders take.
+     */
+    post: operations["resolveDeliveryAddress"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/delivery/quotes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Get a live delivery price
+     * @description Requires `delivery.quote.create`; 30/min per key, and every call asks Wolt for a fresh binding price. Applies the restaurant's customer fee policy (Wolt's price, a fixed fee, or free over an order total) and waits up to 20 s for Wolt (504 `QUOTE_TIMEOUT` past that). For an online order send `order_total` = the cart subtotal in øre and pass `quote_id` with the same `address_id` as `delivery.quote_id` / `delivery.verified_address_id` to `POST /api/v1/ordering/orders` before `valid_until`; make a new quote when the subtotal changes or within a minute of `valid_until` (the order is refused with 422 `QUOTE_NOT_USABLE` / `QUOTE_EXPIRED`). Errors: 400 `INVALID_REQUEST`, 409 `DELIVERY_NOT_SET_UP` / `DELIVERY_PAUSED` / `VENUE_UNAVAILABLE`, 422 `ADDRESS_NOT_VERIFIED` / `NOT_DELIVERABLE` (Wolt cannot deliver there right now) / `ADDRESS_NOT_DELIVERABLE` (Wolt will not promise delivery to that address).
+     */
+    post: operations["createDeliveryQuote"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4579,6 +4639,80 @@ export interface components {
     };
     ApiResponse_PortalOrderingReorder: {
       data: components["schemas"]["PortalOrderingReorder"];
+    };
+    /** @description One token per address the customer enters (a UUID, say), sent to both the autocomplete and the resolve call. */
+    DeliveryAddressSession: string;
+    /** @description An autocomplete suggestion. `id` is opaque; resolve it before quoting. */
+    DeliveryAddressSuggestion: {
+      id: string;
+      /** @description The street address, e.g. `Storgata 1`. */
+      label: string;
+      /** @description The postcode and town, e.g. `0155 Oslo`. */
+      secondary: string;
+    };
+    ApiResponse_DeliveryAddressSuggestions: {
+      data: components["schemas"]["DeliveryAddressSuggestion"][];
+    };
+    /** @description A verified Norwegian address with a house number. `address_id` is what quotes, saved addresses and delivery orders take. */
+    DeliveryResolvedAddress: {
+      address_id: string;
+      label: string;
+      street: string;
+      house_number: string;
+      post_code: string;
+      city: string;
+      lat: number;
+      lon: number;
+      /**
+       * @description Where the suggestion came from; the address itself is always checked against Kartverket.
+       * @enum {string}
+       */
+      source: "kartverket" | "google";
+    };
+    ApiResponse_DeliveryResolvedAddress: {
+      data: components["schemas"]["DeliveryResolvedAddress"];
+    };
+    DeliveryQuoteInput: {
+      /** @description `address_id` from `POST /api/v1/delivery/addresses/resolve`. */
+      address_id: string;
+      /** @description The pickup place; defaults to the nearest open one. */
+      venue_id?: string;
+      /** @description How many bags the courier carries; 1 when omitted. */
+      bags?: number;
+      /** @description Minutes until the order is ready for pickup. Omit to use the venue's ordering prep time (busy mode included), or 15 when it has none. */
+      prep_minutes?: number;
+      /** @description The order total in øre, for free delivery over a threshold. For an online order: the cart subtotal. */
+      order_total?: number;
+    };
+    /** @description An amount in integer øre. */
+    DeliveryMoney: {
+      amount: number;
+      /** @enum {string} */
+      currency: "NOK";
+    };
+    /** @description A binding Wolt price. `customer_fee` is what the store charges its customer, `cost` Wolt's price to the restaurant. */
+    DeliveryQuote: {
+      quote_id: string;
+      customer_fee: components["schemas"]["DeliveryMoney"] | null;
+      cost: components["schemas"]["DeliveryMoney"] | null;
+      /** @description Minutes until the order reaches the customer if booked now. */
+      eta_minutes: number | null;
+      /**
+       * Format: date-time
+       * @description When the order reaches the customer if booked now (ISO 8601 UTC). Never a pickup time; the booked order carries the final time.
+       */
+      delivered_by: string | null;
+      /**
+       * Format: date-time
+       * @description When the price runs out (ISO 8601 UTC).
+       */
+      valid_until: string | null;
+      /** @description The address as Wolt will deliver to it. */
+      address: string;
+      venue_id: string | null;
+    };
+    ApiResponse_DeliveryQuote: {
+      data: components["schemas"]["DeliveryQuote"];
     };
   };
   responses: {
@@ -7759,6 +7893,131 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ApiResponse_OrderingTable"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  suggestDeliveryAddresses: {
+    parameters: {
+      query: {
+        /** @description What the customer typed so far. */
+        q: string;
+        /** @description One token per address the customer enters (a UUID, say); pass the same one to resolve. */
+        session?: components["schemas"]["DeliveryAddressSession"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Suggestions, nearest first. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_DeliveryAddressSuggestions"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  resolveDeliveryAddress: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @description `id` of a suggestion from `GET /api/v1/delivery/addresses`. */
+          id: string;
+          session?: components["schemas"]["DeliveryAddressSession"];
+        };
+      };
+    };
+    responses: {
+      /** @description The verified address. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_DeliveryResolvedAddress"];
+        };
+      };
+      /** @description `ADDRESS_NOT_VERIFIED`: not in the register, or no house number. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
+        };
+      };
+      /** @description `ADDRESS_LOOKUP_UNAVAILABLE`: the register could not be reached. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
+        };
+      };
+      default: components["responses"]["ApiError"];
+    };
+  };
+  createDeliveryQuote: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DeliveryQuoteInput"];
+      };
+    };
+    responses: {
+      /** @description A binding price. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiResponse_DeliveryQuote"];
+        };
+      };
+      /** @description `DELIVERY_NOT_SET_UP`, `DELIVERY_PAUSED` or `VENUE_UNAVAILABLE`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
+        };
+      };
+      /** @description `ADDRESS_NOT_VERIFIED`, `ADDRESS_NOT_DELIVERABLE` or `NOT_DELIVERABLE`. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
+        };
+      };
+      /** @description `QUOTE_TIMEOUT`: Wolt did not answer in time. */
+      504: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ApiError"];
         };
       };
       default: components["responses"]["ApiError"];

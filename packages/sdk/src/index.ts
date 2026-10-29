@@ -3,6 +3,7 @@
  *
  * Provides typed access to posts, emails, contacts, deals, bookings,
  * restaurant online ordering (menu, locations, slots, tables and orders),
+ * Wolt delivery (address autocomplete and verification, live quotes),
  * the customer portal, GDPR compliance, helpdesk conversations, partner
  * channel connect, webhooks, and workspace management. Works in
  * Node.js, Deno, Bun, Cloudflare Workers, and modern browsers.
@@ -27,6 +28,7 @@ import { CapabilityConfirmations } from "./resources/capability-confirmations";
 import { Channels } from "./resources/channels";
 import { Contacts } from "./resources/contacts";
 import { Deals } from "./resources/deals";
+import { Delivery } from "./resources/delivery";
 import { Emails } from "./resources/emails";
 import { Gdpr } from "./resources/gdpr";
 import { Helpdesk } from "./resources/helpdesk";
@@ -150,6 +152,7 @@ export class Medal {
   readonly emails: Emails;
   readonly contacts: Contacts;
   readonly deals: Deals;
+  readonly delivery: Delivery;
   readonly gdpr: Gdpr;
   readonly helpdesk: Helpdesk;
   readonly ordering: Ordering;
@@ -181,13 +184,14 @@ export class Medal {
     );
 
     // Every resource that owns a confirmable write route gets the confirmer.
-    // Bookings, ordering, workspaces and the portal are absent from the server's
+    // Bookings, delivery, ordering, workspaces and the portal are absent from the server's
     // confirmable registry, so they take the plain client.
     this.bookings = new Bookings(client);
     this.channels = new Channels(client, confirmer);
     this.emails = new Emails(client, confirmer);
     this.contacts = new Contacts(client, confirmer);
     this.deals = new Deals(client, confirmer);
+    this.delivery = new Delivery(client);
     this.gdpr = new Gdpr(client, confirmer);
     this.helpdesk = new Helpdesk(client, confirmer);
     this.ordering = new Ordering(client);
@@ -218,6 +222,7 @@ export { CapabilityConfirmations } from "./resources/capability-confirmations";
 export { Channels } from "./resources/channels";
 export { Contacts } from "./resources/contacts";
 export { Deals } from "./resources/deals";
+export { Delivery, DeliveryAddresses, DeliveryQuotes } from "./resources/delivery";
 export { Emails } from "./resources/emails";
 export { Gdpr } from "./resources/gdpr";
 export { Helpdesk } from "./resources/helpdesk";
@@ -373,6 +378,16 @@ export type {
   ListDealsOptions,
   UpdateDealInput,
 } from "./types/deals";
+export type {
+  DeliveryAddressOptions,
+  DeliveryAddressSource,
+  DeliveryAddressSuggestion,
+  DeliveryMoney,
+  DeliveryQuote,
+  DeliveryQuoteInput,
+  DeliveryQuoteOptions,
+  DeliveryResolvedAddress,
+} from "./types/delivery";
 export type {
   BatchSendInput,
   BatchSendResult,

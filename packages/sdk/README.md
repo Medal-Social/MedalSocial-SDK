@@ -1,6 +1,6 @@
 # Medal Social SDK
 
-TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, helpdesk conversations, webhooks, company/site scans, and GDPR compliance programmatically.
+TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, restaurant ordering and delivery, helpdesk conversations, webhooks, company/site scans, and GDPR compliance programmatically.
 
 ## Install
 
@@ -558,7 +558,7 @@ await medal.portal.ordering.preferences.update(token, {
   marketing_consent: true,       // explicit, recorded with time and source
 }); // favourites: [...] replaces the whole list (≤ 30) — 422 FAVOURITE_LIMIT / PRODUCT_NOT_FOUND
 
-// Saved delivery addresses (≤ 5) — address_id comes from POST /api/v1/delivery/addresses/resolve
+// Saved delivery addresses (≤ 5) — address_id comes from medal.delivery.addresses.resolve()
 await medal.portal.ordering.addresses.add(token, {
   address_id,
   label: 'Hjem',                 // ≤ 40
@@ -822,6 +822,68 @@ await medal.ordering.orders.create(
   { idempotencyKey, portalSession: token },
 );
 ```
+
+### Delivery
+
+Wolt delivery for a restaurant's own online store, booked through Medal. Call
+it server-side with the workspace API key: autocomplete a Norwegian address,
+verify it against Kartverket (the national address register), and get a live
+Wolt price with the restaurant's customer fee applied. Money is integer NOK øre.
+
+```ts
+// One session token per address the customer enters; the same for both calls.
+const session = crypto.randomUUID();
+
+// Autocomplete (scope delivery.address.read): up to 8 addresses, nearest the
+// restaurant first. Under 3 characters answers [] — call it per keystroke.
+const { data: suggestions } = await medal.delivery.addresses.suggest('storgata 1', {
+  session,
+  signal: keystroke.signal,
+});
+// [{ id, label: 'Storgata 1', secondary: '0155 Oslo' }, …]
+
+// Verify the one the customer picked. 422 ADDRESS_NOT_VERIFIED: no such door,
+// or no house number. 503 ADDRESS_LOOKUP_UNAVAILABLE: the register is down.
+const { data: address } = await medal.delivery.addresses.resolve(suggestions[0].id, { session });
+// { address_id, label, street, house_number, post_code, city, lat, lon, source }
+
+// A live, binding Wolt price (scope delivery.quote.create, 30/min per key).
+const { data: quote } = await medal.delivery.quotes.create({
+  address_id: address.address_id,
+  order_total: cart.subtotal_ore, // for an order: the cart subtotal, in øre
+  // venue_id, bags (1-20), prep_minutes (0-60) are optional
+});
+showFee(quote.customer_fee); // { amount: 4900, currency: 'NOK' } — or null
+// quote.delivered_by: when it reaches the customer if ordered now; quote.valid_until
+
+// Place the order on that quote (Vipps only).
+await medal.ordering.orders.create(
+  {
+    ...order,
+    channel: 'delivery',
+    payment_method: 'vipps',
+    return_url: 'https://example.com/order/done',
+    delivery: {
+      verified_address_id: address.address_id,
+      quote_id: quote.quote_id,
+      door_code: '1234',
+    },
+  },
+  { idempotencyKey: cart.idempotencyKey },
+);
+```
+
+Every `quotes.create()` asks Wolt for a fresh price, and the server waits up to
+20 s for it, so the SDK sends it **exactly once** — no automatic retry on
+429/5xx, which would spend the quote budget and stack 20 s waits. Retry a
+`504 QUOTE_TIMEOUT` yourself if you want to. Keep the client `timeout` above
+about 25 s. Make a new quote when the cart subtotal changes, and when
+`valid_until` is less than a minute away: the order is refused with
+`422 QUOTE_NOT_USABLE` / `QUOTE_EXPIRED` otherwise. Other refusals:
+`409 DELIVERY_NOT_SET_UP` / `DELIVERY_PAUSED` / `VENUE_UNAVAILABLE`,
+`422 NOT_DELIVERABLE` (Wolt cannot deliver there right now) and
+`422 ADDRESS_NOT_DELIVERABLE` (Wolt will not promise delivery to that address)
+— offer takeaway instead.
 
 ### Helpdesk
 
@@ -1277,7 +1339,7 @@ and also exposes as `MedalApiError.retryAfterMs`.
 
 | Bucket | Routes | Rate | Burst |
 |--------|--------|------|-------|
-| `apiRead` | every `GET` not listed below | 300/min | 100 |
+| `apiRead` | every `GET` not listed below, and `POST /delivery/addresses/resolve` | 300/min | 100 |
 | `apiWrite` | every `POST` / `PATCH` / `PUT` / `DELETE` not listed below | 60/min | 30 |
 | `apiEmailSend` | `POST /emails` | 100/min | 50 |
 | `apiEmailBatch` | `POST /emails/batch` | 10/min | 5 |
@@ -1297,6 +1359,7 @@ and also exposes as `MedalApiError.retryAfterMs`.
 | `apiPortalExport` | `POST /portal/me/export` | 60/hour | 10 |
 | `apiOrderingOrderCreate` | `POST /ordering/orders` | 60/min | — |
 | `apiOrderingOrderCreatePerIp` | `POST /ordering/orders`, per site and `X-Medal-Client-Ip` (only when sent) | 10/min | — |
+| `apiDeliveryQuote` | `POST /delivery/quotes` | 30/min | 10 |
 | `apiConnectLinkMint` | `POST /channels/connect-links` | 10/hour | 5 |
 | `apiCookieConsent` | `POST /api/cookie-consent` | 600/min | 1200 |
 | `oauthIntrospect` | OAuth token introspection | 600/min | 200 |
@@ -1324,6 +1387,8 @@ role floor.
 | `ordering.menu`, `ordering.locations`, `ordering.slots`, `ordering.table` | `ordering.storefront.read` (workspace API key) | — |
 | `ordering.orders.create`, `ordering.orders.cancel` | `ordering.order.create` (workspace API key) | — |
 | `ordering.orders.get`, `ordering.orders.status` | `ordering.order.read` (workspace API key) | — |
+| `delivery.addresses.suggest`, `delivery.addresses.resolve` | `delivery.address.read` (workspace API key) | — |
+| `delivery.quotes.create` | `delivery.quote.create` (workspace API key) | — |
 
 A credential below the floor answers `403 FORBIDDEN`.
 
