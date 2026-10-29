@@ -46,6 +46,9 @@ export interface PaginatedResponse<T> {
  *   restaurant already answered; `details.status` is its status now.
  */
 export type MedalErrorCode =
+  | "ADDRESS_LIMIT"
+  | "ADDRESS_NOT_FOUND"
+  | "ADDRESS_NOT_VERIFIED"
   | "AI_GENERATION_FAILED"
   | "AI_QUOTA_EXCEEDED"
   | "CAPABILITY_API_PATH_INVALID"
@@ -66,6 +69,7 @@ export type MedalErrorCode =
   | "CONTACT_NOT_FOUND"
   | "CONVERSATION_NOT_LINKABLE"
   | "CUTOFF"
+  | "FAVOURITE_LIMIT"
   | "FORBIDDEN"
   | "GRANT_NOT_FOUND"
   | "IDEMPOTENCY_CONFLICT"
@@ -94,10 +98,12 @@ export type MedalErrorCode =
   | "PORTAL_SESSION_REQUIRED"
   | "PREORDER_DISABLED"
   | "PREVIEW_RECEIPT_REQUIRED"
+  | "PRODUCT_NOT_FOUND"
   | "QUOTE_EXPIRED"
   | "QUOTE_NOT_USABLE"
   | "RATE_LIMITED"
   | "RETURN_URL_NOT_ALLOWED"
+  | "SAVED_ADDRESS_NOT_FOUND"
   | "SEND_FAILED"
   | "SOLD_OUT"
   | "TABLE_NOT_FOUND"

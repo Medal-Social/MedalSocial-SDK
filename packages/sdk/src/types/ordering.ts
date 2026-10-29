@@ -139,7 +139,13 @@ export type OrderingOrderLineInput = Schemas["OrderingOrderLineInput"];
 /** Who the order is for. `phone` is a Norwegian mobile or E.164. */
 export type OrderingOrderCustomer = Schemas["OrderingOrderCustomer"];
 
-/** The guest's preferences. `allergy_note` reaches the kitchen only and is never returned. */
+/**
+ * The guest's preferences. `allergy_note` reaches the kitchen only and is
+ * never returned. All optional: left out, a logged-in customer's
+ * (`portalSession`) cutlery and contactless defaults apply, and cutlery is on
+ * for a guest. `include_allergy_note` (default `true`) copies the customer's
+ * saved allergy note when none is typed.
+ */
 export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
 
 /**
@@ -238,6 +244,7 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `QUOTE_NOT_USABLE` — delivery: the quote is not for this workspace, venue,
  *   address or the cart's fee band; ask for a new price.
  * - `QUOTE_EXPIRED` — delivery: the quote runs out within a minute; ask for a new price.
+ * - `SAVED_ADDRESS_NOT_FOUND` — `saved_address_id` is not on the logged-in customer's profile.
  */
 export type OrderingRefusalCode =
   | "CLOSED"
@@ -254,7 +261,8 @@ export type OrderingRefusalCode =
   | "RETURN_URL_NOT_ALLOWED"
   | "INVALID_CUSTOMER"
   | "QUOTE_NOT_USABLE"
-  | "QUOTE_EXPIRED";
+  | "QUOTE_EXPIRED"
+  | "SAVED_ADDRESS_NOT_FOUND";
 
 /**
  * The `details` of an ordering error, as the API sends it (snake_case). Only
@@ -278,6 +286,14 @@ export interface OrderingCreateOrderOptions {
    * (10 orders a minute per site and IP). Blank is not sent.
    */
   clientIp?: string;
+  /**
+   * A customer-portal session token, sent as `X-Portal-Session`. The order is
+   * then the logged-in customer's: their profile defaults apply and
+   * `saved_address_id` can pick one of their saved addresses. Unknown,
+   * expired or revoked is `401 PORTAL_SESSION_INVALID` and places nothing.
+   * Omit it (or pass `""`) for a guest order.
+   */
+  portalSession?: string;
   /** Your own cancellation signal. */
   signal?: AbortSignal;
 }

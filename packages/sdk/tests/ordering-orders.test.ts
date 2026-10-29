@@ -349,6 +349,76 @@ describe("ordering.orders.create", () => {
     expect([noDetails, atCounter, takeaway]).toHaveLength(3);
   });
 
+  it("sends a portal session as X-Portal-Session with a saved address and profile-default preferences", async () => {
+    const input: OrderingCreateOrderInput = {
+      location_id: "loc_1",
+      channel: "delivery",
+      lines: [{ product_id: "p_1", quantity: 1 }],
+      customer: { name: "Guest", phone: "+4790000000" },
+      preferences: { include_allergy_note: false },
+      // The saved address is the delivery address; the quote is for its address_id.
+      saved_address_id: "sa_1",
+      delivery: { verified_address_id: "addr_1", quote_id: "quote_1" },
+      payment_method: "vipps",
+      return_url: "https://example.com/takk",
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-portal-session")).toBe("sess_1");
+      expect(headers.get("x-medal-client-ip")).toBe("203.0.113.7");
+      expect(headers.get("idempotency-key")).toBe("k-session");
+      expect(JSON.parse(init?.body as string)).toEqual(input);
+      return ok(CREATED, 201);
+    });
+    const result = await medal().ordering.orders.create(input, {
+      idempotencyKey: "k-session",
+      clientIp: "203.0.113.7",
+      portalSession: "sess_1",
+    });
+    expect(result).toEqual({ data: CREATED });
+  });
+
+  it("sends the portal session alone when there is no client IP, and no session header for a blank one", async () => {
+    const seen: (string | null)[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const headers = new Headers(init?.headers);
+      expect(headers.has("x-medal-client-ip")).toBe(false);
+      seen.push(headers.get("x-portal-session"));
+      return ok(CREATED);
+    });
+    await medal().ordering.orders.create(ORDER_INPUT, { idempotencyKey: "k1", portalSession: "s" });
+    await medal().ordering.orders.create(ORDER_INPUT, { idempotencyKey: "k2", portalSession: "" });
+    expect(seen).toEqual(["s", null]);
+  });
+
+  it("narrows SAVED_ADDRESS_NOT_FOUND and leaves a 401 PORTAL_SESSION_INVALID a plain API error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      apiError(422, "SAVED_ADDRESS_NOT_FOUND", "The saved address was not found"),
+    );
+    const refused = await failure(
+      medal().ordering.orders.create(
+        { ...ORDER_INPUT, saved_address_id: "sa_x" },
+        { idempotencyKey: "k-sa", portalSession: "sess_1" },
+      ),
+    );
+    expect(isOrderingRefusal(refused)).toBe(true);
+    expect(refused.code).toBe("SAVED_ADDRESS_NOT_FOUND" satisfies OrderingRefusalCode);
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      apiError(401, "PORTAL_SESSION_INVALID", "The portal session is invalid or has expired"),
+    );
+    const invalid = await failure(
+      medal().ordering.orders.create(ORDER_INPUT, {
+        idempotencyKey: "k-dead",
+        portalSession: "dead",
+      }),
+    );
+    expect(invalid).toBeInstanceOf(MedalApiError);
+    expect(invalid.status).toBe(401);
+    expect(invalid.code).toBe("PORTAL_SESSION_INVALID");
+    expect(isOrderingRefusal(invalid)).toBe(false);
+  });
+
   it("passes the caller's AbortSignal through", async () => {
     const controller = new AbortController();
     controller.abort(new Error("gone"));
