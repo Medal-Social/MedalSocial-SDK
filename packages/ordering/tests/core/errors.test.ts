@@ -24,6 +24,7 @@ describe('refusalMessage', () => {
       'CUTOFF',
       'CHANNEL_NOT_AVAILABLE',
       'PREORDER_DISABLED',
+      'SLOT_TAKEN',
       'TABLE_NOT_FOUND',
       'SOLD_OUT',
       'UNAVAILABLE',

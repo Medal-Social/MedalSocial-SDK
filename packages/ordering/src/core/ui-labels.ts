@@ -108,6 +108,8 @@ export interface OrderingLabels {
   errorCutoff: string;
   errorChannel: string;
   errorPreorder: string;
+  /** A pre-order's slot has gone by or is too soon (`SLOT_TAKEN`). */
+  errorSlotTaken: string;
   errorTable: string;
   errorSoldOut: string;
   errorUnavailable: string;
@@ -220,6 +222,7 @@ const NB: OrderingLabels = {
   errorCutoff: 'Det er for sent å bestille til dette tidspunktet.',
   errorChannel: 'Restauranten tilbyr ikke dette nå. Velg en annen måte å få maten på.',
   errorPreorder: 'Restauranten tar ikke imot forhåndsbestillinger. Velg «Så snart som mulig».',
+  errorSlotTaken: 'Det tidspunktet er ikke ledig lenger. Velg et annet tidspunkt.',
   errorTable: 'Vi fant ikke bordet. Skann QR-koden på bordet på nytt.',
   errorSoldOut: 'Noe i bestillingen er utsolgt. Se over bestillingen og prøv igjen.',
   errorUnavailable:
@@ -332,6 +335,7 @@ const EN: OrderingLabels = {
   errorChannel:
     'The restaurant does not offer this right now. Please choose another way to get your food.',
   errorPreorder: 'The restaurant does not take orders ahead. Please choose «As soon as possible».',
+  errorSlotTaken: 'That time is no longer available. Please choose another time.',
   errorTable: 'We could not find your table. Please scan the QR code on the table again.',
   errorSoldOut: 'Something in your order is sold out. Please check your order and try again.',
   errorUnavailable:

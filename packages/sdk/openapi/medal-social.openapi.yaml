@@ -2945,8 +2945,11 @@ paths:
         unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404
         `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed
         code and `details`: `CLOSED` (`reason`: the channel state reason),
-        `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`,
-        `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
+        `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED` (the location
+        takes no pre-orders), `SLOT_TAKEN` (a pre-order's slot has gone by or
+        is inside the prep time; a delivery slot under 1 h ahead), `CLOSED`
+        for a pre-order whose slot the location does not offer (`reason`
+        `closed`, `paused` or `too_far`), `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
         and `UNAVAILABLE` (`ids`: the product and option ids),
         `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when
         one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`,
@@ -2975,8 +2978,10 @@ paths:
         verified address and a quote from `POST /api/v1/delivery/quotes`:
         422 `QUOTE_NOT_USABLE` when the quote does not fit the order and
         `QUOTE_EXPIRED` when it runs out within a minute; the fee is the
-        quote's and comes back as `delivery_fee_ore`. Scheduled timing is
-        refused for now. Rate limits:
+        quote's and comes back as `delivery_fee_ore`. A pre-order sends
+        `timing: { kind: scheduled, at }` with one of the slots
+        `GET /ordering/slots` returns; it is accepted now and made for that
+        time (a delivery needs a quote made for that slot). Rate limits:
         60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per
         site and IP.
       parameters:
@@ -3480,6 +3485,7 @@ components:
         - RETURN_URL_NOT_ALLOWED
         - SAVED_ADDRESS_NOT_FOUND
         - SEND_FAILED
+        - SLOT_TAKEN
         - SOLD_OUT
         - TABLE_NOT_FOUND
         - UNAUTHORIZED
@@ -8312,7 +8318,12 @@ components:
               type: string
               enum: [scheduled]
             at:
-              description: ISO 8601 with `Z` or an explicit offset.
+              description: >-
+                ISO 8601 with `Z` or an explicit offset: one of the slots
+                `GET /ordering/slots` returns (today up to the location's
+                `preorder_days`; delivery 1 hour to 7 days ahead, on a quote
+                made with `scheduled_dropoff_time` = that slot). The order is
+                accepted now and made for that time.
               type: string
               format: date-time
     OrderingOrderLineInput:
@@ -9055,6 +9066,15 @@ components:
           type: integer
           minimum: 0
           maximum: 100000000
+        scheduled_dropoff_time:
+          description: >-
+            A pre-order: the slot the customer picked, 1 hour to 7 days ahead
+            (ISO 8601 with `Z` or an offset). The quote is for a dropoff at
+            that time, and an order with `timing.kind: scheduled` takes only
+            a quote made for its slot (else `422 QUOTE_NOT_USABLE`). Omit for
+            an order as soon as possible.
+          type: string
+          format: date-time
     DeliveryMoney:
       description: An amount in integer øre.
       type: object

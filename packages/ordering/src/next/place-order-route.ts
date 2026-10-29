@@ -116,6 +116,7 @@ const REFUSAL: Readonly<Record<OrderingRefusalCode, true>> = {
   CUTOFF: true,
   CHANNEL_NOT_AVAILABLE: true,
   PREORDER_DISABLED: true,
+  SLOT_TAKEN: true,
   TABLE_NOT_FOUND: true,
   SOLD_OUT: true,
   UNAVAILABLE: true,

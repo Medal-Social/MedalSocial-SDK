@@ -764,7 +764,7 @@ try {
   redirect(`/order/${placed.order_id}`); // placed.order_number is what the guest is told
 } catch (error) {
   // 422 refusals: CLOSED (details.reason), CUTOFF, CHANNEL_NOT_AVAILABLE,
-  // PREORDER_DISABLED, TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
+  // PREORDER_DISABLED, SLOT_TAKEN (pick another slot), TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
   // INVALID_OPTIONS / INVALID_CART (details.line_index),
   // PAYMENT_METHOD_NOT_ALLOWED, PAYMENT_UNAVAILABLE, RETURN_URL_NOT_ALLOWED,
   // INVALID_CUSTOMER (details.reason), SAVED_ADDRESS_NOT_FOUND.
