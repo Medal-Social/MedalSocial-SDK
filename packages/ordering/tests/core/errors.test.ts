@@ -45,8 +45,35 @@ describe('refusalMessage', () => {
       'RATE_LIMITED',
       'NOT_CONFIGURED',
       'SERVICE_UNAVAILABLE',
+      'ADDRESS_NOT_VERIFIED',
+      'ADDRESS_NOT_DELIVERABLE',
+      'DELIVERY_UNAVAILABLE',
+      'QUOTE_TIMEOUT',
     ];
     for (const code of codes) expect(refusalMessage({ code }, nb)).toMatch(/\S/);
+  });
+
+  it('puts the delivery codes in plain words', () => {
+    expect(refusalMessage({ code: 'ADDRESS_NOT_VERIFIED' }, nb)).toBe(
+      'Vi fant ikke adressen. Husk husnummer.'
+    );
+    expect(refusalMessage({ code: 'ADDRESS_NOT_DELIVERABLE' }, nb)).toBe(
+      nb.errorAddressNotDeliverable
+    );
+    expect(refusalMessage({ code: 'DELIVERY_UNAVAILABLE' }, en)).toBe(en.errorDeliveryUnavailable);
+    expect(refusalMessage({ code: 'QUOTE_TIMEOUT' }, en)).toBe(en.errorQuoteTimeout);
+  });
+
+  it('names the delivery field for INVALID_CUSTOMER, with its limit', () => {
+    expect(refusalMessage({ code: 'INVALID_CUSTOMER', details: { reason: 'floor' } }, nb)).toBe(
+      'Etasje kan være opptil 20 tegn.'
+    );
+    expect(refusalMessage({ code: 'INVALID_CUSTOMER', details: { reason: 'door_code' } }, nb)).toBe(
+      'Dørkoden kan være opptil 20 tegn.'
+    );
+    expect(
+      refusalMessage({ code: 'INVALID_CUSTOMER', details: { reason: 'delivery_comment' } }, en)
+    ).toBe('The note for the courier can be up to 500 characters.');
   });
 
   it('names the field for INVALID_CUSTOMER', () => {

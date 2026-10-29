@@ -192,6 +192,14 @@ describe('Checkout', () => {
       error: { code: 'INVALID_CUSTOMER', message: 'x', details: { reason: 'door_code' } },
     });
     await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
+    // No door code field on a pickup form: the message goes above the button.
+    expect(screen.getByRole('alert')).toHaveTextContent('Dørkoden kan være opptil 20 tegn.');
+
+    onPlace.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'INVALID_CUSTOMER', message: 'x', details: { reason: 'door' } },
+    });
+    await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
     expect(screen.getByRole('alert')).toHaveTextContent('Sjekk opplysningene dine.');
   });
 

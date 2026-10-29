@@ -1,6 +1,7 @@
 /**
  * `@medalsocial/ordering/react` — the menu list, the dish sheet, the cart
- * bar and list, checkout, the order status and the closed notice, composed
+ * bar and list, checkout (with delivery's address field), the order status
+ * and the closed notice, composed
  * on `/core`. Client components; presentational and controlled through
  * props — fetching, the cart draft and navigation are the page's.
  *
@@ -11,6 +12,7 @@
  */
 
 export type { OrderingLabels } from '../core/ui-labels';
+export { AddressCombobox, type AddressComboboxProps } from './AddressCombobox';
 export { CartBar, type CartBarProps } from './CartBar';
 export { CartList, type CartListProps } from './CartList';
 export { Checkout, type CheckoutDetails, type CheckoutProps } from './Checkout';

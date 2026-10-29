@@ -3,6 +3,7 @@
  * own `message` is English for logs; this is what a guest reads.
  */
 import type { OrderingRouteError, OrderingRouteErrorCode } from './checkout';
+import { DELIVERY_LIMITS } from './delivery';
 import { fill, type OrderingLabels } from './ui-labels';
 
 const MESSAGE: Readonly<Record<OrderingRouteErrorCode, keyof OrderingLabels>> = {
@@ -31,19 +32,28 @@ const MESSAGE: Readonly<Record<OrderingRouteErrorCode, keyof OrderingLabels>> = 
   ORDER_NOT_FOUND: 'errorNotFound',
   INVALID_REQUEST: 'errorGeneric',
   SERVICE_UNAVAILABLE: 'errorGeneric',
+  ADDRESS_NOT_VERIFIED: 'errorAddressNotVerified',
+  ADDRESS_NOT_DELIVERABLE: 'errorAddressNotDeliverable',
+  DELIVERY_UNAVAILABLE: 'errorDeliveryUnavailable',
+  QUOTE_TIMEOUT: 'errorQuoteTimeout',
 };
 
-const CUSTOMER_FIELD: Readonly<Record<string, keyof OrderingLabels>> = {
-  name: 'nameError',
-  phone: 'phoneError',
-  email: 'emailError',
-  allergy_note: 'allergyNoteError',
+/** Each `INVALID_CUSTOMER` reason's words, and the limit they name (`{n}`). */
+const CUSTOMER_FIELD: Readonly<Record<string, readonly [keyof OrderingLabels, number?]>> = {
+  name: ['nameError'],
+  phone: ['phoneError'],
+  email: ['emailError'],
+  allergy_note: ['allergyNoteError'],
+  floor: ['floorError', DELIVERY_LIMITS.maxFloor],
+  door_code: ['doorCodeError', DELIVERY_LIMITS.maxDoorCode],
+  delivery_comment: ['deliveryCommentError', DELIVERY_LIMITS.maxComment],
 };
 
 /**
  * The guest's message for an error. `CLOSED` gains `opens` after it («Åpner
  * kl. 11:00», from `openingLine`) when the page knows the next opening;
- * `INVALID_CUSTOMER` names the field when the error says which. A code this
+ * `INVALID_CUSTOMER` names the field when the error says which (a delivery's
+ * floor, door code and courier note included). A code this
  * version does not know reads as the generic «try again».
  */
 export function refusalMessage(
@@ -54,7 +64,10 @@ export function refusalMessage(
   if (error.code === 'CLOSED' && extra.opens) return `${labels.errorClosed} ${extra.opens}`;
   if (error.code === 'INVALID_CUSTOMER') {
     const field = CUSTOMER_FIELD[error.details?.reason ?? ''];
-    if (field) return fill(labels[field] as string, { n: extra.allergyNoteMax ?? 200 });
+    if (field) {
+      const [key, max = extra.allergyNoteMax ?? 200] = field;
+      return fill(labels[key] as string, { n: max });
+    }
   }
   const key = Object.hasOwn(MESSAGE, error.code) ? MESSAGE[error.code] : 'errorGeneric';
   return labels[key] as string;

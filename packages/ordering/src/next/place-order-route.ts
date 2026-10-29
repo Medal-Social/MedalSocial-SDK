@@ -23,9 +23,12 @@
  *   answer instead of placing a second order.
  * - A body of at most 32 KB (`413`) that is exactly a `PlaceOrderRequest`
  *   (`400`): an unknown key anywhere — a price, `location_id`, `return_url` —
- *   is refused, not dropped.
+ *   is refused, not dropped. A delivery must be Vipps and carry `delivery`
+ *   (the address and quote ids, and floor, door code and courier note as
+ *   text); no other channel may.
  *
- * The route adds `location_id` from `location` and, for Vipps, `return_url`
+ * The route adds `location_id` from `location` and, for Vipps (so every
+ * delivery), `return_url`
  * from `returnUrl`, then calls Medal once (the SDK retries 429/5xx with the
  * same key) within 15 s or until the guest leaves. `201 { data }` on
  * success. Medal's refusals pass through as `422` with their code and only
@@ -36,6 +39,7 @@
 import type {
   OrderingCreateOrderInput,
   OrderingCreateOrderOptions,
+  OrderingDeliveryInput,
   OrderingOrderCreated,
   OrderingOrderLineInput,
   OrderingOrderTiming,
@@ -50,9 +54,16 @@ import {
   deadline,
   type ErrorBody,
   errorResponse,
+  isRecord,
+  isString,
+  type Json,
   lazyClient,
   NOT_CONFIGURED,
+  only,
+  optional,
+  postGuard,
   type RouteBaseOptions,
+  readBody,
   reporter,
 } from './shared';
 
@@ -103,11 +114,7 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 /** The whole Medal call, the SDK's retries included. */
 const PLACE_DEADLINE_MS = 15_000;
 
-/**
- * Delivery is not taken here yet: it needs a verified address and a quote,
- * which this route does not handle (plan 8c). A delivery body is a `400`.
- */
-const CHANNELS: readonly PlaceOrderRequest['channel'][] = ['dine_in', 'takeaway'];
+const CHANNELS: readonly PlaceOrderRequest['channel'][] = ['dine_in', 'takeaway', 'delivery'];
 const PAYMENT_METHODS: readonly OrderingPaymentMethod[] = ['pay_at_counter', 'vipps'];
 
 /** Keyed by the SDK's own list, so a refusal code it adds fails the typecheck here until it passes through. */
@@ -132,26 +139,6 @@ const REFUSAL: Readonly<Record<OrderingRefusalCode, true>> = {
 };
 const REFUSAL_CODES: ReadonlySet<string> = new Set(Object.keys(REFUSAL));
 
-/**
- * The origin the browser asked for: `x-forwarded-host` (its first entry) or
- * `host`, with `x-forwarded-proto` (https unless the host is local), falling
- * back to `request.url`. On Cloudflare and behind a proxy `request.url` can
- * name an internal host the browser's `Origin` never will. A cross-site page
- * cannot set these headers on a JSON POST without a CORS preflight, which
- * this route does not answer.
- */
-function siteOrigin(request: Request): string {
-  const own = new URL(request.url).origin;
-  const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host'))
-    ?.split(',')[0]
-    ?.trim();
-  if (!host) return own;
-  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
-  const proto =
-    request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || (local ? 'http' : 'https');
-  return URL.canParse(`${proto}://${host}`) ? new URL(`${proto}://${host}`).origin : own;
-}
-
 function failure(status: number, code: OrderingRouteErrorCode, message: string): ErrorBody {
   return { status, code, message };
 }
@@ -163,23 +150,6 @@ const TOO_LARGE = failure(413, 'INVALID_REQUEST', 'The order is too large.');
 const BAD_BODY = failure(400, 'INVALID_REQUEST', 'The order is not one this site takes.');
 const UNAVAILABLE = failure(502, 'SERVICE_UNAVAILABLE', 'Orders cannot be placed right now.');
 
-type Json = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Json {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** A plain object with only these keys. */
-function only(value: unknown, keys: readonly string[]): value is Json {
-  return isRecord(value) && Object.keys(value).every((key) => keys.includes(key));
-}
-
-/** Absent, or a value `check` takes. `null` is not absent: Medal omits, never nulls. */
-function optional(value: unknown, check: (value: unknown) => boolean): boolean {
-  return value === undefined || check(value);
-}
-
-const isString = (value: unknown): value is string => typeof value === 'string';
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean';
 const isStrings = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(isString);
@@ -209,6 +179,24 @@ function parseLine(value: unknown): OrderingOrderLineInput | null {
   });
 }
 
+/** A delivery's address, quote and door details: exactly these keys, all text. */
+function parseDelivery(value: unknown): OrderingDeliveryInput | null {
+  if (!only(value, ['verified_address_id', 'quote_id', 'floor', 'door_code', 'comment'])) {
+    return null;
+  }
+  const { verified_address_id, quote_id, floor, door_code, comment } = value;
+  if (!isString(verified_address_id) || !isString(quote_id)) return null;
+  if (!optional(floor, isString) || !optional(door_code, isString)) return null;
+  if (!optional(comment, isString)) return null;
+  return defined({
+    verified_address_id,
+    quote_id,
+    floor: floor as string | undefined,
+    door_code: door_code as string | undefined,
+    comment: comment as string | undefined,
+  });
+}
+
 /**
  * The browser's body as a `PlaceOrderRequest`, rebuilt from the keys it may
  * have, or `null`. Strict, as Medal is: anything else anywhere is refused.
@@ -225,6 +213,7 @@ function parsePlaceOrder(value: unknown): PlaceOrderRequest | null {
       'customer',
       'preferences',
       'payment_method',
+      'delivery',
     ])
   ) {
     return null;
@@ -254,8 +243,7 @@ function parsePlaceOrder(value: unknown): PlaceOrderRequest | null {
   }
   if (!optional(preferences.include_allergy_note, isBoolean)) return null;
 
-  return defined({
-    channel,
+  const base = defined({
     timing,
     table_token: value.table_token as string | undefined,
     lines: lines as OrderingOrderLineInput[],
@@ -270,40 +258,14 @@ function parsePlaceOrder(value: unknown): PlaceOrderRequest | null {
       no_contact: preferences.no_contact as boolean | undefined,
       include_allergy_note: preferences.include_allergy_note as boolean | undefined,
     }),
-    payment_method: payment,
   });
-}
-
-/** The media type of a `Content-Type`, without parameters, lower-cased. */
-function mediaType(header: string | null): string {
-  const [type = ''] = (header ?? '').split(';');
-  return type.trim().toLowerCase();
-}
-
-/**
- * The body as text, or `null` when it is over the cap. Read chunk by chunk
- * so an endless body stops at the cap; a declared `Content-Length` over it
- * is refused without reading. Rejects for a failing stream or bytes that are
- * not UTF-8.
- */
-async function readBody(request: Request): Promise<string | null> {
-  if (Number(request.headers.get('content-length')) > MAX_BODY_BYTES) return null;
-  const bytes = new Uint8Array(MAX_BODY_BYTES);
-  let length = 0;
-  if (request.body) {
-    const reader = request.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (length + value.byteLength > MAX_BODY_BYTES) {
-        await reader.cancel();
-        return null;
-      }
-      bytes.set(value, length);
-      length += value.byteLength;
-    }
+  // `delivery` comes with the delivery channel only, and that channel is Vipps only.
+  if (channel !== 'delivery') {
+    return value.delivery === undefined ? { ...base, channel, payment_method: payment } : null;
   }
-  return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
+  const delivery = parseDelivery(value.delivery);
+  if (delivery === null || payment !== 'vipps') return null;
+  return { ...base, channel, payment_method: payment, delivery };
 }
 
 /** `ids`, `line_index` and `reason` from a refusal's `details`, when they have their types. */
@@ -394,13 +356,8 @@ export function createPlaceOrderRoute(
   }
 
   return async function POST(request: Request): Promise<Response> {
-    const origin = request.headers.get('origin');
-    if (origin !== null && origin !== siteOrigin(request)) {
-      return errorResponse(CROSS_ORIGIN);
-    }
-    if (mediaType(request.headers.get('content-type')) !== 'application/json') {
-      return errorResponse(NOT_JSON);
-    }
+    const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON });
+    if (refused) return errorResponse(refused);
     const idempotencyKey = request.headers.get('idempotency-key')?.trim() ?? '';
     if (idempotencyKey === '' || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
       return errorResponse(NO_KEY);
@@ -408,7 +365,7 @@ export function createPlaceOrderRoute(
 
     let order: PlaceOrderRequest | null;
     try {
-      const text = await readBody(request);
+      const text = await readBody(request, MAX_BODY_BYTES);
       if (text === null) return errorResponse(TOO_LARGE);
       order = parsePlaceOrder(JSON.parse(text));
     } catch {
@@ -425,7 +382,10 @@ export function createPlaceOrderRoute(
     if (order.payment_method === 'vipps') {
       const url = returnUrl(request);
       if (url === null) return notConfigured('The Vipps return URL is not configured');
-      input = { ...order, payment_method: 'vipps', location_id: location, return_url: url };
+      input =
+        order.channel === 'delivery'
+          ? { ...order, location_id: location, return_url: url }
+          : { ...order, payment_method: 'vipps', location_id: location, return_url: url };
     } else {
       input = { ...order, payment_method: 'pay_at_counter', location_id: location };
     }

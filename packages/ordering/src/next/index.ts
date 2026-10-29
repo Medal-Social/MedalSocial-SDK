@@ -22,10 +22,28 @@
  *   `GET ?id=` an order for the receipt, or its status to poll.
  * - `createVippsReturnRoute(options)` — `GET` where Vipps sends the guest
  *   back: a `303` to the receipt page.
+ * - `createAddressSuggestRoute(options)` / `createAddressResolveRoute(options)`
+ *   — `GET ?q=&session=` address suggestions, `POST { id, session }` the
+ *   picked one verified.
+ * - `createDeliveryQuoteRoute(options)` — `POST { address_id, order_total }`
+ *   a Wolt price, budgeted per minute.
  */
 
 import 'server-only';
 
+export type {
+  AddressResolveClient,
+  AddressResolveRouteOptions,
+  AddressSuggestClient,
+  AddressSuggestRouteOptions,
+  DeliveryQuoteClient,
+  DeliveryQuoteRouteOptions,
+} from './delivery-routes';
+export {
+  createAddressResolveRoute,
+  createAddressSuggestRoute,
+  createDeliveryQuoteRoute,
+} from './delivery-routes';
 export type { LocationsClient, LocationsRouteOptions } from './locations-route';
 export { createLocationsRoute } from './locations-route';
 export type { MenuCacheEntry, MenuClient, MenuRouteOptions, MenuStore } from './menu-route';

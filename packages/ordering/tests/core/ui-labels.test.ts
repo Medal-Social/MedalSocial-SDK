@@ -33,6 +33,7 @@ describe('the label packs', () => {
     expect(core.mergeLabels).toBe(mergeLabels);
     expect(core.fill).toBe(fill);
     expect(Object.keys(react).sort()).toEqual([
+      'AddressCombobox',
       'CartBar',
       'CartList',
       'Checkout',
