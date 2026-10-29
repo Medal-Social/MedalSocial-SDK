@@ -2978,8 +2978,10 @@ paths:
         verified address and a quote from `POST /api/v1/delivery/quotes`:
         422 `QUOTE_NOT_USABLE` when the quote does not fit the order and
         `QUOTE_EXPIRED` when it runs out within a minute; the fee is the
-        quote's and comes back as `delivery_fee_ore`. Scheduled timing is
-        refused for now. Rate limits:
+        quote's and comes back as `delivery_fee_ore`. A pre-order sends
+        `timing: { kind: scheduled, at }` with one of the slots
+        `GET /ordering/slots` returns; it is accepted now and made for that
+        time (a delivery needs a quote made for that slot). Rate limits:
         60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per
         site and IP.
       parameters:
