@@ -70,9 +70,13 @@ and is never published.
   the modifier rules, the allergen/dietary labels and the components' nb/en
   words (`ORDERING_LABELS`/`mergeLabels`/`fill` in `src/core/ui-labels.ts`,
   in `/core` so a server component never imports a `'use client'` module for
-  them; `/react` re-exports the `OrderingLabels` type only). `/react` holds
-  `MenuList`, `ItemSheet` and `ClosedNotice` (presentational, controlled by
-  props), native accessible
+  them; `/react` re-exports the `OrderingLabels` type only), the cart check
+  (`checkCart`, the API's `priceCart` on the wire shape, totals only — VAT is
+  the server's) and `resolveCart`, checkout's details check, the status words,
+  the error copy (`refusalMessage`) and the browser's `placeOrder` /
+  `fetchOrderStatus`. `/react` holds `MenuList`, `ItemSheet`, `CartBar`,
+  `CartList`, `Checkout`, `OrderStatus` and `ClosedNotice` (presentational,
+  controlled by props; `/react` exports components only), native accessible
   markup styled with Tailwind classes on the shadcn/meda colour tokens — no
   meda or lucide dependency, and `verify:paths` refuses any runtime import
   in `dist/react` but React. `/next` holds `createMenuRoute` (the site's
@@ -92,8 +96,11 @@ and is never published.
   <monorepo>/apps/shared/ordering/hours.ts`, and with `--engine
   src/core/hours.ts` the file must not change (`git diff --exit-code`). A new
   server hours test needs a matching `add(...)` case in that script's input
-  table, so the fixture covers it too. Cart totals, VAT, checkout and payment
-  are the server's. Same guards as booking: Biome `noRestrictedImports` and
+  table, so the fixture covers it too. `tests/core/cart.parity.test.ts` holds
+  `checkCart` to `tests/fixtures/cart.json`, refreshed with `node
+  scripts/export-cart-fixtures.mjs --engine
+  <monorepo>/apps/shared/ordering/cart.ts`. The VAT breakdown and payment are
+  the server's. Same guards as booking: Biome `noRestrictedImports` and
   `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
   entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
   `tests/core/denylist.test.ts`. It is `"private": true` until its first

@@ -92,12 +92,16 @@ describe('ClosedNotice', () => {
     const onRecoverableError = vi.fn();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const root = await act(async () => hydrateRoot(container, element, { onRecoverableError }));
-    expect(onRecoverableError).not.toHaveBeenCalled();
-    expect(consoleError).not.toHaveBeenCalled();
-    expect(container).toHaveTextContent(/Åpner kl\. \d\d:\d\d/);
-    consoleError.mockRestore();
-    act(() => root.unmount());
-    container.remove();
+    try {
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+      // An hour from now is tomorrow after 23:00 on the restaurant's clock.
+      expect(container).toHaveTextContent(/Åpner (i morgen )?kl\. \d\d:\d\d/);
+    } finally {
+      consoleError.mockRestore();
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 
   it('moves the opening line on at midnight and drops it once open, without a `now`', () => {
