@@ -158,6 +158,13 @@ interface HeldQuote {
   quote: DeliveryQuote;
   addressId: string;
   subtotalOre: number;
+  /**
+   * Already due by this device's clock when it arrived (a clock running
+   * ahead of Medal's, or a short validity). Such a price is sent as it is
+   * and Medal decides: asking again would bring another one due on arrival,
+   * and the guest could never order.
+   */
+  dueOnArrival: boolean;
 }
 
 function channelLabel(channel: OrderingChannel, labels: OrderingLabels): string {
@@ -341,7 +348,12 @@ export function Checkout({
       if (mine !== quoteTurn.current) return;
       setQuoting(false);
       if (result.ok) {
-        keepQuote({ quote: result.data, addressId, subtotalOre: subtotal });
+        keepQuote({
+          quote: result.data,
+          addressId,
+          subtotalOre: subtotal,
+          dueOnArrival: quoteRefreshDelay(result.data) === 0,
+        });
       } else {
         keepQuote(null);
         setQuoteError(result.error);
@@ -357,9 +369,9 @@ export function Checkout({
   // Ask again before the price runs out; a late answer after unmounting is dropped.
   useEffect(() => {
     const delay = quote === null ? null : quoteRefreshDelay(quote.quote);
-    // A quote already due on arrival (a fast clock, a short validity) is asked
-    // again when the guest presses order, not on a 0 ms timer: that would
-    // loop, a Wolt call each turn, and spend the route's quote budget.
+    // A quote already due on arrival (a fast clock, a short validity) gets no
+    // 0 ms timer: that would loop, a Wolt call each turn, and spend the route's
+    // quote budget. It is sent as it is when the guest presses order.
     if (!isDelivery || delay === null || delay === 0) return;
     const timer = setTimeout(() => setQuoteTick((t) => t + 1), delay);
     return () => clearTimeout(timer);
@@ -431,8 +443,11 @@ export function Checkout({
       return;
     }
     // A price that ran out while the tab slept (timers wait then) is asked for again first.
+    // One that was due when it arrived goes as it is: Medal's own clock decides
+    // (`QUOTE_EXPIRED` asks again), or a fast device clock would block every order.
     if (
       usable !== null &&
+      !usable.dueOnArrival &&
       quoteNeedsRefresh(usable.quote, { subtotalOre: subtotal, quotedSubtotalOre: subtotal })
     ) {
       reprice();
