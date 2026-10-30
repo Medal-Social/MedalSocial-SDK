@@ -42,6 +42,30 @@ describe('readBody', () => {
     await expect(reading).rejects.toBeInstanceOf(BodyTimeoutError);
   });
 
+  it('gives up at once when the visitor left before the read began', async () => {
+    const left = new AbortController();
+    left.abort();
+    await expect(readBody(stalled('{"a":', left.signal), 100, 60_000)).rejects.toBeInstanceOf(
+      BodyTimeoutError
+    );
+  });
+
+  it('answers without waiting for a stream whose cancel never settles', async () => {
+    const hanging = (chunks: string[]) =>
+      new Request('https://shop.test/api', {
+        method: 'POST',
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+          },
+          cancel: () => new Promise<void>(() => {}),
+        }),
+        duplex: 'half',
+      } as RequestInit);
+    await expect(readBody(hanging(['{"a":']), 100, 20)).rejects.toBeInstanceOf(BodyTimeoutError);
+    await expect(readBody(hanging(['x'.repeat(20)]), 10, 60_000)).resolves.toBeNull();
+  });
+
   it('still answers null for a body over the cap', async () => {
     const request = new Request('https://shop.test/api', { method: 'POST', body: 'x'.repeat(50) });
     await expect(readBody(request, 10, 1_000)).resolves.toBeNull();

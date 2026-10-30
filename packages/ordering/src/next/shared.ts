@@ -367,6 +367,14 @@ export function postGuard(
   return null;
 }
 
+/**
+ * Cancel a body stream without waiting for it: a stream whose cancel never
+ * settles must not hold the answer, and a cancel that fails changes nothing.
+ */
+function cancel(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  reader.cancel().catch(() => {});
+}
+
 /** How long a `POST` body may take to arrive, all of it. */
 export const BODY_DEADLINE_MS = 10_000;
 
@@ -378,10 +386,15 @@ export class BodyTimeoutError extends Error {
   }
 }
 
-/** A body that did not arrive in time: `408`, before any Medal call. */
+/**
+ * A body that did not arrive in time: `408`, before any Medal call. Its code
+ * is `SERVICE_UNAVAILABLE`, not `INVALID_REQUEST`: a slow connection is not a
+ * wrong request, and the page may simply send it again (`Checkout` offers
+ * «Prøv igjen» for it).
+ */
 export const SLOW_BODY: ErrorBody = {
   status: 408,
-  code: 'INVALID_REQUEST',
+  code: 'SERVICE_UNAVAILABLE',
   message: 'The request did not arrive in time.',
 };
 
@@ -410,20 +423,22 @@ export async function readBody(
     });
     const onStop = () => reject(new BodyTimeoutError());
     stop.addEventListener('abort', onStop, { once: true });
+    // A visitor who left before the read began: no `abort` event will come.
+    if (stop.aborted) onStop();
     try {
       for (;;) {
         const { done, value } = await Promise.race([reader.read(), stopped]);
         if (done) break;
         if (length + value.byteLength > maxBytes) {
-          await reader.cancel();
+          cancel(reader);
           return null;
         }
         bytes.set(value, length);
         length += value.byteLength;
       }
     } catch (error) {
-      // Stop the stream on any failure, the deadline included; a cancel that fails changes nothing.
-      await reader.cancel().catch(() => {});
+      // Stop the stream on any failure, the deadline included.
+      cancel(reader);
       throw error;
     } finally {
       stop.removeEventListener('abort', onStop);

@@ -184,7 +184,10 @@ describe('createAddressResolveRoute', () => {
     const left = new AbortController();
     const answer = POST(stalledPost(`${SITE}${PATH}`, left));
     left.abort();
-    expect((await answer).status).toBe(408);
+    const response = await answer;
+    expect(response.status).toBe(408);
+    // Retryable: a slow connection is not a wrong request.
+    expect((await json(response)).error?.code).toBe('SERVICE_UNAVAILABLE');
     expect(resolve).not.toHaveBeenCalled();
   });
 

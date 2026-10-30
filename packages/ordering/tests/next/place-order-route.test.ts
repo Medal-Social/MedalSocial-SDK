@@ -194,6 +194,7 @@ describe('createPlaceOrderRoute — success', () => {
     left.abort();
     const response = await answer;
     expect(response.status).toBe(408);
+    expect((await json(response)).error?.code).toBe('SERVICE_UNAVAILABLE');
     expect(create).not.toHaveBeenCalled();
   });
 
