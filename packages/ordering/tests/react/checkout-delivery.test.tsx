@@ -235,6 +235,37 @@ describe('Checkout — delivery', () => {
     expect(orderButton()).toBeEnabled();
   });
 
+  it('the old price’s timer asks nothing while the new cart’s price is on its way', async () => {
+    const answers: ((r: RouteResult<DeliveryQuote>) => void)[] = [];
+    const quoteDelivery = vi.fn<QuoteFn>(() => new Promise((r) => answers.push(r)));
+    const { user, rerender, resolveAddress, suggestAddress } = checkout({ quoteDelivery });
+    await chooseAddress(user);
+    await waitFor(() => expect(answers).toHaveLength(1));
+    // Due for a refresh 150 ms after it arrives.
+    await act(async () => answers[0]?.({ ok: true, data: quote({}, 90_150) }));
+    const bigger = resolveCart(MENU, [
+      { lineId: 'l1', itemId: 'burger', quantity: 3, selections: { size: ['large'] } },
+    ]);
+    rerender(
+      <Checkout
+        location={DELIVERS}
+        timeZone="Europe/Oslo"
+        cart={bigger}
+        channel="delivery"
+        suggestAddress={suggestAddress}
+        resolveAddress={resolveAddress}
+        quoteDelivery={quoteDelivery}
+        onPlace={vi.fn()}
+        onPlaced={vi.fn()}
+        now={NOW}
+      />
+    );
+    await waitFor(() => expect(answers).toHaveLength(2));
+    // Past the old price's refresh time, with the new one still on its way: no third ask.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(quoteDelivery).toHaveBeenCalledTimes(2);
+  });
+
   it('drops a price that comes back for an older cart', async () => {
     const answers: ((r: RouteResult<DeliveryQuote>) => void)[] = [];
     const quoteDelivery = vi.fn<QuoteFn>(() => new Promise((r) => answers.push(r)));

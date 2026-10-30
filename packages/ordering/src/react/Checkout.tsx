@@ -372,10 +372,11 @@ export function Checkout({
     // A quote already due on arrival (a fast clock, a short validity) gets no
     // 0 ms timer: that would loop, a Wolt call each turn, and spend the route's
     // quote budget. It is sent as it is when the guest presses order.
-    if (!isDelivery || delay === null || delay === 0) return;
+    // Not while a new price is on its way: the old one's timer would ask a second time.
+    if (!isDelivery || quoting || delay === null || delay === 0) return;
     const timer = setTimeout(() => setQuoteTick((t) => t + 1), delay);
     return () => clearTimeout(timer);
-  }, [isDelivery, quote]);
+  }, [isDelivery, quote, quoting]);
   useEffect(
     () => () => {
       quoteTurn.current += 1;
@@ -491,7 +492,13 @@ export function Checkout({
       result = { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'onPlace threw' } };
     }
     if (result.ok) {
-      onPlaced(result.data);
+      try {
+        onPlaced(result.data);
+      } catch {
+        // The order is placed: the form stays locked (no second order), and
+        // the guest is told it was received rather than left on a busy button.
+        setFailure(fill(labels.placedNoRedirect, { number: result.data.order_number }));
+      }
       // The page navigates away; the button stays busy until it does.
       return;
     }

@@ -26,6 +26,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('a cancelled read', () => {
+  it('rejects when the caller cancels while the body is still arriving', async () => {
+    const left = new AbortController();
+    const fetch = vi.fn(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"data":'));
+          left.signal.addEventListener('abort', () => controller.error(left.signal.reason));
+        },
+      });
+      return new Response(body, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const reading = fetchOrderStatus('/s', 'o1', left.signal);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    left.abort();
+    await expect(reading).rejects.toThrow();
+  });
+});
+
 describe('placeOrder', () => {
   it('posts JSON with the idempotency key and resolves the created order', async () => {
     const fetch = answer(201, { data: { order_id: 'o1', order_number: 'P-1', status: 'placed' } });

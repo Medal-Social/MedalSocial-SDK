@@ -129,6 +129,8 @@ export interface OrderingLabels {
   placeOrder: string;
   payWithVipps: string;
   placing: string;
+  /** The order went through but the page could not move on. `{number}`. */
+  placedNoRedirect: string;
   /** The message for each error code an order can come back with. */
   errorClosed: string;
   errorCutoff: string;
@@ -268,6 +270,7 @@ const NB: OrderingLabels = {
   placeOrder: 'Bestill · {price}',
   payWithVipps: 'Betal med Vipps · {price}',
   placing: 'Sender bestillingen …',
+  placedNoRedirect: 'Bestillingen {number} er mottatt. Last inn siden på nytt for å se den.',
   errorClosed: 'Restauranten tar ikke imot bestillinger nå.',
   errorCutoff: 'Det er for sent å bestille til dette tidspunktet.',
   errorChannel: 'Restauranten tilbyr ikke dette nå. Velg en annen måte å få maten på.',
@@ -406,6 +409,7 @@ const EN: OrderingLabels = {
   placeOrder: 'Order · {price}',
   payWithVipps: 'Pay with Vipps · {price}',
   placing: 'Sending your order …',
+  placedNoRedirect: 'Order {number} is received. Reload the page to see it.',
   errorClosed: 'The restaurant is not taking orders right now.',
   errorCutoff: 'It is too late to order for this time.',
   errorChannel:

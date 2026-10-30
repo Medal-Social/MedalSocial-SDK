@@ -173,6 +173,19 @@ describe('Checkout', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Noe gikk galt. Prøv igjen om litt.');
   });
 
+  it('says the order was received when the page cannot move on, and keeps the form locked', async () => {
+    const { user, onPlaced } = checkout();
+    onPlaced.mockImplementation(() => {
+      throw new Error('navigation failed');
+    });
+    await fillDetails(user);
+    await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `Bestillingen ${CREATED.order_number} er mottatt. Last inn siden på nytt for å se den.`
+    );
+    expect(screen.getByLabelText('Navn')).toBeDisabled();
+  });
+
   it('locks every field while the order is on its way, and unlocks it when refused', async () => {
     const { user, onPlace } = checkout();
     let answer: (result: RouteResult<OrderingOrderCreated>) => void = () => {};

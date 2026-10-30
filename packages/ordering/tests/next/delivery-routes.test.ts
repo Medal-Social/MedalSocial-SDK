@@ -6,6 +6,8 @@ import type {
 import { MedalApiError, MedalNetworkError, MedalTimeoutError } from '@medalsocial/sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  type AddressResolveRouteOptions,
+  type AddressSuggestRouteOptions,
   createAddressResolveRoute,
   createAddressSuggestRoute,
   createDeliveryQuoteRoute,
@@ -63,7 +65,7 @@ function stalledPost(url: string, left: AbortController, headers: Record<string,
 }
 
 describe('createAddressSuggestRoute', () => {
-  function setup() {
+  function setup(options: Partial<AddressSuggestRouteOptions> = {}) {
     const suggest = vi.fn(async (_q: string, _o?: DeliveryAddressOptions) => ({
       data: SUGGESTIONS,
     }));
@@ -72,10 +74,70 @@ describe('createAddressSuggestRoute', () => {
       apiKey: KEY,
       medal: { delivery: { addresses: { suggest } } },
       onError,
+      ...options,
     });
     return { GET, suggest, onError };
   }
   const get = (query: string) => new Request(`${SITE}/api/ordering/address?${query}`);
+
+  it('spends at most maxLookupsPerClientPerMinute for one IP, before the route’s minute', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-30T20:00:00Z'), toFake: ['Date'] });
+    const ipFrom = (ip: string) =>
+      new Request(`${SITE}/api/ordering/address?q=storgata`, {
+        headers: { 'cf-connecting-ip': ip },
+      });
+    const { GET, suggest } = setup({
+      clientIp: (r) => r.headers.get('cf-connecting-ip'),
+      maxLookupsPerMinute: 3,
+      maxLookupsPerClientPerMinute: 2,
+    });
+    expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
+    expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
+    const spent = await GET(ipFrom('203.0.113.1'));
+    expect(spent.status).toBe(503);
+    expect((await json(spent)).error?.code).toBe('SERVICE_UNAVAILABLE');
+    // The refused one took nothing from the route's minute: one more for someone else.
+    expect((await GET(ipFrom('198.51.100.7'))).status).toBe(200);
+    expect((await GET(ipFrom('198.51.100.8'))).status).toBe(503);
+    expect(suggest).toHaveBeenCalledTimes(3);
+    vi.setSystemTime(Date.parse('2026-10-30T20:01:00Z'));
+    expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
+  });
+
+  it('without an IP only the route’s minute applies (120 by default)', async () => {
+    const { GET, suggest } = setup({ maxLookupsPerMinute: 2 });
+    expect((await GET(get('q=storgata'))).status).toBe(200);
+    expect((await GET(get('q=storgata'))).status).toBe(200);
+    expect((await GET(get('q=storgata'))).status).toBe(503);
+    expect(suggest).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [{ maxLookupsPerMinute: 0 }],
+    [{ maxLookupsPerMinute: 1.5 }],
+    [{ maxLookupsPerClientPerMinute: 0 }],
+    [{ maxLookupsPerMinute: 5, maxLookupsPerClientPerMinute: 6 }],
+  ])('refuses lookup limits %j at setup', (limits) => {
+    expect(() => createAddressSuggestRoute({ apiKey: KEY, ...limits })).toThrow(RangeError);
+    expect(() => createAddressResolveRoute({ apiKey: KEY, ...limits })).toThrow(RangeError);
+  });
+
+  it('keeps at most 1,000 IPs, dropping the oldest window first', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-30T20:00:00Z'), toFake: ['Date'] });
+    const ipFrom = (ip: string) =>
+      new Request(`${SITE}/api/ordering/address?q=storgata`, {
+        headers: { 'cf-connecting-ip': ip },
+      });
+    const { GET } = setup({
+      clientIp: (r) => r.headers.get('cf-connecting-ip'),
+      maxLookupsPerMinute: 5_000,
+      maxLookupsPerClientPerMinute: 1,
+    });
+    expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
+    for (let i = 0; i < 1_000; i += 1) await GET(ipFrom(`10.0.${i >> 8}.${i & 255}`));
+    // The guest's window was the oldest and was dropped: it starts again.
+    expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
+  });
 
   it('answers the suggestions for q and session, never cached', async () => {
     const { GET, suggest } = setup();
@@ -131,17 +193,26 @@ describe('createAddressSuggestRoute', () => {
 });
 
 describe('createAddressResolveRoute', () => {
-  function setup() {
+  function setup(options: Partial<AddressResolveRouteOptions> = {}) {
     const resolve = vi.fn(async (_id: string, _o?: DeliveryAddressOptions) => ({ data: ADDRESS }));
     const onError = vi.fn();
     const POST = createAddressResolveRoute({
       apiKey: KEY,
       medal: { delivery: { addresses: { resolve } } },
       onError,
+      ...options,
     });
     return { POST, resolve, onError };
   }
   const PATH = '/api/ordering/address/resolve';
+
+  it('stops lookups past its minute without calling Medal', async () => {
+    const { POST, resolve } = setup({ maxLookupsPerMinute: 1 });
+    expect((await POST(post(PATH, { id: 'kv_1' }))).status).toBe(200);
+    const spent = await POST(post(PATH, { id: 'kv_1' }));
+    expect(spent.status).toBe(503);
+    expect(resolve).toHaveBeenCalledOnce();
+  });
 
   it('answers the verified address, never cached', async () => {
     const { POST, resolve } = setup();

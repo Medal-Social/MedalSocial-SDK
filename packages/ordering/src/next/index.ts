@@ -38,6 +38,7 @@ export type {
   AddressSuggestRouteOptions,
   DeliveryQuoteClient,
   DeliveryQuoteRouteOptions,
+  LookupLimitOptions,
 } from './delivery-routes';
 export {
   createAddressResolveRoute,

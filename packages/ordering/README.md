@@ -465,7 +465,11 @@ export const POST = createDeliveryQuoteRoute({
 - **Delivery** — address suggestions (`GET ?q=&session=`, `q` up to 200
   characters, `session` 8–64 of `A-Z a-z 0-9 _ -`), resolve (`POST { id,
   session? }`) and the quote (`POST { address_id, order_total }`, `201`),
-  all `no-store`. The two `POST`s take the place route's origin, JSON and
+  all `no-store`. The two address routes allow at most
+  `maxLookupsPerMinute` (default 120) Medal lookups a minute in each route
+  instance and `maxLookupsPerClientPerMinute` (default 30) for one IP from
+  `clientIp`, then answer `503 SERVICE_UNAVAILABLE` without calling Medal.
+  The two `POST`s take the place route's origin, JSON and
   size checks (4 KB) and refuse any other key. The quote route never takes a
   venue, bags or prep time from the browser, gives Medal one attempt of up to
   25 s (its own deadline answers `504 QUOTE_TIMEOUT`), and makes at most
