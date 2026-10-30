@@ -339,29 +339,25 @@ export function createDeliveryQuoteRoute(
   // One attempt that may take the whole deadline: the SDK sends a quote once.
   const medal = lazyClient(options, QUOTE_DEADLINE_MS);
   const report = reporter(options.onError);
-  const budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
+  let budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
   // Each IP's minute, in the order the windows opened: the first is the oldest.
   const clients = new Map<string, { windowStart: number; used: number }>();
 
-  /** Take one quote from this minute's budget; `false` when it is spent. */
-  function spendQuote(): boolean {
+  /**
+   * Take one quote from this minute's budget: the minute it was taken from,
+   * or `null` when it is spent. A new minute is a new object, so giving a
+   * quote back to an old one changes nothing.
+   */
+  function spendQuote(): { used: number } | null {
     const now = Date.now();
-    if (now - budget.windowStart >= MINUTE_MS) {
-      budget.windowStart = now;
-      budget.used = 0;
-    }
-    if (budget.used >= maxQuotes) return false;
+    if (now - budget.windowStart >= MINUTE_MS) budget = { windowStart: now, used: 0 };
+    if (budget.used >= maxQuotes) return null;
     budget.used += 1;
-    return true;
+    return budget;
   }
 
-  /** Give back a quote taken this minute that never reached Medal. */
-  function refundQuote(windowStart: number): void {
-    if (budget.windowStart === windowStart && budget.used > 0) budget.used -= 1;
-  }
-
-  /** Take one quote from this IP's minute; `false` when it is spent. */
-  function spendClientQuote(ip: string): boolean {
+  /** Take one quote from this IP's minute: that minute, or `null` when it is spent. */
+  function spendClientQuote(ip: string): { used: number } | null {
     const now = Date.now();
     let minute = clients.get(ip);
     if (minute === undefined || now - minute.windowStart >= MINUTE_MS) {
@@ -371,15 +367,9 @@ export function createDeliveryQuoteRoute(
       minute = { windowStart: now, used: 0 };
       clients.set(ip, minute);
     }
-    if (minute.used >= perClient) return false;
+    if (minute.used >= perClient) return null;
     minute.used += 1;
-    return true;
-  }
-
-  /** Give back an IP's quote taken this minute that never reached Medal. */
-  function refundClientQuote(ip: string, windowStart: number): void {
-    const minute = clients.get(ip);
-    if (minute?.windowStart === windowStart && minute.used > 0) minute.used -= 1;
+    return minute;
   }
 
   /** The shared limiter's answer: only `false` refuses; a throw or a late answer lets it through. */
@@ -419,20 +409,13 @@ export function createDeliveryQuoteRoute(
     }
     const ip = readClientIp(options.clientIp, request, report);
     // The IP's own minute first, so a refused visitor takes nothing from everyone's.
-    if (ip !== undefined && !spendClientQuote(ip)) return errorResponse(BUDGET_SPENT);
-    const clientWindow = ip === undefined ? undefined : clients.get(ip)?.windowStart;
-    // A quote refused further on never reaches Medal, so it costs the IP nothing.
-    const refundClient = () => {
-      if (ip !== undefined && clientWindow !== undefined) refundClientQuote(ip, clientWindow);
-    };
-    if (!spendQuote()) {
-      refundClient();
-      return errorResponse(BUDGET_SPENT);
-    }
-    const instanceWindow = budget.windowStart;
-    if (!(await allowed(request))) {
-      refundQuote(instanceWindow);
-      refundClient();
+    const clientMinute = ip === undefined ? undefined : spendClientQuote(ip);
+    if (clientMinute === null) return errorResponse(BUDGET_SPENT);
+    // A quote refused further on never reaches Medal, so it is given back.
+    const routeMinute = spendQuote();
+    if (routeMinute === null || !(await allowed(request))) {
+      if (routeMinute) routeMinute.used -= 1;
+      if (clientMinute) clientMinute.used -= 1;
       return errorResponse(BUDGET_SPENT);
     }
     const timeout = AbortSignal.timeout(QUOTE_DEADLINE_MS);
