@@ -104,7 +104,21 @@ describe('createAddressSuggestRoute', () => {
     expect((await GET(ipFrom('203.0.113.1'))).status).toBe(200);
   });
 
-  it('without an IP only the route’s minute applies (120 by default)', async () => {
+  it('spends nothing on a refused query or without a key, and reports a missing clientIp', async () => {
+    const { GET, suggest, onError } = setup({ maxLookupsPerMinute: 1 });
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('no clientIp') })
+    );
+    expect((await GET(get(`q=${'x'.repeat(201)}`))).status).toBe(400);
+    expect((await GET(get('q=storgata&session=bad'))).status).toBe(400);
+    expect((await GET(get('q=storgata'))).status).toBe(200);
+    expect(suggest).toHaveBeenCalledOnce();
+    const keyless = createAddressSuggestRoute({ apiKey: '', maxLookupsPerMinute: 1 });
+    expect((await keyless(get('q=storgata'))).status).toBe(500);
+    expect((await keyless(get('q=storgata'))).status).toBe(500);
+  });
+
+  it('without an IP only the route’s minute applies', async () => {
     const { GET, suggest } = setup({ maxLookupsPerMinute: 2 });
     expect((await GET(get('q=storgata'))).status).toBe(200);
     expect((await GET(get('q=storgata'))).status).toBe(200);
@@ -328,9 +342,11 @@ describe('createAddressResolveRoute', () => {
 
   it('a missing key is 500 NOT_CONFIGURED, reported', async () => {
     const onError = vi.fn();
-    const response = await createAddressResolveRoute({ apiKey: ' ', onError })(
-      post(PATH, { id: 'kv_1' })
-    );
+    const response = await createAddressResolveRoute({
+      apiKey: ' ',
+      onError,
+      clientIp: () => null,
+    })(post(PATH, { id: 'kv_1' }));
     expect(response.status).toBe(500);
     expect((await json(response)).error?.code).toBe('NOT_CONFIGURED');
     expect(onError).toHaveBeenCalledTimes(1);

@@ -117,7 +117,12 @@ export interface LookupLimitOptions {
    * header is trusted by default. Without it only the route's limit applies.
    */
   clientIp?: (request: Request) => string | null | undefined;
-  /** Most lookups a minute in this route instance, for everyone. Default 120. */
+  /**
+   * Most lookups a minute in this route instance, for everyone. Default 600:
+   * a ceiling on the key's spend, high enough that one client cannot use it
+   * all up quickly. The per-IP limit is the main protection; without
+   * `clientIp` every visitor shares this one minute.
+   */
   maxLookupsPerMinute?: number;
   /** Most lookups a minute for one IP (from `clientIp`). Default 30: a guest types a few addresses. */
   maxLookupsPerClientPerMinute?: number;
@@ -213,7 +218,7 @@ const LOOKUPS_SPENT = failure(
   'SERVICE_UNAVAILABLE',
   'Address lookups are not available right now.'
 );
-const DEFAULT_MAX_LOOKUPS_PER_MINUTE = 120;
+const DEFAULT_MAX_LOOKUPS_PER_MINUTE = 600;
 const DEFAULT_MAX_LOOKUPS_PER_CLIENT = 30;
 
 /**
@@ -222,7 +227,11 @@ const DEFAULT_MAX_LOOKUPS_PER_CLIENT = 30;
  * dropped first). `take` answers whether this request may call Medal; a
  * refused IP takes nothing from everyone's minute.
  */
-function lookupBudget(options: LookupLimitOptions, factory: string) {
+function lookupBudget(
+  options: LookupLimitOptions,
+  factory: string,
+  report: (error: unknown) => void
+) {
   const perMinute = options.maxLookupsPerMinute ?? DEFAULT_MAX_LOOKUPS_PER_MINUTE;
   const perClient =
     options.maxLookupsPerClientPerMinute ?? Math.min(DEFAULT_MAX_LOOKUPS_PER_CLIENT, perMinute);
@@ -234,6 +243,13 @@ function lookupBudget(options: LookupLimitOptions, factory: string) {
   if (!Number.isSafeInteger(perClient) || perClient < 1 || perClient > perMinute) {
     throw new RangeError(
       `${factory}: maxLookupsPerClientPerMinute must be an integer from 1 to maxLookupsPerMinute (${perMinute}), got ${perClient}`
+    );
+  }
+  if (!options.clientIp) {
+    report(
+      new Error(
+        `${factory}: no clientIp, so every visitor shares one lookup budget; pass clientIp for a per-IP limit`
+      )
     );
   }
   let route = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
@@ -331,9 +347,9 @@ async function postBody<T>(
 export function createAddressSuggestRoute(
   options: AddressSuggestRouteOptions
 ): (request: Request) => Promise<Response> {
-  const take = lookupBudget(options, 'createAddressSuggestRoute');
   const report = reporter(options.onError);
-  const suggest = readRoute<AddressSuggestClient, { q: string; session?: string }>(options, {
+  const take = lookupBudget(options, 'createAddressSuggestRoute', report);
+  return readRoute<AddressSuggestClient, { q: string; session?: string }>(options, {
     parse(request) {
       const params = new URL(request.url).searchParams;
       const q = params.get('q');
@@ -350,13 +366,10 @@ export function createAddressSuggestRoute(
     notFound: null,
     cacheControl: 'no-store',
     failure: deliveryFailure,
+    // After the query and key checks: a request that cannot reach Medal spends nothing.
+    admit: (request) =>
+      take(readClientIp(options.clientIp, request, report)) ? null : LOOKUPS_SPENT,
   });
-  return async function GET(request: Request): Promise<Response> {
-    if (!take(readClientIp(options.clientIp, request, report))) {
-      return errorResponse(LOOKUPS_SPENT);
-    }
-    return suggest(request);
-  };
 }
 
 /**
@@ -369,9 +382,9 @@ export function createAddressResolveRoute(
   options: AddressResolveRouteOptions
 ): (request: Request) => Promise<Response> {
   const origins = checkSiteOrigin(options, 'createAddressResolveRoute');
-  const take = lookupBudget(options, 'createAddressResolveRoute');
   const medal = lazyClient(options);
   const report = reporter(options.onError);
+  const take = lookupBudget(options, 'createAddressResolveRoute', report);
   return async function POST(request: Request): Promise<Response> {
     const parsed = await postBody(request, origins, (value) => {
       if (!only(value, ['id', 'session'])) return null;

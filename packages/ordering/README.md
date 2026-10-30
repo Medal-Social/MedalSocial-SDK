@@ -466,9 +466,13 @@ export const POST = createDeliveryQuoteRoute({
   characters, `session` 8–64 of `A-Z a-z 0-9 _ -`), resolve (`POST { id,
   session? }`) and the quote (`POST { address_id, order_total }`, `201`),
   all `no-store`. The two address routes allow at most
-  `maxLookupsPerMinute` (default 120) Medal lookups a minute in each route
+  `maxLookupsPerMinute` (default 600) Medal lookups a minute in each route
   instance and `maxLookupsPerClientPerMinute` (default 30) for one IP from
   `clientIp`, then answer `503 SERVICE_UNAVAILABLE` without calling Medal.
+  Pass `clientIp`: without it every visitor shares the route's one minute,
+  so one client can use it up for everyone (the route reports this through
+  `onError` when it is created). A request refused for its query, body or a
+  missing key spends nothing.
   The two `POST`s take the place route's origin, JSON and
   size checks (4 KB) and refuse any other key. The quote route never takes a
   venue, bags or prep time from the browser, gives Medal one attempt of up to

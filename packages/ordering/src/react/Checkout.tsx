@@ -125,7 +125,8 @@ export interface CheckoutProps {
     order_total: number;
   }) => Promise<RouteResult<DeliveryQuote>>;
   onPlace: (request: PlaceOrderRequest) => Promise<RouteResult<OrderingOrderCreated>>;
-  onPlaced: (order: OrderingOrderCreated) => void;
+  /** May be async: a rejected promise is handled like a throw. */
+  onPlaced: (order: OrderingOrderCreated) => void | Promise<void>;
   onRefused?: (error: OrderingRouteError) => void;
   /** What the form starts with (a returning guest's details). */
   initial?: CheckoutDetails;
@@ -492,12 +493,16 @@ export function Checkout({
       result = { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'onPlace threw' } };
     }
     if (result.ok) {
-      try {
-        onPlaced(result.data);
-      } catch {
-        // The order is placed: the form stays locked (no second order), and
-        // the guest is told it was received rather than left on a busy button.
+      // The order is placed: if the page cannot move on, the form stays locked
+      // (no second order) and the guest is told it was received rather than
+      // left on a busy button. A throw and a rejected promise alike.
+      const received = () =>
         setFailure(fill(labels.placedNoRedirect, { number: result.data.order_number }));
+      try {
+        const moving: unknown = onPlaced(result.data);
+        if (moving instanceof Promise) moving.catch(received);
+      } catch {
+        received();
       }
       // The page navigates away; the button stays busy until it does.
       return;

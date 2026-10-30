@@ -186,6 +186,19 @@ describe('Checkout', () => {
     expect(screen.getByLabelText('Navn')).toBeDisabled();
   });
 
+  it('says the order was received when an async onPlaced rejects', async () => {
+    const { user, onPlaced } = checkout();
+    onPlaced.mockImplementation(async () => {
+      throw new Error('router push failed');
+    });
+    await fillDetails(user);
+    await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      `Bestillingen ${CREATED.order_number} er mottatt.`
+    );
+    expect(screen.getByLabelText('Navn')).toBeDisabled();
+  });
+
   it('locks every field while the order is on its way, and unlocks it when refused', async () => {
     const { user, onPlace } = checkout();
     let answer: (result: RouteResult<OrderingOrderCreated>) => void = () => {};
