@@ -3,7 +3,9 @@
 Restaurant online ordering on a Medal site, on top of
 [`@medalsocial/sdk`](../sdk) (`medal.ordering`).
 
-> Pre-release: the package is not on npm yet.
+```sh
+pnpm add @medalsocial/ordering @medalsocial/sdk
+```
 
 ESM only, three entries:
 
