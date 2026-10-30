@@ -58,6 +58,12 @@ tags:
       server-side with the workspace API key. Module-gated: a workspace without
       online ordering gets 403 `ORDERING_NOT_ENABLED` on every route. Amounts
       are integer øre; VAT is in basis points (1500 = 15 %).
+  - name: Delivery
+    description: >-
+      Wolt delivery for a restaurant's online store, through Medal, called
+      server-side with the workspace API key: autocomplete a Norwegian
+      address, verify it against Kartverket, and get a live Wolt price with
+      the restaurant's customer fee applied. Amounts are integer NOK øre.
 paths:
   /api/v1/posts:
     get:
@@ -1879,6 +1885,217 @@ paths:
           description: Contact erased and session revoked.
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/preferences:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: getPortalOrderingPreferences
+      summary: The signed-in customer's ordering profile
+      description: >-
+        Saved delivery addresses (newest use first), the allergy note, the
+        cutlery and contactless defaults, favourite product ids and the
+        ordering marketing consent. Per customer and `Cache-Control:
+        no-store`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN` (key lacks
+        `read:portal`), `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+    put:
+      tags: [Portal]
+      operationId: updatePortalOrderingPreferences
+      summary: Update the signed-in customer's ordering profile
+      description: >-
+        Partial and STRICT: only the supplied fields change. `allergy_note`
+        is at most 200 characters after trimming; `null` or a blank string
+        removes it. `favourites` replaces the whole list (at most 30 active
+        product ids). `marketing_consent` records an explicit opt-in or
+        opt-out with its time and source. Answers the profile as it is after
+        the change. Errors: `400 VALIDATION_ERROR`,
+        `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN` (key lacks `write:portal`), `403 ORDERING_NOT_ENABLED`,
+        `422 FAVOURITE_LIMIT`, `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalOrderingPreferencesPatch"
+      responses:
+        "200":
+          description: The ordering profile after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/addresses:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    post:
+      tags: [Portal]
+      operationId: addPortalOrderingAddress
+      summary: Save a delivery address to the signed-in customer's profile
+      description: >-
+        STRICT body. `address_id` is a verified address from
+        `POST /api/v1/delivery/addresses/resolve`. `door_code` is stored
+        encrypted and never returned (the address answers `has_door_code`).
+        At most five saved addresses. Not idempotency-keyed. Errors:
+        `400 VALIDATION_ERROR`, `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `422 ADDRESS_LIMIT`,
+        `422 ADDRESS_NOT_VERIFIED`, `429 RATE_LIMITED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortalOrderingAddressInput"
+      responses:
+        "201":
+          description: The ordering profile with the new address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/addresses/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: id
+        in: path
+        required: true
+        description: "`id` of a saved address from `addresses` in the ordering profile."
+        schema:
+          type: string
+          maxLength: 64
+    delete:
+      tags: [Portal]
+      operationId: removePortalOrderingAddress
+      summary: Remove a saved delivery address
+      description: >-
+        Another customer's address and an unknown id are the same
+        `404 ADDRESS_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `404 ADDRESS_NOT_FOUND`,
+        `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile without the address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/favourites/{product_id}:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: product_id
+        in: path
+        required: true
+        description: A product id from the menu.
+        schema:
+          type: string
+          maxLength: 64
+    put:
+      tags: [Portal]
+      operationId: addPortalOrderingFavourite
+      summary: Add a favourite product
+      description: >-
+        No body. Adding a favourite that is already there changes nothing.
+        At most 30 favourites. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `422 FAVOURITE_LIMIT`,
+        `422 PRODUCT_NOT_FOUND`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile with the favourite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+    delete:
+      tags: [Portal]
+      operationId: removePortalOrderingFavourite
+      summary: Remove a favourite product
+      description: >-
+        No body. Removing a product that is not a favourite changes nothing.
+        Errors: `401 PORTAL_SESSION_REQUIRED`, `401 PORTAL_SESSION_INVALID`,
+        `403 FORBIDDEN`, `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The ordering profile without the favourite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingPreferences"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/orders:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+    get:
+      tags: [Portal]
+      operationId: listPortalOrderingOrders
+      summary: The signed-in customer's last orders
+      description: >-
+        The last 10 orders, newest first, with line names and chosen option
+        names as they were ordered. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The orders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingOrders"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/portal/ordering/orders/{order_id}/reorder:
+    parameters:
+      - $ref: "#/components/parameters/PortalSession"
+      - name: order_id
+        in: path
+        required: true
+        description: "`order_id` of one of the signed-in customer's orders."
+        schema:
+          type: string
+          maxLength: 64
+    post:
+      tags: [Portal]
+      operationId: reorderPortalOrderingOrder
+      summary: Rebuild one of the customer's orders as a cart on today's menu
+      description: >-
+        No body; places nothing. Answers the order's lines priced from
+        today's menu, and `dropped` for every line that cannot be ordered
+        again (`sold_out`, `removed` or `unavailable`). Place the cart with
+        `POST /api/v1/ordering/orders`. An order that is not this customer's
+        is `404 ORDER_NOT_FOUND`. Errors: `401 PORTAL_SESSION_REQUIRED`,
+        `401 PORTAL_SESSION_INVALID`, `403 FORBIDDEN`,
+        `403 ORDERING_NOT_ENABLED`, `404 ORDER_NOT_FOUND`,
+        `429 RATE_LIMITED`.
+      responses:
+        "200":
+          description: The cart.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_PortalOrderingReorder"
+        default:
+          $ref: "#/components/responses/ApiError"
   /api/v1/gdpr/export:
     post:
       tags: [GDPR]
@@ -2728,15 +2945,27 @@ paths:
         unknown field is 400 `VALIDATION_ERROR`. An unknown location is 404
         `ORDERING_LOCATION_NOT_FOUND`. A business refusal is 422 with a typed
         code and `details`: `CLOSED` (`reason`: the channel state reason),
-        `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED`,
-        `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
+        `CUTOFF`, `CHANNEL_NOT_AVAILABLE`, `PREORDER_DISABLED` (the location
+        takes no pre-orders), `SLOT_TAKEN` (a pre-order's slot has gone by or
+        is inside the prep time; a delivery slot under 1 h ahead), `CLOSED`
+        for a pre-order whose slot the location does not offer (`reason`
+        `closed`, `paused` or `too_far`), `TABLE_NOT_FOUND` (dine-in without a valid `table_token`), `SOLD_OUT`
         and `UNAVAILABLE` (`ids`: the product and option ids),
         `INVALID_OPTIONS` (`line_index`), `INVALID_CART` (`line_index` when
         one line is at fault), `PAYMENT_METHOD_NOT_ALLOWED`,
         `PAYMENT_UNAVAILABLE` (Vipps: the workspace has no Vipps of its own,
         or the total is under 1 kr), `RETURN_URL_NOT_ALLOWED` (Vipps:
         `return_url` missing or not on one of the workspace's sites) and
-        `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note).
+        `INVALID_CUSTOMER` (`reason`: name, phone, email or allergy_note) and
+        `SAVED_ADDRESS_NOT_FOUND` (`saved_address_id` is not on the
+        logged-in customer's profile). With `X-Portal-Session` the order is
+        the logged-in customer's: their cutlery and contactless defaults apply
+        when `preferences.cutlery` / `no_contact` are left out, their saved
+        allergy note is copied when none is typed unless
+        `preferences.include_allergy_note` is `false`, and
+        `saved_address_id` picks one of their saved addresses. A session
+        header that is present but unknown, expired or revoked is 401
+        `PORTAL_SESSION_INVALID` and places nothing.
         Vipps: the answer is `status: awaiting_payment` with
         `payment.redirect_url`, where the customer pays; Vipps sends them back
         to `return_url` with `order_id` added. The order is placed once Vipps
@@ -2745,7 +2974,14 @@ paths:
         decline, timeout or cancel before that, and refunded on a cancel
         after it. 502 `PAYMENT_UNAVAILABLE` / `PAYMENT_PROVIDER_UNAVAILABLE`:
         Vipps refused, or could not be reached, as the payment was created.
-        Delivery and scheduled timing are refused for now. Rate limits:
+        Delivery (`channel: delivery`, Vipps only) needs `delivery` with a
+        verified address and a quote from `POST /api/v1/delivery/quotes`:
+        422 `QUOTE_NOT_USABLE` when the quote does not fit the order and
+        `QUOTE_EXPIRED` when it runs out within a minute; the fee is the
+        quote's and comes back as `delivery_fee_ore`. A pre-order sends
+        `timing: { kind: scheduled, at }` with one of the slots
+        `GET /ordering/slots` returns; it is accepted now and made for that
+        time (a delivery needs a quote made for that slot). Rate limits:
         60/min per key and, when `X-Medal-Client-Ip` is sent, 10/min per
         site and IP.
       parameters:
@@ -2769,6 +3005,17 @@ paths:
           schema:
             type: string
             maxLength: 45
+        - name: X-Portal-Session
+          in: header
+          required: false
+          description: >-
+            A logged-in customer's `session_token` (from `verifyPortalLogin`).
+            When present the order is placed for THAT customer, with their
+            profile defaults and saved addresses. Unknown, expired or revoked
+            answers `401 PORTAL_SESSION_INVALID` and places nothing. Omit it
+            for a guest order.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -2923,6 +3170,150 @@ paths:
                 $ref: "#/components/schemas/ApiResponse_OrderingTable"
         default:
           $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/addresses:
+    get:
+      tags: [Delivery]
+      operationId: suggestDeliveryAddresses
+      summary: Autocomplete a delivery address
+      description: >-
+        Requires `delivery.address.read`. Up to 8 Norwegian street addresses
+        for what the customer typed, nearest the restaurant first: Kartverket
+        (the national address register) first, Google Places only when
+        Kartverket has no hit. Ids are opaque: resolve one with
+        `POST /api/v1/delivery/addresses/resolve` before quoting. Fewer than 3
+        characters (after normalising) answers an empty list. A `q` over 200
+        characters or a malformed `session` is 400 `VALIDATION_ERROR`; too
+        many lookups is 429 `RATE_LIMITED` (retry in a minute).
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: What the customer typed so far.
+          schema:
+            type: string
+            maxLength: 200
+        - name: session
+          in: query
+          required: false
+          description: >-
+            One token per address the customer enters (a UUID, say); pass the
+            same one to resolve.
+          schema:
+            $ref: "#/components/schemas/DeliveryAddressSession"
+      responses:
+        "200":
+          description: Suggestions, nearest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryAddressSuggestions"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/addresses/resolve:
+    post:
+      tags: [Delivery]
+      operationId: resolveDeliveryAddress
+      summary: Verify a suggested address
+      description: >-
+        Requires `delivery.address.read`. Turns a suggestion `id` into a
+        verified address with coordinates. Only an address in the Kartverket
+        register with a house number is verified; a Google suggestion is
+        confirmed against Kartverket, whose postcode wins. 422
+        `ADDRESS_NOT_VERIFIED` when there is no such door or no house number;
+        503 `ADDRESS_LOOKUP_UNAVAILABLE` when the register could not be
+        reached; 429 `RATE_LIMITED` for too many lookups. The answer's
+        `address_id` is what `POST /api/v1/delivery/quotes`, saved addresses
+        and delivery orders take.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              additionalProperties: false
+              properties:
+                id:
+                  description: "`id` of a suggestion from `GET /api/v1/delivery/addresses`."
+                  type: string
+                  minLength: 1
+                  maxLength: 320
+                session:
+                  $ref: "#/components/schemas/DeliveryAddressSession"
+      responses:
+        "200":
+          description: The verified address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryResolvedAddress"
+        "422":
+          description: "`ADDRESS_NOT_VERIFIED`: not in the register, or no house number."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: "`ADDRESS_LOOKUP_UNAVAILABLE`: the register could not be reached."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        default:
+          $ref: "#/components/responses/ApiError"
+  /api/v1/delivery/quotes:
+    post:
+      tags: [Delivery]
+      operationId: createDeliveryQuote
+      summary: Get a live delivery price
+      description: >-
+        Requires `delivery.quote.create`; 30/min per key, and every call asks
+        Wolt for a fresh binding price. Applies the restaurant's customer fee
+        policy (Wolt's price, a fixed fee, or free over an order total) and
+        waits up to 20 s for Wolt (504 `QUOTE_TIMEOUT` past that). For an
+        online order send `order_total` = the cart subtotal in øre and pass
+        `quote_id` with the same `address_id` as `delivery.quote_id` /
+        `delivery.verified_address_id` to `POST /api/v1/ordering/orders`
+        before `valid_until`; make a new quote when the subtotal changes or
+        within a minute of `valid_until` (the order is refused with 422
+        `QUOTE_NOT_USABLE` / `QUOTE_EXPIRED`). Errors: 400 `INVALID_REQUEST`,
+        409 `DELIVERY_NOT_SET_UP` / `DELIVERY_PAUSED` / `VENUE_UNAVAILABLE`,
+        422 `ADDRESS_NOT_VERIFIED` / `NOT_DELIVERABLE` (Wolt cannot deliver
+        there right now) / `ADDRESS_NOT_DELIVERABLE` (Wolt will not promise
+        delivery to that address).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryQuoteInput"
+      responses:
+        "201":
+          description: A binding price.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse_DeliveryQuote"
+        "409":
+          description: "`DELIVERY_NOT_SET_UP`, `DELIVERY_PAUSED` or `VENUE_UNAVAILABLE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: "`ADDRESS_NOT_VERIFIED`, `ADDRESS_NOT_DELIVERABLE` or `NOT_DELIVERABLE`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "504":
+          description: "`QUOTE_TIMEOUT`: Wolt did not answer in time."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        default:
+          $ref: "#/components/responses/ApiError"
 components:
   securitySchemes:
     bearerAuth:
@@ -3028,6 +3419,11 @@ components:
       # (the codes come from handler throws, not from a registry), and would make
       # every generated client reject a code the server adds next week.
       x-medal-error-codes:
+        - ADDRESS_LIMIT
+        - ADDRESS_LOOKUP_UNAVAILABLE
+        - ADDRESS_NOT_DELIVERABLE
+        - ADDRESS_NOT_FOUND
+        - ADDRESS_NOT_VERIFIED
         - AI_GENERATION_FAILED
         - AI_QUOTA_EXCEEDED
         - CAPABILITY_API_PATH_INVALID
@@ -3048,6 +3444,9 @@ components:
         - CONTACT_NOT_FOUND
         - CONVERSATION_NOT_LINKABLE
         - CUTOFF
+        - DELIVERY_NOT_SET_UP
+        - DELIVERY_PAUSED
+        - FAVOURITE_LIMIT
         - FORBIDDEN
         - GRANT_NOT_FOUND
         - IDEMPOTENCY_CONFLICT
@@ -3061,8 +3460,10 @@ components:
         - INVALID_INPUT
         - INVALID_OAUTH_RESOURCE
         - INVALID_OPTIONS
+        - INVALID_REQUEST
         - INVALID_RETURN_URL
         - INVALID_TRANSITION
+        - NOT_DELIVERABLE
         - NOT_FOUND
         - ORDERING_LOCATION_NOT_FOUND
         - ORDERING_NOT_ENABLED
@@ -3076,15 +3477,22 @@ components:
         - PORTAL_SESSION_REQUIRED
         - PREORDER_DISABLED
         - PREVIEW_RECEIPT_REQUIRED
+        - PRODUCT_NOT_FOUND
+        - QUOTE_EXPIRED
+        - QUOTE_NOT_USABLE
+        - QUOTE_TIMEOUT
         - RATE_LIMITED
         - RETURN_URL_NOT_ALLOWED
+        - SAVED_ADDRESS_NOT_FOUND
         - SEND_FAILED
+        - SLOT_TAKEN
         - SOLD_OUT
         - TABLE_NOT_FOUND
         - UNAUTHORIZED
         - UNAVAILABLE
         - UPSTREAM_UNAVAILABLE
         - VALIDATION_ERROR
+        - VENUE_UNAVAILABLE
         - VIPPS_IDENTITY_CONFLICT
         - VIPPS_NOT_CONFIGURED
     Pagination:
@@ -7910,7 +8318,12 @@ components:
               type: string
               enum: [scheduled]
             at:
-              description: ISO 8601 with `Z` or an explicit offset.
+              description: >-
+                ISO 8601 with `Z` or an explicit offset: one of the slots
+                `GET /ordering/slots` returns (today up to the location's
+                `preorder_days`; delivery 1 hour to 7 days ahead, on a quote
+                made with `scheduled_dropoff_time` = that slot). The order is
+                accepted now and made for that time.
               type: string
               format: date-time
     OrderingOrderLineInput:
@@ -7951,7 +8364,6 @@ components:
           maxLength: 254
     OrderingOrderPreferences:
       type: object
-      required: [cutlery]
       additionalProperties: false
       properties:
         allergy_note:
@@ -7959,8 +8371,20 @@ components:
           type: string
           maxLength: 200
         cutlery:
+          description: >-
+            Optional: left out, a logged-in customer's `cutlery_default`
+            applies, and cutlery is on for a guest.
           type: boolean
         no_contact:
+          description: >-
+            Optional: left out, a logged-in customer's `contactless_default`
+            applies.
+          type: boolean
+        include_allergy_note:
+          description: >-
+            With `X-Portal-Session` and no `allergy_note` typed: copy the
+            customer's saved allergy note to the order. Default `true`; send
+            `false` to leave it out. A typed `allergy_note` always wins.
           type: boolean
     OrderingCreateOrderInput:
       description: >-
@@ -7990,6 +8414,15 @@ components:
           $ref: "#/components/schemas/OrderingOrderCustomer"
         preferences:
           $ref: "#/components/schemas/OrderingOrderPreferences"
+        saved_address_id:
+          description: >-
+            Delivery: the `id` of one of the logged-in customer's saved
+            addresses (needs `X-Portal-Session`). It is the delivery address:
+            `delivery.quote_id` must be quoted for its `address_id`, and its
+            floor, comment and door code apply unless `delivery` types them.
+            Not on their profile: 422 `SAVED_ADDRESS_NOT_FOUND`.
+          type: string
+          maxLength: 64
         payment_method:
           $ref: "#/components/schemas/OrderingPaymentMethod"
         return_url:
@@ -7999,6 +8432,48 @@ components:
           type: string
           format: uri
           maxLength: 2000
+        delivery:
+          $ref: "#/components/schemas/OrderingDeliveryInput"
+    OrderingDeliveryInput:
+      description: >-
+        Required with `channel: delivery` (Vipps only): the verified address
+        and the quote from `POST /api/v1/delivery/quotes` (made with
+        `order_total` = the cart's subtotal), and what the courier needs at the
+        door. The fee is the quote's; never send it.
+      type: object
+      required: [verified_address_id, quote_id]
+      additionalProperties: false
+      properties:
+        verified_address_id:
+          description: "`address_id` from `POST /api/v1/delivery/addresses/resolve`."
+          type: string
+          maxLength: 64
+        quote_id:
+          description: "`quote_id` from `POST /api/v1/delivery/quotes`, valid for at least one more minute."
+          type: string
+          maxLength: 64
+        floor:
+          type: string
+          maxLength: 20
+        door_code:
+          description: Stored encrypted, given to the courier, removed a day after the order ends.
+          type: string
+          maxLength: 20
+        comment:
+          description: A note for the courier.
+          type: string
+          maxLength: 500
+    OrderingCustomerEta:
+      description: When the courier brings a delivery, from Wolt (the earliest and latest instant).
+      type: object
+      required: [min, max]
+      properties:
+        min:
+          type: string
+          format: date-time
+        max:
+          type: string
+          format: date-time
     OrderingOrderCreated:
       type: object
       required: [order_id, order_number, status]
@@ -8110,6 +8585,9 @@ components:
             $ref: "#/components/schemas/OrderingCustomerOrderLine"
         subtotal_ore:
           type: integer
+        delivery_fee_ore:
+          description: The delivery fee in `total_ore` (0 for pickup and dine-in).
+          type: integer
         total_ore:
           type: integer
         vat_breakdown:
@@ -8127,6 +8605,8 @@ components:
         ready_at:
           type: string
           format: date-time
+        customer_eta:
+          $ref: "#/components/schemas/OrderingCustomerEta"
         created_at:
           type: string
           format: date-time
@@ -8164,6 +8644,8 @@ components:
         ready_at:
           type: string
           format: date-time
+        customer_eta:
+          $ref: "#/components/schemas/OrderingCustomerEta"
         decline_reason:
           $ref: "#/components/schemas/OrderingDeclineReason"
         updated_at:
@@ -8234,3 +8716,414 @@ components:
               type: string
             details:
               $ref: "#/components/schemas/OrderingErrorDetails"
+    PortalOrderingAddress:
+      description: The verified street address behind a saved address.
+      type: object
+      required: [street, house_number, post_code, city]
+      properties:
+        street:
+          type: string
+        house_number:
+          type: string
+        post_code:
+          type: string
+        city:
+          type: string
+    PortalOrderingSavedAddress:
+      description: >-
+        A delivery address saved to the customer's profile. `address` is
+        `null` when the verified address can no longer be read. The door code
+        is never returned; `has_door_code` says whether one is stored.
+      type: object
+      required:
+        [id, label, address_id, address, floor, comment, has_door_code, last_used_at]
+      properties:
+        id:
+          description: The saved address's own id; pass it as `saved_address_id` to an order.
+          type: string
+        label:
+          type: string
+        address_id:
+          description: The verified address id from `POST /api/v1/delivery/addresses/resolve`.
+          type: string
+        address:
+          oneOf:
+            - $ref: "#/components/schemas/PortalOrderingAddress"
+            - type: "null"
+        floor:
+          type: [string, "null"]
+        comment:
+          type: [string, "null"]
+        has_door_code:
+          type: boolean
+        last_used_at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+    PortalOrderingMarketingConsent:
+      description: The customer's explicit ordering marketing decision, with when and where it was given.
+      type: object
+      required: [given, at, source]
+      properties:
+        given:
+          type: boolean
+        at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [order_checkout]
+    PortalOrderingPreferences:
+      description: The signed-in customer's ordering profile.
+      type: object
+      required:
+        [addresses, allergy_note, cutlery_default, contactless_default, favourites, marketing_consent]
+      properties:
+        addresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingSavedAddress"
+        allergy_note:
+          type: [string, "null"]
+        cutlery_default:
+          type: boolean
+        contactless_default:
+          type: boolean
+        favourites:
+          description: Favourite product ids.
+          type: array
+          items:
+            type: string
+        marketing_consent:
+          oneOf:
+            - $ref: "#/components/schemas/PortalOrderingMarketingConsent"
+            - type: "null"
+    ApiResponse_PortalOrderingPreferences:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalOrderingPreferences"
+    PortalOrderingPreferencesPatch:
+      description: Partial and strict; only the supplied fields change.
+      type: object
+      additionalProperties: false
+      properties:
+        allergy_note:
+          description: At most 200 characters after trimming; `null` or blank removes the note.
+          type: [string, "null"]
+        cutlery_default:
+          type: boolean
+        contactless_default:
+          type: boolean
+        favourites:
+          description: Replaces the whole list. Active product ids, at most 30.
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 64
+        marketing_consent:
+          description: An explicit opt-in (`true`) or opt-out (`false`), recorded with time and source.
+          type: boolean
+    PortalOrderingAddressInput:
+      description: A verified address to save. Strict.
+      type: object
+      required: [address_id]
+      additionalProperties: false
+      properties:
+        address_id:
+          description: A verified address id from `POST /api/v1/delivery/addresses/resolve`.
+          type: string
+          maxLength: 64
+        label:
+          type: string
+          maxLength: 40
+        door_code:
+          description: Stored encrypted; never returned.
+          type: string
+          maxLength: 20
+        floor:
+          type: string
+          maxLength: 20
+        comment:
+          type: string
+          maxLength: 200
+    PortalOrderingOrderLine:
+      type: object
+      required: [product_id, name, quantity, options]
+      properties:
+        product_id:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        options:
+          description: The chosen option names, as ordered.
+          type: array
+          items:
+            type: string
+    PortalOrderingOrder:
+      description: One of the customer's past orders. Money is integer øre, VAT included.
+      type: object
+      required:
+        [order_id, order_number, status, channel, location_id, created_at, lines, total_ore]
+      properties:
+        order_id:
+          type: string
+        order_number:
+          type: string
+        status:
+          $ref: "#/components/schemas/OrderingOrderStatus"
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        location_id:
+          type: string
+        created_at:
+          description: ISO 8601 UTC.
+          type: string
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingOrderLine"
+        total_ore:
+          type: integer
+    ApiResponse_PortalOrderingOrders:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingOrder"
+    PortalOrderingReorderLine:
+      description: A cart line priced from today's menu. Money is integer øre, VAT included.
+      type: object
+      required:
+        [product_id, name, quantity, option_ids, options, unit_price_ore, line_total_ore]
+      properties:
+        product_id:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        option_ids:
+          type: array
+          items:
+            type: string
+        options:
+          description: The option names, in the order of `option_ids`.
+          type: array
+          items:
+            type: string
+        note:
+          type: string
+        unit_price_ore:
+          type: integer
+        line_total_ore:
+          type: integer
+    PortalOrderingDroppedLine:
+      description: A line of the old order that cannot be ordered again.
+      type: object
+      required: [name, reason]
+      properties:
+        name:
+          type: string
+        reason:
+          type: string
+          enum: [sold_out, removed, unavailable]
+    PortalOrderingReorder:
+      description: >-
+        An old order rebuilt as a cart on today's menu. Nothing is placed;
+        send the lines to `POST /api/v1/ordering/orders`.
+      type: object
+      required: [location_id, channel, cart, dropped]
+      properties:
+        location_id:
+          type: string
+        channel:
+          $ref: "#/components/schemas/OrderingChannel"
+        cart:
+          type: object
+          required: [lines, subtotal_ore, total_ore]
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: "#/components/schemas/PortalOrderingReorderLine"
+            subtotal_ore:
+              type: integer
+            total_ore:
+              type: integer
+        dropped:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortalOrderingDroppedLine"
+    ApiResponse_PortalOrderingReorder:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/PortalOrderingReorder"
+    DeliveryAddressSession:
+      description: >-
+        One token per address the customer enters (a UUID, say), sent to
+        both the autocomplete and the resolve call.
+      type: string
+      pattern: "^[A-Za-z0-9_-]{8,64}$"
+    DeliveryAddressSuggestion:
+      description: An autocomplete suggestion. `id` is opaque; resolve it before quoting.
+      type: object
+      required: [id, label, secondary]
+      properties:
+        id:
+          type: string
+        label:
+          description: The street address, e.g. `Storgata 1`.
+          type: string
+        secondary:
+          description: The postcode and town, e.g. `0155 Oslo`.
+          type: string
+    ApiResponse_DeliveryAddressSuggestions:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DeliveryAddressSuggestion"
+    DeliveryResolvedAddress:
+      description: >-
+        A verified Norwegian address with a house number. `address_id` is what
+        quotes, saved addresses and delivery orders take.
+      type: object
+      required:
+        [address_id, label, street, house_number, post_code, city, lat, lon, source]
+      properties:
+        address_id:
+          type: string
+        label:
+          type: string
+        street:
+          type: string
+        house_number:
+          type: string
+        post_code:
+          type: string
+        city:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        source:
+          description: Where the suggestion came from; the address itself is always checked against Kartverket.
+          type: string
+          enum: [kartverket, google]
+    ApiResponse_DeliveryResolvedAddress:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DeliveryResolvedAddress"
+    DeliveryQuoteInput:
+      type: object
+      required: [address_id]
+      additionalProperties: false
+      properties:
+        address_id:
+          description: "`address_id` from `POST /api/v1/delivery/addresses/resolve`."
+          type: string
+          minLength: 1
+          maxLength: 64
+        venue_id:
+          description: The pickup place; defaults to the nearest open one.
+          type: string
+          minLength: 1
+          maxLength: 64
+        bags:
+          description: How many bags the courier carries; 1 when omitted.
+          type: integer
+          minimum: 1
+          maximum: 20
+        prep_minutes:
+          description: >-
+            Minutes until the order is ready for pickup. Omit to use the
+            venue's ordering prep time (busy mode included), or 15 when it has
+            none.
+          type: integer
+          minimum: 0
+          maximum: 60
+        order_total:
+          description: >-
+            The order total in øre, for free delivery over a threshold. For an
+            online order: the cart subtotal.
+          type: integer
+          minimum: 0
+          maximum: 100000000
+        scheduled_dropoff_time:
+          description: >-
+            A pre-order: the slot the customer picked, 1 hour to 7 days ahead
+            (ISO 8601 with `Z` or an offset). The quote is for a dropoff at
+            that time, and an order with `timing.kind: scheduled` takes only
+            a quote made for its slot (else `422 QUOTE_NOT_USABLE`). Omit for
+            an order as soon as possible.
+          type: string
+          format: date-time
+    DeliveryMoney:
+      description: An amount in integer øre.
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: integer
+        currency:
+          type: string
+          enum: [NOK]
+    DeliveryQuote:
+      description: >-
+        A binding Wolt price. `customer_fee` is what the store charges its
+        customer, `cost` Wolt's price to the restaurant.
+      type: object
+      required:
+        [quote_id, customer_fee, cost, eta_minutes, delivered_by, valid_until, address, venue_id]
+      properties:
+        quote_id:
+          type: string
+        customer_fee:
+          anyOf:
+            - $ref: "#/components/schemas/DeliveryMoney"
+            - type: "null"
+        cost:
+          anyOf:
+            - $ref: "#/components/schemas/DeliveryMoney"
+            - type: "null"
+        eta_minutes:
+          description: Minutes until the order reaches the customer if booked now.
+          type: [integer, "null"]
+        delivered_by:
+          description: >-
+            When the order reaches the customer if booked now (ISO 8601 UTC).
+            Never a pickup time; the booked order carries the final time.
+          type: [string, "null"]
+          format: date-time
+        valid_until:
+          description: When the price runs out (ISO 8601 UTC).
+          type: [string, "null"]
+          format: date-time
+        address:
+          description: The address as Wolt will deliver to it.
+          type: string
+        venue_id:
+          type: [string, "null"]
+    ApiResponse_DeliveryQuote:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/DeliveryQuote"

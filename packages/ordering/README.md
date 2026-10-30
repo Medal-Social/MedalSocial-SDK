@@ -1,17 +1,19 @@
 # @medalsocial/ordering
 
 Restaurant online ordering on a Medal site, on top of
-[`@medalsocial/sdk`](../sdk) (`medal.ordering.menu()`).
+[`@medalsocial/sdk`](../sdk) (`medal.ordering`).
 
-> Pre-release: the package is not on npm yet.
+```sh
+pnpm add @medalsocial/ordering @medalsocial/sdk
+```
 
 ESM only, three entries:
 
 | Entry | What it is |
 |---|---|
-| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, opening hours and pickup slots, allergen/dietary labels and the components' nb/en words. Runs in a browser, Node or a Worker. |
-| `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet) and `<ClosedNotice>`. Client components. |
-| `@medalsocial/ordering/next` | `createMenuRoute`: the menu route handler, cached and revalidated with Medal's ETag. Server-only. |
+| `@medalsocial/ordering/core` | Framework-free rules: money, links, the cart draft, modifier rules, the cart check, checkout's details check, order status words, opening hours and pickup slots, allergen/dietary labels, the components' nb/en words, delivery's quote freshness and lookup session, and `placeOrder`/`fetchOrderStatus` and the delivery calls for the browser. Runs in a browser, Node or a Worker. |
+| `@medalsocial/ordering/react` | `<MenuList>`, `<ItemSheet>` (the dish sheet), `<CartBar>`, `<CartList>`, `<Checkout>`, `<AddressCombobox>`, `<OrderStatus>` and `<ClosedNotice>`. Client components. |
+| `@medalsocial/ordering/next` | The site's route handlers: the menu (cached and revalidated with Medal's ETag), locations, slots, table, placing an order, its status, the Vipps return, and delivery's address lookup and price. Server-only. |
 
 ## `/core`
 
@@ -71,8 +73,87 @@ not in `/react`, so a server component can import them without pulling in a
 `'use client'` module; `/react` re-exports the `OrderingLabels` type only. An
 override left `undefined` keeps the pack's word.
 
-Cart totals, VAT, checkout and payment are the server's; nothing here prices
-an order.
+### Cart, checkout and status
+
+```ts
+import {
+  checkCart,
+  checkCustomer,
+  fetchOrderStatus,
+  placeOrder,
+  refusalMessage,
+  resolveCart,
+  toOrderLine,
+} from '@medalsocial/ordering/core';
+
+// The draft against the menu: priced lines, and the lines it can no longer serve.
+const cart = resolveCart(menu, draft.lines); // { lines, dropped, totalOre, count }
+
+// The Medal API's own cart check, on the lines that will be sent.
+checkCart(menu, cart.lines.map(toOrderLine)); // { ok: true, totalOre, lineTotalsOre } | { ok: false, code, … }
+
+// The guest's details, checked as the API checks them.
+checkCustomer({ name, phone, email }, allergyNote); // null | 'name' | 'phone' | 'email' | 'allergy_note'
+
+// Through the site's own routes (`/next`), with the draft's key.
+const sent = drafts.markSubmitted();
+const placed = await placeOrder({ url: '/api/ordering/orders', request, idempotencyKey: sent.idempotencyKey });
+if (placed.ok) drafts.clearDraft();
+else refusalMessage(placed.error, mergeLabels('nb')); // «Noe i bestillingen er utsolgt. …»
+
+await fetchOrderStatus('/api/ordering/status', orderId); // { ok: true, data: OrderingOrderStatusView } | { ok: false, error }
+```
+
+### Delivery
+
+```ts
+import {
+  checkDelivery,
+  deliveryFeeOre,
+  fetchAddressSuggestions,
+  newLookupSession,
+  quoteNeedsRefresh,
+  requestDeliveryQuote,
+  resolveAddress,
+} from '@medalsocial/ordering/core';
+
+// One session per address the guest enters, for both calls of the lookup.
+const session = newLookupSession(); // 22 characters of base64url
+await fetchAddressSuggestions('/api/ordering/address', { q: 'storgata 1', session }, signal);
+const address = await resolveAddress('/api/ordering/address/resolve', { id, session });
+// { ok: false, error: { code: 'ADDRESS_NOT_VERIFIED' } } asks the guest for a house number.
+
+// The price, with the cart's SUBTOTAL: the order is refused when it differs.
+const quote = await requestDeliveryQuote('/api/ordering/delivery-quote', {
+  address_id,
+  order_total: cart.totalOre,
+});
+deliveryFeeOre(quote.data); // 5900, or 0 when the store charges none
+
+// Ask again when the subtotal changed, or within 90 s of `valid_until`
+// (a quote without one, `null`, states no expiry: the subtotal alone counts).
+quoteNeedsRefresh(quote.data, { subtotalOre: cart.totalOre, quotedSubtotalOre });
+
+checkDelivery({ floor, door_code, comment }); // null | 'floor' | 'door_code' | 'delivery_comment'
+```
+
+The order then goes as `channel: 'delivery'`, `payment_method: 'vipps'` and
+`delivery: { verified_address_id, quote_id, floor?, door_code?, comment? }`
+(floor and door code up to 20 characters, the courier note up to 500). The
+API refuses a price that runs out within a minute (`QUOTE_EXPIRED`) or no
+longer fits the cart (`QUOTE_NOT_USABLE`: the subtotal crossed a fee band,
+another address, or another live order holds it): ask for a new one and let
+the guest accept it. `quoteRefreshDelay` says when to ask again on a timer.
+`<Checkout>` does all of this itself.
+
+`checkCart` stops at the total: the VAT breakdown is the server's (an option
+that is a product of its own is taxed apart there, and the wire menu does not
+say which options are), so a receipt reads it from the order. The server
+prices every order again regardless; nothing the browser sends is a price.
+
+`orderStatusLabel`, `isFinalStatus`, `ORDER_STEPS` and `orderStepIndex` put
+the API's status names into the guest's words (nb, en, ar) and on a
+timeline; `openingLine` writes «Åpner i morgen kl. 11:00».
 
 ### Hours
 
@@ -172,6 +253,46 @@ export function Menu({ menu, closed }: { menu: OrderingMenu; closed?: { nextOpen
   a cart line (and a `key` per line when editing two lines of one dish in a row).
   When the page hands it a refetched dish while it is open, a new group starts
   empty and an option the dish no longer has is dropped from the choices.
+- `CartBar` — a bar fixed to the bottom of a phone screen: how many dishes
+  and the total, pressing it opens the cart. Nothing while the cart is empty.
+- `CartList` — each line with its choices, note and price, a quantity
+  stepper (`onQuantity`) and a remove button (`onRemove`), the total, and a
+  notice naming the lines the menu could no longer serve.
+- `Checkout` — one form: pickup or dine-in (dine-in only with a table from
+  the QR code; the choice shows only when there is one), as soon as possible
+  or a slot (`loadSlots` with `allowScheduled`, off until the restaurant takes
+  orders ahead), name, mobile and e-mail, an allergy note with
+  «Kontakt restauranten ved alvorlig allergi.», cutlery, and Vipps or pay at
+  the counter as the location allows. The details are checked before
+  anything is sent and the first field at fault gets the focus; a refusal is
+  shown in plain words (`CLOSED` → «Restauranten tar ikke imot bestillinger
+  nå. Åpner …»), and a refused detail on its field. A double press sends one
+  order. `onPlace` sends it (`placeOrder`), `onPlaced` gets the created
+  order: send the guest to `payment.redirect_url` for Vipps, else the
+  receipt.
+  **Delivery** is offered when the location has it on and takes Vipps, and
+  the page passes `suggestAddress`, `resolveAddress` and `quoteDelivery` (the
+  `/core` delivery calls on the site's routes). It is as soon as possible and
+  Vipps only: the address field, floor, door code, a note for the courier
+  and «Lever på døren» (`no_contact`). Once the address is verified it asks
+  for the price with the cart's subtotal and shows «Levering · 59 kr» (or
+  «Gratis levering») and «Levert ca. 18:35», and the total on the button
+  includes the fee; the button waits for a price («Henter leveringspris …»).
+  It asks again by itself when the subtotal changes and before the price runs
+  out. When the order is refused for its price (`QUOTE_EXPIRED`,
+  `QUOTE_NOT_USABLE`) it gets a new one and says «Ny leveringspris: 49 kr.
+  Trykk bestill igjen for å godta.» instead of ordering.
+- `AddressCombobox` — the delivery address field on its own: a WAI-ARIA 1.2
+  combobox (arrow keys, Enter, Escape, 44 px options) asking `suggest(q,
+  session, signal)` 250 ms after the last keystroke from three letters on,
+  announcing how many addresses it found, verifying the pick with
+  `resolve(id, session)` and handing it to `onResolved` (`null` again on the
+  next edit). A new session starts after each finished lookup; «Vi fant ikke
+  adressen. Husk husnummer.» is tied to the field.
+- `OrderStatus` — the receipt's status: the order number, the status in
+  words, «Klar ca. kl. 18:30», the steps, and what happened to the money when
+  it ended without food. It reads `load` every 15 s until there is nothing
+  left to wait for, and at once when the guest returns to the tab.
 - `ClosedNotice` — «Restauranten tar ikke imot bestillinger nå.» and when it
   opens next («Åpner i morgen kl. 11:00»), in the restaurant's time zone
   (default `Europe/Oslo`). Without `now`, the opening line appears once the
@@ -276,6 +397,103 @@ server cache are the 60-second "ISR". Add `export const dynamic =
   menu is dropped and the error answered. `onError` sees every failed Medal read,
   for the site's logger.
 
+### Checkout and order routes
+
+Every route takes `{ apiKey, baseUrl?, onError? }`, answers
+`{ data }` or the same fixed-word `{ error: { code, message } }`
+(`OrderingRouteErrorCode` in `/core`), and never puts the key in a response.
+
+```ts
+// app/api/ordering/locations/route.ts
+export const GET = createLocationsRoute({ apiKey, location });
+// app/api/ordering/slots/route.ts — ?channel=takeaway&date=2026-10-30
+export const GET = createSlotsRoute({ apiKey, location });
+// app/api/ordering/table/route.ts — ?t=<token from the table QR>
+export const GET = createTableRoute({ apiKey });
+// app/api/ordering/orders/route.ts
+export const POST = createPlaceOrderRoute({
+  apiKey,
+  location,
+  returnUrl: 'https://example.no/api/ordering/vipps-return',
+});
+// app/api/ordering/order/route.ts and …/status/route.ts — ?id=<order id>
+export const GET = createOrderRoute({ apiKey });
+export const GET = createOrderStatusRoute({ apiKey });
+// app/api/ordering/vipps-return/route.ts
+export const GET = createVippsReturnRoute({
+  apiKey,
+  receiptPath: '/bestill/kvittering',
+  fallbackPath: '/bestill',
+});
+// app/api/ordering/address/route.ts — ?q=storgata 1&session=…
+export const GET = createAddressSuggestRoute({ apiKey });
+// app/api/ordering/address/resolve/route.ts — POST { id, session }
+export const POST = createAddressResolveRoute({ apiKey });
+// app/api/ordering/delivery-quote/route.ts — POST { address_id, order_total }
+export const POST = createDeliveryQuoteRoute({
+  apiKey,
+  // Cloudflare sets and overwrites this header; trust no other by default.
+  clientIp: (r) => r.headers.get('cf-connecting-ip'),
+});
+```
+
+- **Place order** — the browser posts a `PlaceOrderRequest` with the draft's
+  `Idempotency-Key` (`placeOrder` in `/core` does both). The route refuses a
+  cross-origin `Origin` (403), anything but JSON (415), a missing key (400), a
+  body over 32 KB (413), a body still arriving after 10 s or abandoned (408), and any key a `PlaceOrderRequest` does not have — a
+  price, `location_id`, `return_url` — (400). It adds `location_id` and, for
+  Vipps, `return_url` from its own options, forwards the guest's IP for
+  Medal's per-IP limit only from your `clientIp(request)` (no header is
+  trusted by default — a guest can forge any of them; on Cloudflare pass
+  `(r) => r.headers.get('cf-connecting-ip')`), and answers `201`. An `Origin`
+  must be the site's own: `siteOrigin` (one origin or a list, e.g.
+  `'https://www.example.no'`) when set, else `request.url`'s. An entry that
+  is not an absolute `http(s)` URL (`'www.example.no'`) makes the factory
+  throw a `RangeError`, so it fails at start-up rather than refusing every
+  order. Set
+  `siteOrigin` whenever a proxy sits in front of the app. Forwarded headers
+  (`x-forwarded-host`/`-proto`, `host`) count only with
+  `trustForwardedHost: true`, behind a proxy that sets and overwrites them.
+  The delivery `POST` routes take the same two options. Medal's
+  refusals pass through as `422` with their code and only `ids`, `line_index`
+  and `reason`. A delivery must be Vipps with a `delivery` of exactly the
+  address and quote ids (1–64 characters) and the optional floor and door
+  code (up to 20) and comment (up to 500), all text; no other channel may
+  carry one.
+- **Locations** are cached 15 s and slots 60 s on the CDN; the table, the
+  order and its status are `no-store`.
+- **Delivery** — address suggestions (`GET ?q=&session=`, `q` up to 200
+  characters, `session` 8–64 of `A-Z a-z 0-9 _ -`), resolve (`POST { id,
+  session? }`) and the quote (`POST { address_id, order_total }`, `201`),
+  all `no-store`. The two `POST`s take the place route's origin, JSON and
+  size checks (4 KB) and refuse any other key. The quote route never takes a
+  venue, bags or prep time from the browser, gives Medal one attempt of up to
+  25 s (its own deadline answers `504 QUOTE_TIMEOUT`), and makes at most
+  `maxQuotesPerClientPerMinute` (default 5) Medal calls a minute for one IP
+  and `maxQuotesPerMinute` (default 20, at most 30) for everyone, in each
+  route instance — a quote is a Wolt call on the key's 30 a minute — then
+  answers `503 SERVICE_UNAVAILABLE` without one. The IP comes only from your
+  `clientIp(request)`, as for the place route; without it only the
+  instance's minute applies. Those counters live in one instance's memory
+  (up to 1,000 IPs, the oldest dropped first): with several instances or
+  isolates each counts on its own, so pass `allowQuote(request)` — a KV
+  counter, Redis or a Durable Object shared by all — to hold one limit
+  across them. It is asked after the instance's own limits and before the
+  Medal call; `false` answers the same `503`. A throw, or no answer within
+  1.5 s, lets the quote through and goes to `onError`: a limiter outage must
+  not stop delivery, and Medal still holds the key to 30 quotes a minute
+  (its `429` answers `503`). Medal's
+  answers become `422 ADDRESS_NOT_VERIFIED`, `422 ADDRESS_NOT_DELIVERABLE`
+  (also for `NOT_DELIVERABLE`), `409 DELIVERY_UNAVAILABLE` (not set up,
+  paused, venue unavailable) and `504 QUOTE_TIMEOUT`; a `429` is `503
+  SERVICE_UNAVAILABLE` (the site's key, not the visitor), and the rest as
+  the read routes answer them.
+- **Vipps return** — Medal sends the guest back with `?order_id=`; the route
+  checks the order exists and answers `303` with a relative `Location`
+  (so an internal `request.url` never reaches the guest) to `<receiptPath>/<id>`, or to
+  `fallbackPath` for a missing or unknown order. The receipt page polls the
+  status (`OrderStatus`), so a payment still settling shows as such.
+
 ## Parity
 
 `src/core/hours.ts` is the Medal API's hours engine, and
@@ -287,6 +505,12 @@ with `node scripts/export-hours-fixtures.mjs --engine
 Run it with `--engine src/core/hours.ts` and `git diff --exit-code
 tests/fixtures/hours.json` to show the package answers the same. The script
 formats the file with Biome itself.
+
+`checkCart` is the API's cart pricing (`priceCart`) on the wire shape, totals
+only. `tests/core/cart.parity.test.ts` runs every cart in
+`tests/fixtures/cart.json` (a wire menu, carts and the API's answers)
+through it; refresh the fixture with `node scripts/export-cart-fixtures.mjs
+--engine <monorepo>/apps/shared/ordering/cart.ts`.
 
 ## License
 
