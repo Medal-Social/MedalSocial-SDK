@@ -44,6 +44,7 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set<OrderingRefusalCode>([
   "CUTOFF",
   "CHANNEL_NOT_AVAILABLE",
   "PREORDER_DISABLED",
+  "SLOT_TAKEN",
   "TABLE_NOT_FOUND",
   "SOLD_OUT",
   "UNAVAILABLE",
@@ -53,6 +54,9 @@ const REFUSAL_CODES: ReadonlySet<string> = new Set<OrderingRefusalCode>([
   "PAYMENT_UNAVAILABLE",
   "RETURN_URL_NOT_ALLOWED",
   "INVALID_CUSTOMER",
+  "QUOTE_NOT_USABLE",
+  "QUOTE_EXPIRED",
+  "SAVED_ADDRESS_NOT_FOUND",
 ]);
 
 /**
@@ -325,7 +329,9 @@ export class OrderingOrders {
    * every attempt, so the SDK's automatic retry on 429/5xx replays instead of
    * placing a second order. A business refusal is a `422` {@link MedalApiError};
    * narrow it with {@link isOrderingRefusal} to read `code` and `details`.
-   * Other failures: `404 ORDERING_LOCATION_NOT_FOUND`,
+   * Other failures: `401 PORTAL_SESSION_INVALID` (a `portalSession` that is
+   * unknown, expired or revoked — nothing is placed),
+   * `404 ORDERING_LOCATION_NOT_FOUND`,
    * `409 IDEMPOTENCY_KEY_CONFLICT` / `IDEMPOTENCY_CONFLICT` (same key,
    * different body), `409 IDEMPOTENCY_IN_PROGRESS` (wait and send again with
    * the same key), `429 RATE_LIMITED`.
@@ -344,6 +350,14 @@ export class OrderingOrders {
    * );
    * ```
    *
+   * Pass `portalSession` (a customer-portal session token) to place the order
+   * for that logged-in customer; it goes out as `X-Portal-Session`. Their
+   * cutlery and contactless defaults then apply to preferences left out,
+   * their saved allergy note is copied unless
+   * `preferences.include_allergy_note` is `false`, and `saved_address_id`
+   * picks one of their saved addresses (`422 SAVED_ADDRESS_NOT_FOUND` when it
+   * is not on their profile).
+   *
    * @throws RangeError before any request for a blank or over-long
    * `idempotencyKey`.
    */
@@ -359,9 +373,14 @@ export class OrderingOrders {
       );
     }
     const clientIp = options.clientIp?.trim();
+    const headers: Record<string, string> = {};
+    if (clientIp) headers["x-medal-client-ip"] = clientIp;
+    // A blank token is a guest order, not a 401.
+    const portalSession = options.portalSession?.trim();
+    if (portalSession) headers["x-portal-session"] = portalSession;
     return this.client.post<OrderCreatedEnvelope>("/api/v1/ordering/orders", input, {
       idempotencyKey,
-      headers: clientIp ? { "x-medal-client-ip": clientIp } : undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       signal: options.signal,
     });
   }

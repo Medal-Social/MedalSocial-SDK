@@ -68,16 +68,22 @@ describe('ClosedNotice', () => {
   });
 
   it('uses the clock when no `now` is given, and a site’s own words', () => {
-    render(
-      <ClosedNotice
-        id="closed"
-        nextOpenAt={Date.now() + 60_000}
-        labels={{ closed: 'Stengt.', opensToday: 'Opp {time}' }}
-      />
-    );
-    const notice = screen.getByRole('status');
-    expect(notice).toHaveAttribute('id', 'closed');
-    expect(notice).toHaveTextContent(/^Stengt\.Opp \d\d:\d\d$/);
+    // Midday in Oslo, so «a minute from now» is today at any hour the suite runs.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-22T10:00:00Z') });
+    try {
+      render(
+        <ClosedNotice
+          id="closed"
+          nextOpenAt={Date.now() + 60_000}
+          labels={{ closed: 'Stengt.', opensToday: 'Opp {time}' }}
+        />
+      );
+      const notice = screen.getByRole('status');
+      expect(notice).toHaveAttribute('id', 'closed');
+      expect(notice).toHaveTextContent(/^Stengt\.Opp 12:01$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('renders no opening on the server without `now`, and the client adds it after hydrating', async () => {
@@ -92,12 +98,16 @@ describe('ClosedNotice', () => {
     const onRecoverableError = vi.fn();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const root = await act(async () => hydrateRoot(container, element, { onRecoverableError }));
-    expect(onRecoverableError).not.toHaveBeenCalled();
-    expect(consoleError).not.toHaveBeenCalled();
-    expect(container).toHaveTextContent(/Åpner kl\. \d\d:\d\d/);
-    consoleError.mockRestore();
-    act(() => root.unmount());
-    container.remove();
+    try {
+      expect(onRecoverableError).not.toHaveBeenCalled();
+      expect(consoleError).not.toHaveBeenCalled();
+      // An hour from now is tomorrow after 23:00 on the restaurant's clock.
+      expect(container).toHaveTextContent(/Åpner (i morgen )?kl\. \d\d:\d\d/);
+    } finally {
+      consoleError.mockRestore();
+      act(() => root.unmount());
+      container.remove();
+    }
   });
 
   it('moves the opening line on at midnight and drops it once open, without a `now`', () => {
