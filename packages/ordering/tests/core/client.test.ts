@@ -109,6 +109,16 @@ describe('fetchOrderStatus', () => {
     });
     expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe('/s?site=a&id=o1');
   });
+
+  it('puts the id before a #fragment, never inside it', async () => {
+    const fetch = answer(200, { data: { order_id: 'o1', status: 'ready' } });
+    vi.stubGlobal('fetch', fetch);
+    await fetchOrderStatus('/s#top', 'o1');
+    await fetchOrderStatus('/s?site=a#top', 'o1');
+    await fetchOrderStatus('/s?#top', 'o1');
+    const urls = fetch.mock.calls.map((call) => (call as unknown as [string])[0]);
+    expect(urls).toEqual(['/s?id=o1#top', '/s?site=a&id=o1#top', '/s?id=o1#top']);
+  });
 });
 
 describe('the delivery helpers', () => {

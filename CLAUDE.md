@@ -110,13 +110,11 @@ and is never published.
   the server's. Same guards as booking: Biome `noRestrictedImports` and
   `tests/core/boundary.test.ts` on `/core`, `verify:paths` on the built
   entries, `size:budget` (CI `build` job), `guard-publish`, and the hashed
-  `tests/core/denylist.test.ts`. It is `"private": true` until its first
-  release PR flips it (as booking's #169 did). **No changesets for it until
-  that PR**: Changesets skips a private package's changeset without ever
-  consuming it, so it would sit in `.changeset/` and keep `release.yml` on
-  the version-PR path, and nothing else would publish. The flip PR adds one
-  changeset describing the whole package. The changeset-bot reminder on
-  ordering PRs until then is expected.
+  `tests/core/denylist.test.ts`. It is public since #285 (first release
+  0.1.0) and is released like booking: every user-facing ordering change
+  gets a changeset. npm publishes it only from `release.yml` on `prod`
+  through the trusted publisher (`Medal-Social/MedalSocial-SDK` /
+  `release.yml` / environment `npm`, «Allow npm publish» on).
 - The published tarball must not change when files move around the workspace:
   compare `npm pack --dry-run --json` file lists and `package.json#exports`
   before and after, and the `jsr publish --dry-run` file set.

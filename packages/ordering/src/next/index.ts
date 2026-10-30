@@ -57,7 +57,7 @@ export type {
 export { createOrderRoute, createOrderStatusRoute } from './order-routes';
 export type { PlaceOrderClient, PlaceOrderRouteOptions } from './place-order-route';
 export { createPlaceOrderRoute } from './place-order-route';
-export type { RouteBaseOptions } from './shared';
+export type { RouteBaseOptions, SiteOriginOptions } from './shared';
 export type { SlotsClient, SlotsRouteOptions } from './slots-route';
 export { createSlotsRoute } from './slots-route';
 export type { TableClient, TableRouteOptions } from './table-route';

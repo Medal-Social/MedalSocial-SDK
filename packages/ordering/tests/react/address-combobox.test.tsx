@@ -121,6 +121,29 @@ describe('AddressCombobox', () => {
     expect(suggest.mock.calls[1]?.[1]).not.toBe(session);
   });
 
+  it('starts a new lookup session after a pick, even when typing goes on while it is checked', async () => {
+    let finish: (value: RouteResult<DeliveryResolvedAddress>) => void = () => {};
+    const resolve = vi.fn<Resolve>(
+      () =>
+        new Promise((done) => {
+          finish = done;
+        })
+    );
+    const { input, user, suggest } = combobox({ resolve });
+    await user.type(input, 'storgata');
+    await screen.findByRole('listbox');
+    await user.keyboard('{ArrowDown}{Enter}');
+    const picked = suggest.mock.calls[0]?.[1];
+    expect(resolve).toHaveBeenCalledWith('kv_1', picked);
+    // Typing again before the check answers: that turn wins, the pick's answer is stale.
+    await user.clear(input);
+    await user.type(input, 'kirkeveien');
+    await waitFor(() => expect(suggest).toHaveBeenCalledTimes(2));
+    expect(suggest.mock.calls[1]?.[1]).not.toBe(picked);
+    await act(async () => finish({ ok: true, data: ADDRESS }));
+    expect(input).toHaveValue('kirkeveien');
+  });
+
   it('closes with Escape and on leaving the field, and opens again with the arrows', async () => {
     const { input, user } = combobox();
     await user.type(input, 'storgata');

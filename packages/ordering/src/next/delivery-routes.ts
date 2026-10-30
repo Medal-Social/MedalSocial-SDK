@@ -45,6 +45,7 @@ import type {
 import type { OrderingRouteErrorCode } from '../core/checkout';
 import {
   apiFailure,
+  checkSiteOrigin,
   dataResponse,
   deadline,
   type ErrorBody,
@@ -63,6 +64,7 @@ import {
   readFailure,
   readRoute,
   reporter,
+  type SiteOriginOptions,
 } from './shared';
 
 /** The slice of the SDK client the suggest route uses — what a test injects. */
@@ -102,9 +104,13 @@ export interface DeliveryQuoteClient {
 }
 
 export type AddressSuggestRouteOptions = RouteBaseOptions<AddressSuggestClient>;
-export type AddressResolveRouteOptions = RouteBaseOptions<AddressResolveClient>;
+export interface AddressResolveRouteOptions
+  extends RouteBaseOptions<AddressResolveClient>,
+    SiteOriginOptions {}
 
-export interface DeliveryQuoteRouteOptions extends RouteBaseOptions<DeliveryQuoteClient> {
+export interface DeliveryQuoteRouteOptions
+  extends RouteBaseOptions<DeliveryQuoteClient>,
+    SiteOriginOptions {
   /**
    * Most Medal quote calls a minute in this route instance; past it the route
    * answers `503 SERVICE_UNAVAILABLE` without calling Medal. An integer from
@@ -221,9 +227,10 @@ const isSession = (value: unknown): value is string => isString(value) && SESSIO
  */
 async function postBody<T>(
   request: Request,
+  origins: ReturnType<typeof checkSiteOrigin>,
   parse: (value: unknown) => T | null
 ): Promise<{ body: T } | { error: ErrorBody }> {
-  const refused = postGuard(request, POST_REFUSALS);
+  const refused = postGuard(request, POST_REFUSALS, origins);
   if (refused) return { error: refused };
   let body: T | null;
   try {
@@ -275,10 +282,11 @@ export function createAddressSuggestRoute(
 export function createAddressResolveRoute(
   options: AddressResolveRouteOptions
 ): (request: Request) => Promise<Response> {
+  const origins = checkSiteOrigin(options, 'createAddressResolveRoute');
   const medal = lazyClient(options);
   const report = reporter(options.onError);
   return async function POST(request: Request): Promise<Response> {
-    const parsed = await postBody(request, (value) => {
+    const parsed = await postBody(request, origins, (value) => {
       if (!only(value, ['id', 'session'])) return null;
       const { id, session } = value;
       if (!isId(id, MAX_SUGGESTION_ID_LENGTH) || !optional(session, isSession)) return null;
@@ -313,6 +321,7 @@ export function createAddressResolveRoute(
 export function createDeliveryQuoteRoute(
   options: DeliveryQuoteRouteOptions
 ): (request: Request) => Promise<Response> {
+  const origins = checkSiteOrigin(options, 'createDeliveryQuoteRoute');
   const maxQuotes = options.maxQuotesPerMinute ?? DEFAULT_MAX_QUOTES_PER_MINUTE;
   if (!Number.isSafeInteger(maxQuotes) || maxQuotes < 0 || maxQuotes > KEY_QUOTES_PER_MINUTE) {
     throw new RangeError(
@@ -333,24 +342,25 @@ export function createDeliveryQuoteRoute(
   // One attempt that may take the whole deadline: the SDK sends a quote once.
   const medal = lazyClient(options, QUOTE_DEADLINE_MS);
   const report = reporter(options.onError);
-  const budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
+  let budget = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
   // Each IP's minute, in the order the windows opened: the first is the oldest.
   const clients = new Map<string, { windowStart: number; used: number }>();
 
-  /** Take one quote from this minute's budget; `false` when it is spent. */
-  function spendQuote(): boolean {
+  /**
+   * Take one quote from this minute's budget: the minute it was taken from,
+   * or `null` when it is spent. A new minute is a new object, so giving a
+   * quote back to an old one changes nothing.
+   */
+  function spendQuote(): { used: number } | null {
     const now = Date.now();
-    if (now - budget.windowStart >= MINUTE_MS) {
-      budget.windowStart = now;
-      budget.used = 0;
-    }
-    if (budget.used >= maxQuotes) return false;
+    if (now - budget.windowStart >= MINUTE_MS) budget = { windowStart: now, used: 0 };
+    if (budget.used >= maxQuotes) return null;
     budget.used += 1;
-    return true;
+    return budget;
   }
 
-  /** Take one quote from this IP's minute; `false` when it is spent. */
-  function spendClientQuote(ip: string): boolean {
+  /** Take one quote from this IP's minute: that minute, or `null` when it is spent. */
+  function spendClientQuote(ip: string): { used: number } | null {
     const now = Date.now();
     let minute = clients.get(ip);
     if (minute === undefined || now - minute.windowStart >= MINUTE_MS) {
@@ -360,9 +370,9 @@ export function createDeliveryQuoteRoute(
       minute = { windowStart: now, used: 0 };
       clients.set(ip, minute);
     }
-    if (minute.used >= perClient) return false;
+    if (minute.used >= perClient) return null;
     minute.used += 1;
-    return true;
+    return minute;
   }
 
   /** The shared limiter's answer: only `false` refuses; a throw or a late answer lets it through. */
@@ -386,7 +396,7 @@ export function createDeliveryQuoteRoute(
   }
 
   return async function POST(request: Request): Promise<Response> {
-    const parsed = await postBody(request, (value): DeliveryQuoteInput | null => {
+    const parsed = await postBody(request, origins, (value): DeliveryQuoteInput | null => {
       if (!only(value, ['address_id', 'order_total'])) return null;
       const { address_id, order_total } = value;
       if (!isId(address_id, MAX_ADDRESS_ID_LENGTH)) return null;
@@ -402,9 +412,15 @@ export function createDeliveryQuoteRoute(
     }
     const ip = readClientIp(options.clientIp, request, report);
     // The IP's own minute first, so a refused visitor takes nothing from everyone's.
-    if (ip !== undefined && !spendClientQuote(ip)) return errorResponse(BUDGET_SPENT);
-    if (!spendQuote()) return errorResponse(BUDGET_SPENT);
-    if (!(await allowed(request))) return errorResponse(BUDGET_SPENT);
+    const clientMinute = ip === undefined ? undefined : spendClientQuote(ip);
+    if (clientMinute === null) return errorResponse(BUDGET_SPENT);
+    // A quote refused further on never reaches Medal, so it is given back.
+    const routeMinute = spendQuote();
+    if (routeMinute === null || !(await allowed(request))) {
+      if (routeMinute) routeMinute.used -= 1;
+      if (clientMinute) clientMinute.used -= 1;
+      return errorResponse(BUDGET_SPENT);
+    }
     const timeout = AbortSignal.timeout(QUOTE_DEADLINE_MS);
     try {
       const { data } = await api.delivery.quotes.create(parsed.body, {
