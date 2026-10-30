@@ -447,7 +447,10 @@ export const POST = createDeliveryQuoteRoute({
   trusted by default — a guest can forge any of them; on Cloudflare pass
   `(r) => r.headers.get('cf-connecting-ip')`), and answers `201`. An `Origin`
   must be the site's own: `siteOrigin` (one origin or a list, e.g.
-  `'https://www.example.no'`) when set, else `request.url`'s. Set
+  `'https://www.example.no'`) when set, else `request.url`'s. An entry that
+  is not an absolute `http(s)` URL (`'www.example.no'`) makes the factory
+  throw a `RangeError`, so it fails at start-up rather than refusing every
+  order. Set
   `siteOrigin` whenever a proxy sits in front of the app. Forwarded headers
   (`x-forwarded-host`/`-proto`, `host`) count only with
   `trustForwardedHost: true`, behind a proxy that sets and overwrites them.

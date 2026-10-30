@@ -294,24 +294,46 @@ function forwardedOrigin(request: Request): string | null {
 }
 
 /**
- * The origins a browser `POST` may carry: the configured `siteOrigin`, else
- * `request.url`'s. Forwarded headers count only with `trustForwardedHost`:
- * a request that does not come through a proxy that overwrites them could
- * name any host there and so make any `Origin` look like the site's own.
+ * `siteOrigin` checked once, when a route is created: each entry must be an
+ * absolute `http(s)` URL (`'https://www.example.no'`, a path is ignored), or
+ * the factory throws a `RangeError` naming it. A dropped entry would refuse
+ * every order without a word, so a wrong one stops the site at start-up.
+ * Answers the options with `siteOrigin` as a list of origins.
  */
-function allowedOrigins(request: Request, options: SiteOriginOptions): Set<string> {
-  const configured =
-    options.siteOrigin === undefined
-      ? []
-      : typeof options.siteOrigin === 'string'
-        ? [options.siteOrigin]
-        : [...options.siteOrigin];
-  const allowed = new Set<string>();
-  for (const value of configured) {
-    const origin = typeof value === 'string' ? originOf(value.trim()) : null;
-    if (origin) allowed.add(origin);
+export function checkSiteOrigin(
+  options: SiteOriginOptions,
+  factory: string
+): { siteOrigin?: readonly string[]; trustForwardedHost?: boolean } {
+  if (options.siteOrigin === undefined) return { trustForwardedHost: options.trustForwardedHost };
+  const entries: readonly unknown[] =
+    typeof options.siteOrigin === 'string' ? [options.siteOrigin] : options.siteOrigin;
+  if (entries.length === 0) {
+    throw new RangeError(`${factory}: siteOrigin is empty; leave it out or name the site's origin`);
   }
-  if (configured.length === 0) allowed.add(new URL(request.url).origin);
+  const siteOrigin = entries.map((entry) => {
+    const origin = typeof entry === 'string' ? originOf(entry.trim()) : null;
+    if (origin === null) {
+      throw new RangeError(
+        `${factory}: siteOrigin ${JSON.stringify(entry)} is not an http(s) origin such as 'https://www.example.no'`
+      );
+    }
+    return origin;
+  });
+  return { siteOrigin, trustForwardedHost: options.trustForwardedHost };
+}
+
+/**
+ * The origins a browser `POST` may carry: the configured `siteOrigin`
+ * (already checked by `checkSiteOrigin`), else `request.url`'s. Forwarded
+ * headers count only with `trustForwardedHost`: a request that does not come
+ * through a proxy that overwrites them could name any host there and so make
+ * any `Origin` look like the site's own. They are never a fallback.
+ */
+function allowedOrigins(
+  request: Request,
+  options: ReturnType<typeof checkSiteOrigin>
+): Set<string> {
+  const allowed = new Set<string>(options.siteOrigin ?? [new URL(request.url).origin]);
   if (options.trustForwardedHost) {
     const forwarded = forwardedOrigin(request);
     if (forwarded) allowed.add(forwarded);
@@ -335,7 +357,7 @@ function mediaType(header: string | null): string {
 export function postGuard(
   request: Request,
   refusals: { crossOrigin: ErrorBody; notJson: ErrorBody },
-  options: SiteOriginOptions = {}
+  options: ReturnType<typeof checkSiteOrigin> = {}
 ): ErrorBody | null {
   const origin = request.headers.get('origin');
   if (origin !== null && !allowedOrigins(request, options).has(origin)) return refusals.crossOrigin;

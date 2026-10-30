@@ -50,6 +50,7 @@ import type {
 import type { OrderingRouteErrorCode, PlaceOrderRequest } from '../core/checkout';
 import {
   apiFailure,
+  checkSiteOrigin,
   configuredLocation,
   dataResponse,
   deadline,
@@ -339,6 +340,7 @@ function placeFailure(error: unknown): ErrorBody {
 export function createPlaceOrderRoute(
   options: PlaceOrderRouteOptions
 ): (request: Request) => Promise<Response> {
+  const origins = checkSiteOrigin(options, 'createPlaceOrderRoute');
   const medal = lazyClient(options);
   const report = reporter(options.onError);
 
@@ -362,7 +364,7 @@ export function createPlaceOrderRoute(
   }
 
   return async function POST(request: Request): Promise<Response> {
-    const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON }, options);
+    const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON }, origins);
     if (refused) return errorResponse(refused);
     const idempotencyKey = request.headers.get('idempotency-key')?.trim() ?? '';
     if (idempotencyKey === '' || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {

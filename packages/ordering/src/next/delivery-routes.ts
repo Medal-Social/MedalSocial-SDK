@@ -45,6 +45,7 @@ import type {
 import type { OrderingRouteErrorCode } from '../core/checkout';
 import {
   apiFailure,
+  checkSiteOrigin,
   dataResponse,
   deadline,
   type ErrorBody,
@@ -226,7 +227,7 @@ const isSession = (value: unknown): value is string => isString(value) && SESSIO
  */
 async function postBody<T>(
   request: Request,
-  origins: SiteOriginOptions,
+  origins: ReturnType<typeof checkSiteOrigin>,
   parse: (value: unknown) => T | null
 ): Promise<{ body: T } | { error: ErrorBody }> {
   const refused = postGuard(request, POST_REFUSALS, origins);
@@ -281,10 +282,11 @@ export function createAddressSuggestRoute(
 export function createAddressResolveRoute(
   options: AddressResolveRouteOptions
 ): (request: Request) => Promise<Response> {
+  const origins = checkSiteOrigin(options, 'createAddressResolveRoute');
   const medal = lazyClient(options);
   const report = reporter(options.onError);
   return async function POST(request: Request): Promise<Response> {
-    const parsed = await postBody(request, options, (value) => {
+    const parsed = await postBody(request, origins, (value) => {
       if (!only(value, ['id', 'session'])) return null;
       const { id, session } = value;
       if (!isId(id, MAX_SUGGESTION_ID_LENGTH) || !optional(session, isSession)) return null;
@@ -319,6 +321,7 @@ export function createAddressResolveRoute(
 export function createDeliveryQuoteRoute(
   options: DeliveryQuoteRouteOptions
 ): (request: Request) => Promise<Response> {
+  const origins = checkSiteOrigin(options, 'createDeliveryQuoteRoute');
   const maxQuotes = options.maxQuotesPerMinute ?? DEFAULT_MAX_QUOTES_PER_MINUTE;
   if (!Number.isSafeInteger(maxQuotes) || maxQuotes < 0 || maxQuotes > KEY_QUOTES_PER_MINUTE) {
     throw new RangeError(
@@ -393,7 +396,7 @@ export function createDeliveryQuoteRoute(
   }
 
   return async function POST(request: Request): Promise<Response> {
-    const parsed = await postBody(request, options, (value): DeliveryQuoteInput | null => {
+    const parsed = await postBody(request, origins, (value): DeliveryQuoteInput | null => {
       if (!only(value, ['address_id', 'order_total'])) return null;
       const { address_id, order_total } = value;
       if (!isId(address_id, MAX_ADDRESS_ID_LENGTH)) return null;
