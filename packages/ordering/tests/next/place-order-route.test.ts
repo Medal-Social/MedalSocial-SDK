@@ -102,26 +102,60 @@ describe('createPlaceOrderRoute — success', () => {
     expect(sent(create).input?.timing).toEqual({ kind: 'asap' });
   });
 
-  it('takes the Origin of the host the browser asked for behind a proxy', async () => {
-    const { POST } = setup();
-    const internal = (headers: Record<string, string>) =>
-      new Request('http://internal:3000/api/ordering/orders', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'idempotency-key': IDEMPOTENCY_KEY,
-          ...headers,
-        },
-        body: JSON.stringify(ORDER),
-      });
+  const internal = (headers: Record<string, string>) =>
+    new Request('http://internal:3000/api/ordering/orders', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': IDEMPOTENCY_KEY,
+        ...headers,
+      },
+      body: JSON.stringify(ORDER),
+    });
+
+  it('trusts no forwarded header by default: the Origin must be request.url’s', async () => {
+    const { POST, create } = setup();
+    // An attacker naming their own host in the forwarded headers and the Origin.
+    const attack = await POST(
+      post(ORDER, {
+        origin: 'https://evil.test',
+        'x-forwarded-host': 'evil.test',
+        'x-forwarded-proto': 'https',
+        host: 'evil.test',
+      })
+    );
+    expect(attack.status).toBe(403);
+    expect(create).not.toHaveBeenCalled();
+    expect((await POST(post(ORDER, { origin: SITE }))).status).toBe(201);
+    // Behind a proxy without `siteOrigin`, the site's own Origin is refused too.
+    const site = new URL(SITE).host;
+    expect((await POST(internal({ origin: SITE, 'x-forwarded-host': site }))).status).toBe(403);
+  });
+
+  it('takes the configured siteOrigin, and only that, behind a proxy', async () => {
+    const { POST } = setup({ siteOrigin: [`${SITE}/`, 'http://localhost:3000'] });
+    expect((await POST(internal({ origin: SITE }))).status).toBe(201);
+    expect((await POST(internal({ origin: 'http://localhost:3000' }))).status).toBe(201);
+    expect(
+      (
+        await POST(
+          internal({
+            origin: 'https://evil.test',
+            'x-forwarded-host': 'evil.test',
+            host: 'evil.test',
+          })
+        )
+      ).status
+    ).toBe(403);
+  });
+
+  it('takes the forwarded host only with trustForwardedHost', async () => {
+    const { POST } = setup({ trustForwardedHost: true });
     const site = new URL(SITE).host;
     expect(
       (await POST(internal({ origin: SITE, 'x-forwarded-host': `${site}, internal` }))).status
     ).toBe(201);
     expect((await POST(internal({ origin: SITE, host: site }))).status).toBe(201);
-    expect(
-      (await POST(internal({ origin: 'http://localhost:3000', host: 'localhost:3000' }))).status
-    ).toBe(201);
     expect(
       (
         await POST(

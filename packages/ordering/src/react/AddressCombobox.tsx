@@ -144,6 +144,9 @@ export function AddressCombobox({
   async function pick(option: DeliveryAddressSuggestion) {
     const mine = nextTurn();
     const picked = lookupSession();
+    // The pick ends this lookup session, whatever happens next: a lookup
+    // typed while the address is checked, or after, starts a new one.
+    session.current = null;
     setText(`${option.label}, ${option.secondary}`);
     setOptions([]);
     setStatus(labels.addressChecking);
@@ -154,8 +157,6 @@ export function AddressCombobox({
       result = { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'resolve threw' } };
     }
     if (mine !== turn.current) return;
-    // The lookup is finished either way: the next one is a new session.
-    session.current = null;
     setStatus('');
     if (!result.ok) {
       setError(refusalMessage(result.error, labels));

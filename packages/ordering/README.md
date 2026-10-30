@@ -446,8 +446,12 @@ export const POST = createDeliveryQuoteRoute({
   Medal's per-IP limit only from your `clientIp(request)` (no header is
   trusted by default — a guest can forge any of them; on Cloudflare pass
   `(r) => r.headers.get('cf-connecting-ip')`), and answers `201`. An `Origin`
-  must match the host the browser asked for (`x-forwarded-host` or `host`,
-  then `request.url`). Medal's
+  must be the site's own: `siteOrigin` (one origin or a list, e.g.
+  `'https://www.example.no'`) when set, else `request.url`'s. Set
+  `siteOrigin` whenever a proxy sits in front of the app. Forwarded headers
+  (`x-forwarded-host`/`-proto`, `host`) count only with
+  `trustForwardedHost: true`, behind a proxy that sets and overwrites them.
+  The delivery `POST` routes take the same two options. Medal's
   refusals pass through as `422` with their code and only `ids`, `line_index`
   and `reason`. A delivery must be Vipps with a `delivery` of exactly the
   address and quote ids (1–64 characters) and the optional floor and door

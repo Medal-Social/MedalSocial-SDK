@@ -145,6 +145,24 @@ describe('createAddressResolveRoute', () => {
     expect(resolve.mock.calls[0]?.[1]?.session).toBeUndefined();
   });
 
+  it('refuses an attacker’s Origin even when the forwarded headers name its host', async () => {
+    const { POST, resolve } = setup();
+    const forged = await POST(
+      post(
+        PATH,
+        { id: 'kv_1' },
+        {
+          origin: 'https://evil.example',
+          'x-forwarded-host': 'evil.example',
+          'x-forwarded-proto': 'https',
+          host: 'evil.example',
+        }
+      )
+    );
+    expect(forged.status).toBe(403);
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it('refuses another site with 403 and anything but JSON with 415', async () => {
     const { POST, resolve } = setup();
     const cross = await POST(post(PATH, { id: 'kv_1' }, { origin: 'https://evil.example' }));
@@ -447,6 +465,42 @@ describe('createDeliveryQuoteRoute', () => {
     const off = setup({ allowQuote, maxQuotesPerMinute: 0 });
     await off.POST(post(PATH, BODY));
     expect(allowQuote).toHaveBeenCalledOnce();
+  });
+
+  it('a quote the shared limiter refuses costs neither the IP nor the route a quote', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-29T17:00:00Z'), toFake: ['Date'] });
+    let shared = false;
+    const { POST, create } = setup({
+      clientIp: cfIp,
+      maxQuotesPerMinute: 2,
+      maxQuotesPerClientPerMinute: 1,
+      allowQuote: () => shared,
+    });
+    // Refused by the shared limiter, twice: nothing spent here.
+    expect((await POST(from('203.0.113.1'))).status).toBe(503);
+    expect((await POST(from('203.0.113.1'))).status).toBe(503);
+    shared = true;
+    // The IP still has its one quote, and the route both of its own.
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
+    expect((await POST(from('198.51.100.7'))).status).toBe(201);
+    expect((await POST(from('198.51.100.8'))).status).toBe(503);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('a quote the route’s own budget refuses costs the IP nothing', async () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-29T17:00:00Z'), toFake: ['Date'] });
+    const { POST } = setup({
+      clientIp: cfIp,
+      maxQuotesPerMinute: 1,
+      maxQuotesPerClientPerMinute: 1,
+    });
+    expect((await POST(from('198.51.100.7'))).status).toBe(201);
+    // The guest's own minute opens at :30 and is refused by the route's spent one.
+    vi.setSystemTime(Date.parse('2026-10-29T17:00:30Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(503);
+    // The route's minute is new at 17:01; the guest's (until 17:01:30) still has its quote.
+    vi.setSystemTime(Date.parse('2026-10-29T17:01:00Z'));
+    expect((await POST(from('203.0.113.1'))).status).toBe(201);
   });
 
   it('calls Medal when allowQuote says yes, at once or later', async () => {

@@ -67,6 +67,7 @@ import {
   readBody,
   readClientIp,
   reporter,
+  type SiteOriginOptions,
 } from './shared';
 
 /** The slice of the SDK client the route uses — what a test injects. */
@@ -81,7 +82,9 @@ export interface PlaceOrderClient {
   };
 }
 
-export interface PlaceOrderRouteOptions extends RouteBaseOptions<PlaceOrderClient> {
+export interface PlaceOrderRouteOptions
+  extends RouteBaseOptions<PlaceOrderClient>,
+    SiteOriginOptions {
   /**
    * The ordering location every order goes to
    * (`process.env.MEDAL_ORDERING_LOCATION`). Never taken from the request.
@@ -359,7 +362,7 @@ export function createPlaceOrderRoute(
   }
 
   return async function POST(request: Request): Promise<Response> {
-    const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON });
+    const refused = postGuard(request, { crossOrigin: CROSS_ORIGIN, notJson: NOT_JSON }, options);
     if (refused) return errorResponse(refused);
     const idempotencyKey = request.headers.get('idempotency-key')?.trim() ?? '';
     if (idempotencyKey === '' || idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {

@@ -153,7 +153,6 @@ export function readOrderId(value: string | null): string | null {
 /** The API's cap on a location id. */
 const MAX_LOCATION_LENGTH = 64;
 
-/** A configured location id, trimmed, or `null` when unset, blank or over 64 characters. */
 /**
  * Whether a location is configured at all: `undefined` or blank is not, so a
  * route that may serve every location does; anything else is checked by
@@ -163,6 +162,7 @@ export function locationIsSet(value: unknown): boolean {
   return typeof value === 'string' ? value.trim() !== '' : value !== undefined && value !== null;
 }
 
+/** A configured location id, trimmed, or `null` when unset, blank or over 64 characters. */
 export function configuredLocation(value: unknown): string | null {
   const location = typeof value === 'string' ? value.trim() : '';
   return location === '' || location.length > MAX_LOCATION_LENGTH ? null : location;
@@ -257,24 +257,66 @@ export function readRoute<Client, Args>(
   };
 }
 
-/**
- * The origin the browser asked for: `x-forwarded-host` (its first entry) or
- * `host`, with `x-forwarded-proto` (https unless the host is local), falling
- * back to `request.url`. On Cloudflare and behind a proxy `request.url` can
- * name an internal host the browser's `Origin` never will. A cross-site page
- * cannot set these headers on a JSON POST without a CORS preflight, which
- * no ordering route answers.
- */
-function siteOrigin(request: Request): string {
-  const own = new URL(request.url).origin;
+/** Which origins a browser `POST` may come from (the `POST` routes' options). */
+export interface SiteOriginOptions {
+  /**
+   * The site's own origin, or several (`'https://www.example.no'`). When set,
+   * a browser's `Origin` must be one of them. Set it whenever `request.url`
+   * may not be the address the browser used (a proxy in front of the app).
+   */
+  siteOrigin?: string | readonly string[];
+  /**
+   * Also accept the origin named by `x-forwarded-host` (its first entry) and
+   * `x-forwarded-proto`, or `host`. Only behind a proxy that sets and
+   * overwrites those headers: anything else that reaches the app can send
+   * them. Default `false`.
+   */
+  trustForwardedHost?: boolean;
+}
+
+/** An `http(s)` origin, or `null`. */
+function originOf(value: string): string | null {
+  if (!URL.canParse(value)) return null;
+  const url = new URL(value);
+  return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
+}
+
+/** The origin `x-forwarded-host` / `host` (and `x-forwarded-proto`) name, or `null`. */
+function forwardedOrigin(request: Request): string | null {
   const host = (request.headers.get('x-forwarded-host') ?? request.headers.get('host'))
     ?.split(',')[0]
     ?.trim();
-  if (!host) return own;
+  if (!host) return null;
   const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
   const proto =
     request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || (local ? 'http' : 'https');
-  return URL.canParse(`${proto}://${host}`) ? new URL(`${proto}://${host}`).origin : own;
+  return originOf(`${proto}://${host}`);
+}
+
+/**
+ * The origins a browser `POST` may carry: the configured `siteOrigin`, else
+ * `request.url`'s. Forwarded headers count only with `trustForwardedHost`:
+ * a request that does not come through a proxy that overwrites them could
+ * name any host there and so make any `Origin` look like the site's own.
+ */
+function allowedOrigins(request: Request, options: SiteOriginOptions): Set<string> {
+  const configured =
+    options.siteOrigin === undefined
+      ? []
+      : typeof options.siteOrigin === 'string'
+        ? [options.siteOrigin]
+        : [...options.siteOrigin];
+  const allowed = new Set<string>();
+  for (const value of configured) {
+    const origin = typeof value === 'string' ? originOf(value.trim()) : null;
+    if (origin) allowed.add(origin);
+  }
+  if (configured.length === 0) allowed.add(new URL(request.url).origin);
+  if (options.trustForwardedHost) {
+    const forwarded = forwardedOrigin(request);
+    if (forwarded) allowed.add(forwarded);
+  }
+  return allowed;
 }
 
 /** The media type of a `Content-Type`, without parameters, lower-cased. */
@@ -285,17 +327,18 @@ function mediaType(header: string | null): string {
 
 /**
  * A browser `POST`'s first checks, before its body is read: an `Origin`, when
- * sent, must be the site's own (`crossOrigin`, a 403) — a page on another
+ * sent, must be the site's own (`allowedOrigins`; `crossOrigin`, a 403) — a page on another
  * site cannot post with the visitor's browser — and the body must be
  * `application/json` (`notJson`, a 415), which a cross-site form cannot send
  * without a CORS preflight. `null` when both pass.
  */
 export function postGuard(
   request: Request,
-  refusals: { crossOrigin: ErrorBody; notJson: ErrorBody }
+  refusals: { crossOrigin: ErrorBody; notJson: ErrorBody },
+  options: SiteOriginOptions = {}
 ): ErrorBody | null {
   const origin = request.headers.get('origin');
-  if (origin !== null && origin !== siteOrigin(request)) return refusals.crossOrigin;
+  if (origin !== null && !allowedOrigins(request, options).has(origin)) return refusals.crossOrigin;
   if (mediaType(request.headers.get('content-type')) !== 'application/json') {
     return refusals.notJson;
   }

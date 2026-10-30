@@ -95,11 +95,19 @@ export function placeOrder(options: PlaceOrderOptions): Promise<RouteResult<Orde
   );
 }
 
-/** `url` with `query` added after its own. */
+/**
+ * `url` with `query` added after its own, before any `#fragment`. Works on
+ * a relative URL (`/api/ordering/status`), so no URL object.
+ */
 function withQuery(url: string, query: Record<string, string>): string {
-  const separator = url.includes('?') ? '&' : '?';
-  const pairs = Object.entries(query).map(([key, value]) => `${key}=${encodeURIComponent(value)}`);
-  return `${url}${separator}${pairs.join('&')}`;
+  const hash = url.indexOf('#');
+  const base = hash === -1 ? url : url.slice(0, hash);
+  const fragment = hash === -1 ? '' : url.slice(hash);
+  const separator = !base.includes('?') ? '?' : base.endsWith('?') || base.endsWith('&') ? '' : '&';
+  const pairs = Object.entries(query).map(
+    ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+  );
+  return `${base}${separator}${pairs.join('&')}${fragment}`;
 }
 
 const GET: RequestInit = {
