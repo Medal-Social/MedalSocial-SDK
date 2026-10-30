@@ -268,6 +268,13 @@ export function Checkout({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  // A refused field to focus once the form is unlocked: a disabled one cannot take focus.
+  const focusAfterPlacing = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (placing || focusAfterPlacing.current === null) return;
+    focusAfterPlacing.current.focus();
+    focusAfterPlacing.current = null;
+  }, [placing]);
   const fields = useRef<Partial<Record<keyof FieldErrors, HTMLElement | null>>>({});
   const failureRef = useRef<HTMLParagraphElement>(null);
 
@@ -484,7 +491,7 @@ export function Checkout({
     const target = reason === undefined ? undefined : fields.current[reason];
     if (error.code === 'INVALID_CUSTOMER' && reason && target) {
       setErrors({ [reason]: refusalMessage(error, labels) });
-      target.focus();
+      focusAfterPlacing.current = target;
       return;
     }
     setFailure(refusalMessage(error, labels, { opens }));
@@ -516,353 +523,360 @@ export function Checkout({
 
   return (
     <form noValidate onSubmit={submit} className={cx('flex flex-col gap-6', className)}>
-      {channels.length > 1 ? (
-        <fieldset className="flex flex-col gap-1">
-          <legend className="mb-1 font-medium">{labels.channelLegend}</legend>
-          {channels.map((c) => (
-            <label key={c} className={choice}>
-              <input
-                type="radio"
-                name={`${id}-channel`}
-                checked={c === channel}
-                onChange={() => setChannel(c)}
-                className="size-5 accent-primary"
-              />
-              <span>
-                {channelLabel(c, labels)}
-                {c === 'dine_in' && table?.label
-                  ? ` · ${fill(labels.atTable, { table: table.label })}`
-                  : ''}
-              </span>
-            </label>
-          ))}
-        </fieldset>
-      ) : channel === 'dine_in' && table?.label ? (
-        <p className="font-medium">{fill(labels.atTable, { table: table.label })}</p>
-      ) : null}
-
-      {closed ? (
-        <ClosedNotice
-          nextOpenAt={state?.opens_at}
-          timeZone={timeZone}
-          locale={locale}
-          labels={overrides}
-          now={now}
-        />
-      ) : (
-        <>
-          {canAsap && canSchedule ? (
-            <fieldset className="flex flex-col gap-1">
-              <legend className="mb-1 font-medium">{labels.timingLegend}</legend>
-              <label className={choice}>
+      {/* Locked while the order is on its way: what was sent is what the guest sees. */}
+      <fieldset disabled={placing} className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0">
+        {channels.length > 1 ? (
+          <fieldset className="flex flex-col gap-1">
+            <legend className="mb-1 font-medium">{labels.channelLegend}</legend>
+            {channels.map((c) => (
+              <label key={c} className={choice}>
                 <input
                   type="radio"
-                  name={`${id}-timing`}
-                  checked={timing === 'asap'}
-                  onChange={() => setTimingKind('asap')}
+                  name={`${id}-channel`}
+                  checked={c === channel}
+                  onChange={() => setChannel(c)}
                   className="size-5 accent-primary"
                 />
-                <span>{labels.asap}</span>
+                <span>
+                  {channelLabel(c, labels)}
+                  {c === 'dine_in' && table?.label
+                    ? ` · ${fill(labels.atTable, { table: table.label })}`
+                    : ''}
+                </span>
               </label>
-              <label className={choice}>
-                <input
-                  type="radio"
-                  name={`${id}-timing`}
-                  checked={timing === 'scheduled'}
-                  onChange={() => setTimingKind('scheduled')}
-                  className="size-5 accent-primary"
-                />
-                <span>{labels.scheduled}</span>
-              </label>
-            </fieldset>
-          ) : null}
-          {timing === 'scheduled' ? (
-            <div className="flex flex-wrap gap-3">
-              <div className="flex min-w-40 flex-1 flex-col gap-1">
-                <label htmlFor={`${id}-day`} className="font-medium">
-                  {labels.slotDay}
-                </label>
-                <select
-                  id={`${id}-day`}
-                  value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  className={input}
-                >
-                  {days.map((day) => (
-                    <option key={day} value={day}>
-                      {dayLabel(day, today, locale, labels)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex min-w-40 flex-1 flex-col gap-1">
-                <label htmlFor={`${id}-slot`} className="font-medium">
-                  {labels.slotTime}
-                </label>
-                <select
-                  id={`${id}-slot`}
-                  ref={(node) => {
-                    fields.current.slot = node;
-                  }}
-                  value={slot}
-                  disabled={slots === null || slots.length === 0}
-                  aria-invalid={errors.slot ? 'true' : undefined}
-                  aria-describedby={described('slot', `${id}-slot-hint`)}
-                  onChange={(event) => setSlot(event.target.value)}
-                  className={input}
-                >
-                  <option value="">{labels.chooseSlot}</option>
-                  {(slots ?? []).map((s) => (
-                    <option key={s.start} value={s.start}>
-                      {wallClock(new Date(s.start), timeZone).time}
-                    </option>
-                  ))}
-                </select>
-                <p
-                  id={`${id}-slot-hint`}
-                  aria-live="polite"
-                  className="text-sm text-muted-foreground"
-                >
-                  {slots === null ? labels.slotsLoading : slots.length === 0 ? labels.noSlots : ''}
-                </p>
-                {errorText('slot')}
-              </div>
-            </div>
-          ) : null}
-
-          {isDelivery && suggestAddress && resolveAddress ? (
-            <fieldset className="flex flex-col gap-3">
-              <legend className="mb-1 font-medium">{labels.addressLegend}</legend>
-              <AddressCombobox
-                suggest={suggestAddress}
-                resolve={resolveAddress}
-                onResolved={changeAddress}
-                initialValue={address?.label}
-                locale={locale}
-                labels={overrides}
-              />
-              <div aria-live="polite" className="flex flex-col gap-1">
-                {usable !== null ? (
-                  <>
-                    <p className="font-medium">
-                      {fee === 0
-                        ? labels.freeDelivery
-                        : fill(labels.deliveryFee, { price: feeWords })}
-                    </p>
-                    {deliveredBy ? (
-                      <p className="text-sm text-muted-foreground">
-                        {deliveryWindowLabel(
-                          { min: deliveredBy, max: deliveredBy },
-                          locale,
-                          timeZone
-                        )}
-                      </p>
-                    ) : null}
-                  </>
-                ) : quoteError !== null && !quoting ? (
-                  <p className="text-sm font-medium text-destructive">
-                    {refusalMessage(quoteError, labels)}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {addressId === undefined
-                      ? labels.deliveryChooseAddress
-                      : labels.deliveryQuoting}
-                  </p>
-                )}
-              </div>
-              {quoteError !== null &&
-              !quoting &&
-              addressId !== undefined &&
-              RETRY.has(quoteError.code) ? (
-                <button
-                  type="button"
-                  onClick={() => setQuoteTick((t) => t + 1)}
-                  className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
-                >
-                  {labels.deliveryRetry}
-                </button>
-              ) : null}
-              <div className="flex flex-wrap gap-3">
-                <div className="flex min-w-32 flex-1 flex-col gap-1">
-                  <label htmlFor={`${id}-floor`}>{labels.floor}</label>
-                  <input
-                    id={`${id}-floor`}
-                    ref={(node) => {
-                      fields.current.floor = node;
-                    }}
-                    value={floor}
-                    maxLength={DELIVERY_LIMITS.maxFloor}
-                    aria-invalid={errors.floor ? 'true' : undefined}
-                    aria-describedby={described('floor')}
-                    onChange={(event) => setFloor(event.target.value)}
-                    className={input}
-                  />
-                  {errorText('floor')}
-                </div>
-                <div className="flex min-w-32 flex-1 flex-col gap-1">
-                  <label htmlFor={`${id}-door_code`}>{labels.doorCode}</label>
-                  <input
-                    id={`${id}-door_code`}
-                    ref={(node) => {
-                      fields.current.door_code = node;
-                    }}
-                    value={doorCode}
-                    autoComplete="off"
-                    maxLength={DELIVERY_LIMITS.maxDoorCode}
-                    aria-invalid={errors.door_code ? 'true' : undefined}
-                    aria-describedby={described('door_code')}
-                    onChange={(event) => setDoorCode(event.target.value)}
-                    className={input}
-                  />
-                  {errorText('door_code')}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor={`${id}-delivery_comment`}>{labels.deliveryComment}</label>
-                <textarea
-                  id={`${id}-delivery_comment`}
-                  ref={(node) => {
-                    fields.current.delivery_comment = node;
-                  }}
-                  value={deliveryComment}
-                  rows={2}
-                  maxLength={DELIVERY_LIMITS.maxComment}
-                  aria-invalid={errors.delivery_comment ? 'true' : undefined}
-                  aria-describedby={described('delivery_comment')}
-                  onChange={(event) => setDeliveryComment(event.target.value)}
-                  className="rounded-lg border border-input bg-background p-2 aria-invalid:border-destructive"
-                />
-                {errorText('delivery_comment')}
-              </div>
-              <label className={choice}>
-                <input
-                  type="checkbox"
-                  checked={contactless}
-                  onChange={(event) => setContactless(event.target.checked)}
-                  className="size-5 accent-primary"
-                />
-                <span>{labels.contactless}</span>
-              </label>
-            </fieldset>
-          ) : null}
-
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-1 font-medium">{labels.detailsLegend}</legend>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-name`}>{labels.name}</label>
-              <input
-                id={`${id}-name`}
-                ref={(node) => {
-                  fields.current.name = node;
-                }}
-                value={name}
-                autoComplete="name"
-                required
-                maxLength={CUSTOMER_LIMITS.maxName}
-                aria-invalid={errors.name ? 'true' : undefined}
-                aria-describedby={described('name')}
-                onChange={(event) => setName(event.target.value)}
-                className={input}
-              />
-              {errorText('name')}
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-phone`}>{labels.phone}</label>
-              <input
-                id={`${id}-phone`}
-                ref={(node) => {
-                  fields.current.phone = node;
-                }}
-                type="tel"
-                value={phone}
-                autoComplete="tel"
-                inputMode="tel"
-                required
-                aria-invalid={errors.phone ? 'true' : undefined}
-                aria-describedby={described('phone')}
-                onChange={(event) => setPhone(event.target.value)}
-                className={input}
-              />
-              {errorText('phone')}
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-email`}>{labels.email}</label>
-              <input
-                id={`${id}-email`}
-                ref={(node) => {
-                  fields.current.email = node;
-                }}
-                type="email"
-                value={email}
-                autoComplete="email"
-                maxLength={CUSTOMER_LIMITS.maxEmail}
-                aria-invalid={errors.email ? 'true' : undefined}
-                aria-describedby={described('email', `${id}-email-hint`)}
-                onChange={(event) => setEmail(event.target.value)}
-                className={input}
-              />
-              <p id={`${id}-email-hint`} className="text-sm text-muted-foreground">
-                {labels.emailHint}
-              </p>
-              {errorText('email')}
-            </div>
+            ))}
           </fieldset>
+        ) : channel === 'dine_in' && table?.label ? (
+          <p className="font-medium">{fill(labels.atTable, { table: table.label })}</p>
+        ) : null}
 
-          <fieldset className="flex flex-col gap-3">
-            <legend className="mb-1 font-medium">{labels.preferencesLegend}</legend>
-            <div className="flex flex-col gap-1">
-              <label htmlFor={`${id}-allergy_note`}>{labels.allergyNote}</label>
-              <textarea
-                id={`${id}-allergy_note`}
-                ref={(node) => {
-                  fields.current.allergy_note = node;
-                }}
-                value={allergyNote}
-                rows={2}
-                maxLength={CUSTOMER_LIMITS.maxAllergyNote}
-                aria-invalid={errors.allergy_note ? 'true' : undefined}
-                aria-describedby={described('allergy_note', `${id}-allergy-warning`)}
-                onChange={(event) => setAllergyNote(event.target.value)}
-                className="rounded-lg border border-input bg-background p-2 aria-invalid:border-destructive"
-              />
-              <p id={`${id}-allergy-warning`} className="text-sm font-medium">
-                {labels.allergyWarning}
-              </p>
-              {errorText('allergy_note')}
-            </div>
-            {channel === 'dine_in' ? null : (
-              <label className={choice}>
-                <input
-                  type="checkbox"
-                  checked={cutlery}
-                  onChange={(event) => setCutlery(event.target.checked)}
-                  className="size-5 accent-primary"
-                />
-                <span>{labels.cutlery}</span>
-              </label>
-            )}
-          </fieldset>
-
-          {methods.length > 1 ? (
-            <fieldset className="flex flex-col gap-1">
-              <legend className="mb-1 font-medium">{labels.paymentLegend}</legend>
-              {methods.map((m) => (
-                <label key={m} className={choice}>
+        {closed ? (
+          <ClosedNotice
+            nextOpenAt={state?.opens_at}
+            timeZone={timeZone}
+            locale={locale}
+            labels={overrides}
+            now={now}
+          />
+        ) : (
+          <>
+            {canAsap && canSchedule ? (
+              <fieldset className="flex flex-col gap-1">
+                <legend className="mb-1 font-medium">{labels.timingLegend}</legend>
+                <label className={choice}>
                   <input
                     type="radio"
-                    name={`${id}-payment`}
-                    checked={m === method}
-                    onChange={() => setMethod(m)}
+                    name={`${id}-timing`}
+                    checked={timing === 'asap'}
+                    onChange={() => setTimingKind('asap')}
                     className="size-5 accent-primary"
                   />
-                  <span>{m === 'vipps' ? labels.payVipps : labels.payAtCounter}</span>
+                  <span>{labels.asap}</span>
                 </label>
-              ))}
+                <label className={choice}>
+                  <input
+                    type="radio"
+                    name={`${id}-timing`}
+                    checked={timing === 'scheduled'}
+                    onChange={() => setTimingKind('scheduled')}
+                    className="size-5 accent-primary"
+                  />
+                  <span>{labels.scheduled}</span>
+                </label>
+              </fieldset>
+            ) : null}
+            {timing === 'scheduled' ? (
+              <div className="flex flex-wrap gap-3">
+                <div className="flex min-w-40 flex-1 flex-col gap-1">
+                  <label htmlFor={`${id}-day`} className="font-medium">
+                    {labels.slotDay}
+                  </label>
+                  <select
+                    id={`${id}-day`}
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    className={input}
+                  >
+                    {days.map((day) => (
+                      <option key={day} value={day}>
+                        {dayLabel(day, today, locale, labels)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex min-w-40 flex-1 flex-col gap-1">
+                  <label htmlFor={`${id}-slot`} className="font-medium">
+                    {labels.slotTime}
+                  </label>
+                  <select
+                    id={`${id}-slot`}
+                    ref={(node) => {
+                      fields.current.slot = node;
+                    }}
+                    value={slot}
+                    disabled={slots === null || slots.length === 0}
+                    aria-invalid={errors.slot ? 'true' : undefined}
+                    aria-describedby={described('slot', `${id}-slot-hint`)}
+                    onChange={(event) => setSlot(event.target.value)}
+                    className={input}
+                  >
+                    <option value="">{labels.chooseSlot}</option>
+                    {(slots ?? []).map((s) => (
+                      <option key={s.start} value={s.start}>
+                        {wallClock(new Date(s.start), timeZone).time}
+                      </option>
+                    ))}
+                  </select>
+                  <p
+                    id={`${id}-slot-hint`}
+                    aria-live="polite"
+                    className="text-sm text-muted-foreground"
+                  >
+                    {slots === null
+                      ? labels.slotsLoading
+                      : slots.length === 0
+                        ? labels.noSlots
+                        : ''}
+                  </p>
+                  {errorText('slot')}
+                </div>
+              </div>
+            ) : null}
+
+            {isDelivery && suggestAddress && resolveAddress ? (
+              <fieldset className="flex flex-col gap-3">
+                <legend className="mb-1 font-medium">{labels.addressLegend}</legend>
+                <AddressCombobox
+                  suggest={suggestAddress}
+                  resolve={resolveAddress}
+                  onResolved={changeAddress}
+                  initialValue={address?.label}
+                  locale={locale}
+                  labels={overrides}
+                />
+                <div aria-live="polite" className="flex flex-col gap-1">
+                  {usable !== null ? (
+                    <>
+                      <p className="font-medium">
+                        {fee === 0
+                          ? labels.freeDelivery
+                          : fill(labels.deliveryFee, { price: feeWords })}
+                      </p>
+                      {deliveredBy ? (
+                        <p className="text-sm text-muted-foreground">
+                          {deliveryWindowLabel(
+                            { min: deliveredBy, max: deliveredBy },
+                            locale,
+                            timeZone
+                          )}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : quoteError !== null && !quoting ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {refusalMessage(quoteError, labels)}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {addressId === undefined
+                        ? labels.deliveryChooseAddress
+                        : labels.deliveryQuoting}
+                    </p>
+                  )}
+                </div>
+                {quoteError !== null &&
+                !quoting &&
+                addressId !== undefined &&
+                RETRY.has(quoteError.code) ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuoteTick((t) => t + 1)}
+                    className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
+                  >
+                    {labels.deliveryRetry}
+                  </button>
+                ) : null}
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex min-w-32 flex-1 flex-col gap-1">
+                    <label htmlFor={`${id}-floor`}>{labels.floor}</label>
+                    <input
+                      id={`${id}-floor`}
+                      ref={(node) => {
+                        fields.current.floor = node;
+                      }}
+                      value={floor}
+                      maxLength={DELIVERY_LIMITS.maxFloor}
+                      aria-invalid={errors.floor ? 'true' : undefined}
+                      aria-describedby={described('floor')}
+                      onChange={(event) => setFloor(event.target.value)}
+                      className={input}
+                    />
+                    {errorText('floor')}
+                  </div>
+                  <div className="flex min-w-32 flex-1 flex-col gap-1">
+                    <label htmlFor={`${id}-door_code`}>{labels.doorCode}</label>
+                    <input
+                      id={`${id}-door_code`}
+                      ref={(node) => {
+                        fields.current.door_code = node;
+                      }}
+                      value={doorCode}
+                      autoComplete="off"
+                      maxLength={DELIVERY_LIMITS.maxDoorCode}
+                      aria-invalid={errors.door_code ? 'true' : undefined}
+                      aria-describedby={described('door_code')}
+                      onChange={(event) => setDoorCode(event.target.value)}
+                      className={input}
+                    />
+                    {errorText('door_code')}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor={`${id}-delivery_comment`}>{labels.deliveryComment}</label>
+                  <textarea
+                    id={`${id}-delivery_comment`}
+                    ref={(node) => {
+                      fields.current.delivery_comment = node;
+                    }}
+                    value={deliveryComment}
+                    rows={2}
+                    maxLength={DELIVERY_LIMITS.maxComment}
+                    aria-invalid={errors.delivery_comment ? 'true' : undefined}
+                    aria-describedby={described('delivery_comment')}
+                    onChange={(event) => setDeliveryComment(event.target.value)}
+                    className="rounded-lg border border-input bg-background p-2 aria-invalid:border-destructive"
+                  />
+                  {errorText('delivery_comment')}
+                </div>
+                <label className={choice}>
+                  <input
+                    type="checkbox"
+                    checked={contactless}
+                    onChange={(event) => setContactless(event.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                  <span>{labels.contactless}</span>
+                </label>
+              </fieldset>
+            ) : null}
+
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-1 font-medium">{labels.detailsLegend}</legend>
+              <div className="flex flex-col gap-1">
+                <label htmlFor={`${id}-name`}>{labels.name}</label>
+                <input
+                  id={`${id}-name`}
+                  ref={(node) => {
+                    fields.current.name = node;
+                  }}
+                  value={name}
+                  autoComplete="name"
+                  required
+                  maxLength={CUSTOMER_LIMITS.maxName}
+                  aria-invalid={errors.name ? 'true' : undefined}
+                  aria-describedby={described('name')}
+                  onChange={(event) => setName(event.target.value)}
+                  className={input}
+                />
+                {errorText('name')}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor={`${id}-phone`}>{labels.phone}</label>
+                <input
+                  id={`${id}-phone`}
+                  ref={(node) => {
+                    fields.current.phone = node;
+                  }}
+                  type="tel"
+                  value={phone}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  required
+                  aria-invalid={errors.phone ? 'true' : undefined}
+                  aria-describedby={described('phone')}
+                  onChange={(event) => setPhone(event.target.value)}
+                  className={input}
+                />
+                {errorText('phone')}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor={`${id}-email`}>{labels.email}</label>
+                <input
+                  id={`${id}-email`}
+                  ref={(node) => {
+                    fields.current.email = node;
+                  }}
+                  type="email"
+                  value={email}
+                  autoComplete="email"
+                  maxLength={CUSTOMER_LIMITS.maxEmail}
+                  aria-invalid={errors.email ? 'true' : undefined}
+                  aria-describedby={described('email', `${id}-email-hint`)}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className={input}
+                />
+                <p id={`${id}-email-hint`} className="text-sm text-muted-foreground">
+                  {labels.emailHint}
+                </p>
+                {errorText('email')}
+              </div>
             </fieldset>
-          ) : null}
-        </>
-      )}
+
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-1 font-medium">{labels.preferencesLegend}</legend>
+              <div className="flex flex-col gap-1">
+                <label htmlFor={`${id}-allergy_note`}>{labels.allergyNote}</label>
+                <textarea
+                  id={`${id}-allergy_note`}
+                  ref={(node) => {
+                    fields.current.allergy_note = node;
+                  }}
+                  value={allergyNote}
+                  rows={2}
+                  maxLength={CUSTOMER_LIMITS.maxAllergyNote}
+                  aria-invalid={errors.allergy_note ? 'true' : undefined}
+                  aria-describedby={described('allergy_note', `${id}-allergy-warning`)}
+                  onChange={(event) => setAllergyNote(event.target.value)}
+                  className="rounded-lg border border-input bg-background p-2 aria-invalid:border-destructive"
+                />
+                <p id={`${id}-allergy-warning`} className="text-sm font-medium">
+                  {labels.allergyWarning}
+                </p>
+                {errorText('allergy_note')}
+              </div>
+              {channel === 'dine_in' ? null : (
+                <label className={choice}>
+                  <input
+                    type="checkbox"
+                    checked={cutlery}
+                    onChange={(event) => setCutlery(event.target.checked)}
+                    className="size-5 accent-primary"
+                  />
+                  <span>{labels.cutlery}</span>
+                </label>
+              )}
+            </fieldset>
+
+            {methods.length > 1 ? (
+              <fieldset className="flex flex-col gap-1">
+                <legend className="mb-1 font-medium">{labels.paymentLegend}</legend>
+                {methods.map((m) => (
+                  <label key={m} className={choice}>
+                    <input
+                      type="radio"
+                      name={`${id}-payment`}
+                      checked={m === method}
+                      onChange={() => setMethod(m)}
+                      className="size-5 accent-primary"
+                    />
+                    <span>{m === 'vipps' ? labels.payVipps : labels.payAtCounter}</span>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
+          </>
+        )}
+      </fieldset>
 
       <div className="flex flex-col gap-2">
         <p

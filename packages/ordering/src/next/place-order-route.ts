@@ -50,6 +50,7 @@ import type {
 import type { OrderingRouteErrorCode, PlaceOrderRequest } from '../core/checkout';
 import {
   apiFailure,
+  BodyTimeoutError,
   checkSiteOrigin,
   configuredLocation,
   dataResponse,
@@ -69,6 +70,7 @@ import {
   readClientIp,
   reporter,
   type SiteOriginOptions,
+  SLOW_BODY,
 } from './shared';
 
 /** The slice of the SDK client the route uses — what a test injects. */
@@ -376,7 +378,8 @@ export function createPlaceOrderRoute(
       const text = await readBody(request, MAX_BODY_BYTES);
       if (text === null) return errorResponse(TOO_LARGE);
       order = parsePlaceOrder(JSON.parse(text));
-    } catch {
+    } catch (error) {
+      if (error instanceof BodyTimeoutError) return errorResponse(SLOW_BODY);
       order = null;
     }
     if (order === null) return errorResponse(BAD_BODY);

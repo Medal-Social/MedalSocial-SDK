@@ -46,6 +46,22 @@ const FAILURES: [string, number, string, number, string][] = [
   ['a 5xx', 500, 'INTERNAL', 502, 'SERVICE_UNAVAILABLE'],
 ];
 
+/** A JSON POST whose body never finishes; abort `left` to make the visitor leave. */
+function stalledPost(url: string, left: AbortController, headers: Record<string, string> = {}) {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"a":'));
+    },
+  });
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body,
+    duplex: 'half',
+    signal: left.signal,
+  } as RequestInit);
+}
+
 describe('createAddressSuggestRoute', () => {
   function setup() {
     const suggest = vi.fn(async (_q: string, _o?: DeliveryAddressOptions) => ({
@@ -160,6 +176,15 @@ describe('createAddressResolveRoute', () => {
       )
     );
     expect(forged.status).toBe(403);
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('answers 408 for a body that never finishes, without calling Medal', async () => {
+    const { POST, resolve } = setup();
+    const left = new AbortController();
+    const answer = POST(stalledPost(`${SITE}${PATH}`, left));
+    left.abort();
+    expect((await answer).status).toBe(408);
     expect(resolve).not.toHaveBeenCalled();
   });
 
