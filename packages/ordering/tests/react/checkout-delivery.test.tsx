@@ -491,6 +491,11 @@ describe('Checkout — delivery', () => {
     await user.click(screen.getByRole('radio', { name: 'Hent selv' }));
     await user.click(screen.getByRole('radio', { name: 'Betal i disken' }));
     await fillDetails(user);
+    // Refused, so the form is open for edits again.
+    onPlace.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'x' },
+    });
     await user.click(screen.getByRole('button', { name: `Bestill · 229,50${NBSP}kr` }));
     expect(onPlace.mock.calls[0]?.[0]).not.toHaveProperty('delivery');
     expect(onPlace.mock.calls[0]?.[0].preferences).toEqual({ cutlery: true });

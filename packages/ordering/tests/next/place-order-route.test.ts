@@ -51,6 +51,22 @@ function sent(create: ReturnType<typeof setup>['create'], call = 0) {
   return { input, options };
 }
 
+/** A JSON POST whose body never finishes; abort `left` to make the visitor leave. */
+function stalledPost(url: string, left: AbortController, headers: Record<string, string> = {}) {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"a":'));
+    },
+  });
+  return new Request(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body,
+    duplex: 'half',
+    signal: left.signal,
+  } as RequestInit);
+}
+
 describe('createPlaceOrderRoute — success', () => {
   it('answers 201 { data } uncached and places the order at the configured location', async () => {
     const { POST, create } = setup();
@@ -169,6 +185,17 @@ describe('createPlaceOrderRoute — success', () => {
     ).toBe(201);
     expect((await POST(internal({ origin: SITE, host: 'bad host' }))).status).toBe(403);
     expect((await POST(internal({ origin: 'https://evil.test', host: site }))).status).toBe(403);
+  });
+
+  it('answers 408 for a body that never finishes, without calling Medal', async () => {
+    const { POST, create } = setup();
+    const left = new AbortController();
+    const answer = POST(stalledPost(URL_, left, { 'idempotency-key': IDEMPOTENCY_KEY }));
+    left.abort();
+    const response = await answer;
+    expect(response.status).toBe(408);
+    expect((await json(response)).error?.code).toBe('SERVICE_UNAVAILABLE');
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('accepts a charset on the content type and a matching Origin', async () => {

@@ -45,6 +45,7 @@ import type {
 import type { OrderingRouteErrorCode } from '../core/checkout';
 import {
   apiFailure,
+  BodyTimeoutError,
   checkSiteOrigin,
   dataResponse,
   deadline,
@@ -65,6 +66,7 @@ import {
   readRoute,
   reporter,
   type SiteOriginOptions,
+  SLOW_BODY,
 } from './shared';
 
 /** The slice of the SDK client the suggest route uses — what a test injects. */
@@ -237,7 +239,8 @@ async function postBody<T>(
     const text = await readBody(request, MAX_BODY_BYTES);
     if (text === null) return { error: TOO_LARGE };
     body = parse(JSON.parse(text));
-  } catch {
+  } catch (error) {
+    if (error instanceof BodyTimeoutError) return { error: SLOW_BODY };
     body = null;
   }
   return body === null ? { error: BAD_BODY } : { body };

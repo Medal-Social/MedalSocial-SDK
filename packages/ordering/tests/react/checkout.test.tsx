@@ -173,6 +173,32 @@ describe('Checkout', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Noe gikk galt. Prøv igjen om litt.');
   });
 
+  it('locks every field while the order is on its way, and unlocks it when refused', async () => {
+    const { user, onPlace } = checkout();
+    let answer: (result: RouteResult<OrderingOrderCreated>) => void = () => {};
+    onPlace.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          answer = done;
+        })
+    );
+    await fillDetails(user);
+    await user.click(screen.getByRole('button', { name: /Betal med Vipps/ }));
+    const name = screen.getByLabelText('Navn');
+    expect(name).toBeDisabled();
+    expect(screen.getByLabelText('Mobilnummer')).toBeDisabled();
+    // A guest typing while it is sent changes nothing on the order that went.
+    await user.type(name, 'X');
+    expect(name).toHaveValue('Kari');
+    expect(onPlace.mock.calls[0]?.[0].customer.name).toBe('Kari');
+    await act(async () =>
+      answer({ ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'x' } })
+    );
+    expect(name).toBeEnabled();
+    await user.type(name, 'n');
+    expect(name).toHaveValue('Karin');
+  });
+
   it('puts a refused detail on its field', async () => {
     const { user, onPlace } = checkout();
     onPlace.mockResolvedValueOnce({

@@ -440,7 +440,7 @@ export const POST = createDeliveryQuoteRoute({
 - **Place order** — the browser posts a `PlaceOrderRequest` with the draft's
   `Idempotency-Key` (`placeOrder` in `/core` does both). The route refuses a
   cross-origin `Origin` (403), anything but JSON (415), a missing key (400), a
-  body over 32 KB (413), and any key a `PlaceOrderRequest` does not have — a
+  body over 32 KB (413), a body still arriving after 10 s or abandoned (408), and any key a `PlaceOrderRequest` does not have — a
   price, `location_id`, `return_url` — (400). It adds `location_id` and, for
   Vipps, `return_url` from its own options, forwards the guest's IP for
   Medal's per-IP limit only from your `clientIp(request)` (no header is

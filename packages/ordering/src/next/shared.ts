@@ -368,26 +368,80 @@ export function postGuard(
 }
 
 /**
+ * Cancel a body stream without waiting for it: a stream whose cancel never
+ * settles must not hold the answer, and a cancel that fails changes nothing.
+ */
+function cancel(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  reader.cancel().catch(() => {});
+}
+
+/** How long a `POST` body may take to arrive, all of it. */
+export const BODY_DEADLINE_MS = 10_000;
+
+/** The body did not arrive within the deadline, or the visitor left. */
+export class BodyTimeoutError extends Error {
+  constructor() {
+    super('The request body did not arrive in time');
+    this.name = 'BodyTimeoutError';
+  }
+}
+
+/**
+ * A body that did not arrive in time: `408`, before any Medal call. Its code
+ * is `SERVICE_UNAVAILABLE`, not `INVALID_REQUEST`: a slow connection is not a
+ * wrong request, and the page may simply send it again (`Checkout` offers
+ * «Prøv igjen» for it).
+ */
+export const SLOW_BODY: ErrorBody = {
+  status: 408,
+  code: 'SERVICE_UNAVAILABLE',
+  message: 'The request did not arrive in time.',
+};
+
+/**
  * The body as text, or `null` when it is over `maxBytes`. Read chunk by
  * chunk so an endless body stops at the cap; a declared `Content-Length`
- * over it is refused without reading. Rejects for a failing stream or bytes
- * that are not UTF-8.
+ * over it is refused without reading. A body still arriving after
+ * `deadlineMs`, or one the visitor abandons, is cancelled and rejects with
+ * `BodyTimeoutError`, so a slow sender cannot hold the route open. Rejects
+ * for a failing stream or bytes that are not UTF-8.
  */
-export async function readBody(request: Request, maxBytes: number): Promise<string | null> {
+export async function readBody(
+  request: Request,
+  maxBytes: number,
+  deadlineMs: number = BODY_DEADLINE_MS
+): Promise<string | null> {
   if (Number(request.headers.get('content-length')) > maxBytes) return null;
   const bytes = new Uint8Array(maxBytes);
   let length = 0;
   if (request.body) {
     const reader = request.body.getReader();
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (length + value.byteLength > maxBytes) {
-        await reader.cancel();
-        return null;
+    const stop = AbortSignal.any([request.signal, AbortSignal.timeout(deadlineMs)]);
+    let reject!: (error: BodyTimeoutError) => void;
+    const stopped = new Promise<never>((_, fail) => {
+      reject = fail;
+    });
+    const onStop = () => reject(new BodyTimeoutError());
+    stop.addEventListener('abort', onStop, { once: true });
+    // A visitor who left before the read began: no `abort` event will come.
+    if (stop.aborted) onStop();
+    try {
+      for (;;) {
+        const { done, value } = await Promise.race([reader.read(), stopped]);
+        if (done) break;
+        if (length + value.byteLength > maxBytes) {
+          cancel(reader);
+          return null;
+        }
+        bytes.set(value, length);
+        length += value.byteLength;
       }
-      bytes.set(value, length);
-      length += value.byteLength;
+    } catch (error) {
+      // Stop the stream on any failure, the deadline included.
+      cancel(reader);
+      throw error;
+    } finally {
+      stop.removeEventListener('abort', onStop);
     }
   }
   return new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length));
