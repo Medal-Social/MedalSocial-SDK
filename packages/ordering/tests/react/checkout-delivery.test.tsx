@@ -337,18 +337,31 @@ describe('Checkout — delivery', () => {
     expect(onPlace.mock.calls[0]?.[0].delivery?.quote_id).toBe('q_2');
   });
 
-  it('a price already due on arrival is asked for once at the press, never in a loop', async () => {
+  it('a price already due on arrival is ordered with at the press, and Medal decides', async () => {
     const { user, quoteDelivery, onPlace } = checkout();
     // Valid for 60 s: inside the 90 s margin the moment it arrives (a fast clock, a short validity).
-    quoteDelivery.mockResolvedValue({ ok: true, data: quote({}, 60_000) });
+    quoteDelivery.mockImplementation(async () => ({
+      ok: true,
+      data: quote({ quote_id: `q_${quoteDelivery.mock.calls.length}` }, 60_000),
+    }));
     await chooseAddress(user);
     await screen.findByText(`Levering · 59 kr`);
     await new Promise((resolve) => setTimeout(resolve, 50));
+    // No timer loop: one quote.
     expect(quoteDelivery).toHaveBeenCalledTimes(1);
     await fillDetails(user);
+    // Medal's clock says it ran out: a new price for the guest to accept.
+    onPlace.mockResolvedValueOnce({ ok: false, error: { code: 'QUOTE_EXPIRED', message: 'x' } });
     await user.click(orderButton());
+    expect(onPlace.mock.calls[0]?.[0].delivery?.quote_id).toBe('q_1');
+    expect(
+      await screen.findByText(`Ny leveringspris: 59 kr. Trykk bestill igjen for å godta.`)
+    ).toBeInTheDocument();
     expect(quoteDelivery).toHaveBeenCalledTimes(2);
-    expect(onPlace).not.toHaveBeenCalled();
+    // That one is due on arrival too, and still goes: the guest can always order.
+    await user.click(orderButton());
+    expect(onPlace.mock.calls[1]?.[0].delivery?.quote_id).toBe('q_2');
+    expect(quoteDelivery).toHaveBeenCalledTimes(2);
   });
 
   it('a price without valid_until is ordered with at the press: no timer, no new price', async () => {
