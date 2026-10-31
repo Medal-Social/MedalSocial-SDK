@@ -105,10 +105,36 @@ export interface DeliveryQuoteClient {
   };
 }
 
-export type AddressSuggestRouteOptions = RouteBaseOptions<AddressSuggestClient>;
+/**
+ * The address lookups' own limits. Every lookup is a Medal call on the
+ * site's key from a public route, so a script repeating them could spend the
+ * key's lookups and leave real guests without addresses.
+ */
+export interface LookupLimitOptions {
+  /**
+   * The guest's IP, for the per-IP limit. Read it from what your platform
+   * guarantees (on Cloudflare `(r) => r.headers.get('cf-connecting-ip')`); no
+   * header is trusted by default. Without it only the route's limit applies.
+   */
+  clientIp?: (request: Request) => string | null | undefined;
+  /**
+   * Most lookups a minute in this route instance, for everyone. Default 600:
+   * a ceiling on the key's spend, high enough that one client cannot use it
+   * all up quickly. The per-IP limit is the main protection; without
+   * `clientIp` every visitor shares this one minute.
+   */
+  maxLookupsPerMinute?: number;
+  /** Most lookups a minute for one IP (from `clientIp`). Default 30: a guest types a few addresses. */
+  maxLookupsPerClientPerMinute?: number;
+}
+
+export interface AddressSuggestRouteOptions
+  extends RouteBaseOptions<AddressSuggestClient>,
+    LookupLimitOptions {}
 export interface AddressResolveRouteOptions
   extends RouteBaseOptions<AddressResolveClient>,
-    SiteOriginOptions {}
+    SiteOriginOptions,
+    LookupLimitOptions {}
 
 export interface DeliveryQuoteRouteOptions
   extends RouteBaseOptions<DeliveryQuoteClient>,
@@ -187,6 +213,71 @@ const BUDGET_SPENT = failure(
   'Delivery prices are not available right now.'
 );
 
+const LOOKUPS_SPENT = failure(
+  503,
+  'SERVICE_UNAVAILABLE',
+  'Address lookups are not available right now.'
+);
+const DEFAULT_MAX_LOOKUPS_PER_MINUTE = 600;
+const DEFAULT_MAX_LOOKUPS_PER_CLIENT = 30;
+
+/**
+ * A route instance's lookup budget: at most `perMinute` a minute for
+ * everyone and `perClient` for one IP (up to 1,000 IPs, the oldest window
+ * dropped first). `take` answers whether this request may call Medal; a
+ * refused IP takes nothing from everyone's minute.
+ */
+function lookupBudget(
+  options: LookupLimitOptions,
+  factory: string,
+  report: (error: unknown) => void
+) {
+  const perMinute = options.maxLookupsPerMinute ?? DEFAULT_MAX_LOOKUPS_PER_MINUTE;
+  const perClient =
+    options.maxLookupsPerClientPerMinute ?? Math.min(DEFAULT_MAX_LOOKUPS_PER_CLIENT, perMinute);
+  if (!Number.isSafeInteger(perMinute) || perMinute < 1) {
+    throw new RangeError(
+      `${factory}: maxLookupsPerMinute must be a positive integer, got ${perMinute}`
+    );
+  }
+  if (!Number.isSafeInteger(perClient) || perClient < 1 || perClient > perMinute) {
+    throw new RangeError(
+      `${factory}: maxLookupsPerClientPerMinute must be an integer from 1 to maxLookupsPerMinute (${perMinute}), got ${perClient}`
+    );
+  }
+  if (!options.clientIp) {
+    report(
+      new Error(
+        `${factory}: no clientIp, so every visitor shares one lookup budget; pass clientIp for a per-IP limit`
+      )
+    );
+  }
+  let route = { windowStart: Number.NEGATIVE_INFINITY, used: 0 };
+  const clients = new Map<string, { windowStart: number; used: number }>();
+  return function take(ip: string | undefined): boolean {
+    const now = Date.now();
+    if (ip !== undefined) {
+      let minute = clients.get(ip);
+      if (minute === undefined || now - minute.windowStart >= MINUTE_MS) {
+        clients.delete(ip);
+        if (clients.size >= MAX_CLIENTS) clients.delete(clients.keys().next().value as string);
+        minute = { windowStart: now, used: 0 };
+        clients.set(ip, minute);
+      }
+      if (minute.used >= perClient) return false;
+      if (now - route.windowStart >= MINUTE_MS) route = { windowStart: now, used: 0 };
+      if (route.used >= perMinute) return false;
+      minute.used += 1;
+      route.used += 1;
+      return true;
+    }
+    if (now - route.windowStart >= MINUTE_MS) route = { windowStart: now, used: 0 };
+    if (route.used >= perMinute) return false;
+    route.used += 1;
+    return true;
+  };
+}
+
 const NOT_VERIFIED = failure(422, 'ADDRESS_NOT_VERIFIED', 'The address could not be verified.');
 const NOT_DELIVERABLE = failure(
   422,
@@ -256,6 +347,8 @@ async function postBody<T>(
 export function createAddressSuggestRoute(
   options: AddressSuggestRouteOptions
 ): (request: Request) => Promise<Response> {
+  const report = reporter(options.onError);
+  const take = lookupBudget(options, 'createAddressSuggestRoute', report);
   return readRoute<AddressSuggestClient, { q: string; session?: string }>(options, {
     parse(request) {
       const params = new URL(request.url).searchParams;
@@ -273,6 +366,9 @@ export function createAddressSuggestRoute(
     notFound: null,
     cacheControl: 'no-store',
     failure: deliveryFailure,
+    // After the query and key checks: a request that cannot reach Medal spends nothing.
+    admit: (request) =>
+      take(readClientIp(options.clientIp, request, report)) ? null : LOOKUPS_SPENT,
   });
 }
 
@@ -288,6 +384,7 @@ export function createAddressResolveRoute(
   const origins = checkSiteOrigin(options, 'createAddressResolveRoute');
   const medal = lazyClient(options);
   const report = reporter(options.onError);
+  const take = lookupBudget(options, 'createAddressResolveRoute', report);
   return async function POST(request: Request): Promise<Response> {
     const parsed = await postBody(request, origins, (value) => {
       if (!only(value, ['id', 'session'])) return null;
@@ -300,6 +397,9 @@ export function createAddressResolveRoute(
     if (!api) {
       report(new Error('The Medal API key is not configured'));
       return errorResponse(NOT_CONFIGURED);
+    }
+    if (!take(readClientIp(options.clientIp, request, report))) {
+      return errorResponse(LOOKUPS_SPENT);
     }
     const { id, session } = parsed.body;
     try {

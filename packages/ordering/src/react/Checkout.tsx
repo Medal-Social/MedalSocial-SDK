@@ -125,7 +125,8 @@ export interface CheckoutProps {
     order_total: number;
   }) => Promise<RouteResult<DeliveryQuote>>;
   onPlace: (request: PlaceOrderRequest) => Promise<RouteResult<OrderingOrderCreated>>;
-  onPlaced: (order: OrderingOrderCreated) => void;
+  /** May be async: a rejected promise is handled like a throw. */
+  onPlaced: (order: OrderingOrderCreated) => void | Promise<void>;
   onRefused?: (error: OrderingRouteError) => void;
   /** What the form starts with (a returning guest's details). */
   initial?: CheckoutDetails;
@@ -372,10 +373,11 @@ export function Checkout({
     // A quote already due on arrival (a fast clock, a short validity) gets no
     // 0 ms timer: that would loop, a Wolt call each turn, and spend the route's
     // quote budget. It is sent as it is when the guest presses order.
-    if (!isDelivery || delay === null || delay === 0) return;
+    // Not while a new price is on its way: the old one's timer would ask a second time.
+    if (!isDelivery || quoting || delay === null || delay === 0) return;
     const timer = setTimeout(() => setQuoteTick((t) => t + 1), delay);
     return () => clearTimeout(timer);
-  }, [isDelivery, quote]);
+  }, [isDelivery, quote, quoting]);
   useEffect(
     () => () => {
       quoteTurn.current += 1;
@@ -491,7 +493,17 @@ export function Checkout({
       result = { ok: false, error: { code: 'SERVICE_UNAVAILABLE', message: 'onPlace threw' } };
     }
     if (result.ok) {
-      onPlaced(result.data);
+      // The order is placed: if the page cannot move on, the form stays locked
+      // (no second order) and the guest is told it was received rather than
+      // left on a busy button. A throw and a rejected promise alike.
+      const received = () =>
+        setFailure(fill(labels.placedNoRedirect, { number: result.data.order_number }));
+      try {
+        const moving: unknown = onPlaced(result.data);
+        if (moving instanceof Promise) moving.catch(received);
+      } catch {
+        received();
+      }
       // The page navigates away; the button stays busy until it does.
       return;
     }

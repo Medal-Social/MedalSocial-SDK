@@ -57,7 +57,9 @@ async function call<T>(
   let body: unknown;
   try {
     body = await response.json();
-  } catch {
+  } catch (error) {
+    // Cancelled by the caller while the body was arriving: reject, as for the fetch.
+    if (signal?.aborted) throw error;
     return { ok: false, error: UNAVAILABLE };
   }
   const envelope = (typeof body === 'object' && body !== null ? body : {}) as Record<

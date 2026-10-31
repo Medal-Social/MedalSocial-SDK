@@ -226,6 +226,12 @@ export interface ReadSpec<Client, Args> {
   cacheControl: string;
   /** A failed call in the site's words. Default `readFailure(error, notFound)`. */
   failure?: (error: unknown) => ErrorBody;
+  /**
+   * The last check before Medal is called, after the query and the key: the
+   * error to answer instead, or `null` to go on. A budget belongs here, so
+   * a request that could never reach Medal spends none of it.
+   */
+  admit?: (request: Request) => ErrorBody | null;
 }
 
 /**
@@ -247,6 +253,8 @@ export function readRoute<Client, Args>(
       report(new Error('The Medal API key is not configured'));
       return errorResponse(NOT_CONFIGURED);
     }
+    const refused = spec.admit?.(request);
+    if (refused) return errorResponse(refused);
     try {
       const { data } = await spec.call(api, parsed.args, deadline(request, READ_DEADLINE_MS));
       return dataResponse(data, spec.cacheControl);
