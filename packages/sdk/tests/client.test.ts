@@ -520,6 +520,30 @@ describe("contacts", () => {
     await medal.contacts.list({ email_status: "subscribed", search: "john" });
   });
 
+  it("sends and filters on the not_opted_in e-mail status", async () => {
+    const seen: { method: string; body?: unknown; status?: string | null }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      const parsed = new URL(url as string);
+      const method = init?.method ?? "GET";
+      seen.push({
+        method,
+        body: init?.body ? JSON.parse(init.body as string) : undefined,
+        status: parsed.searchParams.get("email_status"),
+      });
+      if (method === "GET") {
+        return mockJson({ data: [], pagination: { has_more: false, next_cursor: null } });
+      }
+      return mockJson({ data: method === "POST" ? { id: "c1" } : { success: true } });
+    });
+    const medal = new Medal("medal_test", { baseUrl: BASE });
+    await medal.contacts.create({ email: "a@test.com", email_status: "not_opted_in" });
+    await medal.contacts.update("c1", { email_status: "not_opted_in" });
+    await medal.contacts.list({ email_status: "not_opted_in" });
+    expect(seen[0]?.body).toMatchObject({ email_status: "not_opted_in" });
+    expect(seen[1]?.body).toMatchObject({ email_status: "not_opted_in" });
+    expect(seen[2]?.status).toBe("not_opted_in");
+  });
+
   it("passes pagination to activities", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const parsed = new URL(url as string);
