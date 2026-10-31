@@ -97,8 +97,11 @@ export interface PlaceOrderRouteOptions
   /**
    * Where Vipps sends the guest back — an absolute `http(s)` URL on one of
    * the workspace's sites, usually the `createVippsReturnRoute` route; Medal
-   * adds `order_id`. A function gets the request (to build it from the
-   * host). Without one, a Vipps order answers `500 NOT_CONFIGURED`.
+   * adds `order_id`. A function gets the request; its answer must be on
+   * one of `siteOrigin`'s origins (required with a function, checked when the
+   * route is created), so a hostile `Host` can never become the address a
+   * paying guest is sent back to. Without a return URL, or with one off the
+   * site, a Vipps order answers `500 NOT_CONFIGURED`.
    */
   returnUrl?: string | ((request: Request) => string);
   /**
@@ -343,6 +346,11 @@ export function createPlaceOrderRoute(
   options: PlaceOrderRouteOptions
 ): (request: Request) => Promise<Response> {
   const origins = checkSiteOrigin(options, 'createPlaceOrderRoute');
+  if (typeof options.returnUrl === 'function' && origins.siteOrigin === undefined) {
+    throw new RangeError(
+      'createPlaceOrderRoute: a returnUrl function needs siteOrigin, the origins its answer may be on'
+    );
+  }
   const medal = lazyClient(options);
   const report = reporter(options.onError);
 
@@ -362,7 +370,12 @@ export function createPlaceOrderRoute(
     }
     if (!isString(value) || !URL.canParse(value)) return null;
     const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    // Built per request: only on the site's own origins.
+    if (typeof options.returnUrl === 'function' && !origins.siteOrigin?.includes(url.origin)) {
+      return null;
+    }
+    return url.href;
   }
 
   return async function POST(request: Request): Promise<Response> {
