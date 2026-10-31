@@ -97,10 +97,12 @@ export interface PlaceOrderRouteOptions
   /**
    * Where Vipps sends the guest back — an absolute `http(s)` URL on one of
    * the workspace's sites, usually the `createVippsReturnRoute` route; Medal
-   * adds `order_id`. A function gets the request; its answer must be on
-   * one of `siteOrigin`'s origins (required with a function, checked when the
-   * route is created), so a hostile `Host` can never become the address a
-   * paying guest is sent back to. Without a return URL, or with one off the
+   * adds `order_id`. A string is used as it is: it is the site owner's
+   * configuration (Medal checks it against the workspace's site domains). A
+   * function gets the request; its answer must be on one of `siteOrigin`'s
+   * origins (required with a function, checked when the route is created),
+   * so a hostile `Host` can never become the address a paying guest is sent
+   * back to. Without a return URL, or with a function answering one off the
    * site, a Vipps order answers `500 NOT_CONFIGURED`.
    */
   returnUrl?: string | ((request: Request) => string);

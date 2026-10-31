@@ -301,7 +301,7 @@ export function Checkout({
     slotLoader.current = loadSlots;
   });
   const canLoadSlots = loadSlots !== undefined;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `canLoadSlots` is the "a loader arrived" signal; `slotsTick` is the read-again signal.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `canLoadSlots` is the "a loader arrived" signal; `location.id` a new restaurant's slots; `slotsTick` the read-again signal.
   useEffect(() => {
     const load = slotLoader.current;
     if (timing !== 'scheduled' || load === undefined || channel === undefined) return;
@@ -319,7 +319,7 @@ export function Checkout({
     return () => {
       current = false;
     };
-  }, [timing, canLoadSlots, channel, date, slotsTick]);
+  }, [timing, canLoadSlots, channel, date, location.id, slotsTick]);
   const slotList = Array.isArray(slots) ? slots : [];
 
   const opens =
