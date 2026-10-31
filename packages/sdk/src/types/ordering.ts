@@ -123,7 +123,11 @@ export interface OrderingSlotsOptions {
  */
 export type OrderingOrderStatus = Schemas["OrderingOrderStatus"];
 
-/** How the guest pays. Only `pay_at_counter` is accepted for now. */
+/**
+ * How the guest pays: `pay_at_counter` (no `return_url`) or `vipps`, which
+ * needs a `return_url` on one of the workspace's sites and answers with
+ * `status: 'awaiting_payment'` and the `payment.redirect_url` to send the guest to.
+ */
 export type OrderingPaymentMethod = Schemas["OrderingPaymentMethod"];
 
 /** When the guest wants the order: as soon as possible (the default) or at a scheduled instant. */
@@ -135,7 +139,13 @@ export type OrderingOrderLineInput = Schemas["OrderingOrderLineInput"];
 /** Who the order is for. `phone` is a Norwegian mobile or E.164. */
 export type OrderingOrderCustomer = Schemas["OrderingOrderCustomer"];
 
-/** The guest's preferences. `allergy_note` reaches the kitchen only and is never returned. */
+/**
+ * The guest's preferences. `allergy_note` reaches the kitchen only and is
+ * never returned. All optional: left out, a logged-in customer's
+ * (`portalSession`) cutlery and contactless defaults apply, and cutlery is on
+ * for a guest. `include_allergy_note` (default `true`) copies the customer's
+ * saved allergy note when none is typed.
+ */
 export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
 
 /**
@@ -143,16 +153,46 @@ export type OrderingOrderPreferences = Schemas["OrderingOrderPreferences"];
  * VAT rate and name comes from the server menu, and an unknown field is a
  * `400 VALIDATION_ERROR`. Leave optional fields out rather than sending `null`.
  * A `vipps` order needs `return_url` (a page on one of the workspace's sites);
- * `pay_at_counter` takes none.
+ * `pay_at_counter` takes none. A `delivery` order is Vipps only and needs
+ * `delivery` ({@link OrderingDeliveryInput}); no other channel takes it.
  */
 export type OrderingCreateOrderInput = Omit<
   Schemas["OrderingCreateOrderInput"],
-  "payment_method" | "return_url"
+  "channel" | "payment_method" | "return_url" | "delivery"
 > &
   (
-    | { payment_method: "pay_at_counter"; return_url?: never }
-    | { payment_method: "vipps"; return_url: string }
+    | {
+        channel: Exclude<Schemas["OrderingChannel"], "delivery">;
+        payment_method: "pay_at_counter";
+        return_url?: never;
+        delivery?: never;
+      }
+    | {
+        channel: Exclude<Schemas["OrderingChannel"], "delivery">;
+        payment_method: "vipps";
+        return_url: string;
+        delivery?: never;
+      }
+    | {
+        channel: "delivery";
+        payment_method: "vipps";
+        return_url: string;
+        delivery: OrderingDeliveryInput;
+      }
   );
+
+/**
+ * A delivery order's address, quote and door details (`channel: 'delivery'`,
+ * Vipps only). `verified_address_id` is the `address_id` of
+ * `delivery.addresses.resolve()` (scope `delivery.address.read`), and
+ * `quote_id` the `quote_id` of `delivery.quotes.create()` (scope
+ * `delivery.quote.create`) made for that address with `order_total` = the
+ * cart's subtotal. The fee is the quote's; never send it.
+ */
+export type OrderingDeliveryInput = Schemas["OrderingDeliveryInput"];
+
+/** When the courier brings a delivery (`customer_eta` on the order and its status). */
+export type OrderingCustomerEta = Schemas["OrderingCustomerEta"];
 
 /** What a placed order answers with: the id to read it by, the number the guest is told, and its status. */
 export type OrderingOrderCreated = Schemas["OrderingOrderCreated"];
@@ -189,8 +229,12 @@ export type OrderingTable = Schemas["OrderingTable"];
  *
  * - `CLOSED` — the channel is not open; `details.reason` is the channel state reason.
  * - `CUTOFF` — past the last order time.
- * - `CHANNEL_NOT_AVAILABLE` — the channel is not offered (delivery, for now).
- * - `PREORDER_DISABLED` — scheduled timing is not offered (for now).
+ * - `CHANNEL_NOT_AVAILABLE` — the channel is not offered.
+ * - `PREORDER_DISABLED` — the location takes no pre-orders (`preorder_days` 0).
+ * - `SLOT_TAKEN` — a pre-order's slot has gone by or is inside the prep time
+ *   (a delivery slot under 1 h ahead): pick another from `slots()`. A slot
+ *   the location does not offer is `CLOSED` (`details.reason` `closed`,
+ *   `paused` or `too_far`).
  * - `TABLE_NOT_FOUND` — dine-in without a valid `table_token` at this location.
  * - `SOLD_OUT`, `UNAVAILABLE` — `details.ids` are the product and option ids.
  * - `INVALID_OPTIONS` — `details.line_index` is the line at fault.
@@ -198,13 +242,19 @@ export type OrderingTable = Schemas["OrderingTable"];
  * - `PAYMENT_METHOD_NOT_ALLOWED` — the location does not take this payment method.
  * - `PAYMENT_UNAVAILABLE` — Vipps: the workspace has no Vipps of its own, or the total is under 1 kr.
  * - `RETURN_URL_NOT_ALLOWED` — Vipps: `return_url` missing or not on one of the workspace's sites.
- * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email` or `allergy_note`.
+ * - `INVALID_CUSTOMER` — `details.reason` is `name`, `phone`, `email`, `allergy_note`,
+ *   or for delivery `floor`, `door_code` or `delivery_comment`.
+ * - `QUOTE_NOT_USABLE` — delivery: the quote is not for this workspace, venue,
+ *   address or the cart's fee band; ask for a new price.
+ * - `QUOTE_EXPIRED` — delivery: the quote runs out within a minute; ask for a new price.
+ * - `SAVED_ADDRESS_NOT_FOUND` — `saved_address_id` is not on the logged-in customer's profile.
  */
 export type OrderingRefusalCode =
   | "CLOSED"
   | "CUTOFF"
   | "CHANNEL_NOT_AVAILABLE"
   | "PREORDER_DISABLED"
+  | "SLOT_TAKEN"
   | "TABLE_NOT_FOUND"
   | "SOLD_OUT"
   | "UNAVAILABLE"
@@ -213,7 +263,10 @@ export type OrderingRefusalCode =
   | "PAYMENT_METHOD_NOT_ALLOWED"
   | "PAYMENT_UNAVAILABLE"
   | "RETURN_URL_NOT_ALLOWED"
-  | "INVALID_CUSTOMER";
+  | "INVALID_CUSTOMER"
+  | "QUOTE_NOT_USABLE"
+  | "QUOTE_EXPIRED"
+  | "SAVED_ADDRESS_NOT_FOUND";
 
 /**
  * The `details` of an ordering error, as the API sends it (snake_case). Only
@@ -237,6 +290,14 @@ export interface OrderingCreateOrderOptions {
    * (10 orders a minute per site and IP). Blank is not sent.
    */
   clientIp?: string;
+  /**
+   * A customer-portal session token, sent as `X-Portal-Session`. The order is
+   * then the logged-in customer's: their profile defaults apply and
+   * `saved_address_id` can pick one of their saved addresses. Unknown,
+   * expired or revoked is `401 PORTAL_SESSION_INVALID` and places nothing.
+   * Omit it (or pass `""`) for a guest order.
+   */
+  portalSession?: string;
   /** Your own cancellation signal. */
   signal?: AbortSignal;
 }

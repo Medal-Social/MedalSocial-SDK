@@ -5,8 +5,8 @@
  * viewer's: a guest abroad still reads the opening as the restaurant states it.
  */
 import { useEffect, useReducer, useSyncExternalStore } from 'react';
-import { labelLocale } from '../core/labels';
-import { fill, mergeLabels, type OrderingLabels } from '../core/ui-labels';
+import { openingLine } from '../core/opening';
+import { mergeLabels, type OrderingLabels } from '../core/ui-labels';
 import { cx } from './cx';
 
 export interface ClosedNoticeProps {
@@ -27,57 +27,12 @@ export interface ClosedNoticeProps {
 }
 
 const MINUTE_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * MINUTE_MS;
 
 /** «Is there a client clock?» only ever flips once; `useSyncExternalStore` wants a subscription. */
 function noopSubscribe(): () => void {
   return () => {
     // Nothing to unsubscribe from.
   };
-}
-
-/** The wall-clock date and time of an instant in a time zone. */
-function wallClock(at: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(at);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    (parts.find((p) => p.type === type) as Intl.DateTimeFormatPart).value;
-  const day = Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day')));
-  return { day, time: `${part('hour')}:${part('minute')}` };
-}
-
-function opening(
-  nextOpenAt: ClosedNoticeProps['nextOpenAt'],
-  now: Date,
-  timeZone: string,
-  locale: string,
-  labels: OrderingLabels
-): string | null {
-  if (nextOpenAt === undefined || nextOpenAt === null) return null;
-  const at = new Date(nextOpenAt);
-  if (Number.isNaN(at.getTime()) || at.getTime() <= now.getTime()) return null;
-  const next = wallClock(at, timeZone);
-  const days = Math.round((next.day - wallClock(now, timeZone).day) / DAY_MS);
-  const time = next.time;
-  if (days === 0) return fill(labels.opensToday, { time });
-  if (days === 1) return fill(labels.opensTomorrow, { time });
-  if (days < 7) {
-    const day = labels.weekdays[new Date(next.day).getUTCDay()] as string;
-    return fill(labels.opensOn, { day, time });
-  }
-  const date = new Intl.DateTimeFormat(labelLocale(locale) === 'nb' ? 'nb-NO' : 'en-GB', {
-    timeZone,
-    day: 'numeric',
-    month: 'long',
-  }).format(at);
-  return fill(labels.opensOnDate, { date, time });
 }
 
 export function ClosedNotice({
@@ -101,7 +56,7 @@ export function ClosedNotice({
     () => false
   );
   const clock = now ?? (hydrated ? new Date() : null);
-  const opens = clock === null ? null : opening(nextOpenAt, clock, timeZone, locale, labels);
+  const opens = clock === null ? null : openingLine(nextOpenAt, clock, timeZone, locale, labels);
   // On the browser's clock the line must move on by itself: «i morgen» turns
   // into «i dag» at midnight, and the line goes once it opens. Every
   // restaurant midnight falls on a whole minute (time-zone offsets are whole

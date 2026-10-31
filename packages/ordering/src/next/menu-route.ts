@@ -48,18 +48,22 @@
  */
 
 import type { OrderingChannel, OrderingMenu, OrderingMenuResult } from '@medalsocial/sdk';
-import { Medal, MedalApiError } from '@medalsocial/sdk';
 import { parseChannel, parseOrderLink } from '../core/deep-link';
 import { matchesIfNoneMatch, toEntityTag } from './etag';
+import {
+  apiFailure,
+  type ErrorBody,
+  errorResponse,
+  lazyClient,
+  type RouteBaseOptions,
+  reporter,
+} from './shared';
 
 /** The window the server and the CDN keep a menu before asking again. */
 export const DEFAULT_REVALIDATE_SECONDS = 60;
 
 /** How long a CDN may keep serving a stale menu while it revalidates, in windows. */
 const STALE_WINDOWS = 5;
-
-/** One attempt at Medal; the SDK retries 429/5xx within the deadline below. */
-const ATTEMPT_TIMEOUT_MS = 5_000;
 
 /**
  * The whole upstream read, retries included. A visitor (or every visitor
@@ -122,17 +126,7 @@ export interface MenuStore {
   delete(key: string): void | Promise<void>;
 }
 
-export interface MenuRouteOptions {
-  /**
-   * The workspace API key (`process.env.MEDAL_API_KEY`). Checked on the first
-   * request, so a build without it still succeeds; a missing key answers
-   * `500 NOT_CONFIGURED`.
-   */
-  apiKey: string;
-  /** The Medal API origin. Default: the SDK's (`https://io.medalsocial.com`). */
-  baseUrl?: string;
-  /** A ready client instead of one built from `apiKey`/`baseUrl` (tests, custom setups). */
-  medal?: MenuClient;
+export interface MenuRouteOptions extends RouteBaseOptions<MenuClient> {
   /** Server and CDN cache window in seconds, a positive integer. Default 60. */
   revalidateSeconds?: number;
   /**
@@ -166,15 +160,7 @@ export interface MenuRouteOptions {
    * when the request that started it goes away. A throw here is ignored.
    */
   waitUntil?: (promise: Promise<unknown>) => void;
-  /**
-   * Told about every failed Medal read (the SDK's error, unchanged — SDK
-   * errors carry no request headers). For the site's logger; a throw here is
-   * ignored.
-   */
-  onError?: (error: unknown) => void;
 }
-
-type ErrorBody = { status: number; code: string; message: string };
 
 const NOT_CONFIGURED: ErrorBody = {
   status: 500,
@@ -191,23 +177,6 @@ const INVALID_AT: ErrorBody = {
   code: 'INVALID_AT',
   message: 'at must be an ISO 8601 date-time with a zone, or Unix milliseconds.',
 };
-
-/**
- * `error` as an API failure, or `null`. Besides `instanceof`, an error named
- * `MedalApiError` with a numeric `status` counts: a site with two copies of
- * the SDK installed throws the other copy's class.
- */
-function apiFailure(error: unknown): { status: number; code: unknown } | null {
-  if (error instanceof MedalApiError) return error;
-  if (
-    error instanceof Error &&
-    error.name === 'MedalApiError' &&
-    typeof (error as { status?: unknown }).status === 'number'
-  ) {
-    return error as unknown as { status: number; code: unknown };
-  }
-  return null;
-}
 
 /**
  * Whether Medal may answer differently soon: a 5xx, a 429, or no answer at
@@ -255,13 +224,6 @@ function classify(error: unknown): ErrorBody {
     }
   }
   return { status: 502, code: 'MENU_UNAVAILABLE', message: UNAVAILABLE_NOW };
-}
-
-function errorResponse({ status, code, message }: ErrorBody): Response {
-  return Response.json(
-    { error: { code, message } },
-    { status, headers: { 'cache-control': 'no-store' } }
-  );
 }
 
 const DIGITS = /^\d{1,16}$/;
@@ -366,23 +328,8 @@ export function createMenuRoute(
   const store = options.store ?? memoryStore();
   const timed = memoryStore(TIMED_ENTRIES);
   const inflight = new Map<string, Promise<MenuCacheEntry>>();
-  let client = options.medal;
-
-  function medal(): MenuClient | undefined {
-    if (client) return client;
-    const key = typeof options.apiKey === 'string' ? options.apiKey.trim() : '';
-    if (key === '') return undefined;
-    client = new Medal(key, { baseUrl: options.baseUrl, timeout: ATTEMPT_TIMEOUT_MS });
-    return client;
-  }
-
-  function report(error: unknown): void {
-    try {
-      options.onError?.(error);
-    } catch {
-      // The site's logger failing must not turn into a failed menu.
-    }
-  }
+  const medal = lazyClient(options);
+  const report = reporter(options.onError);
 
   async function readStore(from: MenuStore, key: string): Promise<MenuCacheEntry | undefined> {
     try {
