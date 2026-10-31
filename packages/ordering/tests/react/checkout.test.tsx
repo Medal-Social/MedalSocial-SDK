@@ -346,6 +346,29 @@ describe('Checkout', () => {
     expect(first).toHaveBeenCalledOnce();
   });
 
+  it('loads the new restaurant’s slots and drops the chosen time when the location changes', async () => {
+    const slots: OrderingSlot[] = [{ start: '2026-10-29T16:00:00Z', end: '2026-10-29T16:15:00Z' }];
+    const loadSlots = vi.fn(async () => slots);
+    const { user, rerender, onPlace, onPlaced } = checkout({ loadSlots, allowScheduled: true });
+    await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
+    await waitFor(() => expect(screen.getByLabelText('Tidspunkt')).toBeEnabled());
+    await user.selectOptions(screen.getByLabelText('Tidspunkt'), '2026-10-29T16:00:00Z');
+    rerender(
+      <Checkout
+        location={{ ...location(), id: 'loc_other' }}
+        timeZone="Europe/Oslo"
+        cart={CART}
+        onPlace={onPlace}
+        onPlaced={onPlaced}
+        now={NOW}
+        loadSlots={loadSlots}
+        allowScheduled
+      />
+    );
+    await waitFor(() => expect(loadSlots).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Tidspunkt')).toHaveValue('');
+  });
+
   it('keeps only the latest day’s slots, in English, and goes back to as soon as possible', async () => {
     const answers: Record<string, (s: OrderingSlot[]) => void> = {};
     const failures: Record<string, (e: Error) => void> = {};
