@@ -242,10 +242,16 @@ describe('createPlaceOrderRoute — Vipps', () => {
 
   it('takes return_url from a function of the request', async () => {
     const returnUrl = vi.fn((request: Request) => `${new URL(request.url).origin}/r`);
-    const { POST, create } = setup({ returnUrl });
+    const { POST, create } = setup({ returnUrl, siteOrigin: SITE });
     await POST(post(vipps));
     expect(sent(create).input?.return_url).toBe(`${SITE}/r`);
     expect(returnUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a returnUrl function without siteOrigin when created', () => {
+    expect(() =>
+      createPlaceOrderRoute({ apiKey: KEY, location: 'loc_1', returnUrl: () => `${SITE}/r` })
+    ).toThrow('createPlaceOrderRoute: a returnUrl function needs siteOrigin');
   });
 
   it('never sends return_url with pay_at_counter', async () => {
@@ -260,6 +266,8 @@ describe('createPlaceOrderRoute — Vipps', () => {
     ['a non-http URL', 'javascript:alert(1)'],
     ['a function answering garbage', () => 'not a url'],
     ['a function answering a non-string', () => 42 as unknown as string],
+    // The request's own host, when it is not the site's: a hostile Host header.
+    ['a function answering another host', (r: Request) => `https://evil.test/r?${r.method}`],
     [
       'a throwing function',
       () => {
@@ -267,7 +275,7 @@ describe('createPlaceOrderRoute — Vipps', () => {
       },
     ],
   ])('with %s configured is 500 NOT_CONFIGURED, reported', async (_n, returnUrl) => {
-    const { POST, create, onError } = setup({ returnUrl });
+    const { POST, create, onError } = setup({ returnUrl, siteOrigin: SITE });
     const response = await POST(post(vipps));
     expect(response.status).toBe(500);
     expect((await json(response)).error?.code).toBe('NOT_CONFIGURED');
