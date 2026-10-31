@@ -1,0 +1,1190 @@
+{
+  "menu": {
+    "categories": [
+      {
+        "id": "mains",
+        "name": "Mains",
+        "items": [
+          {
+            "id": "burger",
+            "name": "burger",
+            "price_ore": 14950,
+            "vat_bp": 1500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": [
+              {
+                "id": "size",
+                "name": "size",
+                "min_select": 1,
+                "max_select": 1,
+                "options": [
+                  {
+                    "id": "regular",
+                    "name": "regular",
+                    "price_delta_ore": 0,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "large",
+                    "name": "large",
+                    "price_delta_ore": 3000,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  }
+                ]
+              },
+              {
+                "id": "extras",
+                "name": "extras",
+                "min_select": 0,
+                "max_select": 3,
+                "options": [
+                  {
+                    "id": "cheese",
+                    "name": "cheese",
+                    "price_delta_ore": 1500,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "bacon",
+                    "name": "bacon",
+                    "price_delta_ore": 2000,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "no-onion",
+                    "name": "no-onion",
+                    "price_delta_ore": -500,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "truffle",
+                    "name": "truffle",
+                    "price_delta_ore": 4000,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "wrap",
+            "name": "wrap",
+            "price_ore": 11900,
+            "vat_bp": 1500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": [
+              {
+                "id": "sauce",
+                "name": "sauce",
+                "min_select": 1,
+                "max_select": 2,
+                "options": [
+                  {
+                    "id": "mayo",
+                    "name": "mayo",
+                    "price_delta_ore": 0,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "chili",
+                    "name": "chili",
+                    "price_delta_ore": 500,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  },
+                  {
+                    "id": "aioli",
+                    "name": "aioli",
+                    "price_delta_ore": 1000,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "soup",
+            "name": "soup",
+            "price_ore": 9900,
+            "vat_bp": 1500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": true,
+            "modifier_groups": []
+          },
+          {
+            "id": "kids",
+            "name": "kids",
+            "price_ore": 5000,
+            "vat_bp": 1500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": [
+              {
+                "id": "discount",
+                "name": "discount",
+                "min_select": 0,
+                "max_select": 1,
+                "options": [
+                  {
+                    "id": "half",
+                    "name": "half",
+                    "price_delta_ore": -6000,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "twins",
+            "name": "twins",
+            "price_ore": 1000,
+            "vat_bp": 1500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": [
+              {
+                "id": "left",
+                "name": "left",
+                "min_select": 0,
+                "max_select": 1,
+                "options": [
+                  {
+                    "id": "twin",
+                    "name": "twin",
+                    "price_delta_ore": 100,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  }
+                ]
+              },
+              {
+                "id": "right",
+                "name": "right",
+                "min_select": 0,
+                "max_select": 1,
+                "options": [
+                  {
+                    "id": "twin",
+                    "name": "twin",
+                    "price_delta_ore": 200,
+                    "allergens": [],
+                    "vat_bp": 1500,
+                    "sold_out": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "empty",
+        "name": "Empty",
+        "items": []
+      },
+      {
+        "id": "drinks",
+        "name": "Drinks",
+        "items": [
+          {
+            "id": "water",
+            "name": "water",
+            "price_ore": 2500,
+            "vat_bp": 2500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": []
+          },
+          {
+            "id": "cola",
+            "name": "cola",
+            "price_ore": 3900,
+            "vat_bp": 2500,
+            "allergens": [],
+            "dietary": [],
+            "sold_out": false,
+            "modifier_groups": []
+          }
+        ]
+      }
+    ],
+    "etag": "fixture",
+    "channel": "takeaway",
+    "at": "2026-10-29T12:00:00.000Z"
+  },
+  "cases": [
+    {
+      "name": "one plain dish",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 2500,
+        "lineTotalsOre": [2500]
+      }
+    },
+    {
+      "name": "quantity multiplies",
+      "lines": [
+        {
+          "product_id": "cola",
+          "quantity": 3
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 11700,
+        "lineTotalsOre": [11700]
+      }
+    },
+    {
+      "name": "required choice made",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular"]
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 14950,
+        "lineTotalsOre": [14950]
+      }
+    },
+    {
+      "name": "options add to the price",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 2,
+          "option_ids": ["large", "cheese", "bacon"]
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 42900,
+        "lineTotalsOre": [42900]
+      }
+    },
+    {
+      "name": "an option that takes away",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "no-onion"]
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 14450,
+        "lineTotalsOre": [14450]
+      }
+    },
+    {
+      "name": "several lines, two rates",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["large"]
+        },
+        {
+          "product_id": "wrap",
+          "quantity": 2,
+          "option_ids": ["mayo", "chili"]
+        },
+        {
+          "product_id": "water",
+          "quantity": 4
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 52750,
+        "lineTotalsOre": [17950, 24800, 10000]
+      }
+    },
+    {
+      "name": "option ids in any order",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["bacon", "large", "cheese"]
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 21450,
+        "lineTotalsOre": [21450]
+      }
+    },
+    {
+      "name": "option_ids left out",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 2
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 5000,
+        "lineTotalsOre": [5000]
+      }
+    },
+    {
+      "name": "a note within the limit",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1,
+          "option_ids": [],
+          "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 2500,
+        "lineTotalsOre": [2500]
+      }
+    },
+    {
+      "name": "the same dish on two lines",
+      "lines": [
+        {
+          "product_id": "cola",
+          "quantity": 1
+        },
+        {
+          "product_id": "cola",
+          "quantity": 2
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 11700,
+        "lineTotalsOre": [3900, 7800]
+      }
+    },
+    {
+      "name": "a discount down to zero is fine",
+      "lines": [
+        {
+          "product_id": "kids",
+          "quantity": 1,
+          "option_ids": []
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 5000,
+        "lineTotalsOre": [5000]
+      }
+    },
+    {
+      "name": "empty cart",
+      "lines": [],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART"
+      }
+    },
+    {
+      "name": "too many lines",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART"
+      }
+    },
+    {
+      "name": "fifty lines is the limit",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 125000,
+        "lineTotalsOre": [
+          2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500,
+          2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500,
+          2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500, 2500,
+          2500, 2500, 2500, 2500, 2500
+        ]
+      }
+    },
+    {
+      "name": "quantity zero",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "water",
+          "quantity": 0
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART",
+        "lineIndex": 1
+      }
+    },
+    {
+      "name": "quantity over the limit",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 100
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "quantity at the limit",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 99
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 247500,
+        "lineTotalsOre": [247500]
+      }
+    },
+    {
+      "name": "quantity not whole",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1.5
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "note too long",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1,
+          "option_ids": [],
+          "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_CART",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "unknown dish",
+      "lines": [
+        {
+          "product_id": "pizza",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "UNAVAILABLE",
+        "ids": ["pizza"]
+      }
+    },
+    {
+      "name": "unknown option",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "ketchup"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "UNAVAILABLE",
+        "ids": ["ketchup"]
+      }
+    },
+    {
+      "name": "every unknown id at once",
+      "lines": [
+        {
+          "product_id": "pizza",
+          "quantity": 1
+        },
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "ketchup"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "UNAVAILABLE",
+        "ids": ["pizza", "ketchup"]
+      }
+    },
+    {
+      "name": "sold-out dish",
+      "lines": [
+        {
+          "product_id": "soup",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "SOLD_OUT",
+        "ids": ["soup"]
+      }
+    },
+    {
+      "name": "sold-out option",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "truffle"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "SOLD_OUT",
+        "ids": ["truffle"]
+      }
+    },
+    {
+      "name": "unknown before sold out",
+      "lines": [
+        {
+          "product_id": "soup",
+          "quantity": 1
+        },
+        {
+          "product_id": "pizza",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "UNAVAILABLE",
+        "ids": ["pizza"]
+      }
+    },
+    {
+      "name": "sold out before options",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": []
+        },
+        {
+          "product_id": "soup",
+          "quantity": 1
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "SOLD_OUT",
+        "ids": ["soup"]
+      }
+    },
+    {
+      "name": "required choice missing",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": []
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 1
+      }
+    },
+    {
+      "name": "too many in a group",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "large"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "too many extras",
+      "lines": [
+        {
+          "product_id": "burger",
+          "quantity": 1,
+          "option_ids": ["regular", "cheese", "bacon", "no-onion", "cheese"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "the same option twice",
+      "lines": [
+        {
+          "product_id": "wrap",
+          "quantity": 1,
+          "option_ids": ["mayo", "mayo"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "wrap with two sauces",
+      "lines": [
+        {
+          "product_id": "wrap",
+          "quantity": 1,
+          "option_ids": ["mayo", "aioli"]
+        }
+      ],
+      "result": {
+        "ok": true,
+        "totalOre": 12900,
+        "lineTotalsOre": [12900]
+      }
+    },
+    {
+      "name": "wrap with three sauces",
+      "lines": [
+        {
+          "product_id": "wrap",
+          "quantity": 1,
+          "option_ids": ["mayo", "chili", "aioli"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "an option id in two groups",
+      "lines": [
+        {
+          "product_id": "twins",
+          "quantity": 1,
+          "option_ids": ["twin"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "below zero",
+      "lines": [
+        {
+          "product_id": "kids",
+          "quantity": 1,
+          "option_ids": ["half"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 0
+      }
+    },
+    {
+      "name": "below zero after a good line",
+      "lines": [
+        {
+          "product_id": "water",
+          "quantity": 1
+        },
+        {
+          "product_id": "kids",
+          "quantity": 2,
+          "option_ids": ["half"]
+        }
+      ],
+      "result": {
+        "ok": false,
+        "code": "INVALID_OPTIONS",
+        "lineIndex": 1
+      }
+    }
+  ]
+}
