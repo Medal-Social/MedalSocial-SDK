@@ -14,7 +14,7 @@ and is never published.
 |---|---|---|
 | `@medalsocial/sdk` | `packages/sdk` | npm (provenance) + JSR |
 | `@medalsocial/booking` | `packages/booking` | npm only (provenance); published since 0.1.0, pre-1.0 — current version in `packages/booking/package.json` / its CHANGELOG |
-| `@medalsocial/ordering` | `packages/ordering` | none yet — `"private": true` at 0.0.0 until its first release PR |
+| `@medalsocial/ordering` | `packages/ordering` | npm only (provenance); published since #285 (npm latest 0.0.1) |
 
 - **Root = shared tooling.** Biome, knip, commitlint, secretlint (with the
   repo-wide `scripts/secretlint-repo.mjs` / `secretlint-staged.mjs`), Husky,
