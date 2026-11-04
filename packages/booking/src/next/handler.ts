@@ -16,7 +16,7 @@
  * | `avatar/<resourceId>` | GET |
  * | `create` | POST |
  * | `manage/<token>` | GET (the booking), POST (`cancel` / `reschedule`) |
- * | portal `login/verify`, `persons`, `session/touch`, `vipps/link/verify` | POST |
+ * | portal `login/verify`, `persons`, `session/touch`, `vipps/link/verify`, `email/start`, `email/verify` | POST |
  * | portal `session/expired` | GET |
  * | portal `vipps/flash` | DELETE |
  *
@@ -37,6 +37,8 @@ import {
 import { createRoute } from './routes/create';
 import { manageRoute, manageSummaryRoute } from './routes/manage';
 import {
+  emailChangeStartRoute,
+  emailChangeVerifyRoute,
   loginVerifyRoute,
   personsRoute,
   sessionExpiredRoute,
@@ -79,6 +81,8 @@ const BOOKING_PARAM_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
 const PORTAL_ROUTES: Record<string, Partial<Record<Method, Route>>> = {
   'login/verify': { POST: (rt, request) => loginVerifyRoute(rt, request) },
   persons: { POST: (rt, request) => personsRoute(rt, request) },
+  'email/start': { POST: (rt, request) => emailChangeStartRoute(rt, request) },
+  'email/verify': { POST: (rt, request) => emailChangeVerifyRoute(rt, request) },
   'session/touch': { POST: (rt) => sessionTouchRoute(rt) },
   'session/expired': { GET: (rt, request) => sessionExpiredRoute(rt, request) },
   'vipps/flash': { DELETE: (rt, request) => vippsFlashRoute(rt, request) },

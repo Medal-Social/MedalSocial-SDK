@@ -280,7 +280,11 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 26.94 KB.
     // Raised 27.1 → 27.2 KB for numbered guest grown-ups, `screens.disabledNext` and
     // the adult-word checks: measured 27.10 KB locally, 27.11 KB in CI.
-    gzipBytes: 27.2 * 1024,
+    // Raised 27.2 → 29.2 KB for «Endre e-post» on Min side (`PortalEmailChange`:
+    // the two-step sheet and its nb + en copy, ~40 keys a pack). The booking
+    // page's budgets above do not move — the portal is not on that path.
+    // Measured 29.04 KB.
+    gzipBytes: 29.2 * 1024,
   },
 ];
 

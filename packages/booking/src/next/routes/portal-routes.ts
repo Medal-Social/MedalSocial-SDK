@@ -23,10 +23,19 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { type VerifyLoginFailure, verifyLoginInput } from '../../core/portal/login-input';
+import {
+  codeField,
+  emailField,
+  type VerifyLoginFailure,
+  verifyLoginInput,
+} from '../../core/portal/login-input';
+import { maskedAddress } from '../../core/portal/vipps-return';
 import type { BookingFamilyMember, BookingGuardian } from '../../core/types';
 import { toBookingFamilyMember } from '../portal/guardian';
 import {
+  type EmailChangeRefusal,
+  PortalEmailChangeRefusedError,
+  PortalEmailChangeUnavailableError,
   type PortalPersonResult,
   PortalSessionExpiredError,
   PortalThrottledError,
@@ -95,6 +104,146 @@ export async function loginVerifyRoute(rt: BookingRuntime, request: Request): Pr
 
   await rt.session.writePortalSession(session.sessionToken, session.expiresAt);
   return reply(200, { ok: true, guardian: await rt.guardianFromSession(session.sessionToken) });
+}
+
+/**
+ * What the e-mail change routes answer besides success. `refused` carries
+ * Medal's closed `reason`; `unavailable` is a Medal without the routes.
+ */
+type EmailChangeFailure =
+  | { ok: false; reason: 'refused'; refusal: EmailChangeRefusal }
+  | {
+      ok: false;
+      reason: 'invalid' | 'session' | 'throttled' | 'unavailable' | 'unreachable' | 'forbidden';
+    };
+
+const EMAIL_START_INPUT = z.object({ email: emailField }).strict();
+const EMAIL_VERIFY_INPUT = z.object({ code: codeField }).strict();
+
+/** The answer for whatever the seam threw on an e-mail change call. */
+function emailChangeFailure(
+  rt: BookingRuntime,
+  error: unknown,
+  what: string
+): { status: number; body: EmailChangeFailure } {
+  if (error instanceof PortalEmailChangeRefusedError) {
+    return { status: 422, body: { ok: false, reason: 'refused', refusal: error.reason } };
+  }
+  if (error instanceof PortalSessionExpiredError) {
+    return { status: 401, body: { ok: false, reason: 'session' } };
+  }
+  if (error instanceof PortalValidationError) {
+    return { status: 400, body: { ok: false, reason: 'invalid' } };
+  }
+  if (error instanceof PortalThrottledError) {
+    return { status: 429, body: { ok: false, reason: 'throttled' } };
+  }
+  if (error instanceof PortalEmailChangeUnavailableError) {
+    return { status: 503, body: { ok: false, reason: 'unavailable' } };
+  }
+  // The seam scrubs the session, the code and the key out of what it throws.
+  rt.logger.error(error, what);
+  return { status: 503, body: { ok: false, reason: 'unreachable' } };
+}
+
+/**
+ * `POST <portalApi>/email/start` — a logged-in customer asks to move their
+ * account to another address; Medal mails a code to the NEW one. Body
+ * `{ email }` and nothing else. Answers, all `no-store`:
+ *
+ * - 200 `{ ok: true, to }` — `to` is the address masked (`k•••@e•••.com`),
+ *   or `null` when Medal's mask was not the expected shape.
+ * - 422 `{ ok: false, reason: 'refused', refusal }` — `unchanged` or
+ *   `too_many_codes`. The session is fine. A taken or undeliverable address
+ *   is still `200`: Medal does not say which (the first is refused at
+ *   verify, the second simply never gets a code).
+ * - 400 `invalid` · 401 `session` · 429 `throttled` · 503 `unavailable` (no
+ *   such route on this Medal) or `unreachable` · 403 for another origin.
+ */
+export async function emailChangeStartRoute(
+  rt: BookingRuntime,
+  request: Request
+): Promise<Response> {
+  const reply = (status: number, body: { ok: true; to: string | null } | EmailChangeFailure) =>
+    answer(status, body);
+  if (declaresNoOrigin(request) || isCrossOriginRequest(request)) {
+    return reply(403, { ok: false, reason: 'forbidden' });
+  }
+  const session = await rt.session.readPortalSession();
+  if (session === null) return reply(401, { ok: false, reason: 'session' });
+
+  const parsed = EMAIL_START_INPUT.safeParse(await jsonFrom(request, LOGIN_MAX_BODY_BYTES));
+  if (!parsed.success) return reply(400, { ok: false, reason: 'invalid' });
+
+  try {
+    const { to } = await rt.portal.startEmailChange(
+      session,
+      parsed.data.email,
+      rt.options.portal?.locale ?? 'no'
+    );
+    return reply(200, { ok: true, to: maskedAddress(to) });
+  } catch (error) {
+    const failure = emailChangeFailure(rt, error, 'An e-mail change could not be started');
+    return reply(failure.status, failure.body);
+  }
+}
+
+/**
+ * `POST <portalApi>/email/verify` — spend the code mailed to the new address.
+ * Body `{ code }` and nothing else. On success Medal has revoked the session
+ * this request presented and minted a replacement: it goes straight into the
+ * session cookie (the login's cookie, same options) and never into the
+ * answer. Answers, all `no-store`:
+ *
+ * - 200 `{ ok: true, email, signedIn }` — the address now on the account.
+ *   `signedIn: false` only when the replacement session could not be stored
+ *   (not the shape Medal issues): the cookie is cleared and the customer logs
+ *   in again with the new address.
+ * - 422 `{ ok: false, reason: 'refused', refusal }` — `code_invalid` (wrong,
+ *   expired or spent; the session is fine, try again) or `email_taken` (the
+ *   address went to someone else meanwhile; start again).
+ * - 400 `invalid` · 401 `session` · 429 `throttled` · 503 `unavailable` /
+ *   `unreachable` · 403 for another origin.
+ */
+export async function emailChangeVerifyRoute(
+  rt: BookingRuntime,
+  request: Request
+): Promise<Response> {
+  const reply = (
+    status: number,
+    body: { ok: true; email: string; signedIn: boolean } | EmailChangeFailure
+  ) => answer(status, body);
+  if (declaresNoOrigin(request) || isCrossOriginRequest(request)) {
+    return reply(403, { ok: false, reason: 'forbidden' });
+  }
+  const session = await rt.session.readPortalSession();
+  if (session === null) return reply(401, { ok: false, reason: 'session' });
+
+  const parsed = EMAIL_VERIFY_INPUT.safeParse(await jsonFrom(request, LINK_MAX_BODY_BYTES));
+  if (!parsed.success) return reply(400, { ok: false, reason: 'invalid' });
+
+  let changed: Awaited<ReturnType<BookingRuntime['portal']['verifyEmailChange']>>;
+  try {
+    changed = await rt.portal.verifyEmailChange(
+      session,
+      parsed.data.code,
+      rt.options.portal?.locale ?? 'no'
+    );
+  } catch (error) {
+    const failure = emailChangeFailure(rt, error, 'An e-mail change could not be verified');
+    return reply(failure.status, failure.body);
+  }
+
+  // The old cookie is dead upstream whatever happens next. A replacement this
+  // site cannot store (not the shape Medal issues) is a logged-out customer
+  // whose address DID change: drop the dead cookie and say both.
+  try {
+    await rt.session.writePortalSession(changed.sessionToken, changed.expiresAt);
+  } catch {
+    await rt.session.clearPortalSession();
+    return reply(200, { ok: true, email: changed.email, signedIn: false });
+  }
+  return reply(200, { ok: true, email: changed.email, signedIn: true });
 }
 
 const PERSONS_MAX_BODY_BYTES = 2 * 1024;
