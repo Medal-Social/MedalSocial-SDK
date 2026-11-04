@@ -786,6 +786,7 @@ function DetailsStep({ booking, resolved }: StepProps) {
       guardianPhone={guardian?.phone ?? null}
       // The address they logged in with: the booking is theirs, by that address.
       emailReadOnly={kit.config.account.required && guardian !== null}
+      emailRequired={kit.config.details.emailRequired}
       format={kit.format}
       labels={screenLabels(kit.labels)}
       classNames={resolved.classNames.details}

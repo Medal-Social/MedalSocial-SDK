@@ -168,7 +168,10 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.74 KB.
     // Raised 30.9 → 31.0 KB for numbered guest grown-ups and `screens.disabledNext`
     // (passed to meda's `selection.disableUntilReady`): measured 30.91 KB.
-    gzipBytes: 31.0 * 1024,
+    // Raised 31.0 → 31.1 KB for `details.emailRequired` (the bound step rule,
+    // the shared e-mail shape and the nb/en `details.email.required` words):
+    // measured 31.06 KB.
+    gzipBytes: 31.1 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -239,7 +242,10 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.84 KB.
     // Raised 31.0 → 31.1 KB for numbered guest grown-ups, `screens.disabledNext` and
     // the layer-aware adult-word check: measured 31.02 KB.
-    gzipBytes: 31.1 * 1024,
+    // Raised 31.1 → 31.2 KB for `details.emailRequired` (the bound step rule,
+    // the shared e-mail shape and the nb/en `details.email.required` words):
+    // measured 31.14 KB.
+    gzipBytes: 31.2 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
