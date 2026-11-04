@@ -79,6 +79,7 @@ its own values in.
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `contact` | `{ phone: null, address: null, name: '', mapsUrl: null }` | The business's own contact; `mapsUrl` is the booked screen's directions link (`null` searches a map for `address`) |
 | `policy` | `{ freeChangeHours: null }` | A change or cancellation is free until this many hours before; the booked screen and the desktop panel say so |
+| `details` | `{ emailRequired: false }` | `emailRequired`: no booking without an e-mail address, for a business that confirms and reminds by e-mail only. The details step marks the field required and refuses a blank address on submit (`details.email.required`), `canAdvance` holds the step, and `/create` answers 400 `invalidInput` (`contact.email is required`). Give `details.email.help` a sentence that does not call the field optional |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |
 | `screens` | every switch `false` | Opt-in screen features, below; nothing changes for a site that sets none |
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |

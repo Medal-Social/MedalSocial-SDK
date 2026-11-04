@@ -220,6 +220,31 @@ describe('resolveBookingConfig', () => {
   });
 });
 
+describe('resolveBookingConfig — details.emailRequired', () => {
+  it('defaults to an optional address', () => {
+    expect(resolveBookingConfig({ timeZone: 'Europe/Oslo' }).details).toEqual({
+      emailRequired: false,
+    });
+  });
+
+  it('takes details.emailRequired', () => {
+    const config = resolveBookingConfig({
+      timeZone: 'Europe/Oslo',
+      details: { emailRequired: true },
+    });
+    expect(config.details.emailRequired).toBe(true);
+  });
+
+  it('refuses a details.emailRequired that is not a boolean', () => {
+    expect(
+      issuesOf({
+        timeZone: 'Europe/Oslo',
+        details: { emailRequired: 'yes' as unknown as boolean },
+      }).some((issue) => issue.startsWith('details.emailRequired'))
+    ).toBe(true);
+  });
+});
+
 describe('resolveBookingConfig — account.required', () => {
   it('defaults to booking without an account', () => {
     expect(resolveBookingConfig({ timeZone: 'Europe/Oslo' }).account.required).toBe(false);
