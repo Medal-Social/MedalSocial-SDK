@@ -125,6 +125,8 @@ describe('createBookingHandler — portal routes', () => {
     // No session: touch is a 401, persons a 401, expired a 303 to the login.
     expect((await handler.POST(post('/api/portal/session/touch'))).status).toBe(401);
     expect((await handler.POST(post('/api/portal/persons'))).status).toBe(401);
+    expect((await handler.POST(post('/api/portal/email/start'))).status).toBe(401);
+    expect((await handler.POST(post('/api/portal/email/verify'))).status).toBe(401);
     const expired = await handler.GET(get('/api/portal/session/expired'));
     expect(expired.status).toBe(303);
     expect(expired.headers.get('Location')).toBe(`${ORIGIN}/min-side/logg-inn`);

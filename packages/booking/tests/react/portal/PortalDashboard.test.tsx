@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -311,6 +311,21 @@ describe('PortalDashboard', () => {
       dashboard({ actions: rest as PortalActions });
       open('Profil');
       expect(screen.queryByRole('button', { name: 'Koble til Vipps' })).not.toBeInTheDocument();
+    });
+
+    it('offers «change e-mail» only when asked, and points the e-mail help at it', () => {
+      dashboard();
+      open('Profil');
+      expect(screen.queryByRole('region', { name: 'E-post' })).not.toBeInTheDocument();
+      expect(screen.getByText(String(TEST_LABELS['profileForm.emailHelp']))).toBeInTheDocument();
+      cleanup();
+
+      dashboard({ emailChange: true });
+      open('Profil');
+      const row = screen.getByRole('region', { name: 'E-post' });
+      expect(within(row).getByText(PROFILE.email)).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: 'Endre e-postadresse' })).toBeInTheDocument();
+      expect(screen.getByText(String(TEST_LABELS['emailChange.profileHelp']))).toBeInTheDocument();
     });
 
     it('draws no Vipps row against a backend that does not say', () => {

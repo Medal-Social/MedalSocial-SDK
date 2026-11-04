@@ -80,15 +80,22 @@ export function PortalProfileForm({
   booking,
   profile,
   actions,
+  emailChange = false,
 }: Wired & {
   profile: PortalProfileDto;
   actions: Pick<PortalActions, 'updateProfile' | 'setMarketingConsent'>;
+  /** The «change e-mail» row is offered: the e-mail's help points at it. */
+  emailChange?: boolean;
 }) {
   const { labels } = booking.kit;
   const unreachable = labelText(labels['profileForm.unreachable']);
   return (
     <ProfileForm
-      labels={screenLabels(labels)}
+      labels={
+        emailChange
+          ? { ...screenLabels(labels), 'profileForm.emailHelp': labels['emailChange.profileHelp'] }
+          : screenLabels(labels)
+      }
       profile={profile}
       classNames={booking.classNames.profileForm}
       onSessionExpired={useToLogin(booking)}

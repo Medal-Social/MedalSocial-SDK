@@ -252,6 +252,16 @@ export const { GET, POST, DELETE } = booking.handler;
   a tagged result (`redirect`, `unavailable`, `ready`, …) and the page renders it.
 - **Server actions stay in the app.** `booking.portal.actions.*` are plain async
   functions; wrap each in a `'use server'` export and pass it to the components.
+- **Change e-mail on Min side.** `<PortalDashboard emailChange>` adds an
+  «E-post» row to the profile: the new address, then the six-digit code Medal
+  mails to it (`POST /api/portal/email/start` and `/email/verify` in the same
+  handler; needs a Medal with `/api/v1/portal/me/email/{start,verify}`).
+  Verifying replaces the session cookie with the one Medal minted (same
+  options as the login's) and never sends a token to the browser. Start
+  answers «sent» for a taken or undeliverable address too, so the code step
+  always says what to do when no code comes; a taken address is refused at
+  verify. A refusal (`unchanged`, `too_many_codes`, `code_invalid`,
+  `email_taken`) is a sentence, never a logout. Words: `emailChange.*`.
 - **Caches.** `edge` holds the booking seed (per location, a few ms); `data`
   holds services, stylists, hours and free slots. On Node use
   `memoryCacheAdapter()` for both. Every adapter keeps one contract
