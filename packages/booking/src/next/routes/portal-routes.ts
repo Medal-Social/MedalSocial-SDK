@@ -114,7 +114,14 @@ type EmailChangeFailure =
   | { ok: false; reason: 'refused'; refusal: EmailChangeRefusal }
   | {
       ok: false;
-      reason: 'invalid' | 'session' | 'throttled' | 'unavailable' | 'unreachable' | 'forbidden';
+      reason:
+        | 'invalid'
+        | 'session'
+        | 'throttled'
+        | 'unavailable'
+        | 'unreachable'
+        | 'unconfirmed'
+        | 'forbidden';
     };
 
 const EMAIL_START_INPUT = z.object({ email: emailField }).strict();
@@ -144,6 +151,35 @@ function emailChangeFailure(
   // The seam scrubs the session, the code and the key out of what it throws.
   rt.logger.error(error, what);
   return { status: 503, body: { ok: false, reason: 'unreachable' } };
+}
+
+/**
+ * A verify that ended without a classified answer (a timeout, a dropped
+ * connection, a 5xx, a body without the address) may have happened AFTER
+ * Medal committed the change. Ask Medal whether the session we presented
+ * still lives: refused means it was revoked, which is what a committed change
+ * does. A classified Medal answer (refusal, throttle, validation, missing
+ * route) is never this case.
+ */
+async function outcomeUnknownAndSessionDead(
+  rt: BookingRuntime,
+  error: unknown,
+  session: string
+): Promise<boolean> {
+  if (
+    error instanceof PortalEmailChangeRefusedError ||
+    error instanceof PortalValidationError ||
+    error instanceof PortalThrottledError ||
+    error instanceof PortalEmailChangeUnavailableError
+  ) {
+    return false;
+  }
+  try {
+    await rt.portal.getMe(session);
+    return false;
+  } catch (probe) {
+    return probe instanceof PortalSessionExpiredError;
+  }
 }
 
 /**
@@ -183,6 +219,9 @@ export async function emailChangeStartRoute(
     );
     return reply(200, { ok: true, to: maskedAddress(to) });
   } catch (error) {
+    // Medal refused the cookie: drop it here, or the login page would send the
+    // customer straight back to the portal with it.
+    if (error instanceof PortalSessionExpiredError) await rt.session.clearPortalSession();
     const failure = emailChangeFailure(rt, error, 'An e-mail change could not be started');
     return reply(failure.status, failure.body);
   }
@@ -193,7 +232,10 @@ export async function emailChangeStartRoute(
  * Body `{ code }` and nothing else. On success Medal has revoked the session
  * this request presented and minted a replacement: it goes straight into the
  * session cookie (the login's cookie, same options) and never into the
- * answer. Answers, all `no-store`:
+ * answer. A Medal refusal of the session clears the cookie before `401`.
+ * Without a usable answer the route asks Medal whether the presented session
+ * still lives; if not, the change most likely committed: `502 unconfirmed`,
+ * cookie cleared. Answers, all `no-store`:
  *
  * - 200 `{ ok: true, email, signedIn }` — the address now on the account.
  *   `signedIn: false` only when the replacement session could not be stored
@@ -230,14 +272,26 @@ export async function emailChangeVerifyRoute(
       rt.options.portal?.locale ?? 'no'
     );
   } catch (error) {
+    if (error instanceof PortalSessionExpiredError) {
+      await rt.session.clearPortalSession();
+    } else if (await outcomeUnknownAndSessionDead(rt, error, session)) {
+      // No usable answer, and the session we presented is now refused: the
+      // change most likely went through and revoked it. Drop the dead cookie
+      // and let the customer log in again, new address first.
+      rt.logger.error(error, 'An e-mail change may have gone through without an answer');
+      await rt.session.clearPortalSession();
+      return reply(502, { ok: false, reason: 'unconfirmed' });
+    }
     const failure = emailChangeFailure(rt, error, 'An e-mail change could not be verified');
     return reply(failure.status, failure.body);
   }
 
   // The old cookie is dead upstream whatever happens next. A replacement this
-  // site cannot store (not the shape Medal issues) is a logged-out customer
-  // whose address DID change: drop the dead cookie and say both.
+  // site cannot store (not the shape Medal issues, or none at all) is a
+  // logged-out customer whose address DID change: drop the dead cookie and
+  // say both.
   try {
+    if (changed.sessionToken === null || changed.expiresAt === null) throw new Error('no session');
     await rt.session.writePortalSession(changed.sessionToken, changed.expiresAt);
   } catch {
     await rt.session.clearPortalSession();

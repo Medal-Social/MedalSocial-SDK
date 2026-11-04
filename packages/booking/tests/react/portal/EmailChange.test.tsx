@@ -274,6 +274,23 @@ describe('PortalEmailChange', () => {
     expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin);
   });
 
+  it('says the change probably went through and offers the login when the answer was lost', async () => {
+    fetchMock.mockImplementation((input) =>
+      String(input).endsWith('/email/start')
+        ? answer(200, { ok: true, to: 'k•••@e•••.com' })
+        : answer(502, { ok: false, reason: 'unconfirmed' })
+    );
+    render(<Subject />);
+    await openAndSend();
+    await screen.findByLabelText(label('otp.label'));
+    await enterCode('123456');
+
+    expect(await screen.findByText(label('emailChange.unconfirmedTitle'))).toBeInTheDocument();
+    expect(screen.getByText(/kari\.ny@example\.com/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: label('emailChange.login') }));
+    expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin);
+  });
+
   it.each([
     ['navigates (no answer)', () => Promise.resolve(null), null],
     ['session', () => Promise.resolve({ ok: false, reason: 'session' } as const), 'login'],

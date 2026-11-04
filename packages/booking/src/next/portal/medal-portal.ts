@@ -1086,7 +1086,7 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
     session: string,
     code: string,
     locale: PortalLocale = 'no'
-  ): Promise<{ email: string; sessionToken: string; expiresAt: number }> {
+  ): Promise<{ email: string; sessionToken: string | null; expiresAt: number | null }> {
     const path = `${EMAIL_CHANGE_PATH}/verify`;
     return withVippsLinkCall(session, [{ value: code, label: '<code>' }], async () => {
       let data: unknown;
@@ -1098,12 +1098,12 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
       const email = field(data, 'email');
       const sessionToken = field(data, 'session_token');
       const expiresAt = field(data, 'expires_at');
-      if (
-        typeof email !== 'string' ||
-        typeof sessionToken !== 'string' ||
-        typeof expiresAt !== 'number'
-      ) {
-        throw malformed(path);
+      if (typeof email !== 'string') throw malformed(path);
+      // A 200 that names the new address means the change HAPPENED (and the
+      // old session is revoked), even if the replacement is not usable: the
+      // route must hear that, not a «failed» it would show as a bad code.
+      if (typeof sessionToken !== 'string' || typeof expiresAt !== 'number') {
+        return { email, sessionToken: null, expiresAt: null };
       }
       return { email, sessionToken, expiresAt };
     });

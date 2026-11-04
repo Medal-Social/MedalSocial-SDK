@@ -40,7 +40,14 @@ type Failure =
   | { ok: false; reason: 'refused'; refusal: Refusal }
   | {
       ok: false;
-      reason: 'invalid' | 'session' | 'throttled' | 'unavailable' | 'unreachable' | 'forbidden';
+      reason:
+        | 'invalid'
+        | 'session'
+        | 'throttled'
+        | 'unavailable'
+        | 'unreachable'
+        | 'unconfirmed'
+        | 'forbidden';
     };
 
 type StartAnswer = { ok: true; to: string | null } | Failure;
@@ -49,7 +56,9 @@ type VerifyAnswer = { ok: true; email: string; signedIn: boolean } | Failure;
 type Step =
   | { kind: 'email' }
   | { kind: 'code'; email: string; to: string | null; sentAt: number }
-  | { kind: 'done'; email: string; signedIn: boolean };
+  | { kind: 'done'; email: string; signedIn: boolean }
+  /** The verify got no usable answer and the session is gone: probably changed. */
+  | { kind: 'unconfirmed'; email: string };
 
 /** POST `body` to `path`; a network failure or a non-JSON body is `unreachable`. */
 async function post<T>(path: string, body: unknown): Promise<T | Failure> {
@@ -152,7 +161,9 @@ export function PortalEmailChange({
   useEffect(() => {
     if (!open) return;
     const target =
-      step.kind === 'done' ? doneHeading.current : document.getElementById(`${id}-${step.kind}`);
+      step.kind === 'done' || step.kind === 'unconfirmed'
+        ? doneHeading.current
+        : document.getElementById(`${id}-${step.kind}`);
     target?.focus();
   }, [open, step, id]);
 
@@ -204,7 +215,7 @@ export function PortalEmailChange({
   }
 
   /** Only drawn on the code step. While a check runs the code is read-only and «Bekreft» disabled. */
-  function verify(value: string) {
+  function verify(value: string, email: string) {
     if (!/^\d{6}$/.test(value)) {
       setError(labelText(labels['emailChange.invalidCode']));
       return;
@@ -218,6 +229,10 @@ export function PortalEmailChange({
         return;
       }
       if (answer.reason === 'session') return toLogin();
+      if (answer.reason === 'unconfirmed') {
+        setStep({ kind: 'unconfirmed', email });
+        return;
+      }
       const text = failureText(labels, answer, labelText(labels['emailChange.invalidCode']));
       if (answer.reason === 'refused' && answer.refusal === 'email_taken') {
         // The code is spent and the address gone: back to the first step.
@@ -311,7 +326,7 @@ export function PortalEmailChange({
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  verify(code);
+                  verify(code, step.email);
                 }}
                 className="space-y-5"
               >
@@ -336,7 +351,7 @@ export function PortalEmailChange({
                       setCode(next);
                       if (error) setError(null);
                     }}
-                    onComplete={verify}
+                    onComplete={(value) => verify(value, step.email)}
                   />
                   <Field.Description>{labels['emailChange.codeHelp']}</Field.Description>
                 </Field>
@@ -379,6 +394,24 @@ export function PortalEmailChange({
                   </BookingButton>
                 </div>
               </form>
+            )}
+
+            {step.kind === 'unconfirmed' && (
+              <div className="space-y-5">
+                <Sheet.Title
+                  ref={doneHeading}
+                  tabIndex={-1}
+                  className="pe-10 font-sans text-2xl font-bold focus:outline-none"
+                >
+                  {labels['emailChange.unconfirmedTitle']}
+                </Sheet.Title>
+                <Sheet.Description id={ids.done}>
+                  {fill(labels['emailChange.unconfirmed'], { email: step.email })}
+                </Sheet.Description>
+                <BookingButton size="lg" className="w-full" onClick={toLogin}>
+                  {labels['emailChange.login']}
+                </BookingButton>
+              </div>
             )}
 
             {step.kind === 'done' && (

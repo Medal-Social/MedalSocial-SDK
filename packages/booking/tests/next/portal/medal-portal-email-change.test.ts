@@ -212,8 +212,18 @@ describe('verifyEmailChange', () => {
     expect(thrown.reason).toBe('email_taken');
   });
 
-  it('refuses a success without a usable session', async () => {
+  it('reports a success without a usable session as CHANGED, with no session', async () => {
     stubMedal({ status: 200, body: { data: { email: 'kari.ny@example.com' } } });
+
+    await expect(verifyEmailChange(SESSION, '123456')).resolves.toEqual({
+      email: 'kari.ny@example.com',
+      sessionToken: null,
+      expiresAt: null,
+    });
+  });
+
+  it('refuses a success that does not even name the address', async () => {
+    stubMedal({ status: 200, body: { data: { session_token: NEW_SESSION } } });
 
     await expect(verifyEmailChange(SESSION, '123456')).rejects.toMatchObject({
       code: 'NON_JSON_BODY',

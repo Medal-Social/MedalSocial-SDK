@@ -62,6 +62,9 @@ export interface PortalLabels {
   'emailChange.vippsRelinkButton': BookingLabel;
   /** The change went through but the new session could not be kept. */
   'emailChange.signedOut': BookingLabel;
+  /** The verify got no answer and the session is gone: the change probably went through. */
+  'emailChange.unconfirmedTitle': BookingLabel;
+  'emailChange.unconfirmed': BookingLabel;
   'emailChange.login': BookingLabel;
   'emailChange.finish': BookingLabel;
   'emailChange.close': BookingLabel;
@@ -116,6 +119,9 @@ export const PORTAL_LABELS_NB: PortalLabels = {
     'Vipps-innloggingen ble koblet fra da du byttet adresse. Koble til Vipps på nytt for å logge inn med ett trykk.',
   'emailChange.vippsRelinkButton': 'Koble til Vipps på nytt',
   'emailChange.signedOut': 'Logg inn igjen med den nye adressen.',
+  'emailChange.unconfirmedTitle': 'Logg inn på nytt',
+  'emailChange.unconfirmed':
+    'Vi fikk ikke svar på bekreftelsen, men du er logget ut – det betyr som regel at e-posten ble endret. Logg inn med {email}. Kommer det ingen kode dit, prøv den gamle adressen.',
   'emailChange.login': 'Logg inn',
   'emailChange.finish': 'Ferdig',
   'emailChange.close': 'Lukk',
@@ -175,6 +181,9 @@ export const PORTAL_LABELS_EN: PortalLabels = {
     'Changing your address disconnected your Vipps login. Reconnect Vipps to log in with a single tap.',
   'emailChange.vippsRelinkButton': 'Reconnect Vipps',
   'emailChange.signedOut': 'Please log in again with your new address.',
+  'emailChange.unconfirmedTitle': 'Log in again',
+  'emailChange.unconfirmed':
+    'We did not get an answer to the confirmation, but you have been logged out, which usually means the e-mail was changed. Log in with {email}. If no code arrives there, try your old address.',
   'emailChange.login': 'Log in',
   'emailChange.finish': 'Done',
   'emailChange.close': 'Close',
