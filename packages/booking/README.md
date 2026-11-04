@@ -79,6 +79,7 @@ its own values in.
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `contact` | `{ phone: null, address: null, name: '', mapsUrl: null }` | The business's own contact; `mapsUrl` is the booked screen's directions link (`null` searches a map for `address`) |
 | `policy` | `{ freeChangeHours: null }` | A change or cancellation is free until this many hours before; the booked screen and the desktop panel say so |
+| `details` | `{ emailRequired: false }` | `emailRequired`: no booking without an e-mail address, for a business that confirms and reminds by e-mail only. The details step marks the field required and refuses a blank address on submit (`details.email.required`), `canAdvance` holds the step, and `/create` answers 400 `invalidInput` (`contact.email is required`). Give `details.email.help` a sentence that does not call the field optional |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |
 | `screens` | every switch `false` | Opt-in screen features, below; nothing changes for a site that sets none |
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |
@@ -252,6 +253,16 @@ export const { GET, POST, DELETE } = booking.handler;
   a tagged result (`redirect`, `unavailable`, `ready`, …) and the page renders it.
 - **Server actions stay in the app.** `booking.portal.actions.*` are plain async
   functions; wrap each in a `'use server'` export and pass it to the components.
+- **Change e-mail on Min side.** `<PortalDashboard emailChange>` adds an
+  «E-post» row to the profile: the new address, then the six-digit code Medal
+  mails to it (`POST /api/portal/email/start` and `/email/verify` in the same
+  handler; needs a Medal with `/api/v1/portal/me/email/{start,verify}`).
+  Verifying replaces the session cookie with the one Medal minted (same
+  options as the login's) and never sends a token to the browser. Start
+  answers «sent» for a taken or undeliverable address too, so the code step
+  always says what to do when no code comes; a taken address is refused at
+  verify. A refusal (`unchanged`, `too_many_codes`, `code_invalid`,
+  `email_taken`) is a sentence, never a logout. Words: `emailChange.*`.
 - **Caches.** `edge` holds the booking seed (per location, a few ms); `data`
   holds services, stylists, hours and free slots. On Node use
   `memoryCacheAdapter()` for both. Every adapter keeps one contract

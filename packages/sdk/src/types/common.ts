@@ -44,8 +44,16 @@ export interface PaginatedResponse<T> {
  *   refused the order; see `OrderingRefusalCode` and `isOrderingRefusal()`.
  * - `INVALID_TRANSITION` (409) — `ordering.orders.cancel()` on an order the
  *   restaurant already answered; `details.status` is its status now.
+ * - `QUOTE_TIMEOUT` (504) — `delivery.quotes.create()` gave up waiting for
+ *   Wolt; ask again. `NOT_DELIVERABLE` / `ADDRESS_NOT_DELIVERABLE` (422) —
+ *   Wolt will not deliver there; offer takeaway instead.
  */
 export type MedalErrorCode =
+  | "ADDRESS_LIMIT"
+  | "ADDRESS_LOOKUP_UNAVAILABLE"
+  | "ADDRESS_NOT_DELIVERABLE"
+  | "ADDRESS_NOT_FOUND"
+  | "ADDRESS_NOT_VERIFIED"
   | "AI_GENERATION_FAILED"
   | "AI_QUOTA_EXCEEDED"
   | "CAPABILITY_API_PATH_INVALID"
@@ -66,6 +74,9 @@ export type MedalErrorCode =
   | "CONTACT_NOT_FOUND"
   | "CONVERSATION_NOT_LINKABLE"
   | "CUTOFF"
+  | "DELIVERY_NOT_SET_UP"
+  | "DELIVERY_PAUSED"
+  | "FAVOURITE_LIMIT"
   | "FORBIDDEN"
   | "GRANT_NOT_FOUND"
   | "IDEMPOTENCY_CONFLICT"
@@ -79,8 +90,10 @@ export type MedalErrorCode =
   | "INVALID_INPUT"
   | "INVALID_OAUTH_RESOURCE"
   | "INVALID_OPTIONS"
+  | "INVALID_REQUEST"
   | "INVALID_RETURN_URL"
   | "INVALID_TRANSITION"
+  | "NOT_DELIVERABLE"
   | "NOT_FOUND"
   | "ORDERING_LOCATION_NOT_FOUND"
   | "ORDERING_NOT_ENABLED"
@@ -94,15 +107,22 @@ export type MedalErrorCode =
   | "PORTAL_SESSION_REQUIRED"
   | "PREORDER_DISABLED"
   | "PREVIEW_RECEIPT_REQUIRED"
+  | "PRODUCT_NOT_FOUND"
+  | "QUOTE_EXPIRED"
+  | "QUOTE_NOT_USABLE"
+  | "QUOTE_TIMEOUT"
   | "RATE_LIMITED"
   | "RETURN_URL_NOT_ALLOWED"
+  | "SAVED_ADDRESS_NOT_FOUND"
   | "SEND_FAILED"
+  | "SLOT_TAKEN"
   | "SOLD_OUT"
   | "TABLE_NOT_FOUND"
   | "UNAUTHORIZED"
   | "UNAVAILABLE"
   | "UPSTREAM_UNAVAILABLE"
   | "VALIDATION_ERROR"
+  | "VENUE_UNAVAILABLE"
   | "VIPPS_IDENTITY_CONFLICT"
   | "VIPPS_NOT_CONFIGURED"
   /** The SDK's own code for a response that carried no structured error. */

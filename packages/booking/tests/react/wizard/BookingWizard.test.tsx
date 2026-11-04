@@ -3682,6 +3682,58 @@ describe('step motion', () => {
  * e-mail, two equal buttons — and the form only once they are, with the
  * address they logged in with locked.
  */
+describe('BookingWizard with details.emailRequired', () => {
+  const OPEN_AT_ONE = { slots: { [GUTTEKLIPP.id]: [slot(2, 13, SARA.id)] } };
+
+  async function toDetails(user: ReturnType<typeof userEvent.setup>) {
+    await pickGutteklipp(user);
+    await takeFirstAvailable(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+  }
+
+  it('leaves the address optional without the rule', async () => {
+    stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard();
+    await toDetails(user);
+    expect(screen.getByLabelText('E-post')).not.toBeRequired();
+  });
+
+  it('refuses a blank address, says why and books nothing', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ emailRequired: true });
+    await toDetails(user);
+
+    const email = screen.getByLabelText('E-post');
+    expect(email).toBeRequired();
+    expect(email).toHaveAttribute('aria-required', 'true');
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    expect(email).toHaveFocus();
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    expect(
+      screen.getByText('Skriv inn e-postadressen din – bekreftelsen og påminnelsen kommer dit.')
+    ).toBeInTheDocument();
+    expect(bodies).toHaveLength(0);
+  });
+
+  it('books once the address is there', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ emailRequired: true });
+    await toDetails(user);
+
+    await user.type(screen.getByLabelText('E-post'), 'kari@example.no');
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    expect(bodies[0]).toMatchObject({ contact: { email: 'kari@example.no' } });
+  });
+});
+
 describe('BookingWizard with account.required', () => {
   const KARI = {
     firstName: 'Kari',

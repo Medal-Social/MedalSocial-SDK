@@ -160,6 +160,14 @@ export interface BookingConfig {
    */
   account: { required: boolean };
   /**
+   * The details step's own rules. `emailRequired`: a booking needs an e-mail
+   * address, for a business that sends its confirmation and reminder by e-mail
+   * only — the form refuses a blank one (`details.email.required`) and
+   * `/create` answers 400 `invalidInput` without a valid one. Default `false`:
+   * the address is optional.
+   */
+  details: { emailRequired: boolean };
+  /**
    * Opt-in screen features, all off by default so a site's wizard only
    * changes when it asks:
    * - `recap` — the details step opens with what is being booked (day, hours,
@@ -304,6 +312,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
     policy: { freeChangeHours: null },
     portal: { enabled: false, methods: ['email_code'], cookieName: 'booking_portal' },
     account: { required: false },
+    details: { emailRequired: false },
     screens: {
       recap: false,
       soonest: false,
@@ -516,6 +525,7 @@ const schema = z
       returnPaths: z.object({ exact: z.array(path), prefixes: z.array(prefix) }),
     }),
     account: z.object({ required: z.boolean() }),
+    details: z.object({ emailRequired: z.boolean() }),
     screens: z.object({
       recap: z.boolean(),
       soonest: z.boolean(),

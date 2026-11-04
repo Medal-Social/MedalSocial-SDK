@@ -1570,3 +1570,64 @@ describe('POST /api/booking/create — a visit of several services', () => {
     ]);
   });
 });
+
+describe('POST /api/booking/create — details.emailRequired', () => {
+  const emailRequired = testRuntime(
+    {
+      medal: { createBooking, recordConsent } as never,
+      catalogue: { expireSlots, cachedAvailability } as never,
+      seed: { expireBookingSeeds } as never,
+      session: { readPortalSession: portal.readPortalSession } as never,
+      portal: { getMe: portal.getMe } as never,
+    },
+    {
+      logger: testLogger(),
+      config: { ...PARITY_CONFIG, details: { emailRequired: true } },
+    }
+  );
+  const POST_REQUIRED = (req: Request) => createRoute(emailRequired, req);
+
+  it.each([
+    ['absent', undefined],
+    ['blank', '   '],
+    ['not a string', 42],
+  ])('refuses 400 invalidInput when the address is %s, booking nothing', async (_, email) => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', name: 'Kari', email } })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalidInput',
+      message: 'contact.email is required',
+    });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('still names a malformed address as malformed', async () => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', email: 'kari@' } })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'invalidInput',
+      message: 'contact.email is not a valid address',
+    });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('books with an address, trimmed', async () => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', email: ' kari@example.no ' } })
+    );
+
+    expect(response.status).toBe(201);
+    expect(submittedBody().contact.email).toBe('kari@example.no');
+  });
+
+  it('leaves the address optional without the rule', async () => {
+    const response = await POST(nonceRequest({ contact: { phone: '40000000' } }));
+    expect(response.status).toBe(201);
+  });
+});

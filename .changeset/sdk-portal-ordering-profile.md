@@ -1,0 +1,5 @@
+---
+"@medalsocial/sdk": minor
+---
+
+Add `medal.portal.ordering` for a logged-in customer's restaurant ordering profile: `preferences.get()` / `preferences.update()` (allergy note, cutlery and contactless defaults, favourites, marketing consent), `addresses.add()` / `addresses.remove()` (saved delivery addresses), `favourites.add()` / `favourites.remove()`, and `orders.list()` (the last 10 orders) / `orders.reorder()` (an old order rebuilt as a cart on today's menu, with the lines that cannot be ordered again in `dropped`). Session first and sent as `X-Portal-Session`, like the rest of `medal.portal`; also bound as `medal.portal.session(token).ordering`. `ordering.orders.create()` takes `portalSession` to place the order for the logged-in customer, `preferences.cutlery` is now optional, and the body gains `preferences.include_allergy_note` and `saved_address_id`. `OrderingRefusalCode` gains `SAVED_ADDRESS_NOT_FOUND`; `MedalErrorCode` gains `ADDRESS_LIMIT`, `ADDRESS_NOT_FOUND`, `ADDRESS_NOT_VERIFIED`, `FAVOURITE_LIMIT`, `PRODUCT_NOT_FOUND` and `SAVED_ADDRESS_NOT_FOUND`.
