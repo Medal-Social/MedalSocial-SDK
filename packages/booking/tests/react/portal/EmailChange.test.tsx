@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -20,6 +20,9 @@ const label = (key: keyof typeof TEST_LABELS) => {
   const value = TEST_LABELS[key];
   return typeof value === 'string' ? value : (value ?? []).join('');
 };
+
+// Two round trips and a sheet per test: give slow (coverage) runs room.
+configure({ asyncUtilTimeout: 4000 });
 
 const API = PARITY_CONFIG.paths.portalApi;
 const fetchMock = vi.fn<(input: string, init: RequestInit) => Promise<Response>>();
@@ -52,8 +55,10 @@ async function openAndSend(address = 'kari.ny@example.com') {
   fireEvent.click(screen.getByRole('button', { name: label('emailChange.send') }));
 }
 
-function enterCode(code: string) {
-  const input = screen.getByLabelText(label('otp.label'));
+/** Types once the field takes input: it is read-only while a request is still settling. */
+async function enterCode(code: string) {
+  const input = await screen.findByLabelText(label('otp.label'));
+  await waitFor(() => expect(input).not.toHaveAttribute('readonly'));
   fireEvent.change(input, { target: { value: code } });
 }
 
@@ -99,7 +104,7 @@ describe('PortalEmailChange', () => {
     expect(screen.getByText(label('emailChange.noCode'))).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText(label('otp.label'))).toHaveFocus());
 
-    enterCode('007123');
+    await enterCode('007123');
 
     expect(
       await screen.findByText(
@@ -123,7 +128,7 @@ describe('PortalEmailChange', () => {
     render(<Subject vippsLinked />);
     await openAndSend();
     await screen.findByLabelText(label('otp.label'));
-    enterCode('007123');
+    await enterCode('007123');
 
     expect(await screen.findByText(label('emailChange.vippsRelink'))).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: label('emailChange.vippsRelinkButton') }));
@@ -139,7 +144,7 @@ describe('PortalEmailChange', () => {
     render(<Subject />);
     await openAndSend();
     await screen.findByLabelText(label('otp.label'));
-    enterCode('000000');
+    await enterCode('000000');
 
     expect(await screen.findByText(label('emailChange.refused.code_invalid'))).toBeInTheDocument();
     expect(screen.getByLabelText(label('otp.label'))).toBeInTheDocument();
@@ -155,7 +160,7 @@ describe('PortalEmailChange', () => {
     render(<Subject />);
     await openAndSend();
     await screen.findByLabelText(label('otp.label'));
-    enterCode('123456');
+    await enterCode('123456');
 
     expect(
       await screen.findByText(
@@ -197,6 +202,120 @@ describe('PortalEmailChange', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin));
   });
 
+  it.each([
+    ['throttled', 429, 'emailChange.throttled'],
+    ['unavailable', 503, 'emailChange.unavailable'],
+    ['unreachable', 503, 'emailChange.unreachable'],
+    ['invalid', 400, 'emailChange.invalidEmail'],
+  ] as const)('says why a start answered %s', async (reason, status, key) => {
+    fetchMock.mockImplementation(() => answer(status, { ok: false, reason }));
+    render(<Subject />);
+    await openAndSend();
+
+    expect(await screen.findByText(label(key))).toBeInTheDocument();
+  });
+
+  it('is «unreachable» when the request fails or answers something else', async () => {
+    fetchMock.mockImplementationOnce(() => Promise.reject(new TypeError('offline')));
+    render(<Subject />);
+    await openAndSend();
+    expect(await screen.findByText(label('emailChange.unreachable'))).toBeInTheDocument();
+
+    fetchMock.mockImplementationOnce(() => answer(502, ['not', 'an', 'answer']));
+    const send = screen.getByRole('button', { name: label('emailChange.send') });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(screen.getByText(label('emailChange.unreachable'))).toBeInTheDocument();
+  });
+
+  it('asks for six digits before checking a short code', async () => {
+    render(<Subject />);
+    await openAndSend();
+    await screen.findByLabelText(label('otp.label'));
+    await enterCode('123');
+    fireEvent.click(screen.getByRole('button', { name: label('emailChange.confirm') }));
+
+    expect(await screen.findByText(label('emailChange.invalidCode'))).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Typing again clears the sentence.
+    await enterCode('1234');
+    expect(screen.queryByText(label('emailChange.invalidCode'))).not.toBeInTheDocument();
+  });
+
+  it('sends a session that died before verify to the login', async () => {
+    fetchMock.mockImplementation((input) =>
+      String(input).endsWith('/email/start')
+        ? answer(200, { ok: true, to: null })
+        : answer(401, { ok: false, reason: 'session' })
+    );
+    render(<Subject />);
+    await openAndSend();
+    expect(await screen.findByText(label('emailChange.sentToUnknown'))).toBeInTheDocument();
+    await enterCode('123456');
+
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin));
+  });
+
+  it('asks for a fresh login when the new session could not be kept', async () => {
+    fetchMock.mockImplementation((input) =>
+      String(input).endsWith('/email/start')
+        ? answer(200, { ok: true, to: 'k•••@e•••.com' })
+        : answer(200, { ok: true, email: 'kari.ny@example.com', signedIn: false })
+    );
+    render(<Subject vippsLinked />);
+    await openAndSend();
+    await screen.findByLabelText(label('otp.label'));
+    await enterCode('123456');
+
+    expect(await screen.findByText(label('emailChange.signedOut'))).toBeInTheDocument();
+    expect(screen.queryByText(label('emailChange.vippsRelink'))).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: label('emailChange.login') }));
+    expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin);
+  });
+
+  it.each([
+    ['navigates (no answer)', () => Promise.resolve(null), null],
+    ['session', () => Promise.resolve({ ok: false, reason: 'session' } as const), 'login'],
+    ['throws', () => Promise.reject(new Error('boom')), 'emailChange.unreachable'],
+  ] as const)('reconnecting Vipps when the start %s', async (_name, result, outcome) => {
+    startVippsLink.mockImplementation(result as () => Promise<VippsLinkStartResult>);
+    render(<Subject vippsLinked />);
+    await openAndSend();
+    await screen.findByLabelText(label('otp.label'));
+    await enterCode('123456');
+    fireEvent.click(
+      await screen.findByRole('button', { name: label('emailChange.vippsRelinkButton') })
+    );
+    await waitFor(() => expect(startVippsLink).toHaveBeenCalled());
+
+    if (outcome === 'login') {
+      await waitFor(() =>
+        expect(router.push).toHaveBeenCalledWith(PARITY_CONFIG.paths.portalLogin)
+      );
+    } else if (outcome === null) {
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: label('emailChange.vippsRelinkButton') })
+        ).toBeEnabled()
+      );
+      expect(screen.queryByText(label('emailChange.unreachable'))).not.toBeInTheDocument();
+    } else {
+      expect(await screen.findByText(label(outcome))).toBeInTheDocument();
+    }
+  });
+
+  it('closes on its own button and starts over next time', async () => {
+    render(<Subject />);
+    await openAndSend();
+    await screen.findByLabelText(label('otp.label'));
+    fireEvent.click(screen.getByRole('button', { name: label('emailChange.close') }));
+    expect(router.refresh).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: label('emailChange.buttonLabel') }));
+    expect(await screen.findByLabelText(label('emailChange.newEmail'))).toHaveValue('');
+  });
+
   it('offers a new code only after the delay, and a way back to the address', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<Subject />);
@@ -215,7 +334,11 @@ describe('PortalEmailChange', () => {
     expect(await screen.findByText(label('emailChange.resent'))).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: label('emailChange.otherAddress') }));
-    expect(screen.getByLabelText(label('emailChange.newEmail'))).toHaveValue('kari.ny@example.com');
+    const back = screen.getByRole('button', { name: label('emailChange.otherAddress') });
+    await waitFor(() => expect(back).toBeEnabled());
+    fireEvent.click(back);
+    expect(await screen.findByLabelText(label('emailChange.newEmail'))).toHaveValue(
+      'kari.ny@example.com'
+    );
   });
 });

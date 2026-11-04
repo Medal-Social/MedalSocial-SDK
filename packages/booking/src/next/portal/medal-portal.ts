@@ -1038,7 +1038,7 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
     if (!(error instanceof MedalApiError)) throw error;
     // Read before the dead-session guard, which narrows `error` away.
     const { code, status, message } = error;
-    const reason = (error.details as { reason?: unknown } | undefined)?.reason;
+    const reason = field(error.details, 'reason');
     const missing = isMissingRoute(error);
     // Left for `withVippsLinkCall`, which maps it to `PortalSessionExpiredError`.
     if (isDeadSession(error)) throw error;

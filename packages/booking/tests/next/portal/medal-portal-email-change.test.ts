@@ -141,6 +141,19 @@ describe('startEmailChange', () => {
     );
   });
 
+  it('rethrows a failure that is not an answer from Medal (no network)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError(`fetch failed for ${SESSION}`);
+      })
+    );
+
+    const thrown = await startEmailChange(SESSION, 'a@b.no').catch((e) => e);
+    expect(thrown).toBeInstanceOf(TypeError);
+    expect(String(thrown.message)).not.toContain(SESSION);
+  });
+
   it('keeps the session out of an unexpected failure', async () => {
     stubMedal(error(500, 'INTERNAL'));
 

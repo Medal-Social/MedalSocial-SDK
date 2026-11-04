@@ -203,8 +203,8 @@ export function PortalEmailChange({
     sendCode(trimmed, false);
   }
 
+  /** Only drawn on the code step. While a check runs the code is read-only and «Bekreft» disabled. */
   function verify(value: string) {
-    if (step.kind !== 'code' || pending) return;
     if (!/^\d{6}$/.test(value)) {
       setError(labelText(labels['emailChange.invalidCode']));
       return;
@@ -229,11 +229,10 @@ export function PortalEmailChange({
     });
   }
 
-  function reconnectVipps() {
-    if (!startVippsLink) return;
+  function reconnectVipps(start: NonNullable<PortalActions['startVippsLink']>) {
     startVipps(async () => {
       // On success this navigates to Vipps and never answers.
-      const answer = await startVippsLink(null).catch(() => ({
+      const answer = await start(null).catch(() => ({
         ok: false as const,
         reason: 'unavailable' as const,
       }));
@@ -412,7 +411,7 @@ export function PortalEmailChange({
                         className="w-full"
                         disabled={vippsPending}
                         aria-busy={vippsPending || undefined}
-                        onClick={reconnectVipps}
+                        onClick={() => reconnectVipps(startVippsLink)}
                       >
                         {labels['emailChange.vippsRelinkButton']}
                       </BookingButton>
