@@ -394,7 +394,8 @@ describe('Checkout', () => {
     expect(screen.getByLabelText('Tidspunkt')).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
     expect(loadSlots).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('Henter ledige tider …')).toBeInTheDocument();
+    // The button is gone while it reads: focus is on the line that says how it went.
+    expect(screen.getByText('Henter ledige tider …')).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Prøv igjen' })).toBeNull();
     await act(async () => pending[1]?.ok([]));
     // An answer with no times is a full day, and offers nothing to retry.

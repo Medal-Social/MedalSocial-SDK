@@ -289,6 +289,10 @@ export function Checkout({
   }, [placing]);
   const fields = useRef<Partial<Record<keyof FieldErrors, HTMLElement | null>>>({});
   const failureRef = useRef<HTMLParagraphElement>(null);
+  // A retry button unmounts while it reads again: focus moves to the line that
+  // announces the result, not to the top of the page.
+  const slotHintRef = useRef<HTMLParagraphElement>(null);
+  const quoteStatusRef = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsTick` is the read-again signal.
   useEffect(() => {
@@ -662,6 +666,8 @@ export function Checkout({
                   </select>
                   <p
                     id={`${id}-slot-hint`}
+                    ref={slotHintRef}
+                    tabIndex={-1}
                     aria-live="polite"
                     className={
                       slots === 'failed'
@@ -680,7 +686,10 @@ export function Checkout({
                   {slots === 'failed' ? (
                     <button
                       type="button"
-                      onClick={() => setSlotsTick((t) => t + 1)}
+                      onClick={() => {
+                        slotHintRef.current?.focus();
+                        setSlotsTick((t) => t + 1);
+                      }}
                       className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
                     >
                       {labels.slotsRetry}
@@ -702,7 +711,12 @@ export function Checkout({
                   locale={locale}
                   labels={overrides}
                 />
-                <div aria-live="polite" className="flex flex-col gap-1">
+                <div
+                  ref={quoteStatusRef}
+                  tabIndex={-1}
+                  aria-live="polite"
+                  className="flex flex-col gap-1"
+                >
                   {usable !== null ? (
                     <>
                       <p className="font-medium">
@@ -738,7 +752,10 @@ export function Checkout({
                 RETRY.has(quoteError.code) ? (
                   <button
                     type="button"
-                    onClick={() => setQuoteTick((t) => t + 1)}
+                    onClick={() => {
+                      quoteStatusRef.current?.focus();
+                      setQuoteTick((t) => t + 1);
+                    }}
                     className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
                   >
                     {labels.deliveryRetry}
