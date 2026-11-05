@@ -7,7 +7,7 @@
  * Presentational and controlled: the page resolves the draft against the
  * menu (`resolveCart`) and passes the draft store's mutators in.
  */
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef } from 'react';
 import type { DroppedLine, ResolvedCart } from '../core/cart';
 import { MAX_QUANTITY } from '../core/draft-store';
 import { createMoney, type Money } from '../core/money';
@@ -48,26 +48,34 @@ export function CartList({
   const defaultMoney = useMemo(() => createMoney({ locale }), [locale]);
   const money = moneyProp ?? defaultMoney;
   const id = useId();
-  // «Fjern» unmounts its own line: focus moves to the next line's «Fjern» (the
-  // previous one for the last line, the heading for the last dish) instead of
-  // falling to the top of the page.
+  // «Fjern» unmounts its own line: focus moves to the nearest «Fjern» still in
+  // the cart, after the removed line first and then before it, or to the
+  // heading once the cart is empty, instead of falling to the top of the page.
+  // The move belongs to the update that carries the tap out: a page that keeps
+  // the line (or removes it later, asynchronously) gets no move, so a line that
+  // leaves the cart for another reason never pulls focus.
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
   const heading = useRef<HTMLHeadingElement>(null);
-  const focusAfterRemove = useRef<{ removed: string; next: string | null } | null>(null);
+  const focusAfterRemove = useRef<{ removed: string; order: string[] } | null>(null);
   const lineIds = cart.lines.map(({ line }) => line.lineId).join(' ');
   // biome-ignore lint/correctness/useExhaustiveDependencies: `lineIds` is the re-render that removed the line.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const pending = focusAfterRemove.current;
     if (pending === null || removeButtons.current.has(pending.removed)) return;
     focusAfterRemove.current = null;
-    const target = pending.next === null ? null : removeButtons.current.get(pending.next);
+    const at = pending.order.indexOf(pending.removed);
+    const nearest = [...pending.order.slice(at + 1), ...pending.order.slice(0, at).reverse()];
+    const target = nearest.map((lineId) => removeButtons.current.get(lineId)).find(Boolean);
     (target ?? heading.current)?.focus();
   }, [lineIds]);
   const remove = (lineId: string) => {
-    const ids = cart.lines.map(({ line }) => line.lineId);
-    const at = ids.indexOf(lineId);
-    focusAfterRemove.current = { removed: lineId, next: ids[at + 1] ?? ids[at - 1] ?? null };
+    const pending = { removed: lineId, order: cart.lines.map(({ line }) => line.lineId) };
+    focusAfterRemove.current = pending;
     onRemove?.(lineId);
+    // The page's own update has rendered by now; a move it did not use expires.
+    setTimeout(() => {
+      if (focusAfterRemove.current === pending) focusAfterRemove.current = null;
+    }, 0);
   };
 
   return (

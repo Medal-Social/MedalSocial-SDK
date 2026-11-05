@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -124,6 +124,60 @@ describe('CartList', () => {
     const remove = screen.getByRole('button', { name: 'Fjern Water' });
     await user.click(remove);
     expect(remove).toHaveFocus();
+  });
+
+  it('moves focus to the nearest remaining line when one tap removes several', async () => {
+    const user = userEvent.setup();
+    const three = [
+      line('a', 'water', 1),
+      line('b', 'burger', 1, { size: ['large'] }),
+      line('c', 'water', 2),
+    ];
+    function Harness() {
+      const [lines, setLines] = useState(three);
+      // The page drops the tapped line and everything after it.
+      return (
+        <CartList
+          cart={resolveCart(MENU, lines)}
+          onRemove={(id) =>
+            setLines((all) =>
+              all.slice(
+                0,
+                all.findIndex((l) => l.lineId === id)
+              )
+            )
+          }
+        />
+      );
+    }
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Fjern Burger' }));
+    expect(screen.getByRole('button', { name: 'Fjern Water' })).toHaveFocus();
+  });
+
+  it('forgets a removal the page did not carry out', async () => {
+    const user = userEvent.setup();
+    const two = [line('a', 'water', 1), line('b', 'burger', 1, { size: ['large'] })];
+    let drop: (id: string) => void = () => {};
+    function Harness() {
+      const [lines, setLines] = useState(two);
+      drop = (id) => setLines((all) => all.filter((l) => l.lineId !== id));
+      // A refused or cancelled removal: the page keeps the line.
+      return <CartList cart={resolveCart(MENU, lines)} onRemove={() => {}} />;
+    }
+    render(
+      <>
+        <Harness />
+        <input aria-label="Elsewhere" />
+      </>
+    );
+    await user.click(screen.getByRole('button', { name: 'Fjern Burger' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const elsewhere = screen.getByLabelText('Elsewhere');
+    elsewhere.focus();
+    // Later the dish leaves the cart for another reason: focus stays put.
+    await act(async () => drop('b'));
+    expect(elsewhere).toHaveFocus();
   });
 
   it('removes without a stepper, and steps without a remove button', () => {
