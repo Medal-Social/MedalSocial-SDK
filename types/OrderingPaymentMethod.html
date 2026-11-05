@@ -11,10 +11,12 @@
 <li><a href="" aria-current="page">OrderingPaymentMethod</a></li></ul>
 <h1>Type Alias OrderingPaymentMethod</h1></div>
 <div class="tsd-signature"><span class="tsd-kind-type-alias">OrderingPaymentMethod</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Schemas</span><span class="tsd-signature-symbol">[</span><span class="tsd-signature-type">&quot;OrderingPaymentMethod&quot;</span><span class="tsd-signature-symbol">]</span></div>
-<div class="tsd-comment tsd-typography"><p>How the guest pays. Only <code>pay_at_counter</code> is accepted for now.</p>
+<div class="tsd-comment tsd-typography"><p>How the guest pays: <code>pay_at_counter</code> (no <code>return_url</code>) or <code>vipps</code>, which
+needs a <code>return_url</code> on one of the workspace's sites and answers with
+<code>status: 'awaiting_payment'</code> and the <code>payment.redirect_url</code> to send the guest to.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/f1746102f491668f13b81df004553c059f38a31f/packages/sdk/src/types/ordering.ts#L127">packages/sdk/src/types/ordering.ts:127</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/5433e67610933b4ff7efc91563acbba25bb217f5/packages/sdk/src/types/ordering.ts#L131">packages/sdk/src/types/ordering.ts:131</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

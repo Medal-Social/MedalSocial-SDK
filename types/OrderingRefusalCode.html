@@ -10,15 +10,19 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="" aria-current="page">OrderingRefusalCode</a></li></ul>
 <h1>Type Alias OrderingRefusalCode</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">OrderingRefusalCode</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CLOSED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CUTOFF&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CHANNEL_NOT_AVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PREORDER_DISABLED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;TABLE_NOT_FOUND&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;SOLD_OUT&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;UNAVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_OPTIONS&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_CART&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PAYMENT_METHOD_NOT_ALLOWED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PAYMENT_UNAVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;RETURN_URL_NOT_ALLOWED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_CUSTOMER&quot;</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">OrderingRefusalCode</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CLOSED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CUTOFF&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;CHANNEL_NOT_AVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PREORDER_DISABLED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;SLOT_TAKEN&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;TABLE_NOT_FOUND&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;SOLD_OUT&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;UNAVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_OPTIONS&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_CART&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PAYMENT_METHOD_NOT_ALLOWED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;PAYMENT_UNAVAILABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;RETURN_URL_NOT_ALLOWED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;INVALID_CUSTOMER&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;QUOTE_NOT_USABLE&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;QUOTE_EXPIRED&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;SAVED_ADDRESS_NOT_FOUND&quot;</span></div>
 <div class="tsd-comment tsd-typography"><p>The <code>422</code> codes <code>ordering.orders.create()</code> refuses an order with. Narrow a
 caught error with <code>isOrderingRefusal()</code> and show your own copy per code;
 the API's <code>message</code> is plain English for logs.</p>
 <ul>
 <li><code>CLOSED</code> — the channel is not open; <code>details.reason</code> is the channel state reason.</li>
 <li><code>CUTOFF</code> — past the last order time.</li>
-<li><code>CHANNEL_NOT_AVAILABLE</code> — the channel is not offered (delivery, for now).</li>
-<li><code>PREORDER_DISABLED</code> — scheduled timing is not offered (for now).</li>
+<li><code>CHANNEL_NOT_AVAILABLE</code> — the channel is not offered.</li>
+<li><code>PREORDER_DISABLED</code> — the location takes no pre-orders (<code>preorder_days</code> 0).</li>
+<li><code>SLOT_TAKEN</code> — a pre-order's slot has gone by or is inside the prep time
+(a delivery slot under 1 h ahead): pick another from <code>slots()</code>. A slot
+the location does not offer is <code>CLOSED</code> (<code>details.reason</code> <code>closed</code>,
+<code>paused</code> or <code>too_far</code>).</li>
 <li><code>TABLE_NOT_FOUND</code> — dine-in without a valid <code>table_token</code> at this location.</li>
 <li><code>SOLD_OUT</code>, <code>UNAVAILABLE</code> — <code>details.ids</code> are the product and option ids.</li>
 <li><code>INVALID_OPTIONS</code> — <code>details.line_index</code> is the line at fault.</li>
@@ -26,11 +30,16 @@ the API's <code>message</code> is plain English for logs.</p>
 <li><code>PAYMENT_METHOD_NOT_ALLOWED</code> — the location does not take this payment method.</li>
 <li><code>PAYMENT_UNAVAILABLE</code> — Vipps: the workspace has no Vipps of its own, or the total is under 1 kr.</li>
 <li><code>RETURN_URL_NOT_ALLOWED</code> — Vipps: <code>return_url</code> missing or not on one of the workspace's sites.</li>
-<li><code>INVALID_CUSTOMER</code> — <code>details.reason</code> is <code>name</code>, <code>phone</code>, <code>email</code> or <code>allergy_note</code>.</li>
+<li><code>INVALID_CUSTOMER</code> — <code>details.reason</code> is <code>name</code>, <code>phone</code>, <code>email</code>, <code>allergy_note</code>,
+or for delivery <code>floor</code>, <code>door_code</code> or <code>delivery_comment</code>.</li>
+<li><code>QUOTE_NOT_USABLE</code> — delivery: the quote is not for this workspace, venue,
+address or the cart's fee band; ask for a new price.</li>
+<li><code>QUOTE_EXPIRED</code> — delivery: the quote runs out within a minute; ask for a new price.</li>
+<li><code>SAVED_ADDRESS_NOT_FOUND</code> — <code>saved_address_id</code> is not on the logged-in customer's profile.</li>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/f1746102f491668f13b81df004553c059f38a31f/packages/sdk/src/types/ordering.ts#L203">packages/sdk/src/types/ordering.ts:203</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/5433e67610933b4ff7efc91563acbba25bb217f5/packages/sdk/src/types/ordering.ts#L252">packages/sdk/src/types/ordering.ts:252</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
