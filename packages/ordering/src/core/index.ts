@@ -1,22 +1,69 @@
 /**
  * `@medalsocial/ordering/core` — the framework-free rules behind a Medal
  * ordering site: money in øre, table and channel links, the cart draft, the
- * modifier rules, the hours engine (channel state and slots, the Medal API's
- * own), the allergen/dietary labels and the components' words
+ * modifier rules, the cart check and checkout's details check (the Medal
+ * API's own), delivery's quote freshness and lookup session, the order status words, the hours engine (channel state and
+ * slots, the Medal API's own), the allergen/dietary labels and the components' words
  * (`ORDERING_LABELS`, server-safe). No React, Next or
  * `server-only`; runs in a browser, Node or a Worker.
  */
 
 export type {
+  DeliveryAddressSuggestion,
+  DeliveryQuote,
+  DeliveryResolvedAddress,
   OrderingAllergen,
   OrderingChannel,
+  OrderingCustomerOrder,
+  OrderingDeliveryInput,
   OrderingDietary,
+  OrderingLocation,
+  OrderingLocations,
   OrderingMenu,
   OrderingMenuCategory,
   OrderingMenuItem,
   OrderingModifierGroup,
   OrderingModifierOption,
+  OrderingOrderCreated,
+  OrderingOrderLineInput,
+  OrderingOrderStatus,
+  OrderingOrderStatusView,
+  OrderingPaymentMethod,
+  OrderingSlot,
+  OrderingSlots,
+  OrderingTable,
 } from '@medalsocial/sdk';
+export {
+  CART_LIMITS,
+  type CartCheck,
+  type CartLine,
+  checkCart,
+  type DroppedLine,
+  type DroppedReason,
+  type ResolvedCart,
+  resolveCart,
+  toOrderLine,
+} from './cart';
+export {
+  CUSTOMER_LIMITS,
+  type CustomerField,
+  checkCustomer,
+  isPhoneNumber,
+  type OrderingRouteError,
+  type OrderingRouteErrorCode,
+  type PlaceOrderBase,
+  type PlaceOrderRequest,
+} from './checkout';
+export {
+  type AddressQuery,
+  fetchAddressSuggestions,
+  fetchOrderStatus,
+  type PlaceOrderOptions,
+  placeOrder,
+  type RouteResult,
+  requestDeliveryQuote,
+  resolveAddress,
+} from './client';
 export {
   type BuildOrderLinkInput,
   buildOrderLink,
@@ -28,6 +75,18 @@ export {
   parseTable,
   TABLE_QUERY_KEY,
 } from './deep-link';
+export {
+  checkDelivery,
+  DELIVERY_LIMITS,
+  type DeliveryDetails,
+  type DeliveryField,
+  deliveryFeeOre,
+  newLookupSession,
+  QUOTE_REFRESH_MARGIN_MS,
+  type QuoteFreshness,
+  quoteNeedsRefresh,
+  quoteRefreshDelay,
+} from './delivery';
 export {
   createDraftStore,
   DRAFT_MAX_AGE_MS,
@@ -44,6 +103,7 @@ export {
   newIdempotencyKey,
   type OrderDraft,
 } from './draft-store';
+export { refusalMessage } from './errors';
 export {
   addIsoDays,
   type Channel as EngineChannel,
@@ -70,6 +130,7 @@ export {
   ALLERGEN_LABELS,
   allergenLabel,
   DIETARY_LABELS,
+  deliveryWindowLabel,
   dietaryLabel,
   type LabelLocale,
   type LabelSet,
@@ -87,4 +148,14 @@ export {
   validateSelections,
 } from './modifiers';
 export { createMoney, formatOre, type Money, type MoneyOptions } from './money';
+export { openingLine } from './opening';
+export {
+  isFinalStatus,
+  isUnsuccessfulStatus,
+  ORDER_STATUS_LABELS,
+  ORDER_STEPS,
+  orderStatusLabel,
+  orderStepIndex,
+  STATUS_POLL_MS,
+} from './status';
 export { fill, mergeLabels, ORDERING_LABELS, type OrderingLabels } from './ui-labels';

@@ -72,6 +72,7 @@ export type {
 } from './portal';
 export { toBookingFamilyMember } from './portal/guardian';
 export type {
+  EmailChangeRefusal,
   PersonTarget,
   PortalPersonInput,
   PortalPersonResult,
@@ -79,6 +80,9 @@ export type {
   VippsLinkCompletion,
 } from './portal/medal-portal';
 export {
+  EMAIL_CHANGE_REFUSALS,
+  PortalEmailChangeRefusedError,
+  PortalEmailChangeUnavailableError,
   PortalSessionExpiredError,
   PortalThrottledError,
   PortalValidationError,

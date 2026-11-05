@@ -1,6 +1,6 @@
 # Medal Social SDK
 
-TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, helpdesk conversations, webhooks, company/site scans, and GDPR compliance programmatically.
+TypeScript SDK for the [Medal Social](https://medalsocial.com) API. Manage posts, emails, contacts, deals, restaurant ordering and delivery, helpdesk conversations, webhooks, company/site scans, and GDPR compliance programmatically.
 
 ## Install
 
@@ -537,6 +537,57 @@ strings.
 
 None of the portal calls carries an `Idempotency-Key`: the two login routes cannot duplicate anything, and the session routes are either reads or terminal.
 
+#### Restaurant ordering profile, history and reorder
+
+For a restaurant's own site with online ordering: the logged-in customer's
+saved delivery addresses, allergy note, cutlery and contactless defaults,
+favourites and marketing consent, their last orders, and «order again». Same
+credentials as the rest of the portal (session token first, sent as
+`X-Portal-Session`); every response is `no-store`, and a workspace without
+online ordering answers `403 ORDERING_NOT_ENABLED`.
+
+```ts
+const token = session.session_token;
+
+// The profile — every write below answers it too
+const { data: prefs } = await medal.portal.ordering.preferences.get(token);
+await medal.portal.ordering.preferences.update(token, {
+  allergy_note: 'Peanøtter',     // ≤ 200 after trimming; null or '' removes it
+  cutlery_default: false,
+  contactless_default: true,
+  marketing_consent: true,       // explicit, recorded with time and source
+}); // favourites: [...] replaces the whole list (≤ 30) — 422 FAVOURITE_LIMIT / PRODUCT_NOT_FOUND
+
+// Saved delivery addresses (≤ 5) — address_id comes from medal.delivery.addresses.resolve()
+await medal.portal.ordering.addresses.add(token, {
+  address_id,
+  label: 'Hjem',                 // ≤ 40
+  door_code: '0000',             // ≤ 20, stored encrypted, never returned (has_door_code)
+  floor: '3',
+  comment: 'Ring på',
+}); // 201 — 422 ADDRESS_LIMIT / ADDRESS_NOT_VERIFIED
+await medal.portal.ordering.addresses.remove(token, prefs.addresses[0].id); // 404 ADDRESS_NOT_FOUND
+
+// Favourites one at a time (add is idempotent)
+await medal.portal.ordering.favourites.add(token, productId);
+await medal.portal.ordering.favourites.remove(token, productId);
+
+// The last 10 orders, newest first, and «order again»
+const { data: orders } = await medal.portal.ordering.orders.list(token);
+const { data: cart } = await medal.portal.ordering.orders.reorder(token, orders[0].order_id);
+// cart.cart.lines are priced from today's menu; cart.dropped lists what is
+// sold_out, removed or unavailable. Nothing is placed — check out with
+// medal.ordering.orders.create(..., { portalSession: token }).
+// bound form: const ordering = medal.portal.session(token).ordering;
+// ordering.preferences(), updatePreferences(patch), addAddress(input), removeAddress(id),
+// addFavourite(id), removeFavourite(id), orders(), reorder(orderId)
+```
+
+`preferences.update`, `addresses.add` and `addresses.remove` are sent exactly
+once (a retry would repeat a consent event, save an address twice or report a
+removal as a 404); the reads, the favourite toggles and `reorder` retry like
+any other call.
+
 #### Log in with Vipps
 
 Two server calls; the middle leg is the customer's browser.
@@ -713,10 +764,10 @@ try {
   redirect(`/order/${placed.order_id}`); // placed.order_number is what the guest is told
 } catch (error) {
   // 422 refusals: CLOSED (details.reason), CUTOFF, CHANNEL_NOT_AVAILABLE,
-  // PREORDER_DISABLED, TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
+  // PREORDER_DISABLED, SLOT_TAKEN (pick another slot), TABLE_NOT_FOUND, SOLD_OUT / UNAVAILABLE (details.ids),
   // INVALID_OPTIONS / INVALID_CART (details.line_index),
   // PAYMENT_METHOD_NOT_ALLOWED, PAYMENT_UNAVAILABLE, RETURN_URL_NOT_ALLOWED,
-  // INVALID_CUSTOMER (details.reason).
+  // INVALID_CUSTOMER (details.reason), SAVED_ADDRESS_NOT_FOUND.
   if (isOrderingRefusal(error) && error.code === 'SOLD_OUT') {
     markSoldOut(error.details?.ids ?? []);
   } else throw error;
@@ -734,6 +785,105 @@ const { data: view } = await medal.ordering.orders.status(orderId);
 // with details.status — the guest has to call the restaurant.
 await medal.ordering.orders.cancel(orderId);
 ```
+
+A logged-in customer's order: pass their portal session token as
+`portalSession` (sent as `X-Portal-Session`). The order is then theirs, their
+cutlery and contactless defaults apply to `preferences` left out (cutlery is
+on for a guest), their saved allergy note is copied when none is typed unless
+`preferences.include_allergy_note` is `false`, and `saved_address_id` picks
+one of their saved addresses (422 `SAVED_ADDRESS_NOT_FOUND` otherwise). A dead
+session is 401 `PORTAL_SESSION_INVALID` and places nothing. See
+[Restaurant ordering profile](#restaurant-ordering-profile-history-and-reorder).
+
+```ts
+// «Order again»: the reorder answer is for display; send only the line inputs.
+const { data: again } = await medal.portal.ordering.orders.reorder(token, orderId);
+const idempotencyKey = crypto.randomUUID(); // one per checkout; reuse it on retries
+
+await medal.ordering.orders.create(
+  {
+    location_id: again.location_id,
+    channel: again.channel,
+    lines: again.cart.lines.map(({ product_id, quantity, option_ids, note }) => ({
+      product_id,
+      quantity,
+      option_ids,
+      ...(note !== undefined ? { note } : {}),
+    })),
+    customer: { name: 'Test Customer', phone: '+4790000000' },
+    preferences: {},                   // the customer's defaults
+    // Delivery instead: channel 'delivery', one of their saved addresses, and a
+    // quote for that address's address_id (its door code and floor come along).
+    // saved_address_id: prefs.addresses[0].id,
+    // delivery: { verified_address_id: prefs.addresses[0].address_id, quote_id },
+    payment_method: 'vipps',
+    return_url: 'https://example.com/order/done',
+  },
+  { idempotencyKey, portalSession: token },
+);
+```
+
+### Delivery
+
+Wolt delivery for a restaurant's own online store, booked through Medal. Call
+it server-side with the workspace API key: autocomplete a Norwegian address,
+verify it against Kartverket (the national address register), and get a live
+Wolt price with the restaurant's customer fee applied. Money is integer NOK øre.
+
+```ts
+// One session token per address the customer enters; the same for both calls.
+const session = crypto.randomUUID();
+
+// Autocomplete (scope delivery.address.read): up to 8 addresses, nearest the
+// restaurant first. Under 3 characters answers [] — call it per keystroke.
+const { data: suggestions } = await medal.delivery.addresses.suggest('storgata 1', {
+  session,
+  signal: keystroke.signal,
+});
+// [{ id, label: 'Storgata 1', secondary: '0155 Oslo' }, …]
+
+// Verify the one the customer picked. 422 ADDRESS_NOT_VERIFIED: no such door,
+// or no house number. 503 ADDRESS_LOOKUP_UNAVAILABLE: the register is down.
+const { data: address } = await medal.delivery.addresses.resolve(suggestions[0].id, { session });
+// { address_id, label, street, house_number, post_code, city, lat, lon, source }
+
+// A live, binding Wolt price (scope delivery.quote.create, 30/min per key).
+const { data: quote } = await medal.delivery.quotes.create({
+  address_id: address.address_id,
+  order_total: cart.subtotal_ore, // for an order: the cart subtotal, in øre
+  // venue_id, bags (1-20), prep_minutes (0-60) are optional
+});
+showFee(quote.customer_fee); // { amount: 4900, currency: 'NOK' } — or null
+// quote.delivered_by: when it reaches the customer if ordered now; quote.valid_until
+
+// Place the order on that quote (Vipps only).
+await medal.ordering.orders.create(
+  {
+    ...order,
+    channel: 'delivery',
+    payment_method: 'vipps',
+    return_url: 'https://example.com/order/done',
+    delivery: {
+      verified_address_id: address.address_id,
+      quote_id: quote.quote_id,
+      door_code: '1234',
+    },
+  },
+  { idempotencyKey: cart.idempotencyKey },
+);
+```
+
+Every `quotes.create()` asks Wolt for a fresh price, and the server waits up to
+20 s for it, so the SDK sends it **exactly once** — no automatic retry on
+429/5xx, which would spend the quote budget and stack 20 s waits. Retry a
+`504 QUOTE_TIMEOUT` yourself if you want to. Keep the client `timeout` above
+about 25 s. Make a new quote when the cart subtotal changes, and when
+`valid_until` is less than a minute away: the order is refused with
+`422 QUOTE_NOT_USABLE` / `QUOTE_EXPIRED` otherwise. Other refusals:
+`409 DELIVERY_NOT_SET_UP` / `DELIVERY_PAUSED` / `VENUE_UNAVAILABLE`,
+`422 NOT_DELIVERABLE` (Wolt cannot deliver there right now) and
+`422 ADDRESS_NOT_DELIVERABLE` (Wolt will not promise delivery to that address)
+— offer takeaway instead.
 
 ### Helpdesk
 
@@ -1189,7 +1339,7 @@ and also exposes as `MedalApiError.retryAfterMs`.
 
 | Bucket | Routes | Rate | Burst |
 |--------|--------|------|-------|
-| `apiRead` | every `GET` not listed below | 300/min | 100 |
+| `apiRead` | every `GET` not listed below, and `POST /delivery/addresses/resolve` | 300/min | 100 |
 | `apiWrite` | every `POST` / `PATCH` / `PUT` / `DELETE` not listed below | 60/min | 30 |
 | `apiEmailSend` | `POST /emails` | 100/min | 50 |
 | `apiEmailBatch` | `POST /emails/batch` | 10/min | 5 |
@@ -1209,6 +1359,7 @@ and also exposes as `MedalApiError.retryAfterMs`.
 | `apiPortalExport` | `POST /portal/me/export` | 60/hour | 10 |
 | `apiOrderingOrderCreate` | `POST /ordering/orders` | 60/min | — |
 | `apiOrderingOrderCreatePerIp` | `POST /ordering/orders`, per site and `X-Medal-Client-Ip` (only when sent) | 10/min | — |
+| `apiDeliveryQuote` | `POST /delivery/quotes` | 30/min | 10 |
 | `apiConnectLinkMint` | `POST /channels/connect-links` | 10/hour | 5 |
 | `apiCookieConsent` | `POST /api/cookie-consent` | 600/min | 1200 |
 | `oauthIntrospect` | OAuth token introspection | 600/min | 200 |
@@ -1236,6 +1387,8 @@ role floor.
 | `ordering.menu`, `ordering.locations`, `ordering.slots`, `ordering.table` | `ordering.storefront.read` (workspace API key) | — |
 | `ordering.orders.create`, `ordering.orders.cancel` | `ordering.order.create` (workspace API key) | — |
 | `ordering.orders.get`, `ordering.orders.status` | `ordering.order.read` (workspace API key) | — |
+| `delivery.addresses.suggest`, `delivery.addresses.resolve` | `delivery.address.read` (workspace API key) | — |
+| `delivery.quotes.create` | `delivery.quote.create` (workspace API key) | — |
 
 A credential below the floor answers `403 FORBIDDEN`.
 

@@ -15,6 +15,11 @@ export {
   PortalDashboardUnreachable,
   type PortalDashboardUnreachableProps,
 } from './portal/dashboard';
+export {
+  EMAIL_CHANGE_RESEND_DELAY_MS,
+  PortalEmailChange,
+  type PortalEmailChangeProps,
+} from './portal/email-change';
 export { leavePortal } from './portal/leave';
 export { SESSION_TOUCH_THROTTLE_MS, SessionTouch, sessionTouchKey } from './portal/SessionTouch';
 export type { PortalTabIcons } from './portal/sections';
