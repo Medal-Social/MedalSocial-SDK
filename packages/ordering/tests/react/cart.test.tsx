@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { resolveCart } from '../../src/core/cart';
 import type { DraftLine } from '../../src/core/draft-store';
@@ -86,6 +87,43 @@ describe('CartList', () => {
     ]);
     await user.click(screen.getAllByRole('button', { name: 'Fjern Water' })[1] as HTMLElement);
     expect(onRemove).toHaveBeenCalledWith('max');
+  });
+
+  it('keeps focus in the cart when a line is removed', async () => {
+    const user = userEvent.setup();
+    const three = [
+      line('a', 'water', 1),
+      line('b', 'burger', 1, { size: ['large'] }),
+      line('c', 'water', 2),
+    ];
+    function Harness() {
+      const [lines, setLines] = useState(three);
+      return (
+        <CartList
+          cart={resolveCart(MENU, lines)}
+          onRemove={(id) => setLines((all) => all.filter((l) => l.lineId !== id))}
+        />
+      );
+    }
+    render(<Harness />);
+    // A middle line: focus moves to the next line's «Fjern».
+    await user.click(screen.getByRole('button', { name: 'Fjern Burger' }));
+    const [firstWater, lastWater] = screen.getAllByRole('button', { name: 'Fjern Water' });
+    expect(lastWater).toHaveFocus();
+    // The last line: focus moves back to the line before it.
+    await user.click(lastWater as HTMLElement);
+    expect(firstWater).toHaveFocus();
+    // The last dish: focus moves to the cart's heading.
+    await user.click(firstWater as HTMLElement);
+    expect(screen.getByRole('heading', { name: 'Din bestilling' })).toHaveFocus();
+  });
+
+  it('keeps focus on «Fjern» when the page keeps the line', async () => {
+    const user = userEvent.setup();
+    render(<CartList cart={CART} onRemove={() => {}} />);
+    const remove = screen.getByRole('button', { name: 'Fjern Water' });
+    await user.click(remove);
+    expect(remove).toHaveFocus();
   });
 
   it('removes without a stepper, and steps without a remove button', () => {
