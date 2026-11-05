@@ -370,21 +370,37 @@ describe('Checkout', () => {
     expect(screen.getByText('Allerginotatet kan være opptil 200 tegn.')).toBeInTheDocument();
   });
 
-  it('shows the loading line, and reads a failed slot load as none', async () => {
-    let fail: (e: Error) => void = () => {};
-    const loadSlots = vi.fn(() => new Promise<OrderingSlot[]>((_r, reject) => (fail = reject)));
+  it('shows the loading line, says a failed slot load failed, and reads the day again', async () => {
+    const pending: Array<{ ok: (s: OrderingSlot[]) => void; fail: (e: Error) => void }> = [];
+    const loadSlots = vi.fn(
+      () => new Promise<OrderingSlot[]>((ok, fail) => pending.push({ ok, fail }))
+    );
     const closedNow = location({
       channels: {
         ...location().channels,
         takeaway: { enabled: true, open: false, opens_at: '2026-10-30T09:00:00Z' },
       },
     });
-    const { unmount } = checkout({ loadSlots, allowScheduled: true, location: closedNow });
+    const { user, unmount } = checkout({ loadSlots, allowScheduled: true, location: closedNow });
     // Closed now, but it takes orders ahead: only a slot, no «as soon as possible».
     expect(screen.queryByRole('radio', { name: 'Så snart som mulig' })).toBeNull();
     expect(screen.getByText('Henter ledige tider …')).toBeInTheDocument();
-    await act(async () => fail(new Error('down')));
+    await act(async () => pending[0]?.fail(new Error('down')));
+    // A failure is not a full day.
+    expect(screen.queryByText('Ingen ledige tider denne dagen.')).toBeNull();
+    expect(
+      screen.getByText('Vi fikk ikke hentet ledige tider. Prøv igjen om litt.')
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Tidspunkt')).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
+    expect(loadSlots).toHaveBeenCalledTimes(2);
+    // The button is gone while it reads: focus is on the line that says how it went.
+    expect(screen.getByText('Henter ledige tider …')).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Prøv igjen' })).toBeNull();
+    await act(async () => pending[1]?.ok([]));
+    // An answer with no times is a full day, and offers nothing to retry.
     expect(screen.getByText('Ingen ledige tider denne dagen.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Prøv igjen' })).toBeNull();
     unmount();
   });
 

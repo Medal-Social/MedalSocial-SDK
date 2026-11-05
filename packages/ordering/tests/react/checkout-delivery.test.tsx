@@ -467,7 +467,9 @@ describe('Checkout — delivery', () => {
     await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
     expect(await screen.findByText('Noe gikk galt. Prøv igjen om litt.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Prøv igjen' }));
-    expect(await screen.findByText(`Levering · 59 kr`)).toBeInTheDocument();
+    const price = await screen.findByText(`Levering · 59 kr`);
+    // The button is gone once a price is asked for: focus is on the line that says the price.
+    expect(price.parentElement).toHaveFocus();
     expect(quoteDelivery).toHaveBeenCalledTimes(3);
   });
 

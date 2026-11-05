@@ -237,7 +237,11 @@ export function Checkout({
   const today = localIsoDate(clock.getTime(), timeZone);
   const days = Array.from({ length: location.preorder_days + 1 }, (_, i) => addIsoDays(today, i));
   const [date, setDate] = useState(today);
-  const [slots, setSlots] = useState<OrderingSlot[] | null>(null);
+  // `null` while loading; 'failed' when the times could not be read, which is
+  // not the same as a day with no free times.
+  const [slots, setSlots] = useState<OrderingSlot[] | null | 'failed'>(null);
+  // Bumped to read the day's times again after a failed load.
+  const [slotsTick, setSlotsTick] = useState(0);
   const [slot, setSlot] = useState('');
 
   const [name, setName] = useState(initial?.name ?? '');
@@ -285,7 +289,12 @@ export function Checkout({
   }, [placing]);
   const fields = useRef<Partial<Record<keyof FieldErrors, HTMLElement | null>>>({});
   const failureRef = useRef<HTMLParagraphElement>(null);
+  // A retry button unmounts while it reads again: focus moves to the line that
+  // announces the result, not to the top of the page.
+  const slotHintRef = useRef<HTMLParagraphElement>(null);
+  const quoteStatusRef = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsTick` is the read-again signal.
   useEffect(() => {
     if (timing !== 'scheduled' || loadSlots === undefined || channel === undefined) return;
     let current = true;
@@ -296,13 +305,14 @@ export function Checkout({
         if (current) setSlots(found);
       },
       () => {
-        if (current) setSlots([]);
+        if (current) setSlots('failed');
       }
     );
     return () => {
       current = false;
     };
-  }, [timing, loadSlots, channel, date]);
+  }, [timing, loadSlots, channel, date, slotsTick]);
+  const slotList = Array.isArray(slots) ? slots : [];
 
   const opens =
     state === undefined ? null : openingLine(state.opens_at, clock, timeZone, locale, labels);
@@ -641,14 +651,14 @@ export function Checkout({
                       fields.current.slot = node;
                     }}
                     value={slot}
-                    disabled={slots === null || slots.length === 0}
+                    disabled={slotList.length === 0}
                     aria-invalid={errors.slot ? 'true' : undefined}
                     aria-describedby={described('slot', `${id}-slot-hint`)}
                     onChange={(event) => setSlot(event.target.value)}
                     className={input}
                   >
                     <option value="">{labels.chooseSlot}</option>
-                    {(slots ?? []).map((s) => (
+                    {slotList.map((s) => (
                       <option key={s.start} value={s.start}>
                         {wallClock(new Date(s.start), timeZone).time}
                       </option>
@@ -656,15 +666,35 @@ export function Checkout({
                   </select>
                   <p
                     id={`${id}-slot-hint`}
+                    ref={slotHintRef}
+                    tabIndex={-1}
                     aria-live="polite"
-                    className="text-sm text-muted-foreground"
+                    className={
+                      slots === 'failed'
+                        ? 'text-sm font-medium text-destructive'
+                        : 'text-sm text-muted-foreground'
+                    }
                   >
                     {slots === null
                       ? labels.slotsLoading
-                      : slots.length === 0
-                        ? labels.noSlots
-                        : ''}
+                      : slots === 'failed'
+                        ? labels.slotsFailed
+                        : slots.length === 0
+                          ? labels.noSlots
+                          : ''}
                   </p>
+                  {slots === 'failed' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        slotHintRef.current?.focus();
+                        setSlotsTick((t) => t + 1);
+                      }}
+                      className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
+                    >
+                      {labels.slotsRetry}
+                    </button>
+                  ) : null}
                   {errorText('slot')}
                 </div>
               </div>
@@ -681,7 +711,12 @@ export function Checkout({
                   locale={locale}
                   labels={overrides}
                 />
-                <div aria-live="polite" className="flex flex-col gap-1">
+                <div
+                  ref={quoteStatusRef}
+                  tabIndex={-1}
+                  aria-live="polite"
+                  className="flex flex-col gap-1"
+                >
                   {usable !== null ? (
                     <>
                       <p className="font-medium">
@@ -717,7 +752,10 @@ export function Checkout({
                 RETRY.has(quoteError.code) ? (
                   <button
                     type="button"
-                    onClick={() => setQuoteTick((t) => t + 1)}
+                    onClick={() => {
+                      quoteStatusRef.current?.focus();
+                      setQuoteTick((t) => t + 1);
+                    }}
                     className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
                   >
                     {labels.deliveryRetry}
