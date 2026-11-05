@@ -82,6 +82,9 @@ export interface OrderingLabels {
   tomorrow: string;
   slotsLoading: string;
   noSlots: string;
+  /** The day's free times could not be read (not the same as none). */
+  slotsFailed: string;
+  slotsRetry: string;
   chooseSlot: string;
   detailsLegend: string;
   name: string;
@@ -230,6 +233,8 @@ const NB: OrderingLabels = {
   tomorrow: 'I morgen',
   slotsLoading: 'Henter ledige tider …',
   noSlots: 'Ingen ledige tider denne dagen.',
+  slotsFailed: 'Vi fikk ikke hentet ledige tider. Prøv igjen om litt.',
+  slotsRetry: 'Prøv igjen',
   chooseSlot: 'Velg et tidspunkt.',
   detailsLegend: 'Dine opplysninger',
   name: 'Navn',
@@ -369,6 +374,8 @@ const EN: OrderingLabels = {
   tomorrow: 'Tomorrow',
   slotsLoading: 'Finding free times …',
   noSlots: 'No free times on this day.',
+  slotsFailed: 'We could not load the free times. Try again in a moment.',
+  slotsRetry: 'Try again',
   chooseSlot: 'Please choose a time.',
   detailsLegend: 'Your details',
   name: 'Name',

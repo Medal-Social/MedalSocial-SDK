@@ -237,7 +237,11 @@ export function Checkout({
   const today = localIsoDate(clock.getTime(), timeZone);
   const days = Array.from({ length: location.preorder_days + 1 }, (_, i) => addIsoDays(today, i));
   const [date, setDate] = useState(today);
-  const [slots, setSlots] = useState<OrderingSlot[] | null>(null);
+  // `null` while loading; 'failed' when the times could not be read, which is
+  // not the same as a day with no free times.
+  const [slots, setSlots] = useState<OrderingSlot[] | null | 'failed'>(null);
+  // Bumped to read the day's times again after a failed load.
+  const [slotsTick, setSlotsTick] = useState(0);
   const [slot, setSlot] = useState('');
 
   const [name, setName] = useState(initial?.name ?? '');
@@ -286,6 +290,7 @@ export function Checkout({
   const fields = useRef<Partial<Record<keyof FieldErrors, HTMLElement | null>>>({});
   const failureRef = useRef<HTMLParagraphElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsTick` is the read-again signal.
   useEffect(() => {
     if (timing !== 'scheduled' || loadSlots === undefined || channel === undefined) return;
     let current = true;
@@ -296,13 +301,14 @@ export function Checkout({
         if (current) setSlots(found);
       },
       () => {
-        if (current) setSlots([]);
+        if (current) setSlots('failed');
       }
     );
     return () => {
       current = false;
     };
-  }, [timing, loadSlots, channel, date]);
+  }, [timing, loadSlots, channel, date, slotsTick]);
+  const slotList = Array.isArray(slots) ? slots : [];
 
   const opens =
     state === undefined ? null : openingLine(state.opens_at, clock, timeZone, locale, labels);
@@ -641,14 +647,14 @@ export function Checkout({
                       fields.current.slot = node;
                     }}
                     value={slot}
-                    disabled={slots === null || slots.length === 0}
+                    disabled={slotList.length === 0}
                     aria-invalid={errors.slot ? 'true' : undefined}
                     aria-describedby={described('slot', `${id}-slot-hint`)}
                     onChange={(event) => setSlot(event.target.value)}
                     className={input}
                   >
                     <option value="">{labels.chooseSlot}</option>
-                    {(slots ?? []).map((s) => (
+                    {slotList.map((s) => (
                       <option key={s.start} value={s.start}>
                         {wallClock(new Date(s.start), timeZone).time}
                       </option>
@@ -657,14 +663,29 @@ export function Checkout({
                   <p
                     id={`${id}-slot-hint`}
                     aria-live="polite"
-                    className="text-sm text-muted-foreground"
+                    className={
+                      slots === 'failed'
+                        ? 'text-sm font-medium text-destructive'
+                        : 'text-sm text-muted-foreground'
+                    }
                   >
                     {slots === null
                       ? labels.slotsLoading
-                      : slots.length === 0
-                        ? labels.noSlots
-                        : ''}
+                      : slots === 'failed'
+                        ? labels.slotsFailed
+                        : slots.length === 0
+                          ? labels.noSlots
+                          : ''}
                   </p>
+                  {slots === 'failed' ? (
+                    <button
+                      type="button"
+                      onClick={() => setSlotsTick((t) => t + 1)}
+                      className="min-h-11 self-start rounded-full border border-border px-4 font-medium"
+                    >
+                      {labels.slotsRetry}
+                    </button>
+                  ) : null}
                   {errorText('slot')}
                 </div>
               </div>
