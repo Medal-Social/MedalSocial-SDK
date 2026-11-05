@@ -1,5 +1,18 @@
 # @medalsocial/booking
 
+## 0.10.0
+
+### Minor Changes
+
+- [#303](https://github.com/Medal-Social/MedalSocial-SDK/pull/303) [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5) Thanks [@alioftech](https://github.com/alioftech)! - `details.emailRequired` (default `false`): a site whose confirmation and reminder go out by e-mail only can make the address required. The details step passes meda's `emailRequired` to `DetailsScreen` (the field is `required` and a blank address is refused on submit with the new `details.email.required` label, nb + en in the built-in packs), the wizard's `canAdvance` holds the details step without a valid address (`canAdvance` / `canGoToStep` take an optional `StepRules` argument; `createWizard` binds the rule from the config), and `POST <api>/create` answers 400 `invalidInput` (`contact.email is required`) without one. Needs `@medalsocial/meda` with `DetailsScreen`'s `emailRequired`.
+
+- [#303](https://github.com/Medal-Social/MedalSocial-SDK/pull/303) [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5) Thanks [@alioftech](https://github.com/alioftech)! - «Endre e-post» on Min side. `<PortalDashboard emailChange>` adds an «E-post» row to the profile that changes the customer's own address in two steps: the new address, then the six-digit code Medal mails to it. The catch-all handler gains `POST <portalApi>/email/start` and `POST <portalApi>/email/verify`, which proxy Medal's `/api/v1/portal/me/email/{start,verify}` with the session cookie; verify swaps the cookie for the replacement session Medal mints (the old one is revoked) and never returns a token to the browser. Refusals (`unchanged`, `too_many_codes` at start; `code_invalid`, `email_taken` at verify) answer 422 and keep the customer logged in. Start answers «sent» even for a taken or undeliverable address, so the code step always offers resend after a delay, «no code?» help and a way back to edit the address. When Vipps was linked, the success says it was disconnected and offers «Koble til Vipps på nytt». New exports: `PortalEmailChange` (`/react`), `PortalEmailChangeRefusedError`, `PortalEmailChangeUnavailableError`, `EMAIL_CHANGE_REFUSALS`, `EmailChangeRefusal` (`/next`), and nb + en `emailChange.*` labels.
+
+### Patch Changes
+
+- Updated dependencies [[`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5)]:
+  - @medalsocial/sdk@1.19.0
+
 ## 0.9.0
 
 ### Minor Changes
