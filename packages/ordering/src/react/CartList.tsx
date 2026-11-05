@@ -7,7 +7,7 @@
  * Presentational and controlled: the page resolves the draft against the
  * menu (`resolveCart`) and passes the draft store's mutators in.
  */
-import { useId, useMemo } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import type { DroppedLine, ResolvedCart } from '../core/cart';
 import { MAX_QUANTITY } from '../core/draft-store';
 import { createMoney, type Money } from '../core/money';
@@ -48,10 +48,31 @@ export function CartList({
   const defaultMoney = useMemo(() => createMoney({ locale }), [locale]);
   const money = moneyProp ?? defaultMoney;
   const id = useId();
+  // «Fjern» unmounts its own line: focus moves to the next line's «Fjern» (the
+  // previous one for the last line, the heading for the last dish) instead of
+  // falling to the top of the page.
+  const removeButtons = useRef(new Map<string, HTMLButtonElement>());
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusAfterRemove = useRef<{ removed: string; next: string | null } | null>(null);
+  const lineIds = cart.lines.map(({ line }) => line.lineId).join(' ');
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `lineIds` is the re-render that removed the line.
+  useEffect(() => {
+    const pending = focusAfterRemove.current;
+    if (pending === null || removeButtons.current.has(pending.removed)) return;
+    focusAfterRemove.current = null;
+    const target = pending.next === null ? null : removeButtons.current.get(pending.next);
+    (target ?? heading.current)?.focus();
+  }, [lineIds]);
+  const remove = (lineId: string) => {
+    const ids = cart.lines.map(({ line }) => line.lineId);
+    const at = ids.indexOf(lineId);
+    focusAfterRemove.current = { removed: lineId, next: ids[at + 1] ?? ids[at - 1] ?? null };
+    onRemove?.(lineId);
+  };
 
   return (
     <section aria-labelledby={`${id}-title`} className={cx('flex flex-col gap-3', className)}>
-      <h2 id={`${id}-title`} className="text-lg font-semibold">
+      <h2 id={`${id}-title`} ref={heading} tabIndex={-1} className="text-lg font-semibold">
         {labels.yourOrder}
       </h2>
       {cart.dropped.length > 0 ? (
@@ -124,8 +145,12 @@ export function CartList({
                   {onRemove ? (
                     <button
                       type="button"
+                      ref={(node) => {
+                        if (node) removeButtons.current.set(line.lineId, node);
+                        else removeButtons.current.delete(line.lineId);
+                      }}
                       aria-label={fill(labels.removeLine, { name: item.name })}
-                      onClick={() => onRemove(line.lineId)}
+                      onClick={() => remove(line.lineId)}
                       className="ms-auto min-h-11 rounded-full px-3 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                     >
                       {labels.remove}
