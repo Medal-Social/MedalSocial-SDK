@@ -130,6 +130,46 @@ export class PortalVippsConflictError extends Error {
   }
 }
 
+/**
+ * Why Medal refused an e-mail change (422 `PORTAL_EMAIL_CHANGE_REFUSED`,
+ * `error.details.reason`) — a closed set; the customer's session stays good.
+ * Start refuses only `unchanged` and `too_many_codes` (5 change codes per
+ * customer per 10 minutes); verify only `code_invalid` and `email_taken`.
+ * Start never says whether an address is taken or undeliverable: it answers
+ * «sent» for both (enumeration safety), so a taken address surfaces at verify
+ * and an undeliverable one as a code that never arrives.
+ */
+export const EMAIL_CHANGE_REFUSALS = [
+  'unchanged',
+  'too_many_codes',
+  'code_invalid',
+  'email_taken',
+] as const;
+
+export type EmailChangeRefusal = (typeof EMAIL_CHANGE_REFUSALS)[number];
+
+function isEmailChangeRefusal(value: unknown): value is EmailChangeRefusal {
+  return (EMAIL_CHANGE_REFUSALS as readonly unknown[]).includes(value);
+}
+
+/** Medal refused an e-mail change for a reason the customer can act on. */
+export class PortalEmailChangeRefusedError extends Error {
+  readonly reason: EmailChangeRefusal;
+  constructor(reason: EmailChangeRefusal) {
+    super(`e-mail change refused: ${reason}`);
+    this.name = 'PortalEmailChangeRefusedError';
+    this.reason = reason;
+  }
+}
+
+/** This Medal has no e-mail change routes (a 404 that is not the engine's). */
+export class PortalEmailChangeUnavailableError extends Error {
+  constructor() {
+    super('e-mail change unavailable');
+    this.name = 'PortalEmailChangeUnavailableError';
+  }
+}
+
 /** How a link grant ended: linked, bound to another profile, or not honoured. */
 export type VippsLinkCompletion = 'linked' | 'conflict' | 'invalid';
 
@@ -373,6 +413,12 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
     return typeof message === 'string' && DOMAIN_NOT_FOUND.has(message);
   }
 
+  /** `{ reason }` for a known `error.details.reason`, `{}` otherwise. */
+  function refusalFrom(body: unknown): { reason?: EmailChangeRefusal } {
+    const reason = field(field(field(body, 'error'), 'details'), 'reason');
+    return isEmailChangeRefusal(reason) ? { reason } : {};
+  }
+
   /** A 2xx whose body is not the shape the contract promises is not a success. */
   function malformed(path: string): MedalApiError {
     return new MedalApiError(200, 'NON_JSON_BODY', `Medal returned a malformed body from ${path}`);
@@ -435,7 +481,12 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
         // the two «no such person / resource» 404s, which is the one decision
         // that needs it: a 404 that is neither is a route this Medal lacks
         // (`isMissingRoute`).
-        { domainNotFound: isDomainNotFound(field(field(parsed, 'error'), 'message')) }
+        {
+          domainNotFound: isDomainNotFound(field(field(parsed, 'error'), 'message')),
+          // The e-mail change refusals' closed `reason` — and only a known one:
+          // anything else in `details` stays on Medal's side.
+          ...refusalFrom(parsed),
+        }
       );
     }
     const data = field(parsed, 'data');
@@ -962,9 +1013,107 @@ export function createPortalSeam(medal: Seam, options: PortalSeamOptions) {
     throw error;
   }
 
+  /*
+   * ---------------------------------------------------------------------------
+   * Change own e-mail (medal-monorepo #7248)
+   *
+   * Two session-bound routes: `POST /me/email/start` mails a six-digit code to
+   * the NEW address, `POST /me/email/verify` spends it. Nothing changes until
+   * the code is verified; on success Medal revokes every portal credential of
+   * the old address — the session presented here included — and answers with
+   * a replacement session the caller MUST put in the cookie before anything
+   * else. A refusal the customer can act on is 422
+   * `PORTAL_EMAIL_CHANGE_REFUSED` with a closed `details.reason`
+   * (`PortalEmailChangeRefusedError`), deliberately NOT a 401: the session
+   * stays good over a typo. A 404 that is not the engine's is a Medal without
+   * the routes (`PortalEmailChangeUnavailableError`). Raw `callMedal`, sent
+   * once, because no SDK has these yet.
+   * TODO(sdk): use `portal.email.{start,verify}` once the SDK has them.
+   * ---------------------------------------------------------------------------
+   */
+
+  const EMAIL_CHANGE_PATH = '/api/v1/portal/me/email';
+
+  function mapEmailChangeError(error: unknown): never {
+    if (!(error instanceof MedalApiError)) throw error;
+    // Read before the dead-session guard, which narrows `error` away.
+    const { code, status, message } = error;
+    const reason = field(error.details, 'reason');
+    const missing = isMissingRoute(error);
+    // Left for `withVippsLinkCall`, which maps it to `PortalSessionExpiredError`.
+    if (isDeadSession(error)) throw error;
+    if (code === 'PORTAL_EMAIL_CHANGE_REFUSED' && isEmailChangeRefusal(reason)) {
+      throw new PortalEmailChangeRefusedError(reason);
+    }
+    if (code === 'VALIDATION_ERROR') throw new PortalValidationError(message);
+    if (status === 429) throw new PortalThrottledError();
+    if (missing) throw new PortalEmailChangeUnavailableError();
+    throw error;
+  }
+
+  /**
+   * Mail a code to `email`, the address the customer wants instead. Resolves
+   * with the address as Medal masked it (`k•••@e•••.com`), or `null` when the
+   * answer carried no mask of the expected shape.
+   */
+  async function startEmailChange(
+    session: string,
+    email: string,
+    locale: PortalLocale = 'no'
+  ): Promise<{ to: string | null }> {
+    return withVippsLinkCall(session, [], async () => {
+      let data: unknown;
+      try {
+        data = await callMedal(`${EMAIL_CHANGE_PATH}/start`, {
+          method: 'POST',
+          body: { email, locale },
+          session,
+        });
+      } catch (error) {
+        return mapEmailChangeError(error);
+      }
+      if (field(data, 'sent') !== true) throw malformed(`${EMAIL_CHANGE_PATH}/start`);
+      const to = field(data, 'to');
+      return { to: typeof to === 'string' ? to : null };
+    });
+  }
+
+  /**
+   * Spend the code. Resolves with the new address and the REPLACEMENT session
+   * — the one presented here is dead from this moment on.
+   */
+  async function verifyEmailChange(
+    session: string,
+    code: string,
+    locale: PortalLocale = 'no'
+  ): Promise<{ email: string; sessionToken: string | null; expiresAt: number | null }> {
+    const path = `${EMAIL_CHANGE_PATH}/verify`;
+    return withVippsLinkCall(session, [{ value: code, label: '<code>' }], async () => {
+      let data: unknown;
+      try {
+        data = await callMedal(path, { method: 'POST', body: { code, locale }, session });
+      } catch (error) {
+        return mapEmailChangeError(error);
+      }
+      const email = field(data, 'email');
+      const sessionToken = field(data, 'session_token');
+      const expiresAt = field(data, 'expires_at');
+      if (typeof email !== 'string') throw malformed(path);
+      // A 200 that names the new address means the change HAPPENED (and the
+      // old session is revoked), even if the replacement is not usable: the
+      // route must hear that, not a «failed» it would show as a bad code.
+      if (typeof sessionToken !== 'string' || typeof expiresAt !== 'number') {
+        return { email, sessionToken: null, expiresAt: null };
+      }
+      return { email, sessionToken, expiresAt };
+    });
+  }
+
   return {
     startLogin,
     verifyLogin,
+    startEmailChange,
+    verifyEmailChange,
     logout,
     getMe,
     updateMe,

@@ -15,6 +15,7 @@ import { type BookingOverrides, useBookingKit } from '../Provider';
 import { screenLabels } from '../screen-labels';
 import { agePromptCookieName } from './age-prompt';
 import { createChildSummaries } from './child-summary';
+import { PortalEmailChange } from './email-change';
 import { SessionTouch } from './SessionTouch';
 import { PortalSections, type PortalTabIcons } from './sections';
 import type { PortalTab } from './tabs';
@@ -53,6 +54,12 @@ export interface PortalDashboardProps extends BookingOverrides, Exits {
   agePromptCookie?: string;
   /** How a «link Vipps» attempt that just returned ended (`vippsLinkFlash`), or `null`. */
   vippsFlash?: VippsLinkFlash | null;
+  /**
+   * Offer «change e-mail» on the profile (`<PortalEmailChange>`). Needs the
+   * portal API's `email/start` and `email/verify` routes (the catch-all
+   * handler has them) and a Medal with the e-mail change routes. Default off.
+   */
+  emailChange?: boolean;
   /** Shows the «Vipps linked» toast (e.g. sonner's `toast.success`); without it the row says so inline. */
   onToast?: (message: string) => void;
   /** Where «book» goes. Default `handoffUrl ?? paths.booking`; the ids ride along only to `paths.booking`. */
@@ -223,7 +230,20 @@ export function PortalDashboard(props: PortalDashboardProps) {
         profile={
           <>
             <AccountCard profile={profile} classNames={booking.classNames.accountCard} />
-            <PortalProfileForm booking={booking} profile={profile} actions={actions} />
+            <PortalProfileForm
+              booking={booking}
+              profile={profile}
+              actions={actions}
+              emailChange={props.emailChange}
+            />
+            {props.emailChange && (
+              <PortalEmailChange
+                booking={booking}
+                email={profile.email}
+                vippsLinked={profile.vippsLinked}
+                startVippsLink={actions.startVippsLink}
+              />
+            )}
             {/* Only where the backend says whether Vipps is linked, and the app can start a link. */}
             {profile.vippsLinked !== undefined && actions.startVippsLink && (
               <PortalVippsLinkRow
