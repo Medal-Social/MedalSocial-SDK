@@ -61,8 +61,20 @@ export interface ContactNoteResult {
  */
 export type ContactStatus = "lead" | "subscriber" | "customer" | "churned";
 
-/** Email deliverability status for a contact. */
-export type EmailStatus = "subscribed" | "unsubscribed" | "bounced" | "complained";
+/**
+ * A contact's e-mail status.
+ *
+ * - `subscribed` — marketing permission: the one status campaigns, segments
+ *   and marketing flows send to.
+ * - `unsubscribed` — the person opted out.
+ * - `bounced` / `complained` — the address bounced, or its owner reported spam.
+ * - `not_opted_in` — nobody has asked or objected: no marketing permission,
+ *   and no opt-out either (an enquiry form, an unconfirmed import). Receives
+ *   no marketing e-mail.
+ *
+ * A create without `email_status` stores `subscribed`.
+ */
+export type EmailStatus = "subscribed" | "unsubscribed" | "bounced" | "complained" | "not_opted_in";
 
 /** Input for creating a new contact. */
 export interface CreateContactInput {
