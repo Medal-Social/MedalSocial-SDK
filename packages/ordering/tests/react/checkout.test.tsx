@@ -369,6 +369,34 @@ describe('Checkout', () => {
     expect(screen.getByLabelText('Tidspunkt')).toHaveValue('');
   });
 
+  it('falls back to the first offered day when the new restaurant does not offer the picked day', async () => {
+    const loadSlots = vi.fn(async () => [] as OrderingSlot[]);
+    const { user, rerender, onPlace, onPlaced } = checkout({ loadSlots, allowScheduled: true });
+    await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
+    await user.selectOptions(screen.getByLabelText('Dag'), '2026-10-31');
+    await waitFor(() =>
+      expect(loadSlots).toHaveBeenLastCalledWith({ channel: 'takeaway', date: '2026-10-31' })
+    );
+    rerender(
+      <Checkout
+        location={{ ...location(), id: 'loc_other', preorder_days: 1 }}
+        timeZone="Europe/Oslo"
+        cart={CART}
+        onPlace={onPlace}
+        onPlaced={onPlaced}
+        now={NOW}
+        loadSlots={loadSlots}
+        allowScheduled
+      />
+    );
+    await waitFor(() =>
+      expect(loadSlots).toHaveBeenLastCalledWith({ channel: 'takeaway', date: '2026-10-29' })
+    );
+    const day = screen.getByLabelText('Dag') as HTMLSelectElement;
+    expect(day.value).toBe('2026-10-29');
+    expect([...day.options].map((o) => o.value)).toEqual(['2026-10-29', '2026-10-30']);
+  });
+
   it('keeps only the latest day’s slots, in English, and goes back to as soon as possible', async () => {
     const answers: Record<string, (s: OrderingSlot[]) => void> = {};
     const failures: Record<string, (e: Error) => void> = {};
