@@ -236,7 +236,11 @@ export function Checkout({
 
   const today = localIsoDate(clock.getTime(), timeZone);
   const days = Array.from({ length: location.preorder_days + 1 }, (_, i) => addIsoDays(today, i));
-  const [date, setDate] = useState(today);
+  const [pickedDate, setDate] = useState(today);
+  // A day the restaurant offers: after a switch to a restaurant with a shorter
+  // pre-order window, or past midnight, the picked day may be gone; the first
+  // offered day stands in so the day list and the slot request agree.
+  const date = days.includes(pickedDate) ? pickedDate : today;
   // `null` while loading; 'failed' when the times could not be read, which is
   // not the same as a day with no free times.
   const [slots, setSlots] = useState<OrderingSlot[] | null | 'failed'>(null);
