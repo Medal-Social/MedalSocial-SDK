@@ -31,6 +31,7 @@ import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../cor
 import { serviceMatches } from '../core/deep-link';
 import { stylistDisplayName } from '../core/display-name';
 import { DRAFT_MAX_AGE_MS, type WizardDraft, type WizardDraftItem } from '../core/draft-store';
+import { captureGoogleReferral, readGoogleReferral } from '../core/google-referral';
 import { fill, labelText } from '../core/labels';
 import {
   SELF_KEY,
@@ -559,6 +560,11 @@ export function useBooking(options: UseBookingOptions) {
   const query: URLSearchParams | null = useSearchParams();
   const [prefill] = useState(() => setup.prefillFromQuery(query, services));
   const [deepLink] = useState(() => setup.deepLinkFromQuery(query));
+  // Google's Book link carries `rwg_token`: kept for this tab, sent with the booking.
+  const [landingSearch] = useState(() => query?.toString() ?? '');
+  useEffect(() => {
+    captureGoogleReferral(landingSearch);
+  }, [landingSearch]);
   const deepLinkPending = useRef(prefill === null || prefill.serviceId == null);
   const [linked] = useState(() => prefill !== null || deepLinks.hasDeepLink(query));
   const [vippsResumePath] = useState(() => deepLinks.resumePath(query));
@@ -1881,7 +1887,9 @@ export function useBooking(options: UseBookingOptions) {
       dispatch({ type: 'submitFailed', error: 'invalidInput' });
       return;
     }
-    await send(body, {
+    // On the submission, not added in `send`: a resend carries what was stored.
+    const googleReferral = readGoogleReferral();
+    await send(googleReferral === null ? body : { ...body, googleReferral }, {
       items: state.items,
       startTs: state.startTs ?? 0,
       partyMode: state.partyMode,

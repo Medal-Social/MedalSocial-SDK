@@ -2613,6 +2613,14 @@ export interface components {
        * @enum {string}
        */
       created_via?: "web" | "api";
+      /** @description The Reserve with Google referral the booking page arrived with. Medal Social stores it on the booking and reports the conversion to Google from its server. A malformed value is ignored, never a 400. */
+      google_referral?: components["schemas"]["BookingGoogleReferralInput"] | null;
+    };
+    BookingGoogleReferralInput: {
+      /** @description The `rwg_token` Google appended to its Book link. */
+      rwg_token: string;
+      /** @description When the token was captured, in epoch milliseconds. */
+      captured_at: number;
     };
     CreatedBooking: {
       id: string;

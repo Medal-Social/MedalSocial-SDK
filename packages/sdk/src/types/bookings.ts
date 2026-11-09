@@ -260,6 +260,20 @@ export interface CreateBookingInput {
    * proves which workspace is calling, not that a member typed it in.
    */
   created_via?: BookingClaimableCreatedVia;
+  /**
+   * The Reserve with Google referral the booking page arrived with: the
+   * `rwg_token` Google appended to its Book link, and when it was captured
+   * (epoch milliseconds). Medal Social stores it on the booking and reports
+   * the conversion to Google from its server. Omit it for any other booking.
+   */
+  google_referral?: BookingGoogleReferralInput | null;
+}
+
+/** `CreateBookingInput.google_referral`. */
+export interface BookingGoogleReferralInput {
+  rwg_token: string;
+  /** When the token was captured, in epoch milliseconds. */
+  captured_at: number;
 }
 
 /** One entry of `BookingCreateResult.bookings`, in request order. */

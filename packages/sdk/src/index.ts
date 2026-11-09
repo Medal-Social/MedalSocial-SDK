@@ -261,6 +261,7 @@ export type {
   BookingEventRemoveResult,
   BookingEventStatus,
   BookingEventTemplateKey,
+  BookingGoogleReferralInput,
   BookingNextGap,
   BookingPayment,
   BookingPaymentMode,

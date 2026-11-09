@@ -4800,6 +4800,24 @@ components:
             not that a member typed the booking in.
           type: string
           enum: [web, api]
+        google_referral:
+          description: >-
+            The Reserve with Google referral the booking page arrived with.
+            Medal Social stores it on the booking and reports the conversion to
+            Google from its server. A malformed value is ignored, never a 400.
+          oneOf:
+            - $ref: "#/components/schemas/BookingGoogleReferralInput"
+            - type: "null"
+    BookingGoogleReferralInput:
+      type: object
+      required: [rwg_token, captured_at]
+      properties:
+        rwg_token:
+          description: The `rwg_token` Google appended to its Book link.
+          type: string
+        captured_at:
+          description: When the token was captured, in epoch milliseconds.
+          type: number
     CreatedBooking:
       type: object
       required: [id]
