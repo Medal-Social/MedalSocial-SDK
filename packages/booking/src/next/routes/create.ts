@@ -67,6 +67,26 @@ interface CreateRequest {
    * Medal and not part of the idempotency key.
    */
   window?: { fromTs?: unknown; toTs?: unknown };
+  /**
+   * The Reserve with Google referral the wizard read from its tab
+   * (`readGoogleReferral`). Forwarded to Medal Social, never logged, and not
+   * part of the idempotency key.
+   */
+  googleReferral?: { rwg_token?: unknown; captured_at?: unknown };
+}
+
+/**
+ * The body's `googleReferral` as Medal Social takes it, or nothing.
+ *
+ * Never an error: the referral only says where the visitor came from, so a
+ * malformed one is dropped and the booking goes ahead.
+ */
+function googleReferralOf(
+  raw: CreateRequest['googleReferral']
+): NonNullable<CreateBookingBody['google_referral']> | undefined {
+  if (typeof raw?.rwg_token !== 'string' || raw.rwg_token.length === 0) return undefined;
+  if (typeof raw.captured_at !== 'number' || !Number.isFinite(raw.captured_at)) return undefined;
+  return { rwg_token: raw.rwg_token, captured_at: raw.captured_at };
 }
 
 /** The window the wizard shows when it names none: seven local days from now. */
@@ -523,7 +543,12 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     return NextResponse.json({ error: 'upstreamError', retryable: true }, { status: 503 });
   }
   if (booking === 'accountRequired') return accountRequired();
-  mapped.body = booking.body;
+  // Added after `keyBody` is taken: the referral says where the visitor came
+  // from, not which booking this is, so it must not make a new key.
+  const googleReferral = googleReferralOf((parsed as CreateRequest).googleReferral);
+  mapped.body = googleReferral
+    ? { ...booking.body, google_referral: googleReferral }
+    : booking.body;
 
   try {
     // Inside the try, though nothing about a SHA-256 of a string this route

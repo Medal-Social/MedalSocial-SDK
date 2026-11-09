@@ -1278,6 +1278,34 @@ describe('BookingWizard submission', () => {
     expect(submitted.items).toHaveLength(1);
   });
 
+  it('sends the Reserve with Google token it landed with', async () => {
+    location.search = '?rwg_token=AJKvS9WeONmW';
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard();
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect((bodies[0] as { googleReferral?: unknown }).googleReferral).toEqual({
+      rwg_token: 'AJKvS9WeONmW',
+      captured_at: NOW,
+    });
+  });
+
+  it('sends no referral for a visit that did not come from Google', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard();
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect('googleReferral' in (bodies[0] as object)).toBe(false);
+  });
+
   it('sends a parent whose submission Medal already holds to their e-mail, not the button', async () => {
     stubApi({ ...OPEN_AT_ONE, createStatus: 409, create: { error: 'inProgress' } });
     const user = userEvent.setup();
