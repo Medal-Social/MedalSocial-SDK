@@ -1,6 +1,6 @@
 {
   "name": "@medalsocial/ordering",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Medal Social online ordering: menu money, table and channel links, the cart draft and the modifier rules behind a Medal ordering site",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.24.0",

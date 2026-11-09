@@ -1,5 +1,18 @@
 # @medalsocial/ordering
 
+## 0.2.0
+
+### Minor Changes
+
+- [#308](https://github.com/Medal-Social/MedalSocial-SDK/pull/308) [`1841121`](https://github.com/Medal-Social/MedalSocial-SDK/commit/1841121649c9c6217c4b60a1dd13f6a332920863) Thanks [@alioftech](https://github.com/alioftech)! - **Breaking for sites that pass a `returnUrl` function to `createPlaceOrderRoute`:** add `siteOrigin` before upgrading. Without it, creating the route now throws a `RangeError` when the module loads. A static `returnUrl` string is unchanged.
+  
+  - A `returnUrl` function's answer must be on one of the `siteOrigin` origins, or a Vipps order answers `500 NOT_CONFIGURED`. A hostile `Host` header can no longer become the address a paying guest is sent back to.
+  - `Checkout` keeps the guest's chosen time when the page passes a new `loadSlots` function on re-render. It reloads the slots only when the restaurant, channel, day or scheduling choice changes. A new restaurant drops the old restaurant's chosen time, and when the new restaurant doesn't offer the picked day, the first offered day is used for both the day list and the slot request.
+
+### Patch Changes
+
+- [#308](https://github.com/Medal-Social/MedalSocial-SDK/pull/308) [`1841121`](https://github.com/Medal-Social/MedalSocial-SDK/commit/1841121649c9c6217c4b60a1dd13f6a332920863) Thanks [@alioftech](https://github.com/alioftech)! - `CartList`: removing a line keeps keyboard and screen-reader focus in the cart — on the next line's «Fjern», the previous one for the last line, or the cart heading when the last dish goes.
+
 ## 0.1.0
 
 ### Minor Changes
