@@ -236,7 +236,11 @@ export function Checkout({
 
   const today = localIsoDate(clock.getTime(), timeZone);
   const days = Array.from({ length: location.preorder_days + 1 }, (_, i) => addIsoDays(today, i));
-  const [date, setDate] = useState(today);
+  const [pickedDate, setDate] = useState(today);
+  // A day the restaurant offers: after a switch to a restaurant with a shorter
+  // pre-order window, or past midnight, the picked day may be gone; the first
+  // offered day stands in so the day list and the slot request agree.
+  const date = days.includes(pickedDate) ? pickedDate : today;
   // `null` while loading; 'failed' when the times could not be read, which is
   // not the same as a day with no free times.
   const [slots, setSlots] = useState<OrderingSlot[] | null | 'failed'>(null);
@@ -294,13 +298,21 @@ export function Checkout({
   const slotHintRef = useRef<HTMLParagraphElement>(null);
   const quoteStatusRef = useRef<HTMLDivElement>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `slotsTick` is the read-again signal.
+  // The latest loader: a page passing a new function each render must not
+  // reload the slots and clear the guest's chosen time.
+  const slotLoader = useRef(loadSlots);
   useEffect(() => {
-    if (timing !== 'scheduled' || loadSlots === undefined || channel === undefined) return;
+    slotLoader.current = loadSlots;
+  });
+  const canLoadSlots = loadSlots !== undefined;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `canLoadSlots` is the "a loader arrived" signal; `location.id` a new restaurant's slots; `slotsTick` the read-again signal.
+  useEffect(() => {
+    const load = slotLoader.current;
+    if (timing !== 'scheduled' || load === undefined || channel === undefined) return;
     let current = true;
     setSlots(null);
     setSlot('');
-    loadSlots({ channel, date }).then(
+    load({ channel, date }).then(
       (found) => {
         if (current) setSlots(found);
       },
@@ -311,7 +323,7 @@ export function Checkout({
     return () => {
       current = false;
     };
-  }, [timing, loadSlots, channel, date, slotsTick]);
+  }, [timing, canLoadSlots, channel, date, location.id, slotsTick]);
   const slotList = Array.isArray(slots) ? slots : [];
 
   const opens =

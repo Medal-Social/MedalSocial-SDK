@@ -315,6 +315,88 @@ describe('Checkout', () => {
     expect(loadSlots).toHaveBeenCalledWith({ channel: 'takeaway', date: '2026-10-29' });
   });
 
+  it('keeps the chosen time when the page passes a new loadSlots function', async () => {
+    const slots: OrderingSlot[] = [{ start: '2026-10-29T16:00:00Z', end: '2026-10-29T16:15:00Z' }];
+    const first = vi.fn(async () => slots);
+    const { user, rerender, onPlace, onPlaced, onRefused } = checkout({
+      loadSlots: first,
+      allowScheduled: true,
+    });
+    await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
+    const time = screen.getByLabelText('Tidspunkt');
+    await waitFor(() => expect(time).toBeEnabled());
+    await user.selectOptions(time, '2026-10-29T16:00:00Z');
+    // A parent re-render with a new loader function: same channel and day.
+    const second = vi.fn(async () => slots);
+    rerender(
+      <Checkout
+        location={location()}
+        timeZone="Europe/Oslo"
+        cart={CART}
+        onPlace={onPlace}
+        onPlaced={onPlaced}
+        onRefused={onRefused}
+        now={NOW}
+        loadSlots={second}
+        allowScheduled
+      />
+    );
+    expect(screen.getByLabelText('Tidspunkt')).toHaveValue('2026-10-29T16:00:00Z');
+    expect(second).not.toHaveBeenCalled();
+    expect(first).toHaveBeenCalledOnce();
+  });
+
+  it('loads the new restaurant’s slots and drops the chosen time when the location changes', async () => {
+    const slots: OrderingSlot[] = [{ start: '2026-10-29T16:00:00Z', end: '2026-10-29T16:15:00Z' }];
+    const loadSlots = vi.fn(async () => slots);
+    const { user, rerender, onPlace, onPlaced } = checkout({ loadSlots, allowScheduled: true });
+    await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
+    await waitFor(() => expect(screen.getByLabelText('Tidspunkt')).toBeEnabled());
+    await user.selectOptions(screen.getByLabelText('Tidspunkt'), '2026-10-29T16:00:00Z');
+    rerender(
+      <Checkout
+        location={{ ...location(), id: 'loc_other' }}
+        timeZone="Europe/Oslo"
+        cart={CART}
+        onPlace={onPlace}
+        onPlaced={onPlaced}
+        now={NOW}
+        loadSlots={loadSlots}
+        allowScheduled
+      />
+    );
+    await waitFor(() => expect(loadSlots).toHaveBeenCalledTimes(2));
+    expect(screen.getByLabelText('Tidspunkt')).toHaveValue('');
+  });
+
+  it('falls back to the first offered day when the new restaurant does not offer the picked day', async () => {
+    const loadSlots = vi.fn(async () => [] as OrderingSlot[]);
+    const { user, rerender, onPlace, onPlaced } = checkout({ loadSlots, allowScheduled: true });
+    await user.click(screen.getByRole('radio', { name: 'Velg tidspunkt' }));
+    await user.selectOptions(screen.getByLabelText('Dag'), '2026-10-31');
+    await waitFor(() =>
+      expect(loadSlots).toHaveBeenLastCalledWith({ channel: 'takeaway', date: '2026-10-31' })
+    );
+    rerender(
+      <Checkout
+        location={{ ...location(), id: 'loc_other', preorder_days: 1 }}
+        timeZone="Europe/Oslo"
+        cart={CART}
+        onPlace={onPlace}
+        onPlaced={onPlaced}
+        now={NOW}
+        loadSlots={loadSlots}
+        allowScheduled
+      />
+    );
+    await waitFor(() =>
+      expect(loadSlots).toHaveBeenLastCalledWith({ channel: 'takeaway', date: '2026-10-29' })
+    );
+    const day = screen.getByLabelText('Dag') as HTMLSelectElement;
+    expect(day.value).toBe('2026-10-29');
+    expect([...day.options].map((o) => o.value)).toEqual(['2026-10-29', '2026-10-30']);
+  });
+
   it('keeps only the latest day’s slots, in English, and goes back to as soon as possible', async () => {
     const answers: Record<string, (s: OrderingSlot[]) => void> = {};
     const failures: Record<string, (e: Error) => void> = {};
