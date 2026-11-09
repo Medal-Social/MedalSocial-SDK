@@ -78,7 +78,9 @@ const BUDGETS = [
     // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
     // the panel's words, compact header, booked hero, guest-party restore):
     // measured 16.52 KB.
-    gzipBytes: 17.0 * 1024,
+    // Raised 17.0 → 17.2 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 17.04 KB.
+    gzipBytes: 17.2 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -137,7 +139,9 @@ const BUDGETS = [
     // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.70 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.51 KB.
-    gzipBytes: 21.7 * 1024,
+    // Raised 21.7 → 21.9 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 21.78 KB.
+    gzipBytes: 21.9 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -171,7 +175,9 @@ const BUDGETS = [
     // Raised 31.0 → 31.1 KB for `details.emailRequired` (the bound step rule,
     // the shared e-mail shape and the nb/en `details.email.required` words):
     // measured 31.06 KB.
-    gzipBytes: 31.1 * 1024,
+    // Raised 31.1 → 31.5 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 31.32 KB.
+    gzipBytes: 31.5 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -213,7 +219,9 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.65 KB.
     // Raised 21.8 → 21.9 KB for the adult-word check on nested providers:
     // measured 21.82 KB.
-    gzipBytes: 21.9 * 1024,
+    // Raised 21.9 → 22.0 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 21.90 KB.
+    gzipBytes: 22.0 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -245,7 +253,9 @@ const BUDGETS = [
     // Raised 31.1 → 31.2 KB for `details.emailRequired` (the bound step rule,
     // the shared e-mail shape and the nb/en `details.email.required` words):
     // measured 31.14 KB.
-    gzipBytes: 31.2 * 1024,
+    // Raised 31.2 → 31.6 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 31.43 KB.
+    gzipBytes: 31.6 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -290,7 +300,9 @@ const BUDGETS = [
     // the two-step sheet and its nb + en copy, ~40 keys a pack). The booking
     // page's budgets above do not move — the portal is not on that path.
     // Measured 29.04 KB.
-    gzipBytes: 29.2 * 1024,
+    // Raised 29.2 → 29.4 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 29.21 KB.
+    gzipBytes: 29.4 * 1024,
   },
 ];
 
