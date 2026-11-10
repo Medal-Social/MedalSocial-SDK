@@ -11,6 +11,12 @@ const STORAGE_KEY = 'medal:booking:rwg';
 const TOKEN = /^[\x21-\x7E]{1,2048}$/;
 /** Google attributes a booking to a click for 30 days. */
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/**
+ * How far ahead of the clock a stored capture time may be. A little drift is
+ * normal (the clock synced since capture); more means the clock was corrected
+ * backward, and such a time would never expire.
+ */
+const MAX_SKEW_MS = 5 * 60 * 1000;
 
 export interface GoogleReferral {
   rwg_token: string;
@@ -27,15 +33,17 @@ function storage(): Storage | null {
   }
 }
 
-/** The stored referral, or null when there is none, it is malformed or it is too old. */
+/** The stored referral, or null when there is none, it is malformed, too old or dated ahead of the clock. */
 export function readGoogleReferral(now = Date.now()): GoogleReferral | null {
   try {
     const raw = storage()?.getItem(STORAGE_KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<GoogleReferral> | null;
     if (typeof value?.rwg_token !== 'string' || !TOKEN.test(value.rwg_token)) return null;
-    if (typeof value.captured_at !== 'number' || now - value.captured_at > TTL_MS) return null;
-    return { rwg_token: value.rwg_token, captured_at: value.captured_at };
+    const at = value.captured_at;
+    if (typeof at !== 'number' || !Number.isFinite(at)) return null;
+    if (now - at > TTL_MS || at - now > MAX_SKEW_MS) return null;
+    return { rwg_token: value.rwg_token, captured_at: at };
   } catch {
     return null;
   }
