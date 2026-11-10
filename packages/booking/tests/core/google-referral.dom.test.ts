@@ -51,7 +51,22 @@ describe('google referral', () => {
     expect(readGoogleReferral(later)).toEqual({ rwg_token: 'tok', captured_at: later });
   });
 
+  it('keeps a capture a few minutes ahead of the clock, but not one far ahead', () => {
+    captureGoogleReferral('?rwg_token=tok', NOW);
+    expect(readGoogleReferral(NOW - 5 * 60_000)).not.toBeNull();
+    // The clock was corrected backward by a day: the old time would never expire.
+    expect(readGoogleReferral(NOW - 86_400_000)).toBeNull();
+  });
+
+  it('captures the same token again, at the current time, after the clock moves back', () => {
+    captureGoogleReferral('?rwg_token=tok', NOW);
+    const earlier = NOW - 86_400_000;
+    captureGoogleReferral('?rwg_token=tok', earlier);
+    expect(readGoogleReferral(earlier)).toEqual({ rwg_token: 'tok', captured_at: earlier });
+  });
+
   it.each([
+    ['a capture time that is not finite', '{"rwg_token":"tok","captured_at":1e400}'],
     ['not json', 'not json'],
     ['null', 'null'],
     ['a token that is not a string', JSON.stringify({ rwg_token: 5, captured_at: NOW })],
