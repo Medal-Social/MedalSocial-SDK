@@ -43,15 +43,23 @@ function isNorwegian(locale: string): boolean {
   return language === 'nb' || language === 'no' || language === 'nn';
 }
 
-export function createMoney(config: Pick<BookingConfig, 'locale' | 'currency'>): Money {
+/** «699,-», «1 860,-»: whole kroner the way a shop window prints them. */
+function formatKronerDash(nok: number): string {
+  return `${formatKroner(nok).slice(0, -`${NBSP}kr`.length)},-`;
+}
+
+export function createMoney(
+  config: Pick<BookingConfig, 'locale' | 'currency'> & Pick<Partial<BookingConfig>, 'priceFormat'>
+): Money {
   const { currency, locale } = config;
   // Rounded to whole kroner: nothing a salon sells has a half-krone price, and
   // a stray øre on a public price list reads as a bug rather than as precision.
   if (currency === 'NOK' && isNorwegian(locale)) {
+    const format = config.priceFormat === 'dash' ? formatKronerDash : formatKroner;
     return {
       currency,
-      formatPrice: formatKroner,
-      formatMinor: (ore) => formatKroner(ore / 100),
+      formatPrice: format,
+      formatMinor: (ore) => format(ore / 100),
     };
   }
   const probe = new Intl.NumberFormat(locale, { style: 'currency', currency });
