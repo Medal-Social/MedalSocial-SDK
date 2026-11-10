@@ -475,18 +475,23 @@ function setupFor(kit: BookingKit) {
     services: BookingServiceDto[],
     resources: BookingResourceDto[],
     seat: DeepLink['seat'] = null,
-    familyKnown = false
+    familyKnown = false,
+    /** `party.skipWhoStep` for a parent with nobody saved: their own seat. */
+    seatSelf = false
   ): WizardState {
     // A parent the page knows is asked who is coming FIRST, whatever the link says.
     if (familyKnown) return heldLink(wizard.initialState(), prefill, services, resources);
     // `party.askWhoFirst: false`: a guest starts on step 2 as the common visit —
     // one child where the site has a children's menu, else one grown-up — and
-    // step 1 stays one tap back for a party.
-    const unasked = config.party.askWhoFirst
-      ? null
-      : kit.childCategory !== null
-        ? { children: 1 }
-        : ({ adult: true } as const);
+    // step 1 stays one tap back for a party. `party.skipWhoStep` seats the
+    // same visit, with no step 1 to go back to.
+    const unasked = seatSelf
+      ? ({ adult: true } as const)
+      : config.party.askWhoFirst && !config.party.skipWhoStep
+        ? null
+        : kit.childCategory !== null
+          ? { children: 1 }
+          : ({ adult: true } as const);
     const seated = seat ?? unasked;
     const base = seated !== null && 'adult' in seated ? withAdult() : wizard.initialState();
     const state =
@@ -604,7 +609,10 @@ export function useBooking(options: UseBookingOptions) {
       services,
       options.seed.resources ?? [],
       deepLink.seat,
-      arrivedAs !== null
+      // With `party.skipWhoStep`, a parent with nobody saved has no one to
+      // choose: they book for themselves («Meg selv», once seated).
+      arrivedAs !== null && !(config.party.skipWhoStep && arrivedAs.family.length === 0),
+      arrivedAs !== null && config.party.skipWhoStep === true && arrivedAs.family.length === 0
     )
   );
 

@@ -1728,3 +1728,26 @@ describe('wizard machine: seatFamily and addPerson', () => {
     expect(state.step).toBe('who');
   });
 });
+
+describe('people.children.one — one guest child in its own words', () => {
+  const seat = (wizard: ReturnType<typeof createWizard>, count: number) =>
+    wizard.reduce(wizard.initialState(), {
+      type: 'choosePeople',
+      people: Array.from({ length: count }, (_, index) => wizard.guestChild(index + 1)),
+      advance: true,
+    });
+
+  it('reads the .one form for one child and the plain key for more', () => {
+    const wizard = createWizard({
+      ...PARITY_CONFIG,
+      labels: { 'people.children': '{count} personer', 'people.children.one': '{count} person' },
+    });
+    expect(wizard.panelParts(seat(wizard, 1)).who).toBe('1 person');
+    expect(wizard.panelParts(seat(wizard, 2)).who).toBe('2 personer');
+  });
+
+  it('keeps people.children for one child where the pack has no .one', () => {
+    const wizard = createWizard(PARITY_CONFIG);
+    expect(wizard.panelParts(seat(wizard, 1)).who).toBe('1 barn');
+  });
+});

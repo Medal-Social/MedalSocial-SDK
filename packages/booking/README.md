@@ -69,11 +69,12 @@ its own values in.
 | `timeZone` | — (required) | IANA zone of the business's opening hours; every clock face uses it |
 | `locale` | `nb-NO` | `Intl` formatting and the built-in label pack (`nb` or `en`) |
 | `currency` | `NOK` | ISO 4217; amounts stay in minor units on the wire |
+| `priceFormat` | `'unit'` | How a price is written: `'unit'` is «699 kr» (or `Intl` for other currencies); `'dash'` is the shop-window «699,-» / «1 860,-», for NOK in a Norwegian locale (any other currency stays `'unit'`). Every price the package writes follows it — the wizard, the manage page, Min side, the calendar file |
 | `phone` | `{ country: 'NO', validate: 'strict' }` | `NO` is the only strict rule set in 0.x |
 | `paths` | `/bestill`, `/bestill/administrer`, `/min-side`, `/api/booking`, … | The URLs the site serves |
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
-| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false, guestStartEmpty: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel`. `guestStartEmpty` (with `screens.guestParty`) starts a guest's step 1 with nobody rather than one child, so a grown-up alone is one tap |
+| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false, guestStartEmpty: false, skipWhoStep: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel`. `guestStartEmpty` (with `screens.guestParty`) starts a guest's step 1 with nobody rather than one child, so a grown-up alone is one tap. `skipWhoStep` (needs `maxPeople: 1`) drops the «who» step: a guest starts on the service step seated as `askWhoFirst: false` would seat them, and the header, crumbs and desktop panel leave «who» out; a logged-in parent with saved people is still asked |
 | `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null, followPolicy: false }` | Bookable window and page prefetch; `followPolicy` uses the saved limit (see below) |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
@@ -224,6 +225,18 @@ party size («to», «tre», «flere») for `{sizeWord}` in the stylist step's
 `stylist.party.parallel.*` and `stylist.party.parallelNote.*`. Left blank, the
 number is filled in instead. An array for a meda screen key needs
 `@medalsocial/meda` 3.4 or later.
+
+Counts with a singular: `who.party.count.one` / `.other` and
+`who.party.adultCount.one` / `.other` are read for the number the «who»
+steppers show («1 person», «2 personer»), and `people.children.one` for one
+guest child in the summary and the panel. All optional: without them the plain
+key reads for every number, as before.
+
+### The browser's back button
+
+The wizard writes one history entry per step the visitor moves forward to (`history.pushState`, the URL unchanged, the step under `medalBookingStep` in `history.state` beside the router's own fields), so back — the browser's button or a phone's back gesture — returns to the previous step with the answers kept. The step the page opens on tags the entry it arrived on, so back from there leaves the page; a deep link (`?tjeneste=`, `?frisor=`, `?kategori=`) is never read twice. Once booked, history is walked back to that arrival entry, so back from the booked screen leaves the page rather than reopening a sent form.
+
+`?kategori=` also scrolls the service list to that group when the step opens (once; not for the group the list starts with).
 
 ## Server (`/next`)
 

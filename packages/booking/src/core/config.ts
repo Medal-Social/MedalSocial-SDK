@@ -46,6 +46,14 @@ export interface BookingConfig {
   locale: string;
   /** ISO 4217. Amounts stay in minor units (øre, pence) on the wire. */
   currency: string;
+  /**
+   * How a price is written. `'unit'` — the default — is «699 kr» (Norwegian
+   * kroner) or `Intl`'s currency format. `'dash'` is the shop-window «699,-»
+   * («1 860,-»), for a site that prints its prices that way everywhere else;
+   * whole kroner only, so it applies to NOK in a Norwegian locale and falls
+   * back to `'unit'` for any other currency.
+   */
+  priceFormat?: 'unit' | 'dash';
   /** `NO` is the only strict rule set in 0.x; every other country is `loose`. */
   phone: { country: string; validate: 'strict' | 'loose' };
   /** URLs this site serves. */
@@ -113,6 +121,15 @@ export interface BookingConfig {
      * for an answer. Off by default.
      */
     guestStartEmpty: boolean;
+    /**
+     * One customer per booking (`maxPeople: 1`, which it requires): no «who»
+     * step. A guest starts on the service step seated as `askWhoFirst: false`
+     * seats them, and the header, the crumbs and the desktop panel leave
+     * «who» out, so the first step's back is the browser's. A logged-in
+     * parent with saved people is still asked who the visit is for — that
+     * question has an answer. Off by default.
+     */
+    skipWhoStep?: boolean;
   };
   /** The bookable window and the page's prefetch. */
   window: {
@@ -274,6 +291,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
   return {
     locale: 'nb-NO',
     currency: 'NOK',
+    priceFormat: 'unit',
     phone: { country: 'NO', validate: 'strict' },
     paths: { ...DEFAULT_PATHS },
     query: {
@@ -300,6 +318,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       maxServicesPerPerson: 1,
       adultTogether: false,
       guestStartEmpty: false,
+      skipWhoStep: false,
     },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
@@ -434,6 +453,7 @@ const schema = z
     timeZone: z.string().refine(validTimeZone, 'must be an IANA time zone'),
     locale: z.string().refine(validLocale, 'must be a BCP-47 locale'),
     currency: z.string().regex(/^[A-Z]{3}$/, 'must be an ISO 4217 code'),
+    priceFormat: z.enum(['unit', 'dash']),
     phone: z.object({
       country: z.string().regex(/^[A-Z]{2}$/),
       validate: z.enum(['strict', 'loose']),
@@ -481,6 +501,7 @@ const schema = z
       maxServicesPerPerson: z.number().int().min(1).max(4),
       adultTogether: z.boolean(),
       guestStartEmpty: z.boolean(),
+      skipWhoStep: z.boolean(),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(MAX_RANGE_DAYS),
@@ -615,6 +636,13 @@ const schema = z
         code: 'custom',
         path: ['portal', 'methods'],
         message: 'an enabled portal needs a login method',
+      });
+    }
+    if (config.party.skipWhoStep && config.party.maxPeople !== 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['party', 'skipWhoStep'],
+        message: 'skipWhoStep needs party.maxPeople 1',
       });
     }
     if (config.account.required && !config.portal.enabled) {

@@ -56,6 +56,12 @@ export interface CoreLabels {
   'summary.totalMinutes': BookingLabel;
   /** `{count} barn` — guest children on step 1. */
   'people.children': BookingLabel;
+  /**
+   * `{count}` for exactly one guest child, where the language says it
+   * differently («1 person», not «1 personer»). Optional: without it
+   * `people.children` reads for one too.
+   */
+  'people.children.one'?: BookingLabel;
   /** The logged-in parent's own seat. */
   'people.self': BookingLabel;
   /** A guest grown-up's seat. */

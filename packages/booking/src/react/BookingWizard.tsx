@@ -44,6 +44,7 @@ import { visitServicesOf } from '../core/visit';
 import type { PortalActions } from './actions';
 import type { BookingKit } from './kit';
 import { LoginSheet } from './LoginSheet';
+import type { BookingLabels } from './labels';
 import type { BookingOverrides, ResolvedBooking } from './Provider';
 import { useBookingKit } from './Provider';
 import { screenLabels } from './screen-labels';
@@ -84,6 +85,7 @@ import { BOOKING_SLOTS_EMPTY_MARKER, BOOKING_TEST_IDS } from './wizard/test-ids'
 export type { BookingTestId } from './wizard/test-ids';
 export { BOOKING_TEST_IDS } from './wizard/test-ids';
 
+import { useStepHistory } from './wizard/step-history';
 import { useWallClock } from './wizard/wall-clock';
 import { forMedaScreen, wizardErrorText } from './wizard-error';
 
@@ -128,6 +130,9 @@ const WIZARD_ROOT_ID = 'booking-wizard';
 /** The time step's heading, which a lost slot sends the visitor back to. */
 const TIME_HEADING_ID = 'booking-time-heading';
 
+/** meda's id for a service group's heading, `booking-services-<category>`. */
+const SERVICE_GROUP_PREFIX = 'booking-services-';
+
 /** The heading each screen focuses when the visitor arrives on it. */
 const STEP_HEADINGS: Record<WizardStep | 'confirmed', string> = {
   who: 'booking-who-heading',
@@ -138,6 +143,8 @@ const STEP_HEADINGS: Record<WizardStep | 'confirmed', string> = {
 };
 
 const STEPS: readonly WizardStep[] = ['who', 'service', 'when', 'details'];
+/** The steps without «who» (`party.skipWhoStep`). */
+const SERVICE_ONWARDS: readonly WizardStep[] = ['service', 'when', 'details'];
 
 /** Smooth, or instant for a visitor who asked for reduced motion. */
 function scrollToTop(target: HTMLElement | null): void {
@@ -182,6 +189,21 @@ function BookingWizardShell(props: BookingWizardProps) {
   const { state, restore, confirmed, onEvent } = { ...booking, onEvent: props.onEvent };
 
   /**
+   * `party.skipWhoStep`: no «who» step while there is nobody to choose — a
+   * guest, or a parent with no one saved. A family keeps the question.
+   */
+  const family = booking.people.family;
+  const whoSkipped =
+    kit.config.party.skipWhoStep === true && (family === null || family.length === 0);
+  const steps = whoSkipped && state.step !== 'who' ? SERVICE_ONWARDS : STEPS;
+
+  /**
+   * `?kategori=`: the service step the page lands on opens at that group,
+   * once — never again when the visitor comes back to the step.
+   */
+  const categoryLanding = useRef<string | null>(booking.catalogue.deepLinkCategory);
+
+  /**
    * On every change of screen: the wizard's top into view and focus on the
    * new step's heading. Never on the first screen, and never for what the
    * restore gate reveals — that is the page arriving, not the visitor moving.
@@ -208,6 +230,16 @@ function BookingWizardShell(props: BookingWizardProps) {
     // The heading focused now may be the skeleton's; focus follows the real one.
     focusTimeWhenReady.current = toTimes && !timeStepReady;
   }, [screenKey, restore.restoring, takenSlotTs, timeStepReady, onEvent]);
+
+  // Back and forward walk the steps (see `useStepHistory`).
+  useStepHistory({
+    screen: screenKey,
+    restoring: restore.restoring,
+    state,
+    submitting: booking.submitting,
+    canGoToStep: kit.wizard.canGoToStep,
+    goToStep: (step) => booking.dispatch({ type: 'goToStep', step }),
+  });
 
   /** After a login from the sheet the row that opened it is gone: focus the step's heading. */
   const focusAfterSignIn = useRef(false);
@@ -366,6 +398,7 @@ function BookingWizardShell(props: BookingWizardProps) {
         <WizardHeader
           kit={kit}
           state={state}
+          steps={steps}
           submitting={booking.submitting}
           answers={booking.derived.panelParts}
           onGo={(step) => booking.dispatch({ type: 'goToStep', step })}
@@ -421,7 +454,12 @@ function BookingWizardShell(props: BookingWizardProps) {
           )}
           {state.step === 'service' && (
             <div data-testid={BOOKING_TEST_IDS.stepService}>
-              <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
+              <ServiceStep
+                booking={booking}
+                resolved={resolved}
+                multiSelect={multiSelect}
+                categoryLanding={categoryLanding}
+              />
             </div>
           )}
           {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
@@ -458,7 +496,7 @@ function BookingWizardShell(props: BookingWizardProps) {
       </div>
       {desktopPanel && (
         <div className="hidden lg:sticky lg:top-24 lg:block">
-          <PanelStep booking={booking} multiSelect={multiSelect} />
+          <PanelStep booking={booking} multiSelect={multiSelect} whoSkipped={whoSkipped} />
         </div>
       )}
     </div>
@@ -485,7 +523,7 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
   const guests = useMemo(() => guestChoices(kit), [kit]);
   return (
     <WhoScreen
-      labels={screenLabels(kit.labels)}
+      labels={screenLabels(countedLabels(kit.labels, state.people))}
       format={kit.format}
       people={state.people}
       family={people.family === null ? null : familyEntries(kit, people.family, people.ageDayKey)}
@@ -516,8 +554,49 @@ function WhoStep({ booking, resolved, loginRow }: StepProps & { loginRow: ReactN
   );
 }
 
-function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSelect: boolean }) {
+/**
+ * The pack with each «who» count read for the number it shows now: the
+ * `.one` / `.other` form where the pack has one (`who.party.count.one`, …).
+ * The screen fills `{count}` itself, from the same seats counted here: the
+ * grown-ups, and everyone else.
+ */
+function countedLabels(
+  labels: Readonly<BookingLabels>,
+  people: readonly WizardPerson[]
+): Readonly<BookingLabels> {
+  const adults = people.filter((person) => person.adult).length;
+  const counts = { 'who.party.count': people.length - adults, 'who.party.adultCount': adults };
+  let counted: BookingLabels | null = null;
+  for (const [key, count] of Object.entries(counts) as Array<[keyof typeof counts, number]>) {
+    const form = labels[`${key}.${count === 1 ? 'one' : 'other'}`];
+    if (form === undefined) continue;
+    counted ??= { ...labels };
+    counted[key] = form;
+  }
+  return counted ?? labels;
+}
+
+function ServiceStep({
+  booking,
+  resolved,
+  multiSelect,
+  categoryLanding,
+}: StepProps & { multiSelect: boolean; categoryLanding: { current: string | null } }) {
   const { kit, state, people, catalogue } = booking;
+  // The deep-linked group, scrolled to once it is on the page: its pill is
+  // marked from the first render, but the list would still open at the top.
+  // Not for the first group, which is where the list starts anyway.
+  useEffect(() => {
+    const category = categoryLanding.current;
+    if (category === null) return;
+    categoryLanding.current = null;
+    const groups = document.querySelectorAll<HTMLElement>(
+      `[data-booking-step="service"] section > h3[id^="${SERVICE_GROUP_PREFIX}"]`
+    );
+    const target = document.getElementById(`${SERVICE_GROUP_PREFIX}${category}`);
+    if (target === null || groups[0] === target) return;
+    scrollToTop(target);
+  }, [categoryLanding]);
   const ageOf = (person: WizardPerson) => people.personAge(person, people.ageDayKey);
   const single = state.people.length === 1 ? state.people[0] : null;
   // «Samme som sist» stays a one-tap shortcut while the person's visit is
@@ -1001,26 +1080,30 @@ function RestoreSkeleton({ text }: { text: string }) {
 function WizardHeader({
   kit,
   state,
+  steps,
   submitting,
   answers,
   onGo,
 }: {
   kit: BookingKit;
   state: WizardState;
+  /** The steps on offer, in order: all four, or three without «who». */
+  steps: readonly WizardStep[];
   submitting: boolean;
   answers: { who: string | null; services: string | null };
   onGo: (step: WizardStep) => void;
 }) {
   const { labels, wizard } = kit;
   const stepLabel = (step: WizardStep) => labelText(labels[`wizard.step.${step}`]);
-  const index = STEPS.indexOf(state.step);
-  const previous = index > 0 ? STEPS[index - 1] : null;
+  const index = steps.indexOf(state.step);
+  const previous = index > 0 ? steps[index - 1] : null;
   const canGoBack = previous !== null && !submitting && wizard.canGoToStep(state, previous);
   if (kit.config.screens.compactHeader) {
     return (
       <CompactHeader
         kit={kit}
         state={state}
+        steps={steps}
         submitting={submitting}
         answers={answers}
         canGoBack={canGoBack}
@@ -1051,7 +1134,7 @@ function WizardHeader({
           <span className="block truncate text-xs text-muted-foreground">
             {fillParts(labels['wizard.progress'], {
               step: index + 1,
-              total: STEPS.length,
+              total: steps.length,
               label: stepLabel(state.step),
             })}
           </span>
@@ -1062,7 +1145,7 @@ function WizardHeader({
         aria-label={labelText(labels['wizard.progressLabel'])}
         className="flex items-center gap-1.5"
       >
-        {STEPS.map((step, position) => {
+        {steps.map((step, position) => {
           const isCurrent = step === state.step;
           const reachable = !submitting && !isCurrent && wizard.canGoToStep(state, step);
           return (
@@ -1095,6 +1178,7 @@ function WizardHeader({
 function CompactHeader({
   kit,
   state,
+  steps,
   submitting,
   answers,
   canGoBack,
@@ -1103,6 +1187,7 @@ function CompactHeader({
 }: {
   kit: BookingKit;
   state: WizardState;
+  steps: readonly WizardStep[];
   submitting: boolean;
   answers: { who: string | null; services: string | null };
   canGoBack: boolean;
@@ -1111,7 +1196,7 @@ function CompactHeader({
 }) {
   const { labels, wizard, format } = kit;
   const stepLabel = (step: WizardStep) => labelText(labels[`wizard.step.${step}`]);
-  const index = STEPS.indexOf(state.step);
+  const index = steps.indexOf(state.step);
   // Only a crumb behind the current step is asked, so never «details», and
   // past the time step there is a time.
   const answerOf = (step: WizardStep): string | null => {
@@ -1136,7 +1221,7 @@ function CompactHeader({
         aria-label={labelText(labels['wizard.progressLabel'])}
         className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-sm"
       >
-        {STEPS.map((step, position) => {
+        {steps.map((step, position) => {
           const isCurrent = step === state.step;
           const answer = position < index ? answerOf(step) : null;
           const reachable = !submitting && !isCurrent && wizard.canGoToStep(state, step);
@@ -1169,7 +1254,7 @@ function CompactHeader({
         })}
       </ol>
       <span aria-hidden="true" className="flex shrink-0 items-center gap-1">
-        {STEPS.map((step, position) => (
+        {steps.map((step, position) => (
           <i
             key={step}
             className={`block h-1.5 w-4 rounded-full ${position <= index ? 'bg-primary' : 'bg-border'}`}
@@ -1185,7 +1270,15 @@ function CompactHeader({
  * answers the summary bar holds, the total, and «continue» where the step
  * moves on by a button (the details form has its own).
  */
-function PanelStep({ booking, multiSelect }: { booking: BookingController; multiSelect: boolean }) {
+function PanelStep({
+  booking,
+  multiSelect,
+  whoSkipped,
+}: {
+  booking: BookingController;
+  multiSelect: boolean;
+  whoSkipped: boolean;
+}) {
   const { kit, state, catalogue, slots } = booking;
   const { labels, config } = kit;
   const recap = useMemo(
@@ -1207,7 +1300,7 @@ function PanelStep({ booking, multiSelect }: { booking: BookingController; multi
   if (payment) notes.push({ kind: 'payment', text: payment });
   if (config.contact.address) notes.push({ kind: 'place', text: config.contact.address });
   const moves = state.step !== 'details' && !multiSelect;
-  return (
+  const panel = (
     <BookingPanel
       labels={screenLabels(labels)}
       format={kit.format}
@@ -1233,6 +1326,9 @@ function PanelStep({ booking, multiSelect }: { booking: BookingController; multi
       notes={notes}
     />
   );
+  // meda draws «who» as the list's first row whatever it is handed; with no
+  // «who» step there is no answer to show there.
+  return whoSkipped ? <div className="contents [&_dl>div:first-child]:hidden">{panel}</div> : panel;
 }
 
 /**

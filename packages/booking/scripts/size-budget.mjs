@@ -141,7 +141,8 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.51 KB.
     // Raised 21.7 → 21.9 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 21.78 KB.
-    gzipBytes: 21.9 * 1024,
+    // Raised 21.9 → 22.8 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.70 KB.
+    gzipBytes: 22.8 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -177,7 +178,8 @@ const BUDGETS = [
     // measured 31.06 KB.
     // Raised 31.1 → 31.5 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 31.32 KB.
-    gzipBytes: 31.5 * 1024,
+    // Raised 31.5 → 32.4 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.32 KB.
+    gzipBytes: 32.4 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -221,7 +223,8 @@ const BUDGETS = [
     // measured 21.82 KB.
     // Raised 21.9 → 22.0 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 21.90 KB.
-    gzipBytes: 22.0 * 1024,
+    // Raised 22.0 → 22.9 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.82 KB.
+    gzipBytes: 22.9 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -255,7 +258,8 @@ const BUDGETS = [
     // measured 31.14 KB.
     // Raised 31.2 → 31.6 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 31.43 KB.
-    gzipBytes: 31.6 * 1024,
+    // Raised 31.6 → 32.5 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.41 KB.
+    gzipBytes: 32.5 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -302,7 +306,8 @@ const BUDGETS = [
     // Measured 29.04 KB.
     // Raised 29.2 → 29.4 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 29.21 KB.
-    gzipBytes: 29.4 * 1024,
+    // Raised 29.4 → 30.2 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 30.11 KB.
+    gzipBytes: 30.2 * 1024,
   },
 ];
 
