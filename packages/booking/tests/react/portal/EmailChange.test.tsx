@@ -325,8 +325,12 @@ describe('PortalEmailChange', () => {
   it('closes on its own button and starts over next time', async () => {
     render(<Subject />);
     await openAndSend();
-    await screen.findByLabelText(label('otp.label'));
+    // The sheet cannot be dismissed while the send is settling (`dismissible`),
+    // and the code field is read-only until it has: close only after that.
+    const code = await screen.findByLabelText(label('otp.label'));
+    await waitFor(() => expect(code).not.toHaveAttribute('readonly'));
     fireEvent.click(screen.getByRole('button', { name: label('emailChange.close') }));
+    await waitFor(() => expect(screen.queryByLabelText(label('otp.label'))).toBeNull());
     expect(router.refresh).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: label('emailChange.buttonLabel') }));

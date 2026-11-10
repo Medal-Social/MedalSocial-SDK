@@ -1,3 +1,4 @@
+import type { GoogleReferral } from './google-referral';
 import type { WizardService } from './machine';
 
 /**
@@ -190,6 +191,13 @@ export interface BookingSubmission {
    * shape rather than added by whoever posts it.
    */
   submissionNonce?: string;
+  /**
+   * The Reserve with Google referral this visit arrived with, when there is
+   * one (`readGoogleReferral`). Part of the submission, so a resend after a
+   * lost answer carries the same referral as the first try. The create route
+   * forwards it to Medal Social, which reports the conversion.
+   */
+  googleReferral?: GoogleReferral;
 }
 
 /**

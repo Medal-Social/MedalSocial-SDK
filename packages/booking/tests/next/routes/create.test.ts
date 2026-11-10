@@ -214,6 +214,31 @@ describe('POST /api/booking/create', () => {
     expect(keyOf(1)).toBe(keyOf(0));
   });
 
+  it('forwards the Reserve with Google referral to Medal, outside the idempotency key', async () => {
+    const googleReferral = { rwg_token: 'AJKvS9WeONmW', captured_at: 1_700_000_000_000 };
+    await POST(nonceRequest());
+    await POST(nonceRequest({ googleReferral }));
+
+    expect(submittedBody().google_referral).toBeUndefined();
+    expect(vi.mocked(createBooking).mock.calls[1][0].google_referral).toEqual(googleReferral);
+    // Where the visitor came from is not which booking this is: a resend that
+    // gained or lost the referral must still be the same booking.
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it.each([
+    ['a token that is not a string', { rwg_token: 5, captured_at: 1 }],
+    ['an empty token', { rwg_token: '', captured_at: 1 }],
+    ['no capture time', { rwg_token: 'AJKvS9WeONmW' }],
+    ['a capture time that is not finite', { rwg_token: 'AJKvS9WeONmW', captured_at: null }],
+    ['something that is not an object', 'AJKvS9WeONmW'],
+  ])('drops a referral with %s and books anyway', async (_, googleReferral) => {
+    const response = await POST(nonceRequest({ googleReferral }));
+
+    expect(response.status).toBe(201);
+    expect('google_referral' in submittedBody()).toBe(false);
+  });
+
   it('still books without a nonce, one key per request', async () => {
     // An older wizard, or anything that is not the wizard. It loses the
     // guarantee, not the appointment: refusing it would turn a missing nicety

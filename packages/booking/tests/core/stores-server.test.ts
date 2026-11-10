@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { captureGoogleReferral, readGoogleReferral } from '../../src/core/google-referral';
 import { stripVippsReturn } from '../../src/core/portal/vipps-return';
 import { createStores } from '../../src/core/stores';
 
@@ -43,6 +44,11 @@ describe('stores without a window', () => {
       },
     });
     expect(stores.readAttempt().nonce).not.toBe(attempt.nonce);
+  });
+
+  it('keeps no Reserve with Google referral', () => {
+    captureGoogleReferral('?rwg_token=AJKvS9WeONmW');
+    expect(readGoogleReferral()).toBeNull();
   });
 
   it('has no address bar to strip', () => {
