@@ -290,6 +290,29 @@ describe('BookingWizard — browser history', () => {
     expect(go).toHaveBeenCalledWith(-1);
   });
 
+  it('never lets the browser’s back move forward after an in-app back past the arrival', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?tjeneste=barneklipp';
+    const push = vi.spyOn(window.history, 'pushState');
+    render(wizard({ config: ONE_SEAT, components: TIME_CHIPS }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    const visit = here().visit;
+    expect(here()).toEqual({ step: 'when', depth: 0, visit });
+    await user.click(screen.getByRole('button', { name: 'Tilbake til Hva' }));
+    expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    // «Hva» takes the arrival entry over instead of being pushed after «Når».
+    expect(push).not.toHaveBeenCalled();
+    expect(here()).toEqual({ step: 'service', depth: 0, visit });
+    // Forward again is a new entry after it, and back returns to «Hva».
+    await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    expect(here()).toEqual({ step: 'when', depth: 1, visit });
+    act(() => window.history.back());
+    expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    expect(here()).toEqual({ step: 'service', depth: 0, visit });
+  });
+
   it('sends a forward step it cannot show back to where the visitor was', () => {
     stubApi();
     const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});

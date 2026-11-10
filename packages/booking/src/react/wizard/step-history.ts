@@ -22,7 +22,9 @@
  *   re-render, a restored answer) is not.
  * - Going back in the wizard to a step already behind them in history walks
  *   history back to it (`history.go`), so the two never disagree about what
- *   «back» means.
+ *   «back» means. Back to an earlier step that is NOT behind them (the page
+ *   opened past it) replaces the current entry, so no later step is ever
+ *   left behind an earlier one.
  * - `popstate` moves the wizard to the entry's step when the machine allows
  *   it (`canGoToStep`). An entry of this visit it cannot show is never a dead
  *   press: one behind is passed through to the page before the visit, one
@@ -50,7 +52,9 @@ interface HistoryMark {
   visit: string;
 }
 
-const SCREENS: readonly string[] = ['who', 'service', 'when', 'details', 'confirmed'];
+/** The screens in the order the visitor meets them. */
+const FLOW: readonly Screen[] = ['who', 'service', 'when', 'details', 'confirmed'];
+const SCREENS: readonly string[] = FLOW;
 
 /** The wizard's mark in a history state, or `null` for an entry that has none. */
 export function readHistoryMark(state: unknown): HistoryMark | null {
@@ -129,6 +133,16 @@ export function useStepHistory(options: StepHistoryOptions): void {
       const delta = behind - depth.current;
       depth.current = behind;
       window.history.go(delta);
+      return;
+    }
+    // Back to a step that is not behind us in history (the page opened past
+    // it, on a link): it takes this entry over. Pushed, it would sit AFTER the
+    // later step, and the browser's back would move the wizard forward.
+    // A gap (an entry from before a takeover) reads as -1: pushed as before.
+    const showing = stack.current[depth.current] as Screen;
+    if (FLOW.indexOf(screen) < FLOW.indexOf(showing)) {
+      stack.current[depth.current] = screen;
+      writeMark('replace', { step: screen, depth: depth.current, visit: visit.current });
       return;
     }
     depth.current += 1;
