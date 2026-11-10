@@ -270,12 +270,45 @@ describe('BookingWizard — browser history', () => {
     expect(here()).toMatchObject({ step: 'service', depth: 1, visit });
   });
 
-  it('keeps the router’s own fields in the state it writes', () => {
+  it('keeps the router’s own fields in every state it writes (app and pages router)', async () => {
     stubApi();
-    window.history.replaceState({ __NA: true, tree: 'x' }, '');
-    render(wizard());
-    expect(window.history.state).toMatchObject({ __NA: true, tree: 'x' });
+    const user = userEvent.setup();
+    const router = {
+      // App router
+      __NA: true,
+      __PRIVATE_NEXTJS_INTERNALS_TREE: ['', { children: ['bestill', {}] }],
+      // Pages router
+      __N: true,
+      url: '/bestill',
+      as: '/bestill',
+      options: { shallow: false },
+      key: 'k1',
+    };
+    window.history.replaceState(router, '');
+    render(wizard({ components: CARDS }));
+    // Tagged in place: every router field kept, the mark beside them.
+    expect(window.history.state).toMatchObject(router);
     expect(here()).toMatchObject({ step: 'who', depth: 0 });
+    // Pushed: the new entry carries the same router fields, so either
+    // router's own popstate handling sees an entry it knows for this URL.
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    expect(window.history.state).toMatchObject(router);
+    expect(here()).toMatchObject({ step: 'service', depth: 1 });
+  });
+
+  it('leaves entries the router owns alone', () => {
+    stubApi();
+    render(wizard());
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    const replace = vi.spyOn(window.history, 'replaceState');
+    pop(
+      { __N: true, url: '/bestill', as: '/bestill', options: {}, key: 'k2' },
+      { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: [] }
+    );
+    expect(go).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
   });
 
   it('never pushes the same step twice', async () => {
@@ -651,6 +684,34 @@ describe('BookingWizard — party.skipWhoStep', () => {
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
     expect(screen.getByText(/Steg 1 av 3/)).toBeInTheDocument();
     expect(screen.getByText('Voksen')).toBeInTheDocument();
+  });
+
+  it('keeps a child link’s seat for «book another»', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?hvem=barn&tjeneste=barneklipp';
+    render(
+      wizard({
+        config: ONE_SEAT,
+        components: {
+          ...CARDS,
+          TimeChip: ({ label, onPick }) => (
+            <button type="button" onClick={onPick}>
+              chip:{label}
+            </button>
+          ),
+        },
+      })
+    );
+    await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+    await user.type(await screen.findByRole('textbox', { name: /Mobil/ }), '40000000');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await user.click(await screen.findByRole('button', { name: 'Bestill ny time' }));
+    expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    expect(screen.getByText(/Steg 1 av 3/)).toBeInTheDocument();
+    expect(screen.getByText('1 barn')).toBeInTheDocument();
+    expect(screen.queryByText('Voksen')).toBeNull();
   });
 
   it('opens «book another» on the service step for a parent with nobody saved', async () => {

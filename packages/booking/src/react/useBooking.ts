@@ -2120,10 +2120,16 @@ export function useBooking(options: UseBookingOptions) {
       return;
     }
     // `party.skipWhoStep`: the next visit is seated as the first one was, on the
-    // service step. A parent's held link waits for the seat (`pendingService`);
-    // a guest's link is folded in once the seat is there.
+    // service step — a guest's `?hvem=barn` / child-category link still one
+    // child (there is no step to change it on), else the grown-up. A parent's
+    // held link waits for the seat (`pendingService`); a guest's link is
+    // folded in once the seat is there.
     const seat: WizardPerson =
-      guardian === null ? { key: 'adult', adult: true } : { key: SELF_KEY, adult: true };
+      guardian !== null
+        ? { key: SELF_KEY, adult: true }
+        : deepLink.seat !== null && 'children' in deepLink.seat
+          ? wizard.guestChild(1)
+          : { key: 'adult', adult: true };
     if (guardian !== null) restartFromLink();
     dispatch({ type: 'choosePeople', people: [seat], advance: true });
     if (guardian === null) restartFromLink();
