@@ -475,19 +475,27 @@ function setupFor(kit: BookingKit) {
     services: BookingServiceDto[],
     resources: BookingResourceDto[],
     seat: DeepLink['seat'] = null,
-    familyKnown = false
+    familyKnown = false,
+    /** `party.skipWhoStep` for a parent with nobody saved: their own seat, over any link. */
+    seatSelf = false
   ): WizardState {
     // A parent the page knows is asked who is coming FIRST, whatever the link says.
     if (familyKnown) return heldLink(wizard.initialState(), prefill, services, resources);
     // `party.askWhoFirst: false`: a guest starts on step 2 as the common visit —
     // one child where the site has a children's menu, else one grown-up — and
-    // step 1 stays one tap back for a party.
-    const unasked = config.party.askWhoFirst
-      ? null
-      : kit.childCategory !== null
-        ? { children: 1 }
-        : ({ adult: true } as const);
-    const seated = seat ?? unasked;
+    // step 1 stays one tap back for a party. `party.skipWhoStep` has no step 1
+    // to change the seat on, so it seats the grown-up booking for themselves
+    // (a guest's `?hvem=barn` link still seats a child; a logged-in parent with
+    // nobody saved is always their own seat — `seatSelf`).
+    const unasked =
+      config.party.skipWhoStep === true
+        ? ({ adult: true } as const)
+        : config.party.askWhoFirst
+          ? null
+          : kit.childCategory !== null
+            ? { children: 1 }
+            : ({ adult: true } as const);
+    const seated = seatSelf ? ({ adult: true } as const) : (seat ?? unasked);
     const base = seated !== null && 'adult' in seated ? withAdult() : wizard.initialState();
     const state =
       prefill === null
@@ -604,7 +612,10 @@ export function useBooking(options: UseBookingOptions) {
       services,
       options.seed.resources ?? [],
       deepLink.seat,
-      arrivedAs !== null
+      // With `party.skipWhoStep`, a parent with nobody saved has no one to
+      // choose: they book for themselves («Meg selv», once seated).
+      arrivedAs !== null && !(config.party.skipWhoStep && arrivedAs.family.length === 0),
+      arrivedAs !== null && config.party.skipWhoStep === true && arrivedAs.family.length === 0
     )
   );
 
@@ -614,6 +625,11 @@ export function useBooking(options: UseBookingOptions) {
     () => (guardian === null ? null : [...guardian.family, ...addedChildren]),
     [guardian, addedChildren]
   );
+  /**
+   * `party.skipWhoStep`, while there is nobody to choose — a guest, or a
+   * parent with no one saved. A family keeps the question.
+   */
+  const whoSkipped = config.party.skipWhoStep === true && (family === null || family.length === 0);
   /**
    * Guest chairs an account change left standing for a seat with services —
    * the previous parent's child unseated, or a sent visit's child nobody could
@@ -2099,7 +2115,24 @@ export function useBooking(options: UseBookingOptions) {
     setTakenSlotTs(null);
     forgetChairs();
     dispatch({ type: 'startOver' });
-    restartFromLink();
+    if (!whoSkipped) {
+      restartFromLink();
+      return;
+    }
+    // `party.skipWhoStep`: the next visit is seated as the first one was, on the
+    // service step — a guest's `?hvem=barn` / child-category link still one
+    // child (there is no step to change it on), else the grown-up. A parent's
+    // held link waits for the seat (`pendingService`); a guest's link is
+    // folded in once the seat is there.
+    const seat: WizardPerson =
+      guardian !== null
+        ? { key: SELF_KEY, adult: true }
+        : deepLink.seat !== null && 'children' in deepLink.seat
+          ? wizard.guestChild(1)
+          : { key: 'adult', adult: true };
+    if (guardian !== null) restartFromLink();
+    dispatch({ type: 'choosePeople', people: [seat], advance: true });
+    if (guardian === null) restartFromLink();
   }
 
   /** A new visit: no chair of the last one is kept or waits for its parent. */
@@ -2253,6 +2286,8 @@ export function useBooking(options: UseBookingOptions) {
     },
     people: {
       family,
+      /** `party.skipWhoStep` applies: there is no «who» step to show. */
+      whoSkipped,
       ageDayKey,
       personAge,
       suggestionFor,

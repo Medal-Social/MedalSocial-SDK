@@ -1182,6 +1182,7 @@ export type WizardConfig = Pick<
   | 'timeZone'
   | 'locale'
   | 'currency'
+  | 'priceFormat'
   | 'dayparts'
   | 'labels'
 > &
@@ -1934,7 +1935,10 @@ export function createWizard(config: WizardConfig): Wizard {
           person.name ??
           labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
       );
-    if (guests > 0) parts.unshift(fill(labels['people.children'], { count: guests }));
+    if (guests > 0) {
+      const one = guests === 1 ? labels['people.children.one'] : undefined;
+      parts.unshift(fill(one ?? labels['people.children'], { count: guests }));
+    }
     if (adults === 1) parts.push(labelText(labels['people.adult']));
     if (adults > 1) parts.push(fill(labels['people.adults'], { count: adults }));
     return parts.join(', ');

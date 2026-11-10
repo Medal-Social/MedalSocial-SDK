@@ -88,6 +88,17 @@ export interface WizardLabels {
    * without it every such seat keeps `people.adult`.
    */
   'wizard.party.adult'?: BookingLabel;
+  /**
+   * The «who» steppers' counts by number, for a language whose «1» and «2»
+   * take different words: `{count}`, e.g. «{count} person» / «{count}
+   * personer». Each used for its count when present; without them the
+   * screen's own `who.party.count` / `who.party.adultCount` reads for every
+   * number, as before.
+   */
+  'who.party.count.one'?: BookingLabel;
+  'who.party.count.other'?: BookingLabel;
+  'who.party.adultCount.one'?: BookingLabel;
+  'who.party.adultCount.other'?: BookingLabel;
   /** A named child's section heading: «{name} · {age}». */
   'wizard.party.named': BookingLabel;
   /** A saved child's line on step 1: «Sist: {service}, {date}». */

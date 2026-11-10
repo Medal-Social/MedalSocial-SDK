@@ -56,3 +56,24 @@ describe('money — Intl for everything else', () => {
     expect(yen.currency).toBe('JPY');
   });
 });
+
+describe('money — priceFormat', () => {
+  it('writes whole kroner shop-window style with "dash"', () => {
+    const money = createMoney({ ...PARITY_CONFIG, priceFormat: 'dash' });
+    expect(money.formatPrice(699)).toBe('699,-');
+    expect(money.formatPrice(1860)).toBe(`1${NBSP}860,-`);
+    expect(money.formatMinor(69_950)).toBe('700,-');
+  });
+
+  it('is the «kr» rule with "unit" or nothing', () => {
+    expect(createMoney({ ...PARITY_CONFIG, priceFormat: 'unit' }).formatPrice(699)).toBe(
+      `699${NBSP}kr`
+    );
+    expect(createMoney(PARITY_CONFIG).formatPrice(699)).toBe(`699${NBSP}kr`);
+  });
+
+  it('leaves a currency other than kroner to Intl', () => {
+    const money = createMoney({ locale: 'en-GB', currency: 'GBP', priceFormat: 'dash' });
+    expect(money.formatPrice(12)).toBe('£12');
+  });
+});
