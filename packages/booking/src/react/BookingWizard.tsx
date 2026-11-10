@@ -133,6 +133,22 @@ const TIME_HEADING_ID = 'booking-time-heading';
 /** meda's id for a service group's heading, `booking-services-<category>`. */
 const SERVICE_GROUP_PREFIX = 'booking-services-';
 
+/**
+ * The `?kategori=` group's heading, the first time the service step shows —
+ * consumed then, whatever the answer. `null` for no link, a group with nothing
+ * on the page, or the group the list starts with (already in view).
+ */
+function linkedGroup(landing: { current: string | null }): HTMLElement | null {
+  const category = landing.current;
+  landing.current = null;
+  if (category === null) return null;
+  const target = document.getElementById(`${SERVICE_GROUP_PREFIX}${category}`);
+  const first = document.querySelector<HTMLElement>(
+    `[data-booking-step="service"] section > h3[id^="${SERVICE_GROUP_PREFIX}"]`
+  );
+  return target === first ? null : target;
+}
+
 /** The heading each screen focuses when the visitor arrives on it. */
 const STEP_HEADINGS: Record<WizardStep | 'confirmed', string> = {
   who: 'booking-who-heading',
@@ -188,18 +204,14 @@ function BookingWizardShell(props: BookingWizardProps) {
   }, [unreachableLogin]);
   const { state, restore, confirmed, onEvent } = { ...booking, onEvent: props.onEvent };
 
-  /**
-   * `party.skipWhoStep`: no «who» step while there is nobody to choose — a
-   * guest, or a parent with no one saved. A family keeps the question.
-   */
-  const family = booking.people.family;
-  const whoSkipped =
-    kit.config.party.skipWhoStep === true && (family === null || family.length === 0);
+  /** `party.skipWhoStep`: no «who» step while there is nobody to choose. */
+  const whoSkipped = booking.people.whoSkipped;
   const steps = whoSkipped && state.step !== 'who' ? SERVICE_ONWARDS : STEPS;
 
   /**
-   * `?kategori=`: the service step the page lands on opens at that group,
-   * once — never again when the visitor comes back to the step.
+   * `?kategori=`: the first time the service step is shown it opens at that
+   * group — whether the page lands on it or the visitor arrives from «who» —
+   * and never again when they come back to the step.
    */
   const categoryLanding = useRef<string | null>(booking.catalogue.deepLinkCategory);
 
@@ -220,12 +232,17 @@ function BookingWizardShell(props: BookingWizardProps) {
     shownScreen.current = screenKey;
     if (previous === screenKey) return;
     onEvent?.({ type: 'step', step: screenKey });
-    if (previous === null) return;
+    const group = screenKey === 'service' ? linkedGroup(categoryLanding) : null;
+    if (previous === null) {
+      scrollToTop(group);
+      return;
+    }
     // A lost slot sends the visitor back for the ALTERNATIVES, on the time half.
     const toTimes = screenKey === 'when' && takenSlotTs !== null;
     const headingId = toTimes ? TIME_HEADING_ID : STEP_HEADINGS[screenKey];
     const heading = document.getElementById(headingId);
-    scrollToTop(toTimes ? heading : rootRef.current);
+    // The linked group in place of the wizard's top: one scroll, not two.
+    scrollToTop(toTimes ? heading : (group ?? rootRef.current));
     heading?.focus({ preventScroll: true });
     // The heading focused now may be the skeleton's; focus follows the real one.
     focusTimeWhenReady.current = toTimes && !timeStepReady;
@@ -454,12 +471,7 @@ function BookingWizardShell(props: BookingWizardProps) {
           )}
           {state.step === 'service' && (
             <div data-testid={BOOKING_TEST_IDS.stepService}>
-              <ServiceStep
-                booking={booking}
-                resolved={resolved}
-                multiSelect={multiSelect}
-                categoryLanding={categoryLanding}
-              />
+              <ServiceStep booking={booking} resolved={resolved} multiSelect={multiSelect} />
             </div>
           )}
           {state.step === 'when' && <WhenStep booking={booking} resolved={resolved} />}
@@ -576,27 +588,8 @@ function countedLabels(
   return counted ?? labels;
 }
 
-function ServiceStep({
-  booking,
-  resolved,
-  multiSelect,
-  categoryLanding,
-}: StepProps & { multiSelect: boolean; categoryLanding: { current: string | null } }) {
+function ServiceStep({ booking, resolved, multiSelect }: StepProps & { multiSelect: boolean }) {
   const { kit, state, people, catalogue } = booking;
-  // The deep-linked group, scrolled to once it is on the page: its pill is
-  // marked from the first render, but the list would still open at the top.
-  // Not for the first group, which is where the list starts anyway.
-  useEffect(() => {
-    const category = categoryLanding.current;
-    if (category === null) return;
-    categoryLanding.current = null;
-    const groups = document.querySelectorAll<HTMLElement>(
-      `[data-booking-step="service"] section > h3[id^="${SERVICE_GROUP_PREFIX}"]`
-    );
-    const target = document.getElementById(`${SERVICE_GROUP_PREFIX}${category}`);
-    if (target === null || groups[0] === target) return;
-    scrollToTop(target);
-  }, [categoryLanding]);
   const ageOf = (person: WizardPerson) => people.personAge(person, people.ageDayKey);
   const single = state.people.length === 1 ? state.people[0] : null;
   // «Samme som sist» stays a one-tap shortcut while the person's visit is

@@ -123,11 +123,13 @@ export interface BookingConfig {
     guestStartEmpty: boolean;
     /**
      * One customer per booking (`maxPeople: 1`, which it requires): no «who»
-     * step. A guest starts on the service step seated as `askWhoFirst: false`
-     * seats them, and the header, the crumbs and the desktop panel leave
-     * «who» out, so the first step's back is the browser's. A logged-in
-     * parent with saved people is still asked who the visit is for — that
-     * question has an answer. Off by default.
+     * step. A guest starts on the service step seated as one grown-up (a
+     * `?hvem=barn` link still seats a child), a logged-in parent with nobody
+     * saved as themselves, and «book another» starts the same way. The
+     * header, the crumbs and the desktop panel leave «who» out, so the first
+     * step's back is the browser's. A logged-in parent with saved people is
+     * still asked who the visit is for — that question has an answer. Off by
+     * default.
      */
     skipWhoStep?: boolean;
   };

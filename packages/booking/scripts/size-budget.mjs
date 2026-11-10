@@ -142,7 +142,8 @@ const BUDGETS = [
     // Raised 21.7 → 21.9 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 21.78 KB.
     // Raised 21.9 → 22.8 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.70 KB.
-    gzipBytes: 22.8 * 1024,
+    // Raised 22.8 → 23.0 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 22.90 KB.
+    gzipBytes: 23.0 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -179,7 +180,8 @@ const BUDGETS = [
     // Raised 31.1 → 31.5 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 31.32 KB.
     // Raised 31.5 → 32.4 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.32 KB.
-    gzipBytes: 32.4 * 1024,
+    // Raised 32.4 → 32.6 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.48 KB.
+    gzipBytes: 32.6 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -224,7 +226,8 @@ const BUDGETS = [
     // Raised 21.9 → 22.0 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 21.90 KB.
     // Raised 22.0 → 22.9 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.82 KB.
-    gzipBytes: 22.9 * 1024,
+    // Raised 22.9 → 23.1 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 23.02 KB.
+    gzipBytes: 23.1 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -259,7 +262,8 @@ const BUDGETS = [
     // Raised 31.2 → 31.6 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 31.43 KB.
     // Raised 31.6 → 32.5 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.41 KB.
-    gzipBytes: 32.5 * 1024,
+    // Raised 32.5 → 32.7 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.59 KB.
+    gzipBytes: 32.7 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -307,7 +311,8 @@ const BUDGETS = [
     // Raised 29.2 → 29.4 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 29.21 KB.
     // Raised 29.4 → 30.2 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 30.11 KB.
-    gzipBytes: 30.2 * 1024,
+    // Raised 30.2 → 30.4 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 30.30 KB.
+    gzipBytes: 30.4 * 1024,
   },
 ];
 

@@ -10,19 +10,28 @@
  * link (`?tjeneste=`, `?frisor=`, `?kategori=`) is still the page's address
  * and is never read twice.
  *
+ * Every mark names the VISIT that wrote it (one id per mounted wizard), its
+ * step and its depth (entries since the visit's arrival entry, 0).
+ *
  * - The step the page opens on tags the entry it arrived on (`replaceState`):
- *   back from there leaves the page, as it always did.
+ *   back from there leaves the page, as it always did. A page that opens ON
+ *   an entry already marked — a reload, a return from another page or site
+ *   with the back button — takes that visit and depth over, so the entries
+ *   behind it stay one step each.
  * - A step the visitor moves on to is pushed; the same step again (a
  *   re-render, a restored answer) is not.
  * - Going back in the wizard to a step already behind them in history walks
  *   history back to it (`history.go`), so the two never disagree about what
  *   «back» means.
- * - `popstate` moves the wizard to the entry's step — when the machine allows
- *   that step (`canGoToStep`); otherwise the entry is re-tagged with the step
- *   still on screen.
+ * - `popstate` moves the wizard to the entry's step when the machine allows
+ *   it (`canGoToStep`). An entry of this visit it cannot show is never a dead
+ *   press: one behind is passed through to the page before the visit, one
+ *   ahead (or any entry while a submission is in flight) sends history back
+ *   to where the visitor was. Another visit's entry is passed through.
  * - The booked screen takes the arrival entry over: history is walked back to
  *   it, so back from «booked» leaves the page instead of reopening a form
- *   that has already been sent.
+ *   that has already been sent, and forward into the old form's entries
+ *   comes straight back.
  */
 
 import { useEffect, useRef } from 'react';
@@ -35,8 +44,10 @@ type Screen = WizardStep | 'confirmed';
 
 interface HistoryMark {
   step: Screen;
-  /** Entries since the one the wizard arrived on (0). */
+  /** Entries since the one the visit arrived on (0). */
   depth: number;
+  /** The mounted wizard that wrote it. */
+  visit: string;
 }
 
 const SCREENS: readonly string[] = ['who', 'service', 'when', 'details', 'confirmed'];
@@ -46,10 +57,11 @@ export function readHistoryMark(state: unknown): HistoryMark | null {
   if (typeof state !== 'object' || state === null) return null;
   const mark = (state as Record<string, unknown>)[HISTORY_KEY];
   if (typeof mark !== 'object' || mark === null) return null;
-  const { step, depth } = mark as Record<string, unknown>;
+  const { step, depth, visit } = mark as Record<string, unknown>;
   if (typeof step !== 'string' || !SCREENS.includes(step)) return null;
   if (typeof depth !== 'number' || !Number.isInteger(depth) || depth < 0) return null;
-  return { step: step as Screen, depth };
+  if (typeof visit !== 'string' || visit === '') return null;
+  return { step: step as Screen, depth, visit };
 }
 
 function writeMark(mode: 'push' | 'replace', mark: HistoryMark): void {
@@ -75,30 +87,40 @@ export interface StepHistoryOptions {
 
 export function useStepHistory(options: StepHistoryOptions): void {
   const { screen, restoring } = options;
-  /** The screen at each depth this page has written. */
-  const stack = useRef<Screen[]>([]);
+  /** This visit's id; a page opening on an earlier visit's entry takes that one. */
+  const visit = useRef('');
+  /** The screen at each depth this visit has written (gaps: before a remount). */
+  const stack = useRef<Array<Screen | undefined>>([]);
   const depth = useRef(0);
+  /** The step a `popstate` asked for that the screen has not shown yet. */
+  const pending = useRef<WizardStep | null>(null);
   const latest = useRef(options);
   latest.current = options;
 
   useEffect(() => {
     if (restoring) return;
-    if (stack.current.length === 0) {
-      stack.current = [screen];
-      depth.current = 0;
-      writeMark('replace', { step: screen, depth: 0 });
+    if (pending.current === screen) pending.current = null;
+    if (visit.current === '') {
+      const arrived = readHistoryMark(window.history.state);
+      visit.current = arrived?.visit ?? Math.random().toString(36).slice(2);
+      depth.current = arrived?.depth ?? 0;
+      stack.current = [];
+      stack.current[depth.current] = screen;
+      writeMark('replace', { step: screen, depth: depth.current, visit: visit.current });
       return;
     }
     // Already this entry's step: a popstate brought us here, or nothing moved.
     const here = readHistoryMark(window.history.state);
-    if (here !== null && here.step === screen && here.depth === depth.current) return;
+    if (here?.visit === visit.current && here.step === screen && here.depth === depth.current) {
+      return;
+    }
     if (screen === 'confirmed') {
       const back = depth.current;
       stack.current = ['confirmed'];
       depth.current = 0;
       // The popstate re-tags the arrival entry (see below).
       if (back > 0) window.history.go(-back);
-      else writeMark('replace', { step: 'confirmed', depth: 0 });
+      else writeMark('replace', { step: 'confirmed', depth: 0, visit: visit.current });
       return;
     }
     // `lastIndexOf` reads a negative start from the end: nothing is behind depth 0.
@@ -111,30 +133,55 @@ export function useStepHistory(options: StepHistoryOptions): void {
     }
     depth.current += 1;
     stack.current = [...stack.current.slice(0, depth.current), screen];
-    writeMark('push', { step: screen, depth: depth.current });
+    writeMark('push', { step: screen, depth: depth.current, visit: visit.current });
   }, [screen, restoring]);
 
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const mark = readHistoryMark(event.state);
-      if (mark === null) return;
       const live = latest.current;
-      depth.current = mark.depth;
-      const keep = () => {
-        stack.current[mark.depth] = live.screen;
-        writeMark('replace', { step: live.screen, depth: mark.depth });
-      };
-      if (mark.step === live.screen) return;
-      if (
-        live.screen === 'confirmed' ||
-        mark.step === 'confirmed' ||
-        live.restoring ||
-        live.submitting ||
-        !live.canGoToStep(live.state, mark.step)
-      ) {
-        keep();
+      // Not this visit's entry (or not the wizard's at all, but marked by an
+      // older version): nothing to show for it, so on to the one before.
+      if (mark === null || mark.visit !== visit.current) {
+        if (mark !== null) window.history.go(-1);
         return;
       }
+      const from = depth.current;
+      const leave = () => window.history.go(-(mark.depth + 1));
+      const stay = () => window.history.go(from - mark.depth);
+      if (live.screen === 'confirmed') {
+        // Booked: the arrival entry is the booked screen, nothing else is.
+        depth.current = mark.depth;
+        if (mark.depth === 0) {
+          stack.current = ['confirmed'];
+          writeMark('replace', { step: 'confirmed', depth: 0, visit: visit.current });
+        } else {
+          depth.current = 0;
+          window.history.go(-mark.depth);
+        }
+        return;
+      }
+      // What is on screen once the step a previous popstate asked for lands.
+      const shown = pending.current ?? live.screen;
+      if (mark.step === shown) {
+        depth.current = mark.depth;
+        stack.current[mark.depth] = mark.step;
+        return;
+      }
+      if (live.restoring || live.submitting) {
+        stay();
+        return;
+      }
+      if (mark.step === 'confirmed' || !live.canGoToStep(live.state, mark.step)) {
+        // A booking already made, or a step this visit cannot show: behind, the
+        // visit is over; ahead, the visitor stays where they were.
+        if (mark.depth < from) leave();
+        else stay();
+        return;
+      }
+      depth.current = mark.depth;
+      stack.current[mark.depth] = mark.step;
+      pending.current = mark.step;
       live.goToStep(mark.step);
     };
     window.addEventListener('popstate', onPopState);

@@ -24,6 +24,8 @@ import type {
   BookingSlotDto,
 } from '../../../src/core/types';
 import { BookingWizard, type BookingWizardProps } from '../../../src/react/BookingWizard';
+import { createBookingKit } from '../../../src/react/kit';
+import { mergeLabels } from '../../../src/react/labels';
 import { HISTORY_KEY } from '../../../src/react/wizard/step-history';
 import { TEST_LABELS } from '../../support/labels';
 import { PARITY_CONFIG } from '../../support/parity-config';
@@ -207,27 +209,55 @@ function resetHistory() {
 describe('BookingWizard — browser history', () => {
   beforeEach(resetHistory);
 
+  /** The mark on the current entry. */
+  const here = () => window.history.state?.[HISTORY_KEY];
+  /** A mark of the visit on the current entry, or of another. */
+  const markOf = (step: string, depth: number, visit: string = here().visit) => ({
+    [HISTORY_KEY]: { step, depth, visit },
+  });
+  const pop = (...states: unknown[]) =>
+    act(() => {
+      for (const state of states) window.dispatchEvent(new PopStateEvent('popstate', { state }));
+    });
+  const TIME_CHIPS: BookingWizardProps['components'] = {
+    ...CARDS,
+    TimeChip: ({ label, onPick }) => (
+      <button type="button" onClick={onPick}>
+        chip:{label}
+      </button>
+    ),
+  };
+
+  /** A guest on «when» (depth 2): «Voksen», then Barneklipp. */
+  async function onTheTimeStep(user: ReturnType<typeof userEvent.setup>) {
+    render(wizard({ components: CARDS }));
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await user.click(await screen.findByRole('button', { name: 'card:Barneklipp' }));
+    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+  }
+
   it('tags the entry it arrived on, pushes a step, and steps back on popstate', async () => {
     stubApi();
     const user = userEvent.setup();
     const before = window.history.length;
     render(wizard({ components: CARDS }));
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'who', depth: 0 });
+    expect(here()).toEqual({ step: 'who', depth: 0, visit: expect.any(String) });
+    const visit = here().visit;
     expect(window.history.length).toBe(before);
 
     await user.click(screen.getByRole('radio', { name: 'Voksen' }));
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'service', depth: 1 });
+    expect(here()).toEqual({ step: 'service', depth: 1, visit });
     expect(window.history.length).toBe(before + 1);
 
     await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
     expect(await screen.findByRole('heading', { name: 'Hvem vil du gå til?' })).toBeInTheDocument();
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'when', depth: 2 });
+    expect(here()).toEqual({ step: 'when', depth: 2, visit });
 
     act(() => window.history.back());
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
     // The visitor's answer is still there: back is a step, not a fresh page.
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'service', depth: 1 });
+    expect(here()).toEqual({ step: 'service', depth: 1, visit });
   });
 
   it('keeps the router’s own fields in the state it writes', () => {
@@ -235,7 +265,7 @@ describe('BookingWizard — browser history', () => {
     window.history.replaceState({ __NA: true, tree: 'x' }, '');
     render(wizard());
     expect(window.history.state).toMatchObject({ __NA: true, tree: 'x' });
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'who', depth: 0 });
+    expect(here()).toMatchObject({ step: 'who', depth: 0 });
   });
 
   it('never pushes the same step twice', async () => {
@@ -254,79 +284,147 @@ describe('BookingWizard — browser history', () => {
     stubApi();
     const user = userEvent.setup();
     const go = vi.spyOn(window.history, 'go');
-    render(wizard({ components: CARDS }));
-    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
-    await user.click(await screen.findByRole('button', { name: 'card:Barneklipp' }));
-    await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+    await onTheTimeStep(user);
     await user.click(screen.getByRole('button', { name: 'Tilbake til Hva' }));
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
     expect(go).toHaveBeenCalledWith(-1);
   });
 
-  it('re-tags an entry whose step cannot be reached instead of jumping to it', async () => {
+  it('sends a forward step it cannot show back to where the visitor was', () => {
     stubApi();
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
     render(wizard({ components: CARDS }));
-    const forward = { [HISTORY_KEY]: { step: 'details', depth: 3 } };
-    act(() => {
-      window.dispatchEvent(new PopStateEvent('popstate', { state: forward }));
-    });
+    pop(markOf('details', 3));
     expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'who', depth: 3 });
+    expect(go).toHaveBeenCalledWith(-3);
+    // The return lands on the entry the visitor was on: nothing more to do.
+    go.mockClear();
+    pop(markOf('who', 0));
+    expect(go).not.toHaveBeenCalled();
   });
 
-  it('ignores an entry the wizard never wrote', () => {
+  it('passes another visit’s entries through, and ignores unmarked ones', () => {
     stubApi();
     render(wizard());
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
     const replace = vi.spyOn(window.history, 'replaceState');
-    act(() => {
-      window.dispatchEvent(new PopStateEvent('popstate', { state: { other: 1 } }));
-      window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
-      window.dispatchEvent(
-        new PopStateEvent('popstate', { state: { [HISTORY_KEY]: { step: 'nope', depth: 1 } } })
-      );
-      window.dispatchEvent(
-        new PopStateEvent('popstate', { state: { [HISTORY_KEY]: { step: 'who', depth: -1 } } })
-      );
-      window.dispatchEvent(new PopStateEvent('popstate', { state: { [HISTORY_KEY]: 'who' } }));
-    });
+    pop(
+      { other: 1 },
+      null,
+      { [HISTORY_KEY]: { step: 'nope', depth: 1, visit: 'x' } },
+      { [HISTORY_KEY]: { step: 'who', depth: -1, visit: 'x' } },
+      { [HISTORY_KEY]: { step: 'who', depth: 1 } },
+      { [HISTORY_KEY]: 'who' }
+    );
+    expect(go).not.toHaveBeenCalled();
+    pop(markOf('service', 1, 'an-earlier-visit'));
+    expect(go).toHaveBeenCalledExactlyOnceWith(-1);
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
   });
 
-  it('rewinds to the arrival entry once booked, so back leaves the page', async () => {
+  it('takes the visit over when the page opens on a marked entry (a reload, a return)', () => {
+    stubApi();
+    window.history.replaceState(
+      { [HISTORY_KEY]: { step: 'details', depth: 2, visit: 'before-reload' } },
+      ''
+    );
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    render(wizard({ components: CARDS }));
+    // Nothing restored: the fresh wizard is on «who», at the entry's depth.
+    expect(here()).toEqual({ step: 'who', depth: 2, visit: 'before-reload' });
+    // «when» behind it cannot be shown any more: straight out of the visit,
+    // never a press that changes nothing.
+    pop(markOf('when', 1));
+    expect(go).toHaveBeenCalledExactlyOnceWith(-2);
+    expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
+  });
+
+  it('leaves the visit from an entry that holds a booking already made', async () => {
     stubApi();
     const user = userEvent.setup();
     const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
-    location.search = '?tjeneste=barneklipp';
-    render(
-      wizard({
-        config: ONE_SEAT,
-        components: {
-          ...CARDS,
-          TimeChip: ({ label, onPick }) => (
-            <button type="button" onClick={onPick}>
-              chip:{label}
-            </button>
-          ),
-        },
-      })
+    render(wizard({ components: CARDS }));
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    pop(markOf('confirmed', 0));
+    expect(go).toHaveBeenCalledExactlyOnceWith(-1);
+    expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+  });
+
+  it('keeps the newest of two quick traversals (back, then forward)', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    await onTheTimeStep(user);
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    // Both land before React shows the first: forward must win.
+    pop(markOf('service', 1), markOf('when', 2));
+    expect(screen.getByRole('heading', { name: 'Hvem vil du gå til?' })).toBeInTheDocument();
+    expect(go).not.toHaveBeenCalled();
+    expect(here()).toMatchObject({ step: 'when', depth: 2 });
+  });
+
+  it('holds the form while a booking is in flight, and rewinds once booked', async () => {
+    let answer: (value: { ok: boolean; status: number; json: () => Promise<unknown> }) => void =
+      () => {};
+    const held = new Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>(
+      (resolve) => {
+        answer = resolve;
+      }
     );
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'when', depth: 0 });
+    stubApi({ create: () => held });
+    const user = userEvent.setup();
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    location.search = '?tjeneste=barneklipp';
+    render(wizard({ config: ONE_SEAT, components: TIME_CHIPS }));
+    expect(here()).toMatchObject({ step: 'when', depth: 0 });
     await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
     await screen.findByRole('heading', { name: 'Nesten ferdig!' });
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'details', depth: 1 });
+    expect(here()).toMatchObject({ step: 'details', depth: 1 });
+    await user.type(screen.getByRole('textbox', { name: /Mobil/ }), '40000000');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    // Back while it is being sent: history goes back to the form's entry.
+    pop(markOf('when', 0));
+    expect(go).toHaveBeenLastCalledWith(1);
+    expect(screen.getByRole('heading', { name: 'Nesten ferdig!' })).toBeInTheDocument();
+    pop(markOf('details', 1));
+
+    await act(async () => {
+      answer({
+        ok: true,
+        status: 201,
+        json: async () => ({ bookings: [{ id: 'bk-1', manageToken: 'tok-1' }] }),
+      });
+    });
+    await screen.findByRole('heading', { name: /Timen er bekreftet/ });
+    expect(go).toHaveBeenLastCalledWith(-1);
+    // The rewind lands on the arrival entry, which becomes the booked screen.
+    pop(markOf('when', 0));
+    expect(here()).toMatchObject({ step: 'confirmed', depth: 0 });
+    // Forward into the old form comes straight back: no extra back to press.
+    pop(markOf('details', 1));
+    expect(go).toHaveBeenLastCalledWith(-1);
+    expect(screen.getByRole('heading', { name: /Timen er bekreftet/ })).toBeInTheDocument();
+  });
+
+  it('rewrites the arrival entry as booked when the booking was made there', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?tjeneste=barneklipp';
+    render(wizard({ config: ONE_SEAT, components: TIME_CHIPS }));
+    await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig!' });
+    // The visitor came back to the arrival entry with the browser and booked from there.
+    const visit = here().visit;
+    window.history.replaceState({ [HISTORY_KEY]: { step: 'details', depth: 0, visit } }, '');
+    pop(markOf('details', 0));
     await user.type(screen.getByRole('textbox', { name: /Mobil/ }), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: /Timen er bekreftet/ });
-    expect(go).toHaveBeenCalledWith(-1);
-    // The traversal lands on the arrival entry, which becomes the booked screen.
-    act(() => {
-      window.dispatchEvent(
-        new PopStateEvent('popstate', { state: { [HISTORY_KEY]: { step: 'when', depth: 0 } } })
-      );
-    });
-    expect(window.history.state[HISTORY_KEY]).toEqual({ step: 'confirmed', depth: 0 });
+    expect(here()).toEqual({ step: 'confirmed', depth: 0, visit });
   });
 });
 
@@ -377,6 +475,87 @@ describe('BookingWizard — party.skipWhoStep', () => {
     expect(screen.getByText(/Steg 1 av 4/)).toBeInTheDocument();
   });
 
+  it('seats a guest as the grown-up, even on a site with a children’s menu', () => {
+    stubApi();
+    render(wizard({ config: ONE_SEAT }));
+    // The bar names who before what: one grown-up, never «1 barn».
+    expect(screen.getByText('Voksen')).toBeInTheDocument();
+    expect(screen.queryByText(/1 barn/)).toBeNull();
+  });
+
+  it('still seats a child for a guest whose link asks for one', () => {
+    stubApi();
+    location.search = '?hvem=barn';
+    render(wizard({ config: ONE_SEAT }));
+    expect(screen.getByText('1 barn')).toBeInTheDocument();
+  });
+
+  it('seats a parent with nobody saved as themselves, whatever the link says', async () => {
+    stubApi();
+    location.search = '?hvem=barn';
+    render(wizard({ config: ONE_SEAT, guardian: { ...GUARDIAN, family: [] } }));
+    expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    expect(await screen.findByText('Meg selv')).toBeInTheDocument();
+    expect(screen.queryByText('1 barn')).toBeNull();
+  });
+
+  it('opens «book another» on the service step too', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?tjeneste=barneklipp';
+    render(
+      wizard({
+        config: ONE_SEAT,
+        components: {
+          ...CARDS,
+          TimeChip: ({ label, onPick }) => (
+            <button type="button" onClick={onPick}>
+              chip:{label}
+            </button>
+          ),
+        },
+      })
+    );
+    await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+    await user.type(await screen.findByRole('textbox', { name: /Mobil/ }), '40000000');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await user.click(await screen.findByRole('button', { name: 'Bestill ny time' }));
+    expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    expect(screen.getByText(/Steg 1 av 3/)).toBeInTheDocument();
+    expect(screen.getByText('Voksen')).toBeInTheDocument();
+  });
+
+  it('opens «book another» on the service step for a parent with nobody saved', async () => {
+    stubApi();
+    const user = userEvent.setup();
+    location.search = '?tjeneste=barneklipp';
+    render(
+      wizard({
+        config: ONE_SEAT,
+        guardian: { ...GUARDIAN, family: [] },
+        components: {
+          ...CARDS,
+          TimeChip: ({ label, onPick }) => (
+            <button type="button" onClick={onPick}>
+              chip:{label}
+            </button>
+          ),
+        },
+      })
+    );
+    await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+    const phone = await screen.findByRole('textbox', { name: /Mobil/ });
+    await user.clear(phone);
+    await user.type(phone, '40000000');
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await user.click(await screen.findByRole('button', { name: 'Bestill ny time' }));
+    expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+    expect(screen.getByText(/Steg 1 av 3/)).toBeInTheDocument();
+    expect(screen.getByText('Meg selv')).toBeInTheDocument();
+  });
+
   it('skips it for a logged-in parent with nobody saved', () => {
     stubApi();
     render(wizard({ config: ONE_SEAT, guardian: { ...GUARDIAN, family: [] } }));
@@ -412,6 +591,20 @@ describe('BookingWizard — ?kategori= lands on its group', () => {
     await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
     // Only the step change's own scroll, to the wizard's top.
     expect(scroll.mock.contexts).not.toContain(document.getElementById('booking-services-annet'));
+  });
+
+  it('scrolls to the group, not the wizard’s top, when the link starts on «who»', async () => {
+    stubApi();
+    location.search = '?kategori=annet';
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    const user = userEvent.setup();
+    render(wizard({ components: CARDS, seed: { services: [KIDS, ADULT_CUT], fromTs: NOW } }));
+    expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
+    expect(scroll).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+    await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+    // One scroll for the move, and it is to the group.
+    expect(scroll.mock.contexts).toEqual([document.getElementById('booking-services-annet')]);
   });
 
   it('does not scroll to the group the list starts with', async () => {
@@ -487,6 +680,19 @@ describe('BookingWizard — config.priceFormat', () => {
     );
     expect((await screen.findAllByText(/490,-/)).length).toBeGreaterThan(0);
     expect(screen.queryByText(/490 kr/)).toBeNull();
+  });
+});
+
+describe('config.priceFormat outside the wizard', () => {
+  it('reaches every price the kit writes: manage page, Min side, calendar text', () => {
+    const config = resolveBookingConfig({ ...PARITY_CONFIG, priceFormat: 'dash' });
+    const kit = createBookingKit(config, mergeLabels(config.locale));
+    // The manage page's calendar file and Min side read `kit.money`; the
+    // screens and the wizard's calendar entries read `kit.format.price`; the
+    // summary bar reads the machine's own money, built from the same config.
+    expect(kit.money.formatMinor(49_000)).toBe('490,-');
+    expect(kit.format.price(186_000)).toBe('1\u00A0860,-');
+    expect(kit.config.priceFormat).toBe('dash');
   });
 });
 
