@@ -212,8 +212,13 @@ describe('BookingWizard — browser history', () => {
   /** The mark on the current entry. */
   const here = () => window.history.state?.[HISTORY_KEY];
   /** A mark of the visit on the current entry, or of another. */
-  const markOf = (step: string, depth: number, visit: string = here().visit) => ({
-    [HISTORY_KEY]: { step, depth, visit },
+  const markOf = (
+    step: string,
+    depth: number,
+    visit: string = here().visit,
+    prev: boolean = here().prev
+  ) => ({
+    [HISTORY_KEY]: { step, depth, visit, prev },
   });
   const pop = (...states: unknown[]) =>
     act(() => {
@@ -241,23 +246,28 @@ describe('BookingWizard — browser history', () => {
     const user = userEvent.setup();
     const before = window.history.length;
     render(wizard({ components: CARDS }));
-    expect(here()).toEqual({ step: 'who', depth: 0, visit: expect.any(String) });
+    expect(here()).toEqual({
+      step: 'who',
+      depth: 0,
+      visit: expect.any(String),
+      prev: expect.any(Boolean),
+    });
     const visit = here().visit;
     expect(window.history.length).toBe(before);
 
     await user.click(screen.getByRole('radio', { name: 'Voksen' }));
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
-    expect(here()).toEqual({ step: 'service', depth: 1, visit });
+    expect(here()).toMatchObject({ step: 'service', depth: 1, visit });
     expect(window.history.length).toBe(before + 1);
 
     await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
     expect(await screen.findByRole('heading', { name: 'Hvem vil du gå til?' })).toBeInTheDocument();
-    expect(here()).toEqual({ step: 'when', depth: 2, visit });
+    expect(here()).toMatchObject({ step: 'when', depth: 2, visit });
 
     act(() => window.history.back());
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
     // The visitor's answer is still there: back is a step, not a fresh page.
-    expect(here()).toEqual({ step: 'service', depth: 1, visit });
+    expect(here()).toMatchObject({ step: 'service', depth: 1, visit });
   });
 
   it('keeps the router’s own fields in the state it writes', () => {
@@ -298,19 +308,19 @@ describe('BookingWizard — browser history', () => {
     render(wizard({ config: ONE_SEAT, components: TIME_CHIPS }));
     await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
     const visit = here().visit;
-    expect(here()).toEqual({ step: 'when', depth: 0, visit });
+    expect(here()).toMatchObject({ step: 'when', depth: 0, visit });
     await user.click(screen.getByRole('button', { name: 'Tilbake til Hva' }));
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
     // «Hva» takes the arrival entry over instead of being pushed after «Når».
     expect(push).not.toHaveBeenCalled();
-    expect(here()).toEqual({ step: 'service', depth: 0, visit });
+    expect(here()).toMatchObject({ step: 'service', depth: 0, visit });
     // Forward again is a new entry after it, and back returns to «Hva».
     await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
     await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
-    expect(here()).toEqual({ step: 'when', depth: 1, visit });
+    expect(here()).toMatchObject({ step: 'when', depth: 1, visit });
     act(() => window.history.back());
     expect(await screen.findByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
-    expect(here()).toEqual({ step: 'service', depth: 0, visit });
+    expect(here()).toMatchObject({ step: 'service', depth: 0, visit });
   });
 
   it('sends a forward step it cannot show back to where the visitor was', () => {
@@ -337,10 +347,11 @@ describe('BookingWizard — browser history', () => {
       { [HISTORY_KEY]: { step: 'nope', depth: 1, visit: 'x' } },
       { [HISTORY_KEY]: { step: 'who', depth: -1, visit: 'x' } },
       { [HISTORY_KEY]: { step: 'who', depth: 1 } },
+      { [HISTORY_KEY]: { step: 'who', depth: 1, visit: 'x' } },
       { [HISTORY_KEY]: 'who' }
     );
     expect(go).not.toHaveBeenCalled();
-    pop(markOf('service', 1, 'an-earlier-visit'));
+    pop(markOf('service', 1, 'an-earlier-visit', true));
     expect(go).toHaveBeenCalledExactlyOnceWith(-1);
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'Hvem skal klippes?' })).toBeInTheDocument();
@@ -349,13 +360,13 @@ describe('BookingWizard — browser history', () => {
   it('takes the visit over when the page opens on a marked entry (a reload, a return)', () => {
     stubApi();
     window.history.replaceState(
-      { [HISTORY_KEY]: { step: 'details', depth: 2, visit: 'before-reload' } },
+      { [HISTORY_KEY]: { step: 'details', depth: 2, visit: 'before-reload', prev: true } },
       ''
     );
     const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
     render(wizard({ components: CARDS }));
     // Nothing restored: the fresh wizard is on «who», at the entry's depth.
-    expect(here()).toEqual({ step: 'who', depth: 2, visit: 'before-reload' });
+    expect(here()).toMatchObject({ step: 'who', depth: 2, visit: 'before-reload' });
     // «when» behind it cannot be shown any more: straight out of the visit,
     // never a press that changes nothing.
     pop(markOf('when', 1));
@@ -373,6 +384,96 @@ describe('BookingWizard — browser history', () => {
     pop(markOf('confirmed', 0));
     expect(go).toHaveBeenCalledExactlyOnceWith(-1);
     expect(screen.getByRole('heading', { name: 'Hva skal gjøres?' })).toBeInTheDocument();
+  });
+
+  describe('in a tab opened straight on the booking page', () => {
+    /** The tab's first entry, marked by an earlier load of this page. */
+    const firstEntry = (step: string, depth: number) =>
+      window.history.replaceState(
+        { [HISTORY_KEY]: { step, depth, visit: 'this-tab', prev: false } },
+        ''
+      );
+
+    it('reload on «details», nothing restored: back walks to the arrival entry, never past it', async () => {
+      stubApi();
+      const user = userEvent.setup();
+      firstEntry('details', 2);
+      const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+      render(wizard({ components: CARDS }));
+      expect(here()).toEqual({ step: 'who', depth: 2, visit: 'this-tab', prev: false });
+
+      // Back onto «when» (depth 1), which the fresh wizard cannot show. There is
+      // no page before the visit, so not `go(-2)` (ignored: a dead press) but
+      // on to the arrival entry.
+      pop(markOf('when', 1));
+      expect(go).toHaveBeenCalledExactlyOnceWith(-1);
+      // The arrival entry was «service», which cannot be shown either: the
+      // step on screen takes it over, and that is where the browser is.
+      pop(markOf('service', 0));
+      expect(go).toHaveBeenCalledTimes(1);
+      expect(here()).toEqual({ step: 'who', depth: 0, visit: 'this-tab', prev: false });
+
+      // Depth is in step with the browser: the next step is entry 1.
+      await user.click(screen.getByRole('radio', { name: 'Voksen' }));
+      await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+      expect(here()).toMatchObject({ step: 'service', depth: 1, visit: 'this-tab' });
+    });
+
+    it('once booked, back from a new booking re-tags the arrival entry instead of leaving', async () => {
+      stubApi();
+      const user = userEvent.setup();
+      location.search = '?tjeneste=barneklipp';
+      firstEntry('when', 0);
+      const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+      render(wizard({ config: ONE_SEAT, components: TIME_CHIPS }));
+      await user.click(await screen.findByRole('button', { name: 'chip:13:00' }));
+      await user.type(await screen.findByRole('textbox', { name: /Mobil/ }), '40000000');
+      await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+      await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+      await screen.findByRole('heading', { name: /Timen er bekreftet/ });
+      expect(go).toHaveBeenLastCalledWith(-1);
+      pop(markOf('when', 0));
+      expect(here()).toEqual({ step: 'confirmed', depth: 0, visit: 'this-tab', prev: false });
+
+      // «Book another» takes the booked entry over: back from it leaves.
+      await user.click(screen.getByRole('button', { name: 'Bestill ny time' }));
+      await screen.findByRole('heading', { name: 'Hva skal gjøres?' });
+      expect(here()).toEqual({ step: 'service', depth: 0, visit: 'this-tab', prev: false });
+    });
+
+    it('a booked entry behind the visitor, first in the tab, becomes the step on screen', async () => {
+      stubApi();
+      const user = userEvent.setup();
+      firstEntry('service', 0);
+      const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+      render(wizard({ config: ONE_SEAT, components: CARDS }));
+      await user.click(screen.getByRole('button', { name: 'card:Barneklipp' }));
+      await screen.findByRole('heading', { name: 'Hvem vil du gå til?' });
+      expect(here()).toMatchObject({ step: 'when', depth: 1 });
+      // Not `go(-1)` past the tab's first entry, which the browser ignores.
+      pop(markOf('confirmed', 0));
+      expect(go).not.toHaveBeenCalled();
+      expect(here()).toEqual({ step: 'when', depth: 0, visit: 'this-tab', prev: false });
+    });
+
+    it('takes another visit’s first entry over as its own arrival', () => {
+      stubApi();
+      render(wizard());
+      const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+      pop(markOf('details', 0, 'an-earlier-visit', false));
+      expect(go).not.toHaveBeenCalled();
+      expect(here()).toMatchObject({ step: 'who', depth: 0 });
+      expect(here().visit).not.toBe('an-earlier-visit');
+    });
+  });
+
+  it('re-tags an entry at its own depth instead of reloading with go(0)', () => {
+    stubApi();
+    const go = vi.spyOn(window.history, 'go').mockImplementation(() => {});
+    render(wizard({ components: CARDS }));
+    pop(markOf('details', 0));
+    expect(go).not.toHaveBeenCalled();
+    expect(here()).toMatchObject({ step: 'who', depth: 0 });
   });
 
   it('keeps the newest of two quick traversals (back, then forward)', async () => {
@@ -441,13 +542,16 @@ describe('BookingWizard — browser history', () => {
     await screen.findByRole('heading', { name: 'Nesten ferdig!' });
     // The visitor came back to the arrival entry with the browser and booked from there.
     const visit = here().visit;
-    window.history.replaceState({ [HISTORY_KEY]: { step: 'details', depth: 0, visit } }, '');
+    window.history.replaceState(
+      { [HISTORY_KEY]: { step: 'details', depth: 0, visit, prev: here().prev } },
+      ''
+    );
     pop(markOf('details', 0));
     await user.type(screen.getByRole('textbox', { name: /Mobil/ }), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: /Timen er bekreftet/ });
-    expect(here()).toEqual({ step: 'confirmed', depth: 0, visit });
+    expect(here()).toMatchObject({ step: 'confirmed', depth: 0, visit });
   });
 });
 

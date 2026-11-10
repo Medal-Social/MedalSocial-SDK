@@ -34,6 +34,19 @@
  *   it, so back from «booked» leaves the page instead of reopening a form
  *   that has already been sent, and forward into the old form's entries
  *   comes straight back.
+ *
+ * Invariants (each path below keeps them, so no press is ever dead and no
+ * later `history.go` lands on the wrong entry):
+ * - While the browser is on one of this visit's entries, `depth.current` is
+ *   that entry's mark depth: every popstate of this visit sets it first, and
+ *   each `history.go` the hook issues sets it to the target, which that
+ *   traversal's popstate then confirms.
+ * - A `history.go` is only issued to an entry known to exist: one of this
+ *   visit's own (all depths from 0 to the one just left exist), or the page
+ *   before the visit — only when the visit's arrival entry has one (`prev`,
+ *   recorded in every mark when the arrival entry is first tagged). Never
+ *   `go(0)`, which reloads the page. Where no such entry exists, the entry the
+ *   browser is on is re-tagged with the step on screen instead.
  */
 
 import { useEffect, useRef } from 'react';
@@ -50,6 +63,12 @@ interface HistoryMark {
   depth: number;
   /** The mounted wizard that wrote it. */
   visit: string;
+  /**
+   * Whether the visit's arrival entry has an entry before it in this tab —
+   * false for a tab opened straight on the booking page, where there is
+   * nothing to go back to.
+   */
+  prev: boolean;
 }
 
 /** The screens in the order the visitor meets them. */
@@ -61,11 +80,12 @@ export function readHistoryMark(state: unknown): HistoryMark | null {
   if (typeof state !== 'object' || state === null) return null;
   const mark = (state as Record<string, unknown>)[HISTORY_KEY];
   if (typeof mark !== 'object' || mark === null) return null;
-  const { step, depth, visit } = mark as Record<string, unknown>;
+  const { step, depth, visit, prev } = mark as Record<string, unknown>;
   if (typeof step !== 'string' || !SCREENS.includes(step)) return null;
   if (typeof depth !== 'number' || !Number.isInteger(depth) || depth < 0) return null;
   if (typeof visit !== 'string' || visit === '') return null;
-  return { step: step as Screen, depth, visit };
+  if (typeof prev !== 'boolean') return null;
+  return { step: step as Screen, depth, visit, prev };
 }
 
 function writeMark(mode: 'push' | 'replace', mark: HistoryMark): void {
@@ -93,6 +113,8 @@ export function useStepHistory(options: StepHistoryOptions): void {
   const { screen, restoring } = options;
   /** This visit's id; a page opening on an earlier visit's entry takes that one. */
   const visit = useRef('');
+  /** Whether this visit's arrival entry has an entry before it (`HistoryMark.prev`). */
+  const prev = useRef(false);
   /** The screen at each depth this visit has written (gaps: before a remount). */
   const stack = useRef<Array<Screen | undefined>>([]);
   const depth = useRef(0);
@@ -101,6 +123,15 @@ export function useStepHistory(options: StepHistoryOptions): void {
   const latest = useRef(options);
   latest.current = options;
 
+  /** This visit's mark for `step` at `at`. */
+  const markFor = (step: Screen, at: number): HistoryMark => ({
+    step,
+    depth: at,
+    visit: visit.current,
+    prev: prev.current,
+  });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `markFor` reads refs only.
   useEffect(() => {
     if (restoring) return;
     if (pending.current === screen) pending.current = null;
@@ -108,9 +139,13 @@ export function useStepHistory(options: StepHistoryOptions): void {
       const arrived = readHistoryMark(window.history.state);
       visit.current = arrived?.visit ?? Math.random().toString(36).slice(2);
       depth.current = arrived?.depth ?? 0;
+      // A fresh entry is the newest in the tab (a navigation drops the entries
+      // ahead of it), so anything before it is a page: `length > 1` is exact
+      // here. A taken-over entry keeps what its visit recorded.
+      prev.current = arrived?.prev ?? window.history.length > 1;
       stack.current = [];
       stack.current[depth.current] = screen;
-      writeMark('replace', { step: screen, depth: depth.current, visit: visit.current });
+      writeMark('replace', markFor(screen, depth.current));
       return;
     }
     // Already this entry's step: a popstate brought us here, or nothing moved.
@@ -124,7 +159,7 @@ export function useStepHistory(options: StepHistoryOptions): void {
       depth.current = 0;
       // The popstate re-tags the arrival entry (see below).
       if (back > 0) window.history.go(-back);
-      else writeMark('replace', { step: 'confirmed', depth: 0, visit: visit.current });
+      else writeMark('replace', markFor('confirmed', 0));
       return;
     }
     // `lastIndexOf` reads a negative start from the end: nothing is behind depth 0.
@@ -137,48 +172,78 @@ export function useStepHistory(options: StepHistoryOptions): void {
     }
     // Back to a step that is not behind us in history (the page opened past
     // it, on a link): it takes this entry over. Pushed, it would sit AFTER the
-    // later step, and the browser's back would move the wizard forward.
+    // later step, and the browser's back would move the wizard forward. The
+    // same for «book another» from the booked screen: the new visit's first
+    // step takes the booked entry over (it cannot be shown again).
     // A gap (an entry from before a takeover) reads as -1: pushed as before.
     const showing = stack.current[depth.current] as Screen;
     if (FLOW.indexOf(screen) < FLOW.indexOf(showing)) {
       stack.current[depth.current] = screen;
-      writeMark('replace', { step: screen, depth: depth.current, visit: visit.current });
+      writeMark('replace', markFor(screen, depth.current));
       return;
     }
     depth.current += 1;
     stack.current = [...stack.current.slice(0, depth.current), screen];
-    writeMark('push', { step: screen, depth: depth.current, visit: visit.current });
+    writeMark('push', markFor(screen, depth.current));
   }, [screen, restoring]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `markFor` reads refs only.
   useEffect(() => {
     const onPopState = (event: PopStateEvent) => {
       const mark = readHistoryMark(event.state);
+      // Not the wizard's entry (a hash link's, the router's own), or the
+      // arrival entry not tagged yet (the restore gate still decides): nothing
+      // to do — and nothing to write with no visit to write it as.
+      if (mark === null || visit.current === '') return;
       const live = latest.current;
-      // Not this visit's entry (or not the wizard's at all, but marked by an
-      // older version): nothing to show for it, so on to the one before.
-      if (mark === null || mark.visit !== visit.current) {
-        if (mark !== null) window.history.go(-1);
+      // What is on screen once the step a previous popstate asked for lands.
+      const shown: Screen = pending.current ?? live.screen;
+      /** The entry the browser is on, as this visit's, showing `shown`. */
+      const retag = (at: number) => {
+        depth.current = at;
+        stack.current[at] = shown;
+        writeMark('replace', markFor(shown, at));
+      };
+      if (mark.visit !== visit.current) {
+        // Another visit's entry: on to the one before it, where there is one;
+        // the first entry of the tab becomes this visit's arrival instead.
+        if (mark.depth > 0 || mark.prev) window.history.go(-1);
+        else {
+          stack.current = [];
+          retag(0);
+        }
         return;
       }
       const from = depth.current;
-      const leave = () => window.history.go(-(mark.depth + 1));
-      const stay = () => window.history.go(from - mark.depth);
+      depth.current = mark.depth;
+      /** Back to the entry the visitor just left (it exists: they were on it). */
+      const stay = () => {
+        if (from === mark.depth) retag(mark.depth);
+        else {
+          depth.current = from;
+          window.history.go(from - mark.depth);
+        }
+      };
+      /** Out of the visit: the page before it, else its arrival entry. */
+      const leave = () => {
+        if (prev.current) window.history.go(-(mark.depth + 1));
+        else if (mark.depth > 0) {
+          depth.current = 0;
+          window.history.go(-mark.depth);
+        } else retag(0);
+      };
       if (live.screen === 'confirmed') {
         // Booked: the arrival entry is the booked screen, nothing else is.
-        depth.current = mark.depth;
         if (mark.depth === 0) {
           stack.current = ['confirmed'];
-          writeMark('replace', { step: 'confirmed', depth: 0, visit: visit.current });
+          retag(0);
         } else {
           depth.current = 0;
           window.history.go(-mark.depth);
         }
         return;
       }
-      // What is on screen once the step a previous popstate asked for lands.
-      const shown = pending.current ?? live.screen;
       if (mark.step === shown) {
-        depth.current = mark.depth;
         stack.current[mark.depth] = mark.step;
         return;
       }
@@ -193,7 +258,6 @@ export function useStepHistory(options: StepHistoryOptions): void {
         else stay();
         return;
       }
-      depth.current = mark.depth;
       stack.current[mark.depth] = mark.step;
       pending.current = mark.step;
       live.goToStep(mark.step);
