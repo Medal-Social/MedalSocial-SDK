@@ -15,7 +15,7 @@
 </div></section>
 <div class="tsd-signature"><span class="tsd-signature-keyword">interface</span> <span class="tsd-kind-interface">OrderingCreateOrderOptions</span> <span class="tsd-signature-symbol">{</span><br/>    <a class="tsd-kind-property" href="#clientip">clientIp</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#idempotencykey">idempotencyKey</a><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#portalsession">portalSession</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">;</span><br/>    <a class="tsd-kind-property" href="#signal">signal</a><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">AbortSignal</span><span class="tsd-signature-symbol">;</span><br/><span class="tsd-signature-symbol">}</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1/packages/sdk/src/types/ordering.ts#L279">packages/sdk/src/types/ordering.ts:279</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/112e03b9a24e90bf78fc83933f641b48354c5b2b/packages/sdk/src/types/ordering.ts#L279">packages/sdk/src/types/ordering.ts:279</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -39,7 +39,7 @@
 (10 orders a minute per site and IP). Blank is not sent.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1/packages/sdk/src/types/ordering.ts#L292">packages/sdk/src/types/ordering.ts:292</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/112e03b9a24e90bf78fc83933f641b48354c5b2b/packages/sdk/src/types/ordering.ts#L292">packages/sdk/src/types/ordering.ts:292</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="idempotencykey"><span>idempotency<wbr/>Key</span><a href="#idempotencykey" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">idempotencyKey</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -49,7 +49,7 @@ response never places the order twice. The same key with a different
 body is <code>409 IDEMPOTENCY_KEY_CONFLICT</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1/packages/sdk/src/types/ordering.ts#L286">packages/sdk/src/types/ordering.ts:286</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/112e03b9a24e90bf78fc83933f641b48354c5b2b/packages/sdk/src/types/ordering.ts#L286">packages/sdk/src/types/ordering.ts:286</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="portalsession"><code class="tsd-tag">Optional</code><span>portal<wbr/>Session</span><a href="#portalsession" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">portalSession</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">string</span></div>
@@ -60,14 +60,14 @@ expired or revoked is <code>401 PORTAL_SESSION_INVALID</code> and places nothing
 Omit it (or pass <code>&quot;&quot;</code>) for a guest order.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1/packages/sdk/src/types/ordering.ts#L300">packages/sdk/src/types/ordering.ts:300</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/112e03b9a24e90bf78fc83933f641b48354c5b2b/packages/sdk/src/types/ordering.ts#L300">packages/sdk/src/types/ordering.ts:300</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="signal"><code class="tsd-tag">Optional</code><span>signal</span><a href="#signal" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">signal</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">AbortSignal</span></div>
 <div class="tsd-comment tsd-typography"><p>Your own cancellation signal.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1/packages/sdk/src/types/ordering.ts#L302">packages/sdk/src/types/ordering.ts:302</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/112e03b9a24e90bf78fc83933f641b48354c5b2b/packages/sdk/src/types/ordering.ts#L302">packages/sdk/src/types/ordering.ts:302</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
