@@ -358,8 +358,8 @@ describe('BookingWizard', () => {
     await onDetails();
 
     // A named guest child: the fields are there, already filled.
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Theo');
-    expect(screen.getByLabelText('Fødselsår')).toHaveValue('2019');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Theo');
+    expect(screen.getByLabelText('Fødselsår (valgfritt)')).toHaveValue('2019');
   });
 
   it('opens on «Hvem skal klippes?» and a guest chip is one tap to step 2', async () => {
@@ -1132,7 +1132,7 @@ describe('BookingWizard submission', () => {
     await takeFirstAvailable(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
   }
 
@@ -1177,7 +1177,7 @@ describe('BookingWizard submission', () => {
     // sent back for a time, not that they are stuck.
     await user.click(await screen.findByRole('button', { name: '14:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
@@ -1239,9 +1239,9 @@ describe('BookingWizard submission', () => {
 
     await onDetails();
     // Named, so the links can be told apart by whose appointment they move.
-    await user.type(screen.getAllByLabelText('Hvem skal klippes?')[0], 'Jonas');
-    await user.type(screen.getAllByLabelText('Hvem skal klippes?')[1], 'Emma');
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getAllByLabelText('Hvem skal klippes? (valgfritt)')[0], 'Jonas');
+    await user.type(screen.getAllByLabelText('Hvem skal klippes? (valgfritt)')[1], 'Emma');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
@@ -1361,12 +1361,12 @@ describe('BookingWizard submission', () => {
     renderWizard();
 
     await fillIn(user);
-    await user.type(screen.getByLabelText('Hvem skal klippes?'), 'Jonas');
+    await user.type(screen.getByLabelText('Hvem skal klippes? (valgfritt)'), 'Jonas');
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
     // Mid-flight, the parent changes their mind about the name.
-    await user.clear(screen.getByLabelText('Hvem skal klippes?'));
-    await user.type(screen.getByLabelText('Hvem skal klippes?'), 'Emma');
+    await user.clear(screen.getByLabelText('Hvem skal klippes? (valgfritt)'));
+    await user.type(screen.getByLabelText('Hvem skal klippes? (valgfritt)'), 'Emma');
     release();
 
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
@@ -1533,13 +1533,13 @@ describe('BookingWizard submission', () => {
     renderWizard();
 
     await fillIn(user);
-    await user.type(screen.getByLabelText('Hvem skal klippes?'), 'Jonas');
+    await user.type(screen.getByLabelText('Hvem skal klippes? (valgfritt)'), 'Jonas');
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('alert');
 
     // They change their mind about the name, then follow the advice.
-    await user.clear(screen.getByLabelText('Hvem skal klippes?'));
-    await user.type(screen.getByLabelText('Hvem skal klippes?'), 'Emma');
+    await user.clear(screen.getByLabelText('Hvem skal klippes? (valgfritt)'));
+    await user.type(screen.getByLabelText('Hvem skal klippes? (valgfritt)'), 'Emma');
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
     await waitFor(() => expect(bodies).toHaveLength(2));
@@ -1590,7 +1590,7 @@ describe('BookingWizard submission', () => {
     await screen.findByRole('heading', { name: 'Når passer det?' });
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
@@ -1673,7 +1673,7 @@ describe('BookingWizard submission', () => {
     ).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
   });
 
   it('completes the stylist half after a late refusal, from the list fetched for the restarted basket', async () => {
@@ -1760,7 +1760,7 @@ describe('BookingWizard submission', () => {
     ).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
   });
 
   it('spends the link on the booking it was for — «Bestill ny time» after THAT is a clean wizard', async () => {
@@ -1773,7 +1773,7 @@ describe('BookingWizard submission', () => {
     await screen.findByRole('heading', { name: 'Når passer det?' });
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await user.click(await screen.findByRole('button', { name: 'Bestill ny time' }));
@@ -1827,7 +1827,7 @@ describe('BookingWizard submission', () => {
     ).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
   });
 
   it('restores the rebook link when the retry of an old attempt is REFUSED', async () => {
@@ -1869,7 +1869,7 @@ describe('BookingWizard submission', () => {
     ).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
   });
 
   it('does not replay a submission the engine already refused', async () => {
@@ -2252,7 +2252,7 @@ describe('BookingWizard prefetch', () => {
     expect(screen.getByText(nextAvailableRow('Neste ledige: i morgen 09:00'))).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Når passer det?' });
@@ -2276,7 +2276,7 @@ describe('BookingWizard prefetch', () => {
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Når passer det?' });
@@ -2388,7 +2388,7 @@ describe('BookingWizard prefill from a «Bestill igjen» link', () => {
 
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
   });
 
   it("takes the child's name from the session store once, and never from the URL", async () => {
@@ -2401,7 +2401,7 @@ describe('BookingWizard prefill from a «Bestill igjen» link', () => {
     await screen.findByRole('heading', { name: 'Når passer det?' });
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
     // Read once: nothing is left for a later, unrelated visit in this tab.
     expect(takeRebookWho()).toBeNull();
   });
@@ -2595,9 +2595,9 @@ describe('BookingWizard with a logged-in parent', () => {
     expect(screen.queryByText(/Har du konto\?/)).toBeNull();
 
     // National digits, because the field renders its own «+47» beside them.
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Kari Nordmann');
-    expect(screen.getByLabelText('E-post')).toHaveValue('kari@example.com');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Kari Nordmann');
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveValue('kari@example.com');
   });
 
   it('offers the children on the profile as cards on step 1, and books the one ticked', async () => {
@@ -2623,7 +2623,7 @@ describe('BookingWizard with a logged-in parent', () => {
     await onDetails();
 
     // Step 1 said who: «Bekreft» says it back and asks nothing about the child.
-    expect(screen.queryByLabelText('Hvem skal klippes?')).toBeNull();
+    expect(screen.queryByLabelText('Hvem skal klippes? (valgfritt)')).toBeNull();
     expect(screen.getByRole('list', { name: 'Hvem som skal klippes' })).toHaveTextContent(
       'Gutteklipp for Jonas'
     );
@@ -2654,8 +2654,8 @@ describe('BookingWizard with a logged-in parent', () => {
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
     // Booking for Jonas under grandma's number: Medal would find grandma.
-    await user.clear(screen.getByLabelText('Mobilnummer'));
-    await user.type(screen.getByLabelText('Mobilnummer'), '99887766');
+    await user.clear(screen.getByLabelText('Mobilnummer (må fylles ut)'));
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '99887766');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
@@ -2688,7 +2688,7 @@ describe('BookingWizard with a logged-in parent', () => {
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Kari Nordmann');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Kari Nordmann');
 
     // Kari's session lapses, and Ola logs in on the same tab.
     rerender(wizard(null));
@@ -2702,9 +2702,9 @@ describe('BookingWizard with a logged-in parent', () => {
       })
     );
 
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Ola Hansen');
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('90000000');
-    expect(screen.getByLabelText('E-post')).toHaveValue('ola@example.com');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Ola Hansen');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('90000000');
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveValue('ola@example.com');
   });
 
   it('adds a child from step 1 in Medal, and ticks them once they exist', async () => {
@@ -2776,7 +2776,7 @@ describe('BookingWizard with a logged-in parent', () => {
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
 
-    expect(screen.queryByLabelText('Hvem skal klippes?')).toBeNull();
+    expect(screen.queryByLabelText('Hvem skal klippes? (valgfritt)')).toBeNull();
     expect(screen.getByRole('list', { name: 'Hvem som skal klippes' })).toHaveTextContent(
       'Gutteklipp for deg'
     );
@@ -2991,7 +2991,7 @@ describe('BookingWizard with a logged-in parent', () => {
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '99887766');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '99887766');
 
     rerender(
       <BookingWizard
@@ -3003,9 +3003,9 @@ describe('BookingWizard with a logged-in parent', () => {
       />
     );
 
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('99887766');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('99887766');
     // The blank fields are still filled in: «fills blanks, never overwrites».
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Kari Nordmann');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Kari Nordmann');
   });
 });
 
@@ -3150,9 +3150,9 @@ describe('BookingWizard logging in from the sheet', () => {
     // cookie makes Next re-fetch this whole page, which is what this avoids.
     expect(verifyBodies).toEqual([{ email: 'kari@example.com', code: '492155' }]);
     expect(urls.filter((url) => url.includes('/api/portal/login/verify'))).toHaveLength(1);
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Kari Nordmann');
-    expect(screen.getByLabelText('E-post')).toHaveValue('kari@example.com');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Kari Nordmann');
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveValue('kari@example.com');
     expect(screen.getByRole('button', { name: 'Jonas' })).toBeInTheDocument();
     // The same node, filled in — not a new one that arrived pre-filled.
     await waitFor(() => expect(status).toHaveTextContent('Du er logget inn som Kari Nordmann.'));
@@ -3172,12 +3172,12 @@ describe('BookingWizard logging in from the sheet', () => {
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '99887766');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '99887766');
 
     await logInThroughSheet(user);
 
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('99887766');
-    expect(screen.getByLabelText('Ditt navn')).toHaveValue('Kari Nordmann');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('99887766');
+    expect(screen.getByLabelText('Ditt navn (valgfritt)')).toHaveValue('Kari Nordmann');
   });
 
   it('remembers a login taken on the first screen by the time the form arrives', async () => {
@@ -3196,7 +3196,7 @@ describe('BookingWizard logging in from the sheet', () => {
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
 
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
     expect(screen.queryByText(/Har du konto\?/)).toBeNull();
     expect(router.refresh).not.toHaveBeenCalled();
   });
@@ -3262,7 +3262,7 @@ describe('BookingWizard resuming after a Vipps login', () => {
     // The code alone — the link is in a cookie the route reads.
     expect(verifyBodies).toEqual([{ code: '492155' }]);
     await onDetails();
-    expect(screen.getByLabelText('E-post')).toHaveValue('kari@example.com');
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveValue('kari@example.com');
     window.history.replaceState(null, '', '/');
   });
 
@@ -3288,7 +3288,7 @@ describe('BookingWizard resuming after a Vipps login', () => {
     await onDetails();
     // The hour survived the trip — «Bekreft» is only reachable holding one.
     expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
     expect(screen.queryByText(/Har du konto\?/)).toBeNull();
   });
 
@@ -3718,7 +3718,7 @@ describe('BookingWizard with details.emailRequired', () => {
     await takeFirstAvailable(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
-    await user.type(screen.getByLabelText('Mobilnummer'), '40000000');
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '40000000');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
   }
 
@@ -3727,7 +3727,7 @@ describe('BookingWizard with details.emailRequired', () => {
     const user = userEvent.setup();
     renderWizard();
     await toDetails(user);
-    expect(screen.getByLabelText('E-post')).not.toBeRequired();
+    expect(screen.getByLabelText('E-post (valgfritt)')).not.toBeRequired();
   });
 
   it('refuses a blank address, says why and books nothing', async () => {
@@ -3736,7 +3736,7 @@ describe('BookingWizard with details.emailRequired', () => {
     renderWizard({ emailRequired: true });
     await toDetails(user);
 
-    const email = screen.getByLabelText('E-post');
+    const email = screen.getByLabelText('E-post (må fylles ut)');
     expect(email).toBeRequired();
     expect(email).toHaveAttribute('aria-required', 'true');
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
@@ -3755,7 +3755,7 @@ describe('BookingWizard with details.emailRequired', () => {
     renderWizard({ emailRequired: true });
     await toDetails(user);
 
-    await user.type(screen.getByLabelText('E-post'), 'kari@example.no');
+    await user.type(screen.getByLabelText('E-post (må fylles ut)'), 'kari@example.no');
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
     expect(bodies[0]).toMatchObject({ contact: { email: 'kari@example.no' } });
@@ -3827,7 +3827,7 @@ describe('BookingWizard with account.required', () => {
       .filter((text) => text === 'Fortsett med Vipps' || text === 'Fortsett med e-post');
     expect(buttons).toEqual(['Fortsett med Vipps', 'Fortsett med e-post']);
     // Not the form, not its button, and no other login row.
-    expect(screen.queryByLabelText('Mobilnummer')).toBeNull();
+    expect(screen.queryByLabelText('Mobilnummer (må fylles ut)')).toBeNull();
     expect(screen.queryByRole('button', { name: /Bekreft time/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Neste' })).toBeNull();
     expect(screen.queryByText(/Har du konto\?/)).toBeNull();
@@ -3865,7 +3865,7 @@ describe('BookingWizard with account.required', () => {
 
     expect(actions.startLoginAction).toHaveBeenCalledWith({ email: 'kari@example.com' });
     expect(verifyBodies).toEqual([{ email: 'kari@example.com', code: '492155' }]);
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
     const email = screen.getByLabelText('E-post');
     expect(email).toHaveValue('kari@example.com');
     expect(email).toHaveAttribute('readonly');
@@ -3887,7 +3887,7 @@ describe('BookingWizard with account.required', () => {
 
     // Logged in, so no gate — but with no profile there is no address to lock.
     expect(screen.queryByRole('button', { name: 'Fortsett med e-post' })).toBeNull();
-    const email = screen.getByLabelText('E-post');
+    const email = screen.getByLabelText('E-post (valgfritt)');
     expect(email).not.toHaveAttribute('readonly');
     await user.type(email, 'kari@example.com');
     expect(email).toHaveValue('kari@example.com');
@@ -3905,7 +3905,7 @@ describe('BookingWizard with account.required', () => {
 
     expect(screen.queryByRole('button', { name: 'Fortsett med e-post' })).toBeNull();
     expect(screen.getByLabelText('E-post')).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
   });
 
   it('leaves the address editable without account.required', async () => {
@@ -3918,7 +3918,7 @@ describe('BookingWizard with account.required', () => {
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
 
-    expect(screen.getByLabelText('E-post')).not.toHaveAttribute('readonly');
+    expect(screen.getByLabelText('E-post (valgfritt)')).not.toHaveAttribute('readonly');
     expect(screen.queryByText('E-posten du logget inn med')).toBeNull();
   });
 
@@ -3935,7 +3935,7 @@ describe('BookingWizard with account.required', () => {
     await onDetails();
     expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
     expect(screen.getByLabelText('E-post')).toHaveAttribute('readonly');
-    expect(screen.getByLabelText('Mobilnummer')).toHaveValue('40000000');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('40000000');
   });
 
   it('takes a Vipps confirm code in the gate itself, not in a sheet over it', async () => {
@@ -4056,7 +4056,7 @@ describe('BookingWizard with account.required', () => {
         verify: { status: 200, body: { ok: true, guardian: OLA } },
       });
       await logInByEmail(user);
-      expect(screen.getByLabelText('Mobilnummer')).toHaveValue('41111111');
+      expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('41111111');
       // …but Jonas is Kari's child, not his: no longer named on the form.
       expect(screen.queryByText(/for Jonas/)).toBeNull();
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
@@ -4081,11 +4081,11 @@ describe('BookingWizard with account.required', () => {
       await logInByEmail(user);
       expect(screen.queryByText(/for Jonas/)).toBeNull();
       // Nor whose details: Kari's profile filled the form, and it goes with her.
-      expect(screen.getByLabelText('Mobilnummer')).toHaveValue('');
-      expect(screen.getByLabelText('E-post')).toHaveValue('');
-      await user.type(screen.getByLabelText('Mobilnummer'), '41111111');
-      await user.type(screen.getByLabelText('Ditt navn'), 'Ola');
-      await user.type(screen.getByLabelText('E-post'), 'ola@example.com');
+      expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveValue('');
+      expect(screen.getByLabelText('E-post (valgfritt)')).toHaveValue('');
+      await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '41111111');
+      await user.type(screen.getByLabelText('Ditt navn (valgfritt)'), 'Ola');
+      await user.type(screen.getByLabelText('E-post (valgfritt)'), 'ola@example.com');
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
       await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
 
@@ -4259,7 +4259,7 @@ describe('BookingWizard with account.required', () => {
       await logInByEmail(user);
       // A guest's line, logged in at the gate: Kari names Jonas with his chip.
       await user.click(screen.getByRole('button', { name: 'Jonas' }));
-      expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
+      expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
       stubApi(GONE);
       await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
@@ -4270,7 +4270,7 @@ describe('BookingWizard with account.required', () => {
         verify: { status: 200, body: { ok: true, guardian: OLA } },
       });
       await logInByEmail(user);
-      expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('');
+      expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('');
       await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
       await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
 
@@ -4314,8 +4314,8 @@ describe('BookingWizard with account.required', () => {
     await user.click(await screen.findByRole('button', { name: '13:00' }));
     await onDetails();
     // Booking with her partner's number: the booking is still on HER contact.
-    await user.clear(screen.getByLabelText('Mobilnummer'));
-    await user.type(screen.getByLabelText('Mobilnummer'), '99887766');
+    await user.clear(screen.getByLabelText('Mobilnummer (må fylles ut)'));
+    await user.type(screen.getByLabelText('Mobilnummer (må fylles ut)'), '99887766');
     await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
