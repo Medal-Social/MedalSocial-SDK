@@ -10,11 +10,21 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="" aria-current="page">EmailStatus</a></li></ul>
 <h1>Type Alias EmailStatus</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">EmailStatus</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;subscribed&quot;</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;unsubscribed&quot;</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;bounced&quot;</span> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;complained&quot;</span></div>
-<div class="tsd-comment tsd-typography"><p>Email deliverability status for a contact.</p>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">EmailStatus</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;subscribed&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;unsubscribed&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;bounced&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;complained&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;not_opted_in&quot;</span></div>
+<div class="tsd-comment tsd-typography"><p>A contact's e-mail status.</p>
+<ul>
+<li><code>subscribed</code> — marketing permission: the one status campaigns, segments
+and marketing flows send to.</li>
+<li><code>unsubscribed</code> — the person opted out.</li>
+<li><code>bounced</code> / <code>complained</code> — the address bounced, or its owner reported spam.</li>
+<li><code>not_opted_in</code> — nobody has asked or objected: no marketing permission,
+and no opt-out either (an enquiry form, an unconfirmed import). Receives
+no marketing e-mail.</li>
+</ul>
+<p>A create without <code>email_status</code> stores <code>subscribed</code>.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/a9a9bd7b7063c4454bdd1ae93092f38770c2fa3b/packages/sdk/src/types/contacts.ts#L65">packages/sdk/src/types/contacts.ts:65</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/Medal-Social/MedalSocial-SDK/blob/b38afd4f5e745a00a471cb742cc9a39a0fa09d22/packages/sdk/src/types/contacts.ts#L77">packages/sdk/src/types/contacts.ts:77</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
