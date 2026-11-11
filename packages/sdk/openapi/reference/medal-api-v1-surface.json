@@ -644,7 +644,13 @@
         "parameters.limit#type": ["integer"],
         "parameters.cursor#type": ["string"],
         "parameters.status": ["churned", "customer", "lead", "subscriber"],
-        "parameters.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "parameters.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "parameters.email#type": ["string"],
         "parameters.label_ids#type": ["string"],
         "parameters.search#type": ["string"],
@@ -668,6 +674,7 @@
         "responses.200.data[].email_status": [
           "bounced",
           "complained",
+          "not_opted_in",
           "subscribed",
           "unsubscribed"
         ],
@@ -701,7 +708,13 @@
         "responses.200.data.address.postalCode#type": ["string"],
         "responses.200.data.address.country#type": ["string"],
         "responses.200.data.status": ["churned", "customer", "lead", "subscriber"],
-        "responses.200.data.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "responses.200.data.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "responses.200.data.label_ids#type": ["array"],
         "responses.200.data.label_ids[]#type": ["string"],
         "responses.200.data.source#type": ["string"],
@@ -1851,7 +1864,13 @@
         "requestBody.company#type": ["string"],
         "requestBody.job_title#type": ["string"],
         "requestBody.status": ["churned", "customer", "lead", "subscriber"],
-        "requestBody.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "requestBody.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "requestBody.label_ids#type": ["array"],
         "requestBody.label_ids[]#type": ["string"],
         "requestBody.labels#type": ["array"],
@@ -1873,7 +1892,13 @@
         "responses.200.data.address.postalCode#type": ["string"],
         "responses.200.data.address.country#type": ["string"],
         "responses.200.data.status": ["churned", "customer", "lead", "subscriber"],
-        "responses.200.data.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "responses.200.data.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "responses.200.data.label_ids#type": ["array"],
         "responses.200.data.label_ids[]#type": ["string"],
         "responses.200.data.source#type": ["string"],
@@ -2488,7 +2513,13 @@
         "requestBody.address.postalCode#type": ["string"],
         "requestBody.address.country#type": ["string"],
         "requestBody.status": ["churned", "customer", "lead", "subscriber"],
-        "requestBody.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "requestBody.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "requestBody.label_ids#type": ["array"],
         "requestBody.label_ids[]#type": ["string"],
         "requestBody.labels#type": ["array"],
@@ -2519,7 +2550,13 @@
         "responses.201.data.address.postalCode#type": ["string"],
         "responses.201.data.address.country#type": ["string"],
         "responses.201.data.status": ["churned", "customer", "lead", "subscriber"],
-        "responses.201.data.email_status": ["bounced", "complained", "subscribed", "unsubscribed"],
+        "responses.201.data.email_status": [
+          "bounced",
+          "complained",
+          "not_opted_in",
+          "subscribed",
+          "unsubscribed"
+        ],
         "responses.201.data.label_ids#type": ["array"],
         "responses.201.data.label_ids[]#type": ["string"],
         "responses.201.data.source#type": ["string"],
@@ -2549,6 +2586,7 @@
         "requestBody.contacts[].email_status": [
           "bounced",
           "complained",
+          "not_opted_in",
           "subscribed",
           "unsubscribed"
         ],
