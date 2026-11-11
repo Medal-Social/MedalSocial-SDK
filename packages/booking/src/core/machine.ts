@@ -20,6 +20,7 @@ import { isChildCategory } from './categories';
 import { createClock } from './clock';
 import type { BookingConfig } from './config';
 import { resourceMatches } from './deep-link';
+import { isEmailAddress } from './email';
 import { fill, labelText, resolveLabels } from './labels';
 import { createMoney } from './money';
 import { visitKey, visitOf, visitPriceOre, visitServicesOf } from './visit';
@@ -929,7 +930,16 @@ const STEP_ORDER: readonly WizardStep[] = ['who', 'service', 'when', 'details'];
  * what stops "step 3 is done" from meaning one thing to the Neste button and
  * another to the progress dots.
  */
-function isSatisfied(state: WizardState, step: WizardStep): boolean {
+/**
+ * The site's own answers to «is this step done?», beyond what every site
+ * shares. Absent means the defaults: an e-mail is optional.
+ */
+export interface StepRules {
+  /** `details.emailRequired`: the details step also needs a valid e-mail. */
+  emailRequired?: boolean;
+}
+
+function isSatisfied(state: WizardState, step: WizardStep, rules: StepRules = {}): boolean {
   switch (step) {
     case 'who':
       // A basket built without step 1 — a link, a restored draft — has its
@@ -949,7 +959,11 @@ function isSatisfied(state: WizardState, step: WizardStep): boolean {
     case 'details':
       // Trimmed: a phone field holding only the +47 prefix and a space is not a
       // phone number, and it is exactly what an abandoned form leaves behind.
-      return state.contact.phone.trim().length > 0 && state.consentTerms;
+      return (
+        state.contact.phone.trim().length > 0 &&
+        state.consentTerms &&
+        (rules.emailRequired !== true || isEmailAddress(state.contact.email))
+      );
   }
 }
 
@@ -958,8 +972,8 @@ function isSatisfied(state: WizardState, step: WizardStep): boolean {
  * may submit at all. Answers about `state.step` only, so a Neste button can be
  * `disabled={!canAdvance(state)}` and nothing else.
  */
-export function canAdvance(state: WizardState): boolean {
-  return isSatisfied(state, state.step);
+export function canAdvance(state: WizardState, rules?: StepRules): boolean {
+  return isSatisfied(state, state.step, rules);
 }
 
 /**
@@ -972,13 +986,13 @@ export function canAdvance(state: WizardState): boolean {
  * because nothing precedes `service` — which is the case that matters, since
  * back is what the dots are mostly for.
  */
-export function canGoToStep(state: WizardState, step: WizardStep): boolean {
+export function canGoToStep(state: WizardState, step: WizardStep, rules?: StepRules): boolean {
   const index = STEP_ORDER.indexOf(step);
   // A step that is not in the order — a stale caller still naming the old
   // `login` step, say — is unreachable rather than `slice(0, -1)`: that would
   // ask about every step but the last and wave it through.
   if (index === -1) return false;
-  return STEP_ORDER.slice(0, index).every((prior) => isSatisfied(state, prior));
+  return STEP_ORDER.slice(0, index).every((prior) => isSatisfied(state, prior, rules));
 }
 
 /**
@@ -1168,9 +1182,12 @@ export type WizardConfig = Pick<
   | 'timeZone'
   | 'locale'
   | 'currency'
+  | 'priceFormat'
   | 'dayparts'
   | 'labels'
->;
+> &
+  /** Absent = the defaults (an e-mail is optional), so a hand-built config still works. */
+  Partial<Pick<BookingConfig, 'details'>>;
 
 export interface Wizard {
   /**
@@ -1182,8 +1199,10 @@ export interface Wizard {
   initialState: typeof initialState;
   reduce(state: WizardState, action: WizardAction): WizardState;
   applyPrefill(state: WizardState, prefill: WizardPrefill, catalogue: WizardCatalogue): WizardState;
-  canAdvance: typeof canAdvance;
-  canGoToStep: typeof canGoToStep;
+  /** `canAdvance` under this site's rules (`details.emailRequired`). */
+  canAdvance(state: WizardState): boolean;
+  /** `canGoToStep` under this site's rules (`details.emailRequired`). */
+  canGoToStep(state: WizardState, step: WizardStep): boolean;
   itemPriceOre(service: WizardService, startTs: number | null): number;
   /** One person's whole visit: every service priced on its own, then summed. */
   visitItemPriceOre(item: WizardItem, startTs: number | null): number;
@@ -1226,6 +1245,9 @@ export function createWizard(config: WizardConfig): Wizard {
   const clock = createClock(config);
   const money = createMoney(config);
   const labels = resolveLabels(config.locale, config.labels);
+  const rules: StepRules = { emailRequired: config.details?.emailRequired === true };
+  const advance = (state: WizardState) => canAdvance(state, rules);
+  const reachable = (state: WizardState, step: WizardStep) => canGoToStep(state, step, rules);
 
   /** `choosePeople` — see the action. */
   function choosePeople(
@@ -1648,7 +1670,7 @@ export function createWizard(config: WizardConfig): Wizard {
         // with an unreachable step is a bug in the caller rather than something
         // the visitor did, and there is no error copy to show for it. Returning
         // the identical reference also means React re-renders nothing.
-        if (!canGoToStep(state, action.step)) return state;
+        if (!reachable(state, action.step)) return state;
         return { ...state, step: action.step, error: null };
 
       case 'setContact':
@@ -1913,7 +1935,10 @@ export function createWizard(config: WizardConfig): Wizard {
           person.name ??
           labelText(person.key === SELF_KEY ? labels['people.self'] : labels['people.adult'])
       );
-    if (guests > 0) parts.unshift(fill(labels['people.children'], { count: guests }));
+    if (guests > 0) {
+      const one = guests === 1 ? labels['people.children.one'] : undefined;
+      parts.unshift(fill(one ?? labels['people.children'], { count: guests }));
+    }
     if (adults === 1) parts.push(labelText(labels['people.adult']));
     if (adults > 1) parts.push(fill(labels['people.adults'], { count: adults }));
     return parts.join(', ');
@@ -2042,8 +2067,8 @@ export function createWizard(config: WizardConfig): Wizard {
     initialState,
     reduce,
     applyPrefill,
-    canAdvance,
-    canGoToStep,
+    canAdvance: advance,
+    canGoToStep: reachable,
     itemPriceOre,
     visitItemPriceOre,
     totalPriceOre,

@@ -12,6 +12,7 @@
 import { MedalApiError } from '@medalsocial/sdk';
 import { after, NextResponse } from 'next/server';
 import { marketingConsent } from '../../core/consent';
+import { EMAIL_SHAPE } from '../../core/email';
 import type { BookingSlotDto } from '../../core/types';
 import { visitKeyOfIds } from '../../core/visit';
 import { type CreateBookingBody, MedalConfigError } from '../medal';
@@ -66,6 +67,26 @@ interface CreateRequest {
    * Medal and not part of the idempotency key.
    */
   window?: { fromTs?: unknown; toTs?: unknown };
+  /**
+   * The Reserve with Google referral the wizard read from its tab
+   * (`readGoogleReferral`). Forwarded to Medal Social, never logged, and not
+   * part of the idempotency key.
+   */
+  googleReferral?: { rwg_token?: unknown; captured_at?: unknown };
+}
+
+/**
+ * The body's `googleReferral` as Medal Social takes it, or nothing.
+ *
+ * Never an error: the referral only says where the visitor came from, so a
+ * malformed one is dropped and the booking goes ahead.
+ */
+function googleReferralOf(
+  raw: CreateRequest['googleReferral']
+): NonNullable<CreateBookingBody['google_referral']> | undefined {
+  if (typeof raw?.rwg_token !== 'string' || raw.rwg_token.length === 0) return undefined;
+  if (typeof raw.captured_at !== 'number' || !Number.isFinite(raw.captured_at)) return undefined;
+  return { rwg_token: raw.rwg_token, captured_at: raw.captured_at };
 }
 
 /** The window the wizard shows when it names none: seven local days from now. */
@@ -163,16 +184,6 @@ function numberOrUndefined(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
-/**
- * The same loose shape «Bekreft» checks, kept in step with `looksLikeEmail` there.
- *
- * Loose on purpose: the field is optional, so the only job is to refuse an
- * address that cannot receive anything. A stricter pattern rejects real
- * addresses, and refusing to book a haircut over an e-mail nobody had to give
- * is the worse error.
- */
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function invalid(message: string): NextResponse {
   return bookingErrorResponse('invalidInput', 400, message);
 }
@@ -215,7 +226,10 @@ function extraServiceIdsOf(
  * the API key and quote wire field names (`contact.phone`, `items.0.start_ts`)
  * that mean nothing to the person filling in the form.
  */
-function toMedalBody(body: CreateRequest): { body: CreateBookingBody } | { error: NextResponse } {
+function toMedalBody(
+  body: CreateRequest,
+  rules: { emailRequired: boolean }
+): { body: CreateBookingBody } | { error: NextResponse } {
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return { error: invalid('items must contain at least one service') };
   }
@@ -231,9 +245,16 @@ function toMedalBody(body: CreateRequest): { body: CreateBookingBody } | { error
   // same shape at the field; this is the boundary saying it again, because the
   // route is reachable without the wizard and «booked but unreachable» is not a
   // state worth being able to create.
+  // `EMAIL_SHAPE` is the same loose shape «Bekreft» checks (`core/email`).
   const email = blankToUndefined(body.contact?.email);
   if (email !== undefined && !EMAIL_SHAPE.test(email)) {
     return { error: invalid('contact.email is not a valid address') };
+  }
+  // `details.emailRequired`: the business confirms and reminds by e-mail only,
+  // so a booking without an address is one nobody hears about. The form
+  // refuses it too; this is the rule for a caller that is not the form.
+  if (rules.emailRequired && email === undefined) {
+    return { error: invalid('contact.email is required') };
   }
 
   // Checked last so a malformed payload reports the malformation, but checked
@@ -489,7 +510,9 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     return invalid('body must be a JSON object');
   }
 
-  const mapped = toMedalBody(parsed as CreateRequest);
+  const mapped = toMedalBody(parsed as CreateRequest, {
+    emailRequired: rt.config.details.emailRequired,
+  });
   if ('error' in mapped) return mapped.error;
 
   // ONE SUBMISSION, ONE KEY, ONE BODY. The key is derived from what the
@@ -520,7 +543,12 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
     return NextResponse.json({ error: 'upstreamError', retryable: true }, { status: 503 });
   }
   if (booking === 'accountRequired') return accountRequired();
-  mapped.body = booking.body;
+  // Added after `keyBody` is taken: the referral says where the visitor came
+  // from, not which booking this is, so it must not make a new key.
+  const googleReferral = googleReferralOf((parsed as CreateRequest).googleReferral);
+  mapped.body = googleReferral
+    ? { ...booking.body, google_referral: googleReferral }
+    : booking.body;
 
   try {
     // Inside the try, though nothing about a SHA-256 of a string this route

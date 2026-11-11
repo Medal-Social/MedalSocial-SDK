@@ -18,6 +18,7 @@ import type {
   PortalVippsStart,
   PortalVippsStartInput,
 } from "../types/portal";
+import { PortalOrdering, PortalOrderingSessionScope } from "./portal-ordering";
 
 /** The per-request options a session-bound portal call sends. */
 function withSession(session: string): { headers: Record<string, string> } {
@@ -227,11 +228,21 @@ class PortalPersons {
  * calls are sent exactly once) is identical.
  */
 export class PortalSessionScope {
+  /**
+   * Restaurant ordering for this customer, token bound: `preferences()`,
+   * `updatePreferences(patch)`, `addAddress(input)`, `removeAddress(id)`,
+   * `addFavourite(id)`, `removeFavourite(id)`, `orders()`, `reorder(orderId)`.
+   * See {@link PortalOrdering}.
+   */
+  readonly ordering: PortalOrderingSessionScope;
+
   constructor(
     private portal: Portal,
     /** The session token this scope is bound to. */
     readonly token: string,
-  ) {}
+  ) {
+    this.ordering = new PortalOrderingSessionScope(portal.ordering, token);
+  }
 
   /** The signed-in contact's own profile. See {@link Portal.me}. */
   async profile(): Promise<ApiResponse<PortalProfile>> {
@@ -298,10 +309,18 @@ export class Portal {
   readonly login: PortalLogin;
   /** The contact's own persons (children), edited by id: `create`, `update`, `remove`. */
   readonly persons: PortalPersons;
+  /**
+   * The customer's restaurant ordering profile, history and reorder:
+   * `preferences.{get,update}`, `addresses.{add,remove}`,
+   * `favourites.{add,remove}`, `orders.{list,reorder}`. Session first, like
+   * the rest of the portal.
+   */
+  readonly ordering: PortalOrdering;
 
   constructor(private client: BaseClient) {
     this.login = new PortalLogin(client);
     this.persons = new PortalPersons(client);
+    this.ordering = new PortalOrdering(client);
   }
 
   /**

@@ -78,7 +78,9 @@ const BUDGETS = [
     // Raised 16.5 → 17.0 KB for the redesign's opt-in wiring (grown-up seats,
     // the panel's words, compact header, booked hero, guest-party restore):
     // measured 16.52 KB.
-    gzipBytes: 17.0 * 1024,
+    // Raised 17.0 → 17.2 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 17.04 KB.
+    gzipBytes: 17.2 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -137,7 +139,12 @@ const BUDGETS = [
     // Raised 19.6 → 20.2 KB for the calendar link chosen per device (served
     // file, Google Calendar): measured 19.70 KB.
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.51 KB.
-    gzipBytes: 21.7 * 1024,
+    // Raised 21.7 → 21.9 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 21.78 KB.
+    // Raised 21.9 → 22.8 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.70 KB.
+    // Raised 22.8 → 23.0 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 22.90 KB.
+    // Raised 23.0 → 23.1 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.03 KB.
+    gzipBytes: 23.1 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -168,7 +175,15 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.74 KB.
     // Raised 30.9 → 31.0 KB for numbered guest grown-ups and `screens.disabledNext`
     // (passed to meda's `selection.disableUntilReady`): measured 30.91 KB.
-    gzipBytes: 31.0 * 1024,
+    // Raised 31.0 → 31.1 KB for `details.emailRequired` (the bound step rule,
+    // the shared e-mail shape and the nb/en `details.email.required` words):
+    // measured 31.06 KB.
+    // Raised 31.1 → 31.5 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 31.32 KB.
+    // Raised 31.5 → 32.4 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.32 KB.
+    // Raised 32.4 → 32.6 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.48 KB.
+    // Raised 32.6 → 32.7 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.63 KB.
+    gzipBytes: 32.7 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -210,7 +225,12 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 21.65 KB.
     // Raised 21.8 → 21.9 KB for the adult-word check on nested providers:
     // measured 21.82 KB.
-    gzipBytes: 21.9 * 1024,
+    // Raised 21.9 → 22.0 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 21.90 KB.
+    // Raised 22.0 → 22.9 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.82 KB.
+    // Raised 22.9 → 23.1 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 23.02 KB.
+    // Raised 23.1 → 23.2 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.14 KB.
+    gzipBytes: 23.2 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -239,7 +259,15 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 30.84 KB.
     // Raised 31.0 → 31.1 KB for numbered guest grown-ups, `screens.disabledNext` and
     // the layer-aware adult-word check: measured 31.02 KB.
-    gzipBytes: 31.1 * 1024,
+    // Raised 31.1 → 31.2 KB for `details.emailRequired` (the bound step rule,
+    // the shared e-mail shape and the nb/en `details.email.required` words):
+    // measured 31.14 KB.
+    // Raised 31.2 → 31.6 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 31.43 KB.
+    // Raised 31.6 → 32.5 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.41 KB.
+    // Raised 32.5 → 32.7 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.59 KB.
+    // Raised 32.7 → 32.8 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.72 KB.
+    gzipBytes: 32.8 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -280,7 +308,16 @@ const BUDGETS = [
     // Policy horizons, progressive reads and stable test-id wrappers together: 26.94 KB.
     // Raised 27.1 → 27.2 KB for numbered guest grown-ups, `screens.disabledNext` and
     // the adult-word checks: measured 27.10 KB locally, 27.11 KB in CI.
-    gzipBytes: 27.2 * 1024,
+    // Raised 27.2 → 29.2 KB for «Endre e-post» on Min side (`PortalEmailChange`:
+    // the two-step sheet and its nb + en copy, ~40 keys a pack). The booking
+    // page's budgets above do not move — the portal is not on that path.
+    // Measured 29.04 KB.
+    // Raised 29.2 → 29.4 KB for the Reserve with Google referral (`rwg_token` kept
+    // for the tab and sent with the booking): measured 29.21 KB.
+    // Raised 29.4 → 30.2 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 30.11 KB.
+    // Raised 30.2 → 30.4 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 30.30 KB.
+    // Raised 30.4 → 30.5 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 30.45 KB.
+    gzipBytes: 30.5 * 1024,
   },
 ];
 

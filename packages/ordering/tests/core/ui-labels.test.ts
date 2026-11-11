@@ -32,6 +32,15 @@ describe('the label packs', () => {
     expect(core.ORDERING_LABELS).toBe(ORDERING_LABELS);
     expect(core.mergeLabels).toBe(mergeLabels);
     expect(core.fill).toBe(fill);
-    expect(Object.keys(react).sort()).toEqual(['ClosedNotice', 'ItemSheet', 'MenuList']);
+    expect(Object.keys(react).sort()).toEqual([
+      'AddressCombobox',
+      'CartBar',
+      'CartList',
+      'Checkout',
+      'ClosedNotice',
+      'ItemSheet',
+      'MenuList',
+      'OrderStatus',
+    ]);
   });
 });

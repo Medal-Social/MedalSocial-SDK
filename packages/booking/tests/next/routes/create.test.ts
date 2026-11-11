@@ -214,6 +214,31 @@ describe('POST /api/booking/create', () => {
     expect(keyOf(1)).toBe(keyOf(0));
   });
 
+  it('forwards the Reserve with Google referral to Medal, outside the idempotency key', async () => {
+    const googleReferral = { rwg_token: 'AJKvS9WeONmW', captured_at: 1_700_000_000_000 };
+    await POST(nonceRequest());
+    await POST(nonceRequest({ googleReferral }));
+
+    expect(submittedBody().google_referral).toBeUndefined();
+    expect(vi.mocked(createBooking).mock.calls[1][0].google_referral).toEqual(googleReferral);
+    // Where the visitor came from is not which booking this is: a resend that
+    // gained or lost the referral must still be the same booking.
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it.each([
+    ['a token that is not a string', { rwg_token: 5, captured_at: 1 }],
+    ['an empty token', { rwg_token: '', captured_at: 1 }],
+    ['no capture time', { rwg_token: 'AJKvS9WeONmW' }],
+    ['a capture time that is not finite', { rwg_token: 'AJKvS9WeONmW', captured_at: null }],
+    ['something that is not an object', 'AJKvS9WeONmW'],
+  ])('drops a referral with %s and books anyway', async (_, googleReferral) => {
+    const response = await POST(nonceRequest({ googleReferral }));
+
+    expect(response.status).toBe(201);
+    expect('google_referral' in submittedBody()).toBe(false);
+  });
+
   it('still books without a nonce, one key per request', async () => {
     // An older wizard, or anything that is not the wizard. It loses the
     // guarantee, not the appointment: refusing it would turn a missing nicety
@@ -1568,5 +1593,66 @@ describe('POST /api/booking/create — a visit of several services', () => {
       'svc-wash',
       'svc-cut',
     ]);
+  });
+});
+
+describe('POST /api/booking/create — details.emailRequired', () => {
+  const emailRequired = testRuntime(
+    {
+      medal: { createBooking, recordConsent } as never,
+      catalogue: { expireSlots, cachedAvailability } as never,
+      seed: { expireBookingSeeds } as never,
+      session: { readPortalSession: portal.readPortalSession } as never,
+      portal: { getMe: portal.getMe } as never,
+    },
+    {
+      logger: testLogger(),
+      config: { ...PARITY_CONFIG, details: { emailRequired: true } },
+    }
+  );
+  const POST_REQUIRED = (req: Request) => createRoute(emailRequired, req);
+
+  it.each([
+    ['absent', undefined],
+    ['blank', '   '],
+    ['not a string', 42],
+  ])('refuses 400 invalidInput when the address is %s, booking nothing', async (_, email) => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', name: 'Kari', email } })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'invalidInput',
+      message: 'contact.email is required',
+    });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('still names a malformed address as malformed', async () => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', email: 'kari@' } })
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'invalidInput',
+      message: 'contact.email is not a valid address',
+    });
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+
+  it('books with an address, trimmed', async () => {
+    const response = await POST_REQUIRED(
+      nonceRequest({ contact: { phone: '40000000', email: ' kari@example.no ' } })
+    );
+
+    expect(response.status).toBe(201);
+    expect(submittedBody().contact.email).toBe('kari@example.no');
+  });
+
+  it('leaves the address optional without the rule', async () => {
+    const response = await POST(nonceRequest({ contact: { phone: '40000000' } }));
+    expect(response.status).toBe(201);
   });
 });

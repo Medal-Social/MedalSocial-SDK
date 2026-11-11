@@ -46,6 +46,14 @@ export interface BookingConfig {
   locale: string;
   /** ISO 4217. Amounts stay in minor units (øre, pence) on the wire. */
   currency: string;
+  /**
+   * How a price is written. `'unit'` — the default — is «699 kr» (Norwegian
+   * kroner) or `Intl`'s currency format. `'dash'` is the shop-window «699,-»
+   * («1 860,-»), for a site that prints its prices that way everywhere else;
+   * whole kroner only, so it applies to NOK in a Norwegian locale and falls
+   * back to `'unit'` for any other currency.
+   */
+  priceFormat?: 'unit' | 'dash';
   /** `NO` is the only strict rule set in 0.x; every other country is `loose`. */
   phone: { country: string; validate: 'strict' | 'loose' };
   /** URLs this site serves. */
@@ -113,6 +121,17 @@ export interface BookingConfig {
      * for an answer. Off by default.
      */
     guestStartEmpty: boolean;
+    /**
+     * One customer per booking (`maxPeople: 1`, which it requires): no «who»
+     * step. A guest starts on the service step seated as one grown-up (a
+     * `?hvem=barn` link still seats a child), a logged-in parent with nobody
+     * saved as themselves, and «book another» starts the same way. The
+     * header, the crumbs and the desktop panel leave «who» out, so the first
+     * step's back is the browser's. A logged-in parent with saved people is
+     * still asked who the visit is for — that question has an answer. Off by
+     * default.
+     */
+    skipWhoStep?: boolean;
   };
   /** The bookable window and the page's prefetch. */
   window: {
@@ -159,6 +178,14 @@ export interface BookingConfig {
    * until there is a session, and `/create` refuses without one.
    */
   account: { required: boolean };
+  /**
+   * The details step's own rules. `emailRequired`: a booking needs an e-mail
+   * address, for a business that sends its confirmation and reminder by e-mail
+   * only — the form refuses a blank one (`details.email.required`) and
+   * `/create` answers 400 `invalidInput` without a valid one. Default `false`:
+   * the address is optional.
+   */
+  details: { emailRequired: boolean };
   /**
    * Opt-in screen features, all off by default so a site's wizard only
    * changes when it asks:
@@ -266,6 +293,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
   return {
     locale: 'nb-NO',
     currency: 'NOK',
+    priceFormat: 'unit',
     phone: { country: 'NO', validate: 'strict' },
     paths: { ...DEFAULT_PATHS },
     query: {
@@ -292,6 +320,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
       maxServicesPerPerson: 1,
       adultTogether: false,
       guestStartEmpty: false,
+      skipWhoStep: false,
     },
     window: { rangeDays: 7, prefetchLimit: 4, prefetchCategory: null },
     dayparts: [
@@ -304,6 +333,7 @@ function defaults(): Omit<BookingConfig, 'timeZone' | 'portal'> & {
     policy: { freeChangeHours: null },
     portal: { enabled: false, methods: ['email_code'], cookieName: 'booking_portal' },
     account: { required: false },
+    details: { emailRequired: false },
     screens: {
       recap: false,
       soonest: false,
@@ -425,6 +455,7 @@ const schema = z
     timeZone: z.string().refine(validTimeZone, 'must be an IANA time zone'),
     locale: z.string().refine(validLocale, 'must be a BCP-47 locale'),
     currency: z.string().regex(/^[A-Z]{3}$/, 'must be an ISO 4217 code'),
+    priceFormat: z.enum(['unit', 'dash']),
     phone: z.object({
       country: z.string().regex(/^[A-Z]{2}$/),
       validate: z.enum(['strict', 'loose']),
@@ -472,6 +503,7 @@ const schema = z
       maxServicesPerPerson: z.number().int().min(1).max(4),
       adultTogether: z.boolean(),
       guestStartEmpty: z.boolean(),
+      skipWhoStep: z.boolean(),
     }),
     window: z.object({
       rangeDays: z.number().int().min(1).max(MAX_RANGE_DAYS),
@@ -516,6 +548,7 @@ const schema = z
       returnPaths: z.object({ exact: z.array(path), prefixes: z.array(prefix) }),
     }),
     account: z.object({ required: z.boolean() }),
+    details: z.object({ emailRequired: z.boolean() }),
     screens: z.object({
       recap: z.boolean(),
       soonest: z.boolean(),
@@ -605,6 +638,13 @@ const schema = z
         code: 'custom',
         path: ['portal', 'methods'],
         message: 'an enabled portal needs a login method',
+      });
+    }
+    if (config.party.skipWhoStep && config.party.maxPeople !== 1) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['party', 'skipWhoStep'],
+        message: 'skipWhoStep needs party.maxPeople 1',
       });
     }
     if (config.account.required && !config.portal.enabled) {

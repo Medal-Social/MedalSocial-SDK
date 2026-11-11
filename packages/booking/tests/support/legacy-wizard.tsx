@@ -36,6 +36,8 @@ export interface LegacyWizardProps {
   guardian?: BookingGuardian | null;
   /** `config.account.required` — a booking only for a logged-in parent. */
   accountRequired?: boolean;
+  /** `config.details.emailRequired` — no booking without an e-mail address. */
+  emailRequired?: boolean;
   /** Render without the login actions — a site that wired none. */
   noActions?: boolean;
   /** The monitoring tap. */
@@ -48,15 +50,17 @@ const CONFIGS = new Map<string, ReturnType<typeof resolveBookingConfig>>();
 export function parityConfigWith(
   phone: string | null,
   address: string | null,
-  accountRequired = false
+  accountRequired = false,
+  emailRequired = false
 ) {
-  const key = JSON.stringify([phone, address, accountRequired]);
+  const key = JSON.stringify([phone, address, accountRequired, emailRequired]);
   let config = CONFIGS.get(key);
   if (config === undefined) {
     config = resolveBookingConfig({
       ...PARITY_CONFIG,
       contact: { ...PARITY_CONFIG.contact, phone, address },
       account: { required: accountRequired },
+      details: { emailRequired },
     });
     CONFIGS.set(key, config);
   }
@@ -84,12 +88,13 @@ export function BookingWizard({
   rangeDays,
   guardian,
   accountRequired = false,
+  emailRequired = false,
   noActions = false,
   onEvent,
 }: LegacyWizardProps) {
   return (
     <PackageWizard
-      config={parityConfigWith(phone, address, accountRequired)}
+      config={parityConfigWith(phone, address, accountRequired, emailRequired)}
       labels={TEST_LABELS}
       actions={noActions ? undefined : ACTIONS}
       seed={{

@@ -81,6 +81,8 @@ export const SCREEN_LABELS_NB: ScreenLabels = {
   'details.email.help': 'Vi sender bekreftelsen og en kalenderfil hit.',
   'details.email.label': 'E-postadresse',
   'details.email.lockedHelp': 'E-posten du logget inn med',
+  'details.email.required':
+    'Skriv inn e-postadressen din – bekreftelsen og påminnelsen kommer dit.',
   'details.error.conflict': 'Timen kunne ikke settes opp. Prøv igjen.',
   'details.error.inProgress':
     'Bestillingen er allerede mottatt. Se etter bekreftelsen på e-post, eller ring oss.',
@@ -519,6 +521,7 @@ export const SCREEN_LABELS_EN: ScreenLabels = {
   'details.email.help': 'We send the confirmation and a calendar file here.',
   'details.email.label': 'Email address',
   'details.email.lockedHelp': 'The e-mail you signed in with',
+  'details.email.required': 'Enter your email address – your confirmation and reminder go there.',
   'details.error.conflict': 'We could not set up the appointment. Please try again.',
   'details.error.inProgress':
     'We already have this booking. Look for the confirmation email, or give us a call.',

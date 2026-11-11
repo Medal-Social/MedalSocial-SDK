@@ -69,21 +69,25 @@ its own values in.
 | `timeZone` | — (required) | IANA zone of the business's opening hours; every clock face uses it |
 | `locale` | `nb-NO` | `Intl` formatting and the built-in label pack (`nb` or `en`) |
 | `currency` | `NOK` | ISO 4217; amounts stay in minor units on the wire |
+| `priceFormat` | `'unit'` | How a price is written: `'unit'` is «699 kr» (or `Intl` for other currencies); `'dash'` is the shop-window «699,-» / «1 860,-», for NOK in a Norwegian locale (any other currency stays `'unit'`). Every price the package writes follows it — the wizard, the manage page, Min side, the calendar file |
 | `phone` | `{ country: 'NO', validate: 'strict' }` | `NO` is the only strict rule set in 0.x |
 | `paths` | `/bestill`, `/bestill/administrer`, `/min-side`, `/api/booking`, … | The URLs the site serves |
 | `query` / `whoValues` | `kategori`, `tjeneste`, `frisor`, `antall`, `hvem`, … | Deep-link query keys and values |
 | `categories` / `fallbackCategory` | `barn` (child), `annet` (any) | Service groups in display order; unknown Medal categories land on the fallback |
-| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false, guestStartEmpty: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel`. `guestStartEmpty` (with `screens.guestParty`) starts a guest's step 1 with nobody rather than one child, so a grown-up alone is one tap |
+| `party` | `{ maxPeople: 3, allowParallel: true, askWhoFirst: true, maxServicesPerPerson: 1, adultTogether: false, guestStartEmpty: false, skipWhoStep: false }` | Step 1's rules; `maxServicesPerPerson` (1–4) caps one person's visit: `1` is the one-tap service step, above `1` the wizard's service step is multi-select (tick up to that many, then «Neste»). `adultTogether` starts a party with a grown-up in it «Samtidig» (side by side) until the parent picks a mode or names one stylist; needs `allowParallel`. `guestStartEmpty` (with `screens.guestParty`) starts a guest's step 1 with nobody rather than one child, so a grown-up alone is one tap. `skipWhoStep` (needs `maxPeople: 1`) drops the «who» step: a guest starts on the service step seated as one grown-up (a guest's `?hvem=barn` link still seats a child), a logged-in parent with nobody saved as «Meg selv» whatever the link says, and «book another» starts the same way; the header, crumbs and desktop panel leave «who» out. A logged-in parent with saved people is still asked |
 | `window` | `{ rangeDays: 7, prefetchLimit: 4, prefetchCategory: null, followPolicy: false }` | Bookable window and page prefetch; `followPolicy` uses the saved limit (see below) |
 | `dayparts` | `formiddag` 0–12, `ettermiddag` 12–17, `kveld` 17–24 | Named parts of the day, contiguous from 0 to 24 |
 | `portal` | disabled; cookie `booking_portal` (+ derived `_next`, `__Host-…_vipps_bind`, `_vipps_link`) | Customer portal switches and cookie names |
 | `contact` | `{ phone: null, address: null, name: '', mapsUrl: null }` | The business's own contact; `mapsUrl` is the booked screen's directions link (`null` searches a map for `address`) |
 | `policy` | `{ freeChangeHours: null }` | A change or cancellation is free until this many hours before; the booked screen and the desktop panel say so |
+| `details` | `{ emailRequired: false }` | `emailRequired`: no booking without an e-mail address, for a business that confirms and reminds by e-mail only. The details step marks the field required and refuses a blank address on submit (`details.email.required`), `canAdvance` holds the step, and `/create` answers 400 `invalidInput` (`contact.email is required`). Give `details.email.help` a sentence that does not call the field optional |
 | `consent` | `{ termsUrl: null, marketing: null }` | The marketing sentence and its version are the site's own |
 | `screens` | every switch `false` | Opt-in screen features, below; nothing changes for a site that sets none |
 | `storageNamespace` | `medal` | Browser keys are `<ns>:booking:draft`, `<ns>:booking:attempt`, `<ns>:booking:rebook-who` |
 | `ics` | `-//Medal Social//Booking//EN` | Calendar product id and UID domain |
 | `labels` | built-in pack for `locale` | Partial copy overrides (`summary.pickTime`, `daypart.<key>`, …) |
+
+Reserve with Google: when Google's Book link lands on the booking page with `rwg_token`, the wizard keeps it in `sessionStorage` (`medal:booking:rwg`, this tab only, 30 days, no cookie) and sends it with the booking; `POST <api>/create` forwards it to Medal Social as `google_referral`, which reports the conversion server-side. Nothing is sent to Google from the browser, and a site needs no configuration.
 
 ### Follow the saved booking horizon
 
@@ -222,6 +226,18 @@ party size («to», «tre», «flere») for `{sizeWord}` in the stylist step's
 number is filled in instead. An array for a meda screen key needs
 `@medalsocial/meda` 3.4 or later.
 
+Counts with a singular: `who.party.count.one` / `.other` and
+`who.party.adultCount.one` / `.other` are read for the number the «who»
+steppers show («1 person», «2 personer»), and `people.children.one` for one
+guest child in the summary and the panel. All optional: without them the plain
+key reads for every number, as before.
+
+### The browser's back button
+
+The wizard writes one history entry per step the visitor moves forward to (`history.pushState`, the URL unchanged, the step under `medalBookingStep` in `history.state` beside the router's own fields), so back — the browser's button or a phone's back gesture — returns to the previous step with the answers kept. The step the page opens on tags the entry it arrived on, so back from there leaves the page; a deep link (`?tjeneste=`, `?frisor=`, `?kategori=`) is never read twice. Each mark names the visit (one id per mounted wizard) and its depth: a page that opens on a marked entry — a reload, a return with the back button — takes that visit over, an entry of another visit is passed through, and an entry this visit cannot show is never a dead press (behind: on out of the visit — or, in a tab opened straight on the page, to its first entry, which then shows the step on screen; ahead, or while a booking is being sent: back to where the visitor was). Once booked, history is walked back to that arrival entry, so back from the booked screen leaves the page rather than reopening a sent form, and forward into the old form comes straight back.
+
+`?kategori=` also scrolls the service list to that group the first time the service step shows — on arrival or after «who» — in place of the step change's scroll to the wizard's top (once; not for the group the list starts with).
+
 ## Server (`/next`)
 
 ```ts
@@ -252,6 +268,16 @@ export const { GET, POST, DELETE } = booking.handler;
   a tagged result (`redirect`, `unavailable`, `ready`, …) and the page renders it.
 - **Server actions stay in the app.** `booking.portal.actions.*` are plain async
   functions; wrap each in a `'use server'` export and pass it to the components.
+- **Change e-mail on Min side.** `<PortalDashboard emailChange>` adds an
+  «E-post» row to the profile: the new address, then the six-digit code Medal
+  mails to it (`POST /api/portal/email/start` and `/email/verify` in the same
+  handler; needs a Medal with `/api/v1/portal/me/email/{start,verify}`).
+  Verifying replaces the session cookie with the one Medal minted (same
+  options as the login's) and never sends a token to the browser. Start
+  answers «sent» for a taken or undeliverable address too, so the code step
+  always says what to do when no code comes; a taken address is refused at
+  verify. A refusal (`unchanged`, `too_many_codes`, `code_invalid`,
+  `email_taken`) is a sentence, never a logout. Words: `emailChange.*`.
 - **Caches.** `edge` holds the booking seed (per location, a few ms); `data`
   holds services, stylists, hours and free slots. On Node use
   `memoryCacheAdapter()` for both. Every adapter keeps one contract
