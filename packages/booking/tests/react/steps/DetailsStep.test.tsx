@@ -77,16 +77,16 @@ describe('DetailsStep', () => {
     );
 
     expect([...container.querySelectorAll('label')].map((label) => label.textContent)).toEqual([
-      'Mobilnummer',
-      'Ditt navn',
-      'Hvem skal klippes?',
-      'Fødselsår',
-      'E-post',
-      'Noe vi bør vite?',
+      'Mobilnummer (må fylles ut)',
+      'Ditt navn (valgfritt)',
+      'Hvem skal klippes? (valgfritt)',
+      'Fødselsår (valgfritt)',
+      'E-post (valgfritt)',
+      'Noe vi bør vite? (valgfritt)',
       // Deliberately no figure: the 24 was a policy value the salon sets in the
       // dashboard, separately for cancelling and for moving, and a checkbox
       // naming a constant promises what the manage page then refuses.
-      'Jeg forstår at timen kan endres eller avbestilles gratis frem til fristen salongen har satt.',
+      'Jeg forstår at timen kan endres eller avbestilles gratis frem til fristen salongen har satt. (må fylles ut)',
       'Minn meg på når det er på tide med ny klipp, og send meg tilbud fra Salong Demo.',
     ]);
     expect(screen.getByText('for bekreftelse og kalenderinvitasjon')).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe('DetailsStep', () => {
    */
   it('holds its tongue while the visitor is still typing the number', () => {
     render(<DetailsStep state={badPhoneState()} onChange={vi.fn()} onSubmit={vi.fn()} />);
-    const field = screen.getByLabelText('Mobilnummer');
+    const field = screen.getByLabelText('Mobilnummer (må fylles ut)');
 
     fireEvent.focus(field);
     expect(screen.queryByText(/Sjekk mobilnummeret/)).toBeNull();
@@ -136,7 +136,7 @@ describe('DetailsStep', () => {
     const onSubmit = vi.fn();
     render(<DetailsStep state={readyState()} onChange={vi.fn()} onSubmit={onSubmit} />);
 
-    fireEvent.change(screen.getByLabelText('Fødselsår'), { target: { value: '2017' } });
+    fireEvent.change(screen.getByLabelText('Fødselsår (valgfritt)'), { target: { value: '2017' } });
     fireEvent.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
     expect(onSubmit).toHaveBeenCalledWith(
@@ -169,7 +169,7 @@ describe('DetailsStep', () => {
     const onChange = vi.fn();
     render(<DetailsStep state={readyState()} onChange={onChange} onSubmit={onSubmit} />);
 
-    fill('Fødselsår', typed);
+    fill('Fødselsår (valgfritt)', typed);
     fireEvent.click(submitButton());
 
     // Absent, not `null` and not `''` — the engine's `z.number().optional()`
@@ -192,11 +192,11 @@ describe('DetailsStep', () => {
 
     // Trimmed rather than refused: a trailing space is an autofill artefact, not
     // a typo, and the whole *trimmed* field is a year.
-    fill('Fødselsår', ' 1900 ');
+    fill('Fødselsår (valgfritt)', ' 1900 ');
     fireEvent.click(submitButton());
     expect(onSubmit.mock.calls[0][0].items[0].bookedForBirthYear).toBe(1900);
 
-    fill('Fødselsår', '2200');
+    fill('Fødselsår (valgfritt)', '2200');
     fireEvent.click(submitButton());
     expect(onSubmit.mock.calls[1][0].items[0].bookedForBirthYear).toBe(2200);
   });
@@ -221,9 +221,9 @@ describe('DetailsStep', () => {
 
     // Typed, then cleared — which is how a number field ends up holding a value
     // that serialises to null rather than to nothing at all.
-    fill('Fødselsår', '2017');
-    fill('Fødselsår', '');
-    fill('Hvem skal klippes?', '   ');
+    fill('Fødselsår (valgfritt)', '2017');
+    fill('Fødselsår (valgfritt)', '');
+    fill('Hvem skal klippes? (valgfritt)', '   ');
     fireEvent.click(submitButton());
 
     const submission = onSubmit.mock.calls[0][0];
@@ -319,8 +319,8 @@ describe('DetailsStep', () => {
     const onChange = vi.fn();
     render(<DetailsStep state={readyState()} onChange={onChange} onSubmit={vi.fn()} />);
 
-    fill('Ditt navn', 'Kari');
-    fill('Noe vi bør vite?', 'Redd for saks');
+    fill('Ditt navn (valgfritt)', 'Kari');
+    fill('Noe vi bør vite? (valgfritt)', 'Redd for saks');
     fireEvent.click(screen.getByRole('checkbox', { name: /Minn meg på/ }));
 
     expect(onChange).toHaveBeenCalledWith({ type: 'setContact', field: 'name', value: 'Kari' });
@@ -423,11 +423,14 @@ describe('DetailsStep', () => {
     fireEvent.click(submitButton());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Mobilnummer')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveAttribute(
+      'aria-invalid',
+      'true'
+    );
     // Focus is the half of «errors scroll into view» that also works for
     // whoever is not looking at the screen — and it puts the caret where the
     // fix has to be made rather than at the top of the form.
-    expect(screen.getByLabelText('Mobilnummer')).toHaveFocus();
+    expect(screen.getByLabelText('Mobilnummer (må fylles ut)')).toHaveFocus();
   });
 
   it('refuses to submit an address that cannot receive anything', () => {
@@ -448,8 +451,8 @@ describe('DetailsStep', () => {
     fireEvent.click(submitButton());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('E-post')).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByLabelText('E-post')).toHaveFocus();
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('E-post (valgfritt)')).toHaveFocus();
   });
 
   it('still books for a parent who gave no address at all', () => {
@@ -645,7 +648,7 @@ describe('DetailsStep', () => {
 
     // Two children means two of every child field, so each one has to be picked
     // out by position — which is the point of the test.
-    const year = (nth: number) => screen.getAllByLabelText('Fødselsår')[nth];
+    const year = (nth: number) => screen.getAllByLabelText('Fødselsår (valgfritt)')[nth];
 
     fireEvent.change(year(0), { target: { value: '2017' } });
     expect(onChange).toHaveBeenCalledWith({
@@ -670,7 +673,7 @@ describe('DetailsStep', () => {
     // The second child's name on the second child's line. Two children can share
     // a service, so an index that did not follow the field would put Emma's name
     // on her brother's booking.
-    fireEvent.change(screen.getAllByLabelText('Hvem skal klippes?')[1], {
+    fireEvent.change(screen.getAllByLabelText('Hvem skal klippes? (valgfritt)')[1], {
       target: { value: 'Emma' },
     });
     expect(onChange).toHaveBeenCalledWith({
@@ -696,8 +699,8 @@ describe('DetailsStep', () => {
     // A visitor who goes back to step 3 to change the hour and returns finds the
     // boxes as they left them, because this step reads them off the items rather
     // than starting empty.
-    expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Jonas');
-    expect(screen.getByLabelText('Fødselsår')).toHaveValue('2017');
+    expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Jonas');
+    expect(screen.getByLabelText('Fødselsår (valgfritt)')).toHaveValue('2017');
 
     fireEvent.click(submitButton());
     expect(onSubmit.mock.calls[0][0].items[0]).toMatchObject({
@@ -735,8 +738,8 @@ describe('DetailsStep', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Emma' }));
 
-      expect(screen.getByLabelText('Hvem skal klippes?')).toHaveValue('Emma');
-      expect(screen.getByLabelText('Fødselsår')).toHaveValue('2020');
+      expect(screen.getByLabelText('Hvem skal klippes? (valgfritt)')).toHaveValue('Emma');
+      expect(screen.getByLabelText('Fødselsår (valgfritt)')).toHaveValue('2020');
       expect(onChange).toHaveBeenCalledWith({
         type: 'setItemField',
         index: 0,
@@ -758,7 +761,9 @@ describe('DetailsStep', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Jonas' }));
       expect(screen.getByRole('button', { name: 'Jonas' })).toHaveAttribute('aria-pressed', 'true');
 
-      fireEvent.change(screen.getByLabelText('Fødselsår'), { target: { value: '2018' } });
+      fireEvent.change(screen.getByLabelText('Fødselsår (valgfritt)'), {
+        target: { value: '2018' },
+      });
 
       expect(screen.getByRole('button', { name: 'Jonas' })).toHaveAttribute(
         'aria-pressed',
@@ -800,7 +805,7 @@ describe('DetailsStep for a saved child', () => {
       />
     );
 
-    expect(screen.queryByLabelText('Hvem skal klippes?')).toBeNull();
+    expect(screen.queryByLabelText('Hvem skal klippes? (valgfritt)')).toBeNull();
     expect(screen.getByRole('list', { name: 'Hvem som skal klippes' })).toHaveTextContent(
       'Gutteklipp for Jonas'
     );
@@ -853,7 +858,7 @@ describe('DetailsStep for a saved child', () => {
       value: 'p-jonas',
     });
 
-    fill('Hvem skal klippes?', 'Jonas E');
+    fill('Hvem skal klippes? (valgfritt)', 'Jonas E');
     expect(onChange).toHaveBeenLastCalledWith({
       type: 'setItemField',
       index: 0,
