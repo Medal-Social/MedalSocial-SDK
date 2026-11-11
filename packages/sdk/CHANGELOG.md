@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.21.0
+
+### Minor Changes
+
+- [#326](https://github.com/Medal-Social/MedalSocial-SDK/pull/326) [`b38afd4`](https://github.com/Medal-Social/MedalSocial-SDK/commit/b38afd4f5e745a00a471cb742cc9a39a0fa09d22) Thanks [@alioftech](https://github.com/alioftech)! - `EmailStatus` gains `not_opted_in`: an address nobody has asked or objected for, which receives no marketing e-mail. `contacts.create`, `contacts.update` and the `email_status` filter on `contacts.list` accept it, and a contact read can return it, so a site can store an enquiry as `not_opted_in` and tell it apart from an explicit `unsubscribed`.
+
 ## 1.20.0
 
 ### Minor Changes
