@@ -267,6 +267,14 @@ const { data: created } = await medal.bookings.create(
   },
   { idempotencyKey: crypto.randomUUID() },   // optional — see the note below
 );
+// google_referral is optional (BookingGoogleReferralInput): { rwg_token,
+// captured_at }, with captured_at in epoch milliseconds. Google appends
+// rwg_token to its Book link; forward it with the capture time so Medal
+// reports the conversion server-side. Omit it for any other booking. A
+// malformed one is dropped and the booking goes ahead. Sites using
+// @medalsocial/booking get this automatically. @medalsocial/booking/core
+// exports captureGoogleReferral and readGoogleReferral.
+
 // created.bookings[i].manage_token is returned EXACTLY ONCE (only its hash is
 // stored, and an idempotent replay omits it) — persist it for the manage link.
 // It is UNRECOVERABLE if lost: `Booking` has no token field, so re-reading the

@@ -185,6 +185,8 @@ A replay is bound to the session as well as the key and body: the same `idempote
 
 `created_via` is optional and defaults to `api`. Send `web` **only** from the workspace's own website, so its bookings can be told apart from integrations'. `dashboard` and `walk_in` are staff-only and the API rejects them with 400 — an API key proves which workspace is calling, not that a member typed the booking in.
 
+`google_referral` is optional (`BookingGoogleReferralInput`: `{ rwg_token, captured_at }`, `captured_at` in epoch milliseconds). Google appends `rwg_token` to its Book link; forward it with the capture time so Medal reports the conversion server-side. Omit it for any other booking. A malformed one is dropped and the booking goes ahead. Sites using `@medalsocial/booking` get this automatically. `@medalsocial/booking/core` exports `captureGoogleReferral` and `readGoogleReferral`.
+
 `manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.
 
 **A lost token cannot be recovered.** `bookings.get(id)` returns a `Booking`, which has no token field — there is nothing to re-read, and the stored hash is one-way. The only ways forward are to reschedule the booking (`reschedule` mints a fresh token) or to have staff act on it by id.
