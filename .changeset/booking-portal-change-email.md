@@ -1,5 +1,0 @@
----
-"@medalsocial/booking": minor
----
-
-«Endre e-post» on Min side. `<PortalDashboard emailChange>` adds an «E-post» row to the profile that changes the customer's own address in two steps: the new address, then the six-digit code Medal mails to it. The catch-all handler gains `POST <portalApi>/email/start` and `POST <portalApi>/email/verify`, which proxy Medal's `/api/v1/portal/me/email/{start,verify}` with the session cookie; verify swaps the cookie for the replacement session Medal mints (the old one is revoked) and never returns a token to the browser. Refusals (`unchanged`, `too_many_codes` at start; `code_invalid`, `email_taken` at verify) answer 422 and keep the customer logged in. Start answers «sent» even for a taken or undeliverable address, so the code step always offers resend after a delay, «no code?» help and a way back to edit the address. When Vipps was linked, the success says it was disconnected and offers «Koble til Vipps på nytt». New exports: `PortalEmailChange` (`/react`), `PortalEmailChangeRefusedError`, `PortalEmailChangeUnavailableError`, `EMAIL_CHANGE_REFUSALS`, `EmailChangeRefusal` (`/next`), and nb + en `emailChange.*` labels.
