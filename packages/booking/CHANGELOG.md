@@ -1,5 +1,38 @@
 # @medalsocial/booking
 
+## 0.11.0
+
+### Minor Changes
+
+- [#316](https://github.com/Medal-Social/MedalSocial-SDK/pull/316) [`fdb4629`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1) Thanks [@alioftech](https://github.com/alioftech)! - Reserve with Google referral. Google appends `rwg_token` to its Book link; the wizard now keeps it for the tab (`sessionStorage` key `medal:booking:rwg`, 30 days, no cookie) and sends it with the booking as `googleReferral`, and `POST <api>/create` forwards it to Medal Social as `google_referral: { rwg_token, captured_at }` so the conversion is reported server-side. The referral is outside the idempotency key and is part of the stored submission, so a resend carries the same body; a malformed one is dropped and the booking goes ahead. `@medalsocial/booking/core` exports `captureGoogleReferral`, `readGoogleReferral` and `GoogleReferral`. `@medalsocial/sdk`: `CreateBookingInput.google_referral` and the `BookingGoogleReferralInput` type (also in the OpenAPI document). A site needs no change beyond the upgrade.
+
+- [#316](https://github.com/Medal-Social/MedalSocial-SDK/pull/316) [`fdb4629`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1) Thanks [@alioftech](https://github.com/alioftech)! - Wizard accessibility, history and a one-person flow. All new behaviour is opt-in except the history entries, which only change what the browser's back button does inside the wizard.
+  
+  - **Browser back walks the steps.** The wizard pushes one history entry per step the visitor moves forward to (`history.pushState`, URL unchanged, the step under `medalBookingStep` in `history.state` beside the router's own fields) and answers `popstate` by going to that step when the machine allows it — answers kept. The arrival entry is tagged with the opening step, so back from there leaves the page; going back inside the wizard walks history back instead of adding entries; the booked screen walks history back to the arrival entry so back never reopens a sent form (and forward into the old form comes straight back). Marks carry a per-mount visit id: a page that opens on a marked entry (reload, back-button return) takes it over, another visit's entries are passed through, and an entry the wizard cannot show is never a dead press. Deep links (`?tjeneste=`, `?frisor=`, `?kategori=`) are untouched.
+  - **`party.skipWhoStep`** (default `false`, needs `party.maxPeople: 1`): no «who» step. A guest starts on the service step seated as one grown-up (a `?hvem=barn` link still seats a child), a logged-in parent with nobody saved as themselves whatever the link says, and «book another» starts the same way; the header/crumbs count three steps, and the desktop panel drops its «who» row. A logged-in parent with saved people is still asked.
+  - **`?kategori=`** now scrolls the service list to the linked group the first time the service step shows, on arrival or after «who» (once, and not for the first group).
+  - **Singular/plural counts:** optional labels `who.party.count.one` / `.other`, `who.party.adultCount.one` / `.other` (the «who» steppers) and `people.children.one` (summary and panel). Without them the plain keys read for every number, as before.
+  - **`priceFormat`** (default `'unit'`, «699 kr»): `'dash'` writes NOK prices as «699,-» / «1 860,-» everywhere the package writes a price. Other currencies are unaffected.
+
+### Patch Changes
+
+- [#316](https://github.com/Medal-Social/MedalSocial-SDK/pull/316) [`fdb4629`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1) Thanks [@alioftech](https://github.com/alioftech)! - A stored Reserve with Google referral dated more than five minutes ahead of the clock (the clock was corrected backward after capture) is no longer read, so it cannot outlive Google's 30-day window. The same token on the landing URL is captured again at the current time.
+- Updated dependencies [[`fdb4629`](https://github.com/Medal-Social/MedalSocial-SDK/commit/fdb46299562d1d03c07e8f36b1623b9b41d6c5a1)]:
+  - @medalsocial/sdk@1.20.0
+
+## 0.10.0
+
+### Minor Changes
+
+- [#303](https://github.com/Medal-Social/MedalSocial-SDK/pull/303) [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5) Thanks [@alioftech](https://github.com/alioftech)! - `details.emailRequired` (default `false`): a site whose confirmation and reminder go out by e-mail only can make the address required. The details step passes meda's `emailRequired` to `DetailsScreen` (the field is `required` and a blank address is refused on submit with the new `details.email.required` label, nb + en in the built-in packs), the wizard's `canAdvance` holds the details step without a valid address (`canAdvance` / `canGoToStep` take an optional `StepRules` argument; `createWizard` binds the rule from the config), and `POST <api>/create` answers 400 `invalidInput` (`contact.email is required`) without one. Needs `@medalsocial/meda` with `DetailsScreen`'s `emailRequired`.
+
+- [#303](https://github.com/Medal-Social/MedalSocial-SDK/pull/303) [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5) Thanks [@alioftech](https://github.com/alioftech)! - «Endre e-post» on Min side. `<PortalDashboard emailChange>` adds an «E-post» row to the profile that changes the customer's own address in two steps: the new address, then the six-digit code Medal mails to it. The catch-all handler gains `POST <portalApi>/email/start` and `POST <portalApi>/email/verify`, which proxy Medal's `/api/v1/portal/me/email/{start,verify}` with the session cookie; verify swaps the cookie for the replacement session Medal mints (the old one is revoked) and never returns a token to the browser. Refusals (`unchanged`, `too_many_codes` at start; `code_invalid`, `email_taken` at verify) answer 422 and keep the customer logged in. Start answers «sent» even for a taken or undeliverable address, so the code step always offers resend after a delay, «no code?» help and a way back to edit the address. When Vipps was linked, the success says it was disconnected and offers «Koble til Vipps på nytt». New exports: `PortalEmailChange` (`/react`), `PortalEmailChangeRefusedError`, `PortalEmailChangeUnavailableError`, `EMAIL_CHANGE_REFUSALS`, `EmailChangeRefusal` (`/next`), and nb + en `emailChange.*` labels.
+
+### Patch Changes
+
+- Updated dependencies [[`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5), [`5433e67`](https://github.com/Medal-Social/MedalSocial-SDK/commit/5433e67610933b4ff7efc91563acbba25bb217f5)]:
+  - @medalsocial/sdk@1.19.0
+
 ## 0.9.0
 
 ### Minor Changes
