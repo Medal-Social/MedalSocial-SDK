@@ -26,6 +26,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { adClickOf, type BookingAdClick } from '../core/ad-click';
 import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
@@ -100,6 +101,15 @@ export interface UseBookingOptions extends BookingOverrides {
    * when it cannot. Default `true`: a headless shell reads `sessionLost`.
    */
   loginOffered?: boolean;
+  /**
+   * The Google Ads click this visitor arrived with, asked for when the booking
+   * is sent. Answer `null` until the visitor has agreed to marketing: the
+   * wizard does not know what they agreed to, and sends whatever it is given.
+   * Asked each time a booking is built: `null` sends no click. A submission
+   * left unanswered is sent again as it was stored, with the click it had,
+   * without asking again.
+   */
+  adClick?: () => BookingAdClick | null | undefined;
 }
 
 /** A person's «same as last time», and the note when it was swapped for their age. */
@@ -533,6 +543,15 @@ function setupFor(kit: BookingKit) {
 const CONTACT_FIELDS = ['name', 'phone', 'email'] as const;
 /** Contact fields by value, each only while a profile still owns it. */
 type ProfileOwned = Partial<Record<(typeof CONTACT_FIELDS)[number], string>>;
+
+/** The site's answer, checked. A callback that throws loses the click, never the booking. */
+function siteAdClick(read: UseBookingOptions['adClick']): BookingAdClick | null {
+  try {
+    return adClickOf(read?.());
+  } catch {
+    return null;
+  }
+}
 
 export function useBooking(options: UseBookingOptions) {
   const { kit } = useBookingKit(options, options.contact);
@@ -1905,7 +1924,30 @@ export function useBooking(options: UseBookingOptions) {
     }
     // On the submission, not added in `send`: a resend carries what was stored.
     const googleReferral = readGoogleReferral();
-    await send(googleReferral === null ? body : { ...body, googleReferral }, {
+    // For a body built here, the site's answer now is the gate: `null` sends
+    // no click, whatever an earlier try carried. Otherwise one click per
+    // attempt: after a lost session the body is built again under the SAME
+    // nonce, to meet a booking the first try may have made, and Medal refuses
+    // that key with another body — so it is the click the released try
+    // carried (kept with its nonce), or none if it carried none.
+    //
+    // A submission still owed an answer never comes through here. It is sent
+    // again exactly as stored (above, and the replay on load), click
+    // included: it may already be a booking, and a changed body under its key
+    // is refused, which on a replay clears the wizard with nothing to show
+    // for the booking that exists.
+    const asked = siteAdClick(options.adClick);
+    const released = kit.attempts.readAttempt();
+    const adClick =
+      asked !== null && released.adClick !== undefined && released.nonce === body.submissionNonce
+        ? adClickOf(released.adClick)
+        : asked;
+    const submitted: BookingSubmission = {
+      ...body,
+      ...(googleReferral === null ? {} : { googleReferral }),
+      ...(adClick === null ? {} : { adClick }),
+    };
+    await send(submitted, {
       items: state.items,
       startTs: state.startTs ?? 0,
       partyMode: state.partyMode,
@@ -1954,7 +1996,7 @@ export function useBooking(options: UseBookingOptions) {
           // lost, and the same parent's resend after the login — same nonce,
           // same visit — derives the same key and meets it rather than booking
           // twice. The body is not kept: whoever logs in next is asked again.
-          if (sessionGone) kit.attempts.releasePending(current);
+          if (sessionGone) kit.attempts.releasePending(current, submission.adClick ?? null);
           else kit.attempts.clearAttempt();
           setPendingAttempt(null);
         }

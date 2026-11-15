@@ -80,7 +80,9 @@ const BUDGETS = [
     // measured 16.52 KB.
     // Raised 17.0 → 17.2 KB for the Reserve with Google referral (`rwg_token` kept
     // for the tab and sent with the booking): measured 17.04 KB.
-    gzipBytes: 17.2 * 1024,
+    // Raised 17.2 → 17.4 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 17.28 KB.
+    gzipBytes: 17.4 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -144,7 +146,9 @@ const BUDGETS = [
     // Raised 21.9 → 22.8 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.70 KB.
     // Raised 22.8 → 23.0 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 22.90 KB.
     // Raised 23.0 → 23.1 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.03 KB.
-    gzipBytes: 23.1 * 1024,
+    // Raised 23.1 → 23.3 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 23.19 KB.
+    gzipBytes: 23.3 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -183,7 +187,9 @@ const BUDGETS = [
     // Raised 31.5 → 32.4 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.32 KB.
     // Raised 32.4 → 32.6 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.48 KB.
     // Raised 32.6 → 32.7 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.63 KB.
-    gzipBytes: 32.7 * 1024,
+    // Raised 32.7 → 33.0 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 32.89 KB.
+    gzipBytes: 33.0 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -230,7 +236,9 @@ const BUDGETS = [
     // Raised 22.0 → 22.9 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 22.82 KB.
     // Raised 22.9 → 23.1 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 23.02 KB.
     // Raised 23.1 → 23.2 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.14 KB.
-    gzipBytes: 23.2 * 1024,
+    // Raised 23.2 → 23.4 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 23.32 KB.
+    gzipBytes: 23.4 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -267,7 +275,9 @@ const BUDGETS = [
     // Raised 31.6 → 32.5 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 32.41 KB.
     // Raised 32.5 → 32.7 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 32.59 KB.
     // Raised 32.7 → 32.8 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.72 KB.
-    gzipBytes: 32.8 * 1024,
+    // Raised 32.8 → 33.0 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 32.95 KB.
+    gzipBytes: 33.0 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -317,7 +327,9 @@ const BUDGETS = [
     // Raised 29.4 → 30.2 KB for the wizard accessibility round (steps in the browser's history, `party.skipWhoStep`, the `?kategori=` landing, the steppers' singular/plural): measured 30.11 KB.
     // Raised 30.2 → 30.4 KB for the round's review fixes (history marks carry their visit, a remount takes a marked entry over, entries it cannot show pass through; «book another» keeps `skipWhoStep`): measured 30.30 KB.
     // Raised 30.4 → 30.5 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 30.45 KB.
-    gzipBytes: 30.5 * 1024,
+    // Raised 30.5 → 30.7 KB for the Google Ads click (`adClick`, checked and sent
+    // with the booking): measured 30.59 KB.
+    gzipBytes: 30.7 * 1024,
   },
 ];
 
