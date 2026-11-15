@@ -2,10 +2,14 @@
  * The Google Ads click a visitor arrived with: `gclid`, or `gbraid` / `wbraid`
  * where Google sends those instead.
  *
- * The wizard does not read it from the URL and does not store it. The site
- * hands it over (`adClick` on the wizard) once its visitor has agreed to
- * marketing, because only the site knows that. It is sent with the booking, so
- * Medal Social can tell a booking an ad brought from the rest.
+ * The wizard does not read it from the URL or a cookie. The site hands it over
+ * (`adClick` on the wizard) once its visitor has agreed to marketing, because
+ * only the site knows that. It is sent with the booking, so Medal Social can
+ * tell a booking an ad brought from the rest.
+ *
+ * It is kept in one place: a submission whose answer is outstanding sits in
+ * `sessionStorage` (the attempt, this tab, at most an hour) with the click it
+ * carried, and is resent unchanged.
  */
 export interface BookingAdClick {
   gclid?: string;

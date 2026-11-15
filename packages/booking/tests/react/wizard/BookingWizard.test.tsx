@@ -1321,6 +1321,29 @@ describe('BookingWizard submission', () => {
     expect((bodies[0] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-abc_1' });
   });
 
+  it('resends the click it first sent, whatever the site answers by then', async () => {
+    // The answer was lost, so the booking may exist under this key. Medal
+    // refuses the same key with another body, so the resend is the first
+    // request again — the click it carried included, even if the site would
+    // now answer another one or none.
+    window.sessionStorage.clear();
+    const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+
+    click = null;
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect((bodies[1] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-first' });
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+
   it.each([
     ['answers null', () => null],
     ['answers an id of the wrong shape', () => ({ gclid: 'has space' })],
@@ -4373,7 +4396,8 @@ describe('BookingWizard with account.required', () => {
     // may have booked.
     const first = stubApi({ ...OPEN_TWO, createStatus: 502, create: {} });
     const user = userEvent.setup();
-    renderWizard({ accountRequired: true, guardian: KARI });
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ accountRequired: true, guardian: KARI, adClick: () => click });
     await tickJonas(user);
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
@@ -4384,6 +4408,8 @@ describe('BookingWizard with account.required', () => {
     const { submissionNonce } = first.bodies.find((body) => 'items' in (body as object)) as {
       submissionNonce: string;
     };
+    // The site answers another click from here on.
+    click = { gclid: 'Cj0KCQ-later' };
 
     // The parent steps back for 14:00 — and «Bekreft time» resends the 13:00
     // still owed an answer, which finds the session gone.
@@ -4419,6 +4445,8 @@ describe('BookingWizard with account.required', () => {
     };
     expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
     expect(sent.submissionNonce).toBe(submissionNonce);
+    // And the click the first try carried: Medal refuses its key with another body.
+    expect((sent as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-first' });
   });
 
   it('holds the hour that was SENT when a resend, while a link waits, finds the session gone', async () => {

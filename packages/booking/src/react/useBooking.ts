@@ -105,6 +105,7 @@ export interface UseBookingOptions extends BookingOverrides {
    * The Google Ads click this visitor arrived with, asked for when the booking
    * is sent. Answer `null` until the visitor has agreed to marketing: the
    * wizard does not know what they agreed to, and sends whatever it is given.
+   * Asked once per submission: a resend carries the click the first try did.
    */
   adClick?: () => BookingAdClick | null | undefined;
 }
@@ -863,6 +864,10 @@ export function useBooking(options: UseBookingOptions) {
   const resumed = useRef(false);
   /** The whole «book again» link, kept to apply AGAIN after a refused replay. */
   const rebookLink = useRef<WizardPrefill | null>(prefill);
+  /** The site's ad click as this attempt first sent it (`submit`). */
+  const clickSent = useRef<{ nonce: string | undefined; click: BookingAdClick | null } | null>(
+    null
+  );
   const latestResources = useRef(resources);
   useEffect(() => {
     latestResources.current = resources;
@@ -1921,7 +1926,15 @@ export function useBooking(options: UseBookingOptions) {
     }
     // On the submission, not added in `send`: a resend carries what was stored.
     const googleReferral = readGoogleReferral();
-    const adClick = siteAdClick(options.adClick);
+    // One answer per attempt. After a lost session the body is built again
+    // under the SAME nonce, to meet a booking the first try may have made, and
+    // Medal refuses that key with another body: so the click is the first
+    // try's, not whatever the site answers by now.
+    const nonce = body.submissionNonce;
+    if (nonce === undefined || clickSent.current?.nonce !== nonce) {
+      clickSent.current = { nonce, click: siteAdClick(options.adClick) };
+    }
+    const adClick = clickSent.current.click;
     const submitted: BookingSubmission = {
       ...body,
       ...(googleReferral === null ? {} : { googleReferral }),
