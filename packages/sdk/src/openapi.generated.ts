@@ -2618,6 +2618,14 @@ export interface components {
       created_via?: "web" | "api";
       /** @description The Reserve with Google referral the booking page arrived with. Medal Social stores it on the booking and reports the conversion to Google from its server. A malformed value is ignored, never a 400. */
       google_referral?: components["schemas"]["BookingGoogleReferralInput"] | null;
+      /** @description The Google Ads click the visitor arrived with. Send it only once the visitor has agreed to marketing. Medal Social stores it on the booking. `null`, or leaving it out, means no click. */
+      ad_click?: components["schemas"]["BookingAdClickInput"] | null;
+    };
+    /** @description Each id is letters, digits, `-` and `_`, at most 512 characters. Any other value is a 400. */
+    BookingAdClickInput: {
+      gclid?: string;
+      gbraid?: string;
+      wbraid?: string;
     };
     BookingGoogleReferralInput: {
       /** @description The `rwg_token` Google appended to its Book link. */
