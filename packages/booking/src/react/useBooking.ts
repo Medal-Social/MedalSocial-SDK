@@ -105,9 +105,9 @@ export interface UseBookingOptions extends BookingOverrides {
    * The Google Ads click this visitor arrived with, asked for when the booking
    * is sent. Answer `null` until the visitor has agreed to marketing: the
    * wizard does not know what they agreed to, and sends whatever it is given.
-   * Asked again on every send: `null` sends no click, and any other answer
-   * sends the click this attempt first carried. So it must answer as soon
-   * as the page loads, when a submission left unanswered is sent again.
+   * Asked each time a booking is built: `null` sends no click. A submission
+   * left unanswered is sent again as it was stored, with the click it had,
+   * without asking again.
    */
   adClick?: () => BookingAdClick | null | undefined;
 }
@@ -1924,12 +1924,18 @@ export function useBooking(options: UseBookingOptions) {
     }
     // On the submission, not added in `send`: a resend carries what was stored.
     const googleReferral = readGoogleReferral();
-    // The site's answer now is the gate: `null` sends no click, whatever an
-    // earlier try carried. Otherwise one click per attempt: after a lost
-    // session the body is built again under the SAME nonce, to meet a booking
-    // the first try may have made, and Medal refuses that key with another
-    // body — so it is the click the released try carried (kept with its
-    // nonce), or none if it carried none.
+    // For a body built here, the site's answer now is the gate: `null` sends
+    // no click, whatever an earlier try carried. Otherwise one click per
+    // attempt: after a lost session the body is built again under the SAME
+    // nonce, to meet a booking the first try may have made, and Medal refuses
+    // that key with another body — so it is the click the released try
+    // carried (kept with its nonce), or none if it carried none.
+    //
+    // A submission still owed an answer never comes through here. It is sent
+    // again exactly as stored (above, and the replay on load), click
+    // included: it may already be a booking, and a changed body under its key
+    // is refused, which on a replay clears the wizard with nothing to show
+    // for the booking that exists.
     const asked = siteAdClick(options.adClick);
     const released = kit.attempts.readAttempt();
     const adClick =
@@ -1952,17 +1958,10 @@ export function useBooking(options: UseBookingOptions) {
 
   /** The POST, and everything that can come back from it (also the replay's). */
   async function send(
-    stored: BookingSubmission,
+    submission: BookingSubmission,
     submitted: SubmittedVisit,
     sendOptions?: { replay?: boolean; pending?: boolean }
   ) {
-    // A resend is the stored submission again, with one exception: a click the
-    // site no longer answers for is not sent and not kept. If the first try
-    // did book, Medal refuses the changed body and the visitor is sent to
-    // their e-mail for the booking that exists.
-    const { adClick: storedClick, ...clickless } = stored;
-    const submission: BookingSubmission =
-      storedClick !== undefined && siteAdClick(options.adClick) === null ? clickless : stored;
     setSubmitting(true);
     const current = attempt ?? kit.attempts.readAttempt();
     if (attempt === null) setAttempt(current);
