@@ -26,6 +26,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
+import { adClickOf, type BookingAdClick } from '../core/ad-click';
 import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
@@ -100,6 +101,12 @@ export interface UseBookingOptions extends BookingOverrides {
    * when it cannot. Default `true`: a headless shell reads `sessionLost`.
    */
   loginOffered?: boolean;
+  /**
+   * The Google Ads click this visitor arrived with, asked for when the booking
+   * is sent. Answer `null` until the visitor has agreed to marketing: the
+   * wizard does not know what they agreed to, and sends whatever it is given.
+   */
+  adClick?: () => BookingAdClick | null | undefined;
 }
 
 /** A person's «same as last time», and the note when it was swapped for their age. */
@@ -533,6 +540,15 @@ function setupFor(kit: BookingKit) {
 const CONTACT_FIELDS = ['name', 'phone', 'email'] as const;
 /** Contact fields by value, each only while a profile still owns it. */
 type ProfileOwned = Partial<Record<(typeof CONTACT_FIELDS)[number], string>>;
+
+/** The site's answer, checked. A callback that throws loses the click, never the booking. */
+function siteAdClick(read: UseBookingOptions['adClick']): BookingAdClick | null {
+  try {
+    return adClickOf(read?.());
+  } catch {
+    return null;
+  }
+}
 
 export function useBooking(options: UseBookingOptions) {
   const { kit } = useBookingKit(options, options.contact);
@@ -1905,7 +1921,13 @@ export function useBooking(options: UseBookingOptions) {
     }
     // On the submission, not added in `send`: a resend carries what was stored.
     const googleReferral = readGoogleReferral();
-    await send(googleReferral === null ? body : { ...body, googleReferral }, {
+    const adClick = siteAdClick(options.adClick);
+    const submitted: BookingSubmission = {
+      ...body,
+      ...(googleReferral === null ? {} : { googleReferral }),
+      ...(adClick === null ? {} : { adClick }),
+    };
+    await send(submitted, {
       items: state.items,
       startTs: state.startTs ?? 0,
       partyMode: state.partyMode,

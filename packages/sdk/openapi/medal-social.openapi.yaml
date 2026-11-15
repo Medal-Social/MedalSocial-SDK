@@ -4814,6 +4814,32 @@ components:
           oneOf:
             - $ref: "#/components/schemas/BookingGoogleReferralInput"
             - type: "null"
+        ad_click:
+          description: >-
+            The Google Ads click the visitor arrived with. Send it only once
+            the visitor has agreed to marketing. Medal Social stores it on the
+            booking. `null`, or leaving it out, means no click.
+          oneOf:
+            - $ref: "#/components/schemas/BookingAdClickInput"
+            - type: "null"
+    BookingAdClickInput:
+      description: >-
+        Each id is letters, digits, `-` and `_`, at most 512 characters. Any
+        other value is a 400.
+      type: object
+      properties:
+        gclid:
+          type: string
+          maxLength: 512
+          pattern: "^[A-Za-z0-9_-]+$"
+        gbraid:
+          type: string
+          maxLength: 512
+          pattern: "^[A-Za-z0-9_-]+$"
+        wbraid:
+          type: string
+          maxLength: 512
+          pattern: "^[A-Za-z0-9_-]+$"
     BookingGoogleReferralInput:
       type: object
       required: [rwg_token, captured_at]

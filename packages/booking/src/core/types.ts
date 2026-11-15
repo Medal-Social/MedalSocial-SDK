@@ -1,3 +1,4 @@
+import type { BookingAdClick } from './ad-click';
 import type { GoogleReferral } from './google-referral';
 import type { WizardService } from './machine';
 
@@ -198,6 +199,13 @@ export interface BookingSubmission {
    * forwards it to Medal Social, which reports the conversion.
    */
   googleReferral?: GoogleReferral;
+  /**
+   * The Google Ads click this visit arrived with, when the site handed one
+   * over (`adClick` on the wizard). Part of the submission, so a resend after
+   * a lost answer carries the same click as the first try. The create route
+   * forwards it to Medal Social.
+   */
+  adClick?: BookingAdClick;
 }
 
 /**

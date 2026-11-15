@@ -274,6 +274,11 @@ const { data: created } = await medal.bookings.create(
 // malformed one is dropped and the booking goes ahead. Sites using
 // @medalsocial/booking get this automatically. @medalsocial/booking/core
 // exports captureGoogleReferral and readGoogleReferral.
+// ad_click is optional (BookingAdClickInput): { gclid?, gbraid?, wbraid? },
+// the Google Ads click the visitor arrived with. Send it only once the
+// visitor has agreed to marketing. Each id is letters, digits, - and _ (max
+// 512); any other value is a 400. Sites using @medalsocial/booking pass it
+// to the wizard as adClick.
 
 // created.bookings[i].manage_token is returned EXACTLY ONCE (only its hash is
 // stored, and an idempotent replay omits it) — persist it for the manage link.

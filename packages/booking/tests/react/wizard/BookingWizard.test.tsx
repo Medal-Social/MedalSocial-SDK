@@ -1306,6 +1306,42 @@ describe('BookingWizard submission', () => {
     expect('googleReferral' in (bodies[0] as object)).toBe(false);
   });
 
+  it('sends the ad click the site hands it, asked for when the booking is sent', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    // No click while the wizard is filled in: the visitor agrees to marketing late.
+    let click: { gclid: string } | null = null;
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    click = { gclid: 'Cj0KCQ-abc_1' };
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect((bodies[0] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-abc_1' });
+  });
+
+  it.each([
+    ['answers null', () => null],
+    ['answers an id of the wrong shape', () => ({ gclid: 'has space' })],
+    [
+      'throws',
+      () => {
+        throw new Error('consent store unavailable');
+      },
+    ],
+  ])('books without a click when the site %s', async (_, adClick) => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ adClick });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect('adClick' in (bodies[0] as object)).toBe(false);
+  });
+
   it('sends a parent whose submission Medal already holds to their e-mail, not the button', async () => {
     stubApi({ ...OPEN_AT_ONE, createStatus: 409, create: { error: 'inProgress' } });
     const user = userEvent.setup();

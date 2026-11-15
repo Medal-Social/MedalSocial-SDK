@@ -89,6 +89,8 @@ its own values in.
 
 Reserve with Google: when Google's Book link lands on the booking page with `rwg_token`, the wizard keeps it in `sessionStorage` (`medal:booking:rwg`, this tab only, 30 days, no cookie) and sends it with the booking; `POST <api>/create` forwards it to Medal Social as `google_referral`, which reports the conversion server-side. Nothing is sent to Google from the browser, and a site needs no configuration.
 
+Google Ads: pass the wizard `adClick`, a function that answers the click the visitor arrived with (`{ gclid?, gbraid?, wbraid? }`) or `null`. The wizard asks when the booking is sent, and `POST <api>/create` forwards it to Medal Social as `ad_click`. The wizard does not read the URL or any cookie for it and does not know what the visitor agreed to, so answer `null` until they have accepted marketing. An id that is not letters, digits, `-` and `_` (max 512) is left out.
+
 ### Follow the saved booking horizon
 
 Set `window.followPolicy: true` to use the workspace booking setting instead of a fixed `rangeDays`. The server loads `GET /api/v1/bookings/policy` on each booking-page request; a saved value of 90 includes the last partially bookable date. The API still enforces the exact cutoff. Requests use the existing bounded availability chunks, and cached seeds are separated by saved limit and calendar span. If policy loading fails, the page reports unavailable rather than showing a stale fixed limit. Deploy the policy API before enabling this option on a site.

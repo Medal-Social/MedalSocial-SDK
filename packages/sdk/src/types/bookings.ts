@@ -267,6 +267,23 @@ export interface CreateBookingInput {
    * the conversion to Google from its server. Omit it for any other booking.
    */
   google_referral?: BookingGoogleReferralInput | null;
+  /**
+   * The Google Ads click the visitor arrived with. Send it only once the
+   * visitor has agreed to marketing. Medal Social stores it on the booking,
+   * so a booking an ad brought can be told from the rest. `null`, or leaving
+   * it out, means no click.
+   */
+  ad_click?: BookingAdClickInput | null;
+}
+
+/**
+ * `CreateBookingInput.ad_click`. Each id is letters, digits, `-` and `_`, at
+ * most 512 characters; any other value is a 400.
+ */
+export interface BookingAdClickInput {
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
 }
 
 /** `CreateBookingInput.google_referral`. */

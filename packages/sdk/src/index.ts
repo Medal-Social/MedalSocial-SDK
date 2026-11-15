@@ -244,6 +244,7 @@ export { Workspaces } from "./resources/workspaces";
 export type {
   Booking,
   BookingActionResult,
+  BookingAdClickInput,
   BookingAttentionFeed,
   BookingAttentionItem,
   BookingAttentionKind,
