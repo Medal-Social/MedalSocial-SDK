@@ -1321,11 +1321,29 @@ describe('BookingWizard submission', () => {
     expect((bodies[0] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-abc_1' });
   });
 
-  it('resends the click it first sent, whatever the site answers by then', async () => {
+  it('resends the click it first sent while the site still answers one', async () => {
     // The answer was lost, so the booking may exist under this key. Medal
     // refuses the same key with another body, so the resend is the first
-    // request again — the click it carried included, even if the site would
-    // now answer another one or none.
+    // request again — the click it carried, not the one the site answers now.
+    window.sessionStorage.clear();
+    const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    let click = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+
+    click = { gclid: 'Cj0KCQ-later' };
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+
+  it('drops the click from a resend, and from the store, once the site answers none', async () => {
+    // The visitor took their yes to marketing back while the answer was owed.
     window.sessionStorage.clear();
     const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
     const user = userEvent.setup();
@@ -1335,13 +1353,16 @@ describe('BookingWizard submission', () => {
     await fillIn(user);
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('alert');
+    expect(window.sessionStorage.getItem('demo:booking:attempt')).toContain('Cj0KCQ-first');
 
     click = null;
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
     await waitFor(() => expect(bodies).toHaveLength(2));
-    expect((bodies[1] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-first' });
-    expect(bodies[1]).toEqual(bodies[0]);
+    const { adClick: _sent, ...first } = bodies[0] as Record<string, unknown>;
+    // Everything else is the first submission, nonce included.
+    expect(bodies[1]).toEqual(first);
+    expect(window.sessionStorage.getItem('demo:booking:attempt')).not.toContain('Cj0KCQ-first');
   });
 
   it.each([
@@ -4543,6 +4564,36 @@ describe('BookingWizard with account.required', () => {
       'Du ble logget ut. Logg inn igjen — timen din er holdt.'
     );
     expect(screen.queryByRole('button', { name: /Bekreft time/ })).toBeNull();
+  });
+
+  it('sends no click after a login once the site answers none, whatever the first try carried', async () => {
+    window.sessionStorage.clear();
+    const gone = stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ accountRequired: true, guardian: KARI, adClick: () => click });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    expect(gone.bodies.find((body) => 'items' in (body as object))).toMatchObject({
+      adClick: { gclid: 'Cj0KCQ-first' },
+    });
+
+    // The yes to marketing is taken back before the login.
+    click = null;
+    const open = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adClick');
   });
 
   it.each([
