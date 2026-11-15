@@ -10,8 +10,9 @@
  * It is kept in one place, the attempt in `sessionStorage` (this tab, at most
  * an hour): a submission whose answer is outstanding sits there with the click
  * it carried, and one refused for a lost login leaves its click beside the
- * nonce. A resend carries that click only while the site still answers one;
- * once it answers `null` the stored click is neither sent nor kept.
+ * nonce. An unanswered submission is sent again as stored, click included,
+ * without asking the site. A booking built again after a login asks the site,
+ * and carries the first click only if the answer is not `null`.
  */
 export interface BookingAdClick {
   gclid?: string;

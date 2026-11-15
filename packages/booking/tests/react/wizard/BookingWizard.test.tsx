@@ -1342,8 +1342,10 @@ describe('BookingWizard submission', () => {
     expect(bodies[1]).toEqual(bodies[0]);
   });
 
-  it('drops the click from a resend, and from the store, once the site answers none', async () => {
-    // The visitor took their yes to marketing back while the answer was owed.
+  it('resends a pending submission as stored, click included, when the site answers none by then', async () => {
+    // The answer was lost, so this may already be a booking. Medal refuses its
+    // key with another body, so the click stays even if the visitor has since
+    // taken their yes back, or the site's consent has not loaded yet.
     window.sessionStorage.clear();
     const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
     const user = userEvent.setup();
@@ -1353,16 +1355,36 @@ describe('BookingWizard submission', () => {
     await fillIn(user);
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
     await screen.findByRole('alert');
-    expect(window.sessionStorage.getItem('demo:booking:attempt')).toContain('Cj0KCQ-first');
 
     click = null;
     await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
 
     await waitFor(() => expect(bodies).toHaveLength(2));
-    const { adClick: _sent, ...first } = bodies[0] as Record<string, unknown>;
-    // Everything else is the first submission, nonce included.
-    expect(bodies[1]).toEqual(first);
-    expect(window.sessionStorage.getItem('demo:booking:attempt')).not.toContain('Cj0KCQ-first');
+    expect((bodies[1] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-first' });
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+
+  it('replays a pending submission after a reload with its click, and shows the booking', async () => {
+    // The first try booked and its answer was lost. On the reload the site's
+    // consent has not loaded, so `adClick` answers null — and the replay must
+    // still be the first body, or Medal refuses it and the booking is never shown.
+    window.sessionStorage.clear();
+    const first = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    const view = renderWizard({ adClick: () => ({ gclid: 'Cj0KCQ-first' }) });
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+    const sent = first.bodies.find((body) => 'items' in (body as object));
+
+    view.unmount();
+    const second = stubApi(OPEN_AT_ONE);
+    renderWizard({ adClick: () => null });
+
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    const replayed = second.bodies.find((body) => 'items' in (body as object));
+    expect(replayed).toMatchObject({ adClick: { gclid: 'Cj0KCQ-first' } });
+    expect(replayed).toEqual(sent);
   });
 
   it.each([
