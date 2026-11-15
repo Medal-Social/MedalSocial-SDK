@@ -4561,7 +4561,13 @@ describe('BookingWizard with account.required', () => {
       window.sessionStorage.clear();
       const first = stubApi({ ...open, createStatus: 502, create: {} });
       const user = userEvent.setup();
-      const view = renderWizard({ accountRequired: true, guardian: KARI });
+      // With a stylist the first try carries a click; without, it carries none.
+      const firstClick = resourceId === null ? null : { gclid: 'Cj0KCQ-first' };
+      const view = renderWizard({
+        accountRequired: true,
+        guardian: KARI,
+        adClick: () => firstClick,
+      });
       await tickJonas(user);
       await pickGutteklipp(user);
       await user.click(await screen.findByRole('button', { name: '13:00' }));
@@ -4580,7 +4586,12 @@ describe('BookingWizard with account.required', () => {
         createStatus: 401,
         create: { error: 'accountRequired', message: 'Log in to book' },
       });
-      renderWizard({ accountRequired: true, guardian: KARI });
+      // After the reload the site answers another click.
+      renderWizard({
+        accountRequired: true,
+        guardian: KARI,
+        adClick: () => ({ gclid: 'Cj0KCQ-later' }),
+      });
 
       const heading = await screen.findByRole('heading', { name: 'Nesten ferdig' });
       expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
@@ -4596,7 +4607,7 @@ describe('BookingWizard with account.required', () => {
       // derive the same key to meet that booking rather than make a second.
       expect(second.bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
       const stored = JSON.parse(window.sessionStorage.getItem('demo:booking:attempt') ?? 'null');
-      expect(stored).toMatchObject({ nonce: submissionNonce });
+      expect(stored).toMatchObject({ nonce: submissionNonce, adClick: firstClick });
       expect(stored).not.toHaveProperty('pending');
 
       // Logged in again, the same hour goes through — under the same nonce.
@@ -4611,6 +4622,10 @@ describe('BookingWizard with account.required', () => {
       };
       expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
       expect(submitted.submissionNonce).toBe(submissionNonce);
+      // The body under that key is the first try's, its click (or none) included:
+      // Medal refuses the key with another body.
+      if (firstClick === null) expect(submitted).not.toHaveProperty('adClick');
+      else expect(submitted).toMatchObject({ adClick: firstClick });
     }
   );
 

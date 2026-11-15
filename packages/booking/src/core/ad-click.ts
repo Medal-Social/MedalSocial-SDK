@@ -7,9 +7,10 @@
  * only the site knows that. It is sent with the booking, so Medal Social can
  * tell a booking an ad brought from the rest.
  *
- * It is kept in one place: a submission whose answer is outstanding sits in
- * `sessionStorage` (the attempt, this tab, at most an hour) with the click it
- * carried, and is resent unchanged.
+ * It is kept in one place, the attempt in `sessionStorage` (this tab, at most
+ * an hour): a submission whose answer is outstanding sits there with the click
+ * it carried and is resent unchanged, and one refused for a lost login leaves
+ * its click beside the nonce for the resend after the login.
  */
 export interface BookingAdClick {
   gclid?: string;

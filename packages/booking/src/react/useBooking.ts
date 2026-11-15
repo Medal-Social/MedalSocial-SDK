@@ -864,10 +864,6 @@ export function useBooking(options: UseBookingOptions) {
   const resumed = useRef(false);
   /** The whole «book again» link, kept to apply AGAIN after a refused replay. */
   const rebookLink = useRef<WizardPrefill | null>(prefill);
-  /** The site's ad click as this attempt first sent it (`submit`). */
-  const clickSent = useRef<{ nonce: string | undefined; click: BookingAdClick | null } | null>(
-    null
-  );
   const latestResources = useRef(resources);
   useEffect(() => {
     latestResources.current = resources;
@@ -1928,13 +1924,13 @@ export function useBooking(options: UseBookingOptions) {
     const googleReferral = readGoogleReferral();
     // One answer per attempt. After a lost session the body is built again
     // under the SAME nonce, to meet a booking the first try may have made, and
-    // Medal refuses that key with another body: so the click is the first
-    // try's, not whatever the site answers by now.
-    const nonce = body.submissionNonce;
-    if (nonce === undefined || clickSent.current?.nonce !== nonce) {
-      clickSent.current = { nonce, click: siteAdClick(options.adClick) };
-    }
-    const adClick = clickSent.current.click;
+    // Medal refuses that key with another body: so the click is the one the
+    // released try carried (kept with its nonce), not the site's answer by now.
+    const released = kit.attempts.readAttempt();
+    const adClick =
+      released.adClick !== undefined && released.nonce === body.submissionNonce
+        ? adClickOf(released.adClick)
+        : siteAdClick(options.adClick);
     const submitted: BookingSubmission = {
       ...body,
       ...(googleReferral === null ? {} : { googleReferral }),
@@ -1989,7 +1985,7 @@ export function useBooking(options: UseBookingOptions) {
           // lost, and the same parent's resend after the login — same nonce,
           // same visit — derives the same key and meets it rather than booking
           // twice. The body is not kept: whoever logs in next is asked again.
-          if (sessionGone) kit.attempts.releasePending(current);
+          if (sessionGone) kit.attempts.releasePending(current, submission.adClick ?? null);
           else kit.attempts.clearAttempt();
           setPendingAttempt(null);
         }
