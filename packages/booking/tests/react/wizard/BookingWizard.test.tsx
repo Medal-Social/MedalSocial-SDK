@@ -1306,6 +1306,86 @@ describe('BookingWizard submission', () => {
     expect('googleReferral' in (bodies[0] as object)).toBe(false);
   });
 
+  it('sends the ad click the site hands it, asked for when the booking is sent', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    // No click while the wizard is filled in: the visitor agrees to marketing late.
+    let click: { gclid: string } | null = null;
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    click = { gclid: 'Cj0KCQ-abc_1' };
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect((bodies[0] as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-abc_1' });
+  });
+
+  it('resends the click it first sent while the site still answers one', async () => {
+    // The answer was lost, so the booking may exist under this key. Medal
+    // refuses the same key with another body, so the resend is the first
+    // request again — the click it carried, not the one the site answers now.
+    window.sessionStorage.clear();
+    const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    let click = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+
+    click = { gclid: 'Cj0KCQ-later' };
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+
+  it('drops the click from a resend, and from the store, once the site answers none', async () => {
+    // The visitor took their yes to marketing back while the answer was owed.
+    window.sessionStorage.clear();
+    const { bodies } = stubApi({ ...OPEN_AT_ONE, createStatus: 502, create: {} });
+    const user = userEvent.setup();
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ adClick: () => click });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('alert');
+    expect(window.sessionStorage.getItem('demo:booking:attempt')).toContain('Cj0KCQ-first');
+
+    click = null;
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    const { adClick: _sent, ...first } = bodies[0] as Record<string, unknown>;
+    // Everything else is the first submission, nonce included.
+    expect(bodies[1]).toEqual(first);
+    expect(window.sessionStorage.getItem('demo:booking:attempt')).not.toContain('Cj0KCQ-first');
+  });
+
+  it.each([
+    ['answers null', () => null],
+    ['answers an id of the wrong shape', () => ({ gclid: 'has space' })],
+    [
+      'throws',
+      () => {
+        throw new Error('consent store unavailable');
+      },
+    ],
+  ])('books without a click when the site %s', async (_, adClick) => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ adClick });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect('adClick' in (bodies[0] as object)).toBe(false);
+  });
+
   it('sends a parent whose submission Medal already holds to their e-mail, not the button', async () => {
     stubApi({ ...OPEN_AT_ONE, createStatus: 409, create: { error: 'inProgress' } });
     const user = userEvent.setup();
@@ -4337,7 +4417,8 @@ describe('BookingWizard with account.required', () => {
     // may have booked.
     const first = stubApi({ ...OPEN_TWO, createStatus: 502, create: {} });
     const user = userEvent.setup();
-    renderWizard({ accountRequired: true, guardian: KARI });
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ accountRequired: true, guardian: KARI, adClick: () => click });
     await tickJonas(user);
     await pickGutteklipp(user);
     await user.click(await screen.findByRole('button', { name: '13:00' }));
@@ -4348,6 +4429,8 @@ describe('BookingWizard with account.required', () => {
     const { submissionNonce } = first.bodies.find((body) => 'items' in (body as object)) as {
       submissionNonce: string;
     };
+    // The site answers another click from here on.
+    click = { gclid: 'Cj0KCQ-later' };
 
     // The parent steps back for 14:00 — and «Bekreft time» resends the 13:00
     // still owed an answer, which finds the session gone.
@@ -4383,6 +4466,8 @@ describe('BookingWizard with account.required', () => {
     };
     expect(sent.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
     expect(sent.submissionNonce).toBe(submissionNonce);
+    // And the click the first try carried: Medal refuses its key with another body.
+    expect((sent as { adClick?: unknown }).adClick).toEqual({ gclid: 'Cj0KCQ-first' });
   });
 
   it('holds the hour that was SENT when a resend, while a link waits, finds the session gone', async () => {
@@ -4481,6 +4566,36 @@ describe('BookingWizard with account.required', () => {
     expect(screen.queryByRole('button', { name: /Bekreft time/ })).toBeNull();
   });
 
+  it('sends no click after a login once the site answers none, whatever the first try carried', async () => {
+    window.sessionStorage.clear();
+    const gone = stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    let click: { gclid: string } | null = { gclid: 'Cj0KCQ-first' };
+    renderWizard({ accountRequired: true, guardian: KARI, adClick: () => click });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+    expect(gone.bodies.find((body) => 'items' in (body as object))).toMatchObject({
+      adClick: { gclid: 'Cj0KCQ-first' },
+    });
+
+    // The yes to marketing is taken back before the login.
+    click = null;
+    const open = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adClick');
+  });
+
   it.each([
     ['with a stylist', SARA.id],
     // A salon whose openings name nobody: the visit sent had no resource either.
@@ -4497,7 +4612,13 @@ describe('BookingWizard with account.required', () => {
       window.sessionStorage.clear();
       const first = stubApi({ ...open, createStatus: 502, create: {} });
       const user = userEvent.setup();
-      const view = renderWizard({ accountRequired: true, guardian: KARI });
+      // With a stylist the first try carries a click; without, it carries none.
+      const firstClick = resourceId === null ? null : { gclid: 'Cj0KCQ-first' };
+      const view = renderWizard({
+        accountRequired: true,
+        guardian: KARI,
+        adClick: () => firstClick,
+      });
       await tickJonas(user);
       await pickGutteklipp(user);
       await user.click(await screen.findByRole('button', { name: '13:00' }));
@@ -4516,7 +4637,12 @@ describe('BookingWizard with account.required', () => {
         createStatus: 401,
         create: { error: 'accountRequired', message: 'Log in to book' },
       });
-      renderWizard({ accountRequired: true, guardian: KARI });
+      // After the reload the site answers another click.
+      renderWizard({
+        accountRequired: true,
+        guardian: KARI,
+        adClick: () => ({ gclid: 'Cj0KCQ-later' }),
+      });
 
       const heading = await screen.findByRole('heading', { name: 'Nesten ferdig' });
       expect(screen.getByText('Steg 4 av 4 · Bekreft')).toBeInTheDocument();
@@ -4532,7 +4658,7 @@ describe('BookingWizard with account.required', () => {
       // derive the same key to meet that booking rather than make a second.
       expect(second.bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
       const stored = JSON.parse(window.sessionStorage.getItem('demo:booking:attempt') ?? 'null');
-      expect(stored).toMatchObject({ nonce: submissionNonce });
+      expect(stored).toMatchObject({ nonce: submissionNonce, adClick: firstClick });
       expect(stored).not.toHaveProperty('pending');
 
       // Logged in again, the same hour goes through — under the same nonce.
@@ -4547,6 +4673,10 @@ describe('BookingWizard with account.required', () => {
       };
       expect(submitted.items[0]).toMatchObject({ startTs: osloTs(2, 13) });
       expect(submitted.submissionNonce).toBe(submissionNonce);
+      // The body under that key is the first try's, its click (or none) included:
+      // Medal refuses the key with another body.
+      if (firstClick === null) expect(submitted).not.toHaveProperty('adClick');
+      else expect(submitted).toMatchObject({ adClick: firstClick });
     }
   );
 

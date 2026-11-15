@@ -11,6 +11,7 @@
 
 import { MedalApiError } from '@medalsocial/sdk';
 import { after, NextResponse } from 'next/server';
+import { adClickOf } from '../../core/ad-click';
 import { marketingConsent } from '../../core/consent';
 import { EMAIL_SHAPE } from '../../core/email';
 import type { BookingSlotDto } from '../../core/types';
@@ -73,6 +74,11 @@ interface CreateRequest {
    * part of the idempotency key.
    */
   googleReferral?: { rwg_token?: unknown; captured_at?: unknown };
+  /**
+   * The Google Ads click the site handed the wizard (`adClick`). Forwarded to
+   * Medal Social, never logged, and not part of the idempotency key.
+   */
+  adClick?: unknown;
 }
 
 /**
@@ -546,9 +552,14 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   // Added after `keyBody` is taken: the referral says where the visitor came
   // from, not which booking this is, so it must not make a new key.
   const googleReferral = googleReferralOf((parsed as CreateRequest).googleReferral);
-  mapped.body = googleReferral
-    ? { ...booking.body, google_referral: googleReferral }
-    : booking.body;
+  // Checked again here: Medal Social answers a click id of the wrong shape
+  // with a 400, and where the visitor came from must never cost the booking.
+  const adClick = adClickOf((parsed as CreateRequest).adClick);
+  mapped.body = {
+    ...booking.body,
+    ...(googleReferral ? { google_referral: googleReferral } : {}),
+    ...(adClick ? { ad_click: adClick } : {}),
+  };
 
   try {
     // Inside the try, though nothing about a SHA-256 of a string this route
