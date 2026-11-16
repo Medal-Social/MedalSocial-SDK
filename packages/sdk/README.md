@@ -279,6 +279,11 @@ const { data: created } = await medal.bookings.create(
 // visitor has agreed to marketing. Each id is letters, digits, - and _ (max
 // 512); any other value is a 400. Sites using @medalsocial/booking pass it
 // to the wizard as adClick.
+// ad_source is optional (BookingAdSourceInput): { network: 'google' | 'meta',
+// campaign? }, read by your site off its own landing link (utm_source,
+// utm_campaign). No click id and no cookie, so it can be sent for every
+// visitor. A value of another shape is ignored. Sites using
+// @medalsocial/booking pass it to the wizard as adSource.
 
 // created.bookings[i].manage_token is returned EXACTLY ONCE (only its hash is
 // stored, and an idempotent replay omits it) — persist it for the manage link.

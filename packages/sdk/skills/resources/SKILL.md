@@ -189,6 +189,8 @@ A replay is bound to the session as well as the key and body: the same `idempote
 
 `ad_click` is optional (`BookingAdClickInput`: `{ gclid?, gbraid?, wbraid? }`), the Google Ads click the visitor arrived with. Send it only once the visitor has agreed to marketing. Each id is letters, digits, `-` and `_` (max 512); any other value is a 400, so check it first. Sites using `@medalsocial/booking` pass it to the wizard as `adClick`.
 
+`ad_source` is optional (`BookingAdSourceInput`: `{ network: 'google' | 'meta', campaign? }`), the ad the booking came from as the site read it off its own landing link (`utm_source`, `utm_campaign`). It is not a click id and not read from a cookie, so it can be sent for every visitor; Medal counts the booking for that network in the Ads report. A value of another shape is ignored, never a 400. Sites using `@medalsocial/booking` pass it to the wizard as `adSource`.
+
 `manage_token` is a capability: whoever holds it can cancel or move that booking. Only its SHA-256 hash is stored, so the create response is the **only** place the plaintext token ever appears — persist it there if you need to build the customer's manage link. It is **absent** (the key is dropped, not nulled) when the response is replayed from an `Idempotency-Key`, which is why the type is `manage_token?: string`.
 
 **A lost token cannot be recovered.** `bookings.get(id)` returns a `Booking`, which has no token field — there is nothing to re-read, and the stored hash is one-way. The only ways forward are to reschedule the booking (`reschedule` mints a fresh token) or to have staff act on it by id.

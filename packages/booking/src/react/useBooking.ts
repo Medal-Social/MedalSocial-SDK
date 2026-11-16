@@ -27,6 +27,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { adClickOf, type BookingAdClick } from '../core/ad-click';
+import { adSourceOf, type BookingAdSource } from '../core/ad-source';
 import type { AgeRange } from '../core/age';
 import { ATTEMPT_TTL_MS, type BookingAttempt, type SubmittedVisit } from '../core/attempt-store';
 import { serviceMatches } from '../core/deep-link';
@@ -110,6 +111,13 @@ export interface UseBookingOptions extends BookingOverrides {
    * without asking again.
    */
   adClick?: () => BookingAdClick | null | undefined;
+  /**
+   * The ad this visitor came from, as the site read it off its own landing
+   * link (network and campaign name), or `null`. Not a click id and not from
+   * a cookie, so it needs no marketing consent. Asked each time a booking is
+   * built.
+   */
+  adSource?: () => BookingAdSource | null | undefined;
 }
 
 /** A person's «same as last time», and the note when it was swapped for their age. */
@@ -548,6 +556,15 @@ type ProfileOwned = Partial<Record<(typeof CONTACT_FIELDS)[number], string>>;
 function siteAdClick(read: UseBookingOptions['adClick']): BookingAdClick | null {
   try {
     return adClickOf(read?.());
+  } catch {
+    return null;
+  }
+}
+
+/** The site's answer, checked. A callback that throws loses the source, never the booking. */
+function siteAdSource(read: UseBookingOptions['adSource']): BookingAdSource | null {
+  try {
+    return adSourceOf(read?.());
   } catch {
     return null;
   }
@@ -1942,10 +1959,17 @@ export function useBooking(options: UseBookingOptions) {
       asked !== null && released.adClick !== undefined && released.nonce === body.submissionNonce
         ? adClickOf(released.adClick)
         : asked;
+    // The ad source has no consent to follow, so the released try's simply
+    // stands: the same body under the same nonce.
+    const adSource =
+      released.adSource !== undefined && released.nonce === body.submissionNonce
+        ? adSourceOf(released.adSource)
+        : siteAdSource(options.adSource);
     const submitted: BookingSubmission = {
       ...body,
       ...(googleReferral === null ? {} : { googleReferral }),
       ...(adClick === null ? {} : { adClick }),
+      ...(adSource === null ? {} : { adSource }),
     };
     await send(submitted, {
       items: state.items,
@@ -1996,8 +2020,13 @@ export function useBooking(options: UseBookingOptions) {
           // lost, and the same parent's resend after the login — same nonce,
           // same visit — derives the same key and meets it rather than booking
           // twice. The body is not kept: whoever logs in next is asked again.
-          if (sessionGone) kit.attempts.releasePending(current, submission.adClick ?? null);
-          else kit.attempts.clearAttempt();
+          if (sessionGone) {
+            kit.attempts.releasePending(
+              current,
+              submission.adClick ?? null,
+              submission.adSource ?? null
+            );
+          } else kit.attempts.clearAttempt();
           setPendingAttempt(null);
         }
         // A RESUMED replay (or the resend of one while a link waits) has no
