@@ -1,5 +1,11 @@
 # @medalsocial/sdk
 
+## 1.22.0
+
+### Minor Changes
+
+- [#332](https://github.com/Medal-Social/MedalSocial-SDK/pull/332) [`9b66ff7`](https://github.com/Medal-Social/MedalSocial-SDK/commit/9b66ff7b7b313a29440a74ed6b680f29b3bdc8a9) Thanks [@alioftech](https://github.com/alioftech)! - `bookings.create` accepts `ad_click` (`BookingAdClickInput`: `{ gclid?, gbraid?, wbraid? }`), the Google Ads click the visitor arrived with. Send it only once the visitor has agreed to marketing. Each id is letters, digits, `-` and `_`, at most 512 characters; any other value is a 400.
+
 ## 1.21.0
 
 ### Minor Changes
