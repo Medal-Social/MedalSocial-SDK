@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@medalsocial/booking": "workspace:*",
-    "@medalsocial/meda": "^3.17.0",
-    "lucide-react": "^1.71.0",
+    "@medalsocial/meda": "^3.18.0",
+    "lucide-react": "^1.72.0",
     "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -23,7 +23,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "typescript": "^7.0.2"
