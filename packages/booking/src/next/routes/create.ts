@@ -12,6 +12,7 @@
 import { MedalApiError } from '@medalsocial/sdk';
 import { after, NextResponse } from 'next/server';
 import { adClickOf } from '../../core/ad-click';
+import { adSourceOf } from '../../core/ad-source';
 import { marketingConsent } from '../../core/consent';
 import { EMAIL_SHAPE } from '../../core/email';
 import type { BookingSlotDto } from '../../core/types';
@@ -79,6 +80,11 @@ interface CreateRequest {
    * Medal Social, never logged, and not part of the idempotency key.
    */
   adClick?: unknown;
+  /**
+   * The ad network and campaign the site handed the wizard (`adSource`).
+   * Forwarded to Medal Social, and not part of the idempotency key.
+   */
+  adSource?: unknown;
 }
 
 /**
@@ -555,10 +561,12 @@ export async function createRoute(rt: BookingRuntime, request: Request): Promise
   // Checked again here: Medal Social answers a click id of the wrong shape
   // with a 400, and where the visitor came from must never cost the booking.
   const adClick = adClickOf((parsed as CreateRequest).adClick);
+  const adSource = adSourceOf((parsed as CreateRequest).adSource);
   mapped.body = {
     ...booking.body,
     ...(googleReferral ? { google_referral: googleReferral } : {}),
     ...(adClick ? { ad_click: adClick } : {}),
+    ...(adSource ? { ad_source: adSource } : {}),
   };
 
   try {

@@ -82,7 +82,9 @@ const BUDGETS = [
     // for the tab and sent with the booking): measured 17.04 KB.
     // Raised 17.2 → 17.4 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 17.28 KB.
-    gzipBytes: 17.4 * 1024,
+    // Raised 17.4 → 17.5 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 17.38 KB.
+    gzipBytes: 17.5 * 1024,
   },
   {
     // What a booking page's browser bundle pulls in: the wizard and its rules.
@@ -148,7 +150,9 @@ const BUDGETS = [
     // Raised 23.0 → 23.1 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.03 KB.
     // Raised 23.1 → 23.3 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 23.19 KB.
-    gzipBytes: 23.3 * 1024,
+    // Raised 23.3 → 23.4 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 23.22 KB.
+    gzipBytes: 23.4 * 1024,
   },
   {
     // The same page with the `/core` code it uses. Not in the plan's table:
@@ -189,7 +193,9 @@ const BUDGETS = [
     // Raised 32.6 → 32.7 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.63 KB.
     // Raised 32.7 → 33.0 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 32.89 KB.
-    gzipBytes: 33.0 * 1024,
+    // Raised 33.0 → 33.2 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 32.99 KB.
+    gzipBytes: 33.2 * 1024,
   },
   {
     // The booking page's own entries, whole: a bundler that keeps a
@@ -238,7 +244,9 @@ const BUDGETS = [
     // Raised 23.1 → 23.2 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 23.14 KB.
     // Raised 23.2 → 23.4 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 23.32 KB.
-    gzipBytes: 23.4 * 1024,
+    // Raised 23.4 → 23.5 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 23.35 KB.
+    gzipBytes: 23.5 * 1024,
   },
   {
     // Raised 24.5 → 24.8 KB for the #181 review round: the hook's code above
@@ -277,7 +285,9 @@ const BUDGETS = [
     // Raised 32.7 → 32.8 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 32.72 KB.
     // Raised 32.8 → 33.0 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 32.95 KB.
-    gzipBytes: 33.0 * 1024,
+    // Raised 33.0 → 33.2 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 33.04 KB.
+    gzipBytes: 33.2 * 1024,
   },
   {
     // Everything `/react` exports, manage page and portal included. Raised
@@ -329,7 +339,9 @@ const BUDGETS = [
     // Raised 30.4 → 30.5 KB for the history bounds (each mark records whether the visit's arrival entry has a page before it; a jump that would leave the tab re-tags the entry instead): measured 30.45 KB.
     // Raised 30.5 → 30.7 KB for the Google Ads click (`adClick`, checked and sent
     // with the booking): measured 30.59 KB.
-    gzipBytes: 30.7 * 1024,
+    // Raised 30.7 → 30.8 KB for the ad source (`adSource`, checked and sent with
+    // the booking, kept beside a released nonce): measured 30.62 KB.
+    gzipBytes: 30.8 * 1024,
   },
 ];
 
