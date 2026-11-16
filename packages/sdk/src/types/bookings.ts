@@ -274,6 +274,23 @@ export interface CreateBookingInput {
    * it out, means no click.
    */
   ad_click?: BookingAdClickInput | null;
+  /**
+   * The ad the booking came from, as the site read it off its own landing
+   * link: the network, and the campaign's name when the link named one. Not a
+   * click id and not read from a cookie, so it can be sent for every visitor.
+   * Medal Social stores it on the booking and counts the booking for that
+   * network in the Ads report. `null`, or leaving it out, means no ad.
+   */
+  ad_source?: BookingAdSourceInput | null;
+}
+
+/**
+ * `CreateBookingInput.ad_source`. `campaign` is letters, digits, `-`, `_` and
+ * `.`, at most 100 characters. A value of another shape is ignored, never a 400.
+ */
+export interface BookingAdSourceInput {
+  network: "google" | "meta";
+  campaign?: string;
 }
 
 /**

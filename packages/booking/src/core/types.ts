@@ -1,4 +1,5 @@
 import type { BookingAdClick } from './ad-click';
+import type { BookingAdSource } from './ad-source';
 import type { GoogleReferral } from './google-referral';
 import type { WizardService } from './machine';
 
@@ -206,6 +207,13 @@ export interface BookingSubmission {
    * forwards it to Medal Social.
    */
   adClick?: BookingAdClick;
+  /**
+   * The ad network (and campaign) this visit came from, when the site named
+   * one (`adSource` on the wizard). Part of the submission like the click, so
+   * a resend carries the same one. The create route forwards it to Medal
+   * Social.
+   */
+  adSource?: BookingAdSource;
 }
 
 /**

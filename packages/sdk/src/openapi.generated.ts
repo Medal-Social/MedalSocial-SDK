@@ -2620,6 +2620,14 @@ export interface components {
       google_referral?: components["schemas"]["BookingGoogleReferralInput"] | null;
       /** @description The Google Ads click the visitor arrived with. Send it only once the visitor has agreed to marketing. Medal Social stores it on the booking. `null`, or leaving it out, means no click. */
       ad_click?: components["schemas"]["BookingAdClickInput"] | null;
+      /** @description The ad the booking came from, as the site read it off its own landing link. Not a click id and not read from a cookie, so it can be sent for every visitor. Medal Social stores it on the booking and counts the booking for that network in the Ads report. A value of another shape is ignored, never a 400. */
+      ad_source?: components["schemas"]["BookingAdSourceInput"] | null;
+    };
+    BookingAdSourceInput: {
+      /** @enum {string} */
+      network: "google" | "meta";
+      /** @description The campaign's name, from the link's `utm_campaign`. */
+      campaign?: string;
     };
     /** @description Each id is letters, digits, `-` and `_`, at most 512 characters. Any other value is a 400. */
     BookingAdClickInput: {
