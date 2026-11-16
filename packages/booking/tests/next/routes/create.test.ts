@@ -239,6 +239,43 @@ describe('POST /api/booking/create', () => {
     expect('google_referral' in submittedBody()).toBe(false);
   });
 
+  it('forwards the ad click to Medal, outside the idempotency key', async () => {
+    const adClick = { gclid: 'Cj0KCQ-abc_1', wbraid: 'wb_2' };
+    await POST(nonceRequest());
+    await POST(nonceRequest({ adClick }));
+
+    expect(submittedBody().ad_click).toBeUndefined();
+    expect(vi.mocked(createBooking).mock.calls[1][0].ad_click).toEqual(adClick);
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it('forwards the click and the Reserve with Google referral together', async () => {
+    const googleReferral = { rwg_token: 'AJKvS9WeONmW', captured_at: 1_700_000_000_000 };
+    await POST(nonceRequest({ googleReferral, adClick: { gbraid: 'gb1' } }));
+
+    expect(submittedBody().google_referral).toEqual(googleReferral);
+    expect(submittedBody().ad_click).toEqual({ gbraid: 'gb1' });
+  });
+
+  it('keeps the ids Medal accepts and leaves the rest of a click out', async () => {
+    await POST(nonceRequest({ adClick: { gclid: 'ok-1', gbraid: 'IwAR.dot', fbclid: 'meta' } }));
+
+    expect(submittedBody().ad_click).toEqual({ gclid: 'ok-1' });
+  });
+
+  it.each([
+    ['no usable id', { gclid: 'has space', wbraid: 7 }],
+    ['an id that is too long', { gclid: 'a'.repeat(513) }],
+    ['an empty object', {}],
+    ['null', null],
+    ['something that is not an object', 'Cj0KCQ'],
+  ])('drops a click with %s and books anyway', async (_, adClick) => {
+    const response = await POST(nonceRequest({ adClick }));
+
+    expect(response.status).toBe(201);
+    expect('ad_click' in submittedBody()).toBe(false);
+  });
+
   it('still books without a nonce, one key per request', async () => {
     // An older wizard, or anything that is not the wizard. It loses the
     // guarantee, not the appointment: refusing it would turn a missing nicety

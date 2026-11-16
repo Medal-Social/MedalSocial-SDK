@@ -1,3 +1,4 @@
+import type { BookingAdClick } from './ad-click';
 import type { WizardItem, WizardState } from './machine';
 import type { BookingSubmission } from './types';
 
@@ -94,6 +95,12 @@ export interface ConfirmedBooking {
 
 export interface BookingAttempt {
   nonce: string;
+  /**
+   * The ad click a released submission carried (`releasePending`), `null` for
+   * none. Kept with the nonce: the resend after the login goes under the same
+   * key, and Medal refuses a key with another body.
+   */
+  adClick?: BookingAdClick | null;
   /** Sent, with no answer yet seen. Replayed on the next load. */
   pending?: { submission: BookingSubmission; submitted: SubmittedVisit };
   /** Answered. Kept so a refresh cannot take the manage links with it. */
@@ -118,7 +125,7 @@ export interface AttemptStore {
     attempt: BookingAttempt,
     confirmed: NonNullable<BookingAttempt['confirmed']>
   ): void;
-  releasePending(attempt: BookingAttempt): void;
+  releasePending(attempt: BookingAttempt, adClick?: BookingAdClick | null): void;
   clearAttempt(): void;
 }
 
@@ -210,9 +217,11 @@ export function createAttemptStore(namespace: string): AttemptStore {
    * somebody else, who is asked again — but an EARLIER try of it may have
    * booked with its answer lost, and the same parent's resend after the login
    * has to derive the same key to meet that booking instead of making another.
+   * The ad click it carried stays for the same reason: it is part of the body
+   * that key was first sent with.
    */
-  function releasePending(attempt: BookingAttempt): void {
-    write({ nonce: attempt.nonce });
+  function releasePending(attempt: BookingAttempt, adClick: BookingAdClick | null = null): void {
+    write({ nonce: attempt.nonce, adClick });
   }
 
   /**

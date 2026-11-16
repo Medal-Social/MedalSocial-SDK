@@ -8,6 +8,7 @@
  * `createIcs`, `createPaths`, `createNextFree`, and the portal helpers.
  */
 
+export * from './ad-click';
 export * from './age';
 export * from './attempt-store';
 export * from './categories';

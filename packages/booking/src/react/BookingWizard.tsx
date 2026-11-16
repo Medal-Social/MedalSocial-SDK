@@ -110,6 +110,12 @@ export interface BookingWizardProps extends BookingOverrides {
   siteUrl?: string;
   /** A monitoring tap: the step the visitor is on, and a submission's outcome. */
   onEvent?: (event: BookingWizardEvent) => void;
+  /**
+   * The Google Ads click this visitor arrived with (`gclid`, `gbraid` or
+   * `wbraid`), asked for when the booking is sent. Answer `null` until the
+   * visitor has agreed to marketing. Sent to Medal Social with the booking.
+   */
+  adClick?: Parameters<typeof useBooking>[0]['adClick'];
 }
 
 type BookingGuardianProp = Parameters<typeof useBooking>[0]['guardian'];

@@ -42,6 +42,8 @@ export interface LegacyWizardProps {
   noActions?: boolean;
   /** The monitoring tap. */
   onEvent?: ComponentProps<typeof PackageWizard>['onEvent'];
+  /** The site's Google Ads click, asked for when the booking is sent. */
+  adClick?: ComponentProps<typeof PackageWizard>['adClick'];
 }
 
 const CONFIGS = new Map<string, ReturnType<typeof resolveBookingConfig>>();
@@ -91,6 +93,7 @@ export function BookingWizard({
   emailRequired = false,
   noActions = false,
   onEvent,
+  adClick,
 }: LegacyWizardProps) {
   return (
     <PackageWizard
@@ -108,6 +111,7 @@ export function BookingWizard({
       rangeDays={rangeDays}
       guardian={guardian}
       onEvent={onEvent}
+      adClick={adClick}
     />
   );
 }
