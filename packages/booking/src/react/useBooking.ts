@@ -1960,9 +1960,11 @@ export function useBooking(options: UseBookingOptions) {
         ? adClickOf(released.adClick)
         : asked;
     // The ad source has no consent to follow, so the released try's simply
-    // stands: the same body under the same nonce.
+    // stands: the same body under the same nonce. `adClick` is what marks a
+    // released record, so one written before `adSource` existed (a deploy
+    // between the refusal and the login) reads as a try that carried none.
     const adSource =
-      released.adSource !== undefined && released.nonce === body.submissionNonce
+      released.adClick !== undefined && released.nonce === body.submissionNonce
         ? adSourceOf(released.adSource)
         : siteAdSource(options.adSource);
     const submitted: BookingSubmission = {

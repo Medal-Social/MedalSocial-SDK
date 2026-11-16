@@ -4652,6 +4652,39 @@ describe('BookingWizard with account.required', () => {
     expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adClick');
   });
 
+  it('sends no ad source after a login for a try released before the wizard knew of one', async () => {
+    window.sessionStorage.clear();
+    stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    renderWizard({
+      accountRequired: true,
+      guardian: KARI,
+      adSource: () => ({ network: 'meta', campaign: 'ck-host' }),
+    });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+
+    // The record as the previous release wrote it: a nonce and a click, no source.
+    const KEY = 'demo:booking:attempt';
+    const { adSource: _later, ...older } = JSON.parse(window.sessionStorage.getItem(KEY) ?? '{}');
+    window.sessionStorage.setItem(KEY, JSON.stringify(older));
+
+    const open = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adSource');
+  });
+
   it.each([
     ['with a stylist', SARA.id],
     // A salon whose openings name nobody: the visit sent had no resource either.
