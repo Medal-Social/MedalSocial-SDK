@@ -245,6 +245,7 @@ export type {
   Booking,
   BookingActionResult,
   BookingAdClickInput,
+  BookingAdSourceInput,
   BookingAttentionFeed,
   BookingAttentionItem,
   BookingAttentionKind,

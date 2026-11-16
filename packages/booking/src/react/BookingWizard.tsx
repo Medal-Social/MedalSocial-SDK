@@ -116,6 +116,12 @@ export interface BookingWizardProps extends BookingOverrides {
    * visitor has agreed to marketing. Sent to Medal Social with the booking.
    */
   adClick?: Parameters<typeof useBooking>[0]['adClick'];
+  /**
+   * The ad this visitor came from, read by the site off its own landing link:
+   * `{ network: 'google' | 'meta', campaign? }`, or `null`. No click id and no
+   * cookie, so no consent is needed. Sent to Medal Social with the booking.
+   */
+  adSource?: Parameters<typeof useBooking>[0]['adSource'];
 }
 
 type BookingGuardianProp = Parameters<typeof useBooking>[0]['guardian'];

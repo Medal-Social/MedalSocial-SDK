@@ -9,6 +9,7 @@
  */
 
 export * from './ad-click';
+export * from './ad-source';
 export * from './age';
 export * from './attempt-store';
 export * from './categories';

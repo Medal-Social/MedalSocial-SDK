@@ -1306,6 +1306,40 @@ describe('BookingWizard submission', () => {
     expect('googleReferral' in (bodies[0] as object)).toBe(false);
   });
 
+  it('sends the ad source the site names, with no click and no consent involved', async () => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ adSource: () => ({ network: 'meta', campaign: 'ck-host' }) });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect(bodies[0]).toMatchObject({ adSource: { network: 'meta', campaign: 'ck-host' } });
+    expect('adClick' in (bodies[0] as object)).toBe(false);
+  });
+
+  it.each([
+    ['answers null', () => null],
+    ['names a network Medal does not count', () => ({ network: 'tiktok' })],
+    [
+      'throws',
+      () => {
+        throw new Error('no landing page');
+      },
+    ],
+  ])('books without a source when the site %s', async (_, adSource) => {
+    const { bodies } = stubApi(OPEN_AT_ONE);
+    const user = userEvent.setup();
+    renderWizard({ adSource: adSource as () => null });
+
+    await fillIn(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+
+    expect('adSource' in (bodies[0] as object)).toBe(false);
+  });
+
   it('sends the ad click the site hands it, asked for when the booking is sent', async () => {
     const { bodies } = stubApi(OPEN_AT_ONE);
     const user = userEvent.setup();
@@ -4618,6 +4652,39 @@ describe('BookingWizard with account.required', () => {
     expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adClick');
   });
 
+  it('sends no ad source after a login for a try released before the wizard knew of one', async () => {
+    window.sessionStorage.clear();
+    stubApi({
+      ...OPEN_AT_ONE,
+      createStatus: 401,
+      create: { error: 'accountRequired', message: 'Log in to book' },
+    });
+    const user = userEvent.setup();
+    renderWizard({
+      accountRequired: true,
+      guardian: KARI,
+      adSource: () => ({ network: 'meta', campaign: 'ck-host' }),
+    });
+    await tickJonas(user);
+    await pickGutteklipp(user);
+    await user.click(await screen.findByRole('button', { name: '13:00' }));
+    await onDetails();
+    await user.click(screen.getByRole('checkbox', { name: /Jeg forstår/ }));
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Nesten ferdig' });
+
+    // The record as the previous release wrote it: a nonce and a click, no source.
+    const KEY = 'demo:booking:attempt';
+    const { adSource: _later, ...older } = JSON.parse(window.sessionStorage.getItem(KEY) ?? '{}');
+    window.sessionStorage.setItem(KEY, JSON.stringify(older));
+
+    const open = stubApi(OPEN_AT_ONE);
+    await logInByEmail(user);
+    await user.click(screen.getByRole('button', { name: /Bekreft time/ }));
+    await screen.findByRole('heading', { name: 'Timen er bekreftet! 🎉' });
+    expect(open.bodies.find((body) => 'items' in (body as object))).not.toHaveProperty('adSource');
+  });
+
   it.each([
     ['with a stylist', SARA.id],
     // A salon whose openings name nobody: the visit sent had no resource either.
@@ -4636,10 +4703,12 @@ describe('BookingWizard with account.required', () => {
       const user = userEvent.setup();
       // With a stylist the first try carries a click; without, it carries none.
       const firstClick = resourceId === null ? null : { gclid: 'Cj0KCQ-first' };
+      const firstSource = resourceId === null ? null : { network: 'meta' as const };
       const view = renderWizard({
         accountRequired: true,
         guardian: KARI,
         adClick: () => firstClick,
+        adSource: () => firstSource,
       });
       await tickJonas(user);
       await pickGutteklipp(user);
@@ -4664,6 +4733,7 @@ describe('BookingWizard with account.required', () => {
         accountRequired: true,
         guardian: KARI,
         adClick: () => ({ gclid: 'Cj0KCQ-later' }),
+        adSource: () => ({ network: 'google', campaign: 'ck-later' }),
       });
 
       const heading = await screen.findByRole('heading', { name: 'Nesten ferdig' });
@@ -4680,7 +4750,11 @@ describe('BookingWizard with account.required', () => {
       // derive the same key to meet that booking rather than make a second.
       expect(second.bodies.filter((body) => 'items' in (body as object))).toHaveLength(1);
       const stored = JSON.parse(window.sessionStorage.getItem('demo:booking:attempt') ?? 'null');
-      expect(stored).toMatchObject({ nonce: submissionNonce, adClick: firstClick });
+      expect(stored).toMatchObject({
+        nonce: submissionNonce,
+        adClick: firstClick,
+        adSource: firstSource,
+      });
       expect(stored).not.toHaveProperty('pending');
 
       // Logged in again, the same hour goes through — under the same nonce.
@@ -4699,6 +4773,8 @@ describe('BookingWizard with account.required', () => {
       // Medal refuses the key with another body.
       if (firstClick === null) expect(submitted).not.toHaveProperty('adClick');
       else expect(submitted).toMatchObject({ adClick: firstClick });
+      if (firstSource === null) expect(submitted).not.toHaveProperty('adSource');
+      else expect(submitted).toMatchObject({ adSource: firstSource });
     }
   );
 

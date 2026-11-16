@@ -276,6 +276,40 @@ describe('POST /api/booking/create', () => {
     expect('ad_click' in submittedBody()).toBe(false);
   });
 
+  it('forwards the ad source to Medal, outside the idempotency key', async () => {
+    const adSource = { network: 'meta', campaign: 'ck-host' };
+    await POST(nonceRequest());
+    await POST(nonceRequest({ adSource }));
+
+    expect(submittedBody().ad_source).toBeUndefined();
+    expect(vi.mocked(createBooking).mock.calls[1][0].ad_source).toEqual(adSource);
+    expect(keyOf(1)).toBe(keyOf(0));
+  });
+
+  it('forwards the source beside a click, and keeps only what Medal takes of it', async () => {
+    await POST(
+      nonceRequest({
+        adClick: { gclid: 'ok-1' },
+        adSource: { network: 'google', campaign: 'Kari Nordmann', utm_term: 'x' },
+      })
+    );
+
+    expect(submittedBody().ad_click).toEqual({ gclid: 'ok-1' });
+    expect(submittedBody().ad_source).toEqual({ network: 'google' });
+  });
+
+  it.each([
+    ['a network Medal does not count', { network: 'tiktok', campaign: 'a' }],
+    ['no network', { campaign: 'ck-host' }],
+    ['null', null],
+    ['something that is not an object', 'meta'],
+  ])('drops a source with %s and books anyway', async (_, adSource) => {
+    const response = await POST(nonceRequest({ adSource }));
+
+    expect(response.status).toBe(201);
+    expect('ad_source' in submittedBody()).toBe(false);
+  });
+
   it('still books without a nonce, one key per request', async () => {
     // An older wizard, or anything that is not the wizard. It loses the
     // guarantee, not the appointment: refusing it would turn a missing nicety

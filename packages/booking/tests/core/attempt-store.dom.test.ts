@@ -53,22 +53,24 @@ describe('createAttemptStore', () => {
     store.releasePending(attempt);
 
     // Nothing replayed on the next load, and the next submission is the same attempt.
-    expect(store.readAttempt()).toEqual({ nonce: attempt.nonce, adClick: null });
+    expect(store.readAttempt()).toEqual({ nonce: attempt.nonce, adClick: null, adSource: null });
   });
 
   it('keeps the ad click a released submission carried, beside its nonce', () => {
     const attempt = store.readAttempt();
     store.rememberPending(attempt, { submission: SUBMISSION, submitted: SUBMITTED });
 
-    store.releasePending(attempt, { gclid: 'Cj0KCQ-first' });
+    store.releasePending(attempt, { gclid: 'Cj0KCQ-first' }, { network: 'meta' });
 
     expect(store.readAttempt()).toEqual({
       nonce: attempt.nonce,
       adClick: { gclid: 'Cj0KCQ-first' },
+      adSource: { network: 'meta' },
     });
     // The next send writes the body again, and the click lives in it from then on.
     store.rememberPending(attempt, { submission: SUBMISSION, submitted: SUBMITTED });
     expect(store.readAttempt()).not.toHaveProperty('adClick');
+    expect(store.readAttempt()).not.toHaveProperty('adSource');
   });
 
   it('keeps a pending submission, then swaps it for the confirmation', () => {
